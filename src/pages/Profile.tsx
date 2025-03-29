@@ -173,7 +173,7 @@ const Profile = () => {
                             Exam for {courses.find(c => c.id === exam.courseId)?.title || "Unknown Course"}
                           </div>
                         </div>
-                        <Badge variant="primary">Exam</Badge>
+                        <Badge variant="default">Exam</Badge>
                       </div>
                     ))}
                   </div>
