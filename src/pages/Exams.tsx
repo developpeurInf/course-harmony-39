@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Exam } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,12 @@ import {
   Edit, 
   Trash, 
   Plus,
-  Clock
+  Clock,
+  LayoutGrid,
+  LayoutList
 } from "lucide-react";
 import { format } from "date-fns";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const Exams = () => {
   const { user } = useAuth();
@@ -47,9 +50,13 @@ const Exams = () => {
     getVisibleExamsForStudent 
   } = useCourses();
   
+  const location = useLocation();
+  const navigate = useNavigate();
+  
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -59,13 +66,33 @@ const Exams = () => {
   const [duration, setDuration] = useState(60);
   const [isVisible, setIsVisible] = useState(true);
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>("all");
   
   const isProfessor = user?.role === "professor";
   
-  // Filter exams based on user role
-  const displayedExams = isProfessor 
-    ? exams 
-    : (user ? getVisibleExamsForStudent(user.id) : []);
+  // Parse course ID from URL query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const courseParam = params.get('course');
+    if (courseParam && courses.some(c => c.id === courseParam)) {
+      setSelectedCourseFilter(courseParam);
+    }
+  }, [location.search, courses]);
+  
+  // Update URL when filter changes
+  const updateUrlWithFilter = (courseId: string) => {
+    if (courseId === "all") {
+      navigate('/exams');
+    } else {
+      navigate(`/exams?course=${courseId}`);
+    }
+  };
+  
+  // Filter exams based on user role and selected course
+  const userExams = isProfessor ? exams : (user ? getVisibleExamsForStudent(user.id) : []);
+  const displayedExams = selectedCourseFilter === "all" 
+    ? userExams 
+    : userExams.filter(exam => exam.courseId === selectedCourseFilter);
 
   // Filter courses based on user role for the course dropdown
   const availableCourses = isProfessor 
@@ -202,6 +229,24 @@ const Exams = () => {
     return examDate < now;
   };
 
+  // Toggle view mode between grid and list
+  const toggleViewMode = () => {
+    setViewMode(viewMode === "grid" ? "list" : "grid");
+  };
+
+  // Handle course filter change
+  const handleCourseFilterChange = (courseId: string) => {
+    setSelectedCourseFilter(courseId);
+    updateUrlWithFilter(courseId);
+  };
+
+  // Set initial courseId for new exam form if a course is selected
+  useEffect(() => {
+    if (selectedCourseFilter !== "all" && selectedCourseFilter && isAddDialogOpen) {
+      setCourseId(selectedCourseFilter);
+    }
+  }, [selectedCourseFilter, isAddDialogOpen]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -214,199 +259,305 @@ const Exams = () => {
           </p>
         </div>
         
-        {isProfessor && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Exam
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Schedule New Exam</DialogTitle>
-                <DialogDescription>
-                  Create a new exam for one of your courses.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="course">Course</Label>
-                  <Select value={courseId} onValueChange={setCourseId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a course" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {courses.map(course => (
-                        <SelectItem key={course.id} value={course.id}>
-                          {course.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="title">Exam Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Midterm Exam"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Enter exam description and topics covered"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={toggleViewMode}
+            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
+          >
+            {viewMode === "grid" ? (
+              <LayoutList className="h-4 w-4" />
+            ) : (
+              <LayoutGrid className="h-4 w-4" />
+            )}
+          </Button>
+          
+          {isProfessor && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Exam
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Schedule New Exam</DialogTitle>
+                  <DialogDescription>
+                    Create a new exam for one of your courses.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="examDate">Exam Date</Label>
+                    <Label htmlFor="course">Course</Label>
+                    <Select value={courseId} onValueChange={setCourseId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a course" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courses.map(course => (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Exam Title</Label>
                     <Input
-                      id="examDate"
-                      type="date"
-                      value={examDate}
-                      onChange={(e) => setExamDate(e.target.value)}
+                      id="title"
+                      placeholder="e.g., Midterm Exam"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="examTime">Start Time</Label>
-                    <Input
-                      id="examTime"
-                      type="time"
-                      value={examTime}
-                      onChange={(e) => setExamTime(e.target.value)}
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Enter exam description and topics covered"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={3}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="examDate">Exam Date</Label>
+                      <Input
+                        id="examDate"
+                        type="date"
+                        value={examDate}
+                        onChange={(e) => setExamDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="examTime">Start Time</Label>
+                      <Input
+                        id="examTime"
+                        type="time"
+                        value={examTime}
+                        onChange={(e) => setExamTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Duration (minutes)</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min="15"
+                      step="15"
+                      value={duration}
+                      onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="visibility"
+                      checked={isVisible}
+                      onCheckedChange={setIsVisible}
+                    />
+                    <Label htmlFor="visibility">Visible to students</Label>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Duration (minutes)</Label>
-                  <Input
-                    id="duration"
-                    type="number"
-                    min="15"
-                    step="15"
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="visibility"
-                    checked={isVisible}
-                    onCheckedChange={setIsVisible}
-                  />
-                  <Label htmlFor="visibility">Visible to students</Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleAddExam}
-                  disabled={!title || !courseId || !examDate || !examTime}
-                >
-                  Schedule Exam
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleAddExam}
+                    disabled={!title || !courseId || !examDate || !examTime}
+                  >
+                    Schedule Exam
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
+
+      {/* Course filter */}
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+        <div className="w-full sm:w-64">
+          <Select value={selectedCourseFilter} onValueChange={handleCourseFilterChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by course" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Courses</SelectItem>
+              {availableCourses.map(course => (
+                <SelectItem key={course.id} value={course.id}>
+                  {course.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Showing {displayedExams.length} {displayedExams.length === 1 ? "exam" : "exams"}
+          {selectedCourseFilter !== "all" && " for " + getCourseName(selectedCourseFilter)}
+        </p>
       </div>
 
       {displayedExams.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayedExams.map((exam) => (
-            <Card key={exam.id} className="overflow-hidden card-hover">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <CardTitle>{exam.title}</CardTitle>
-                  <div className="flex flex-col items-end gap-1">
-                    {!exam.isVisible && (
-                      <Badge variant="outline">Hidden</Badge>
-                    )}
+        viewMode === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {displayedExams.map((exam) => (
+              <Card key={exam.id} className="overflow-hidden card-hover">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <CardTitle>{exam.title}</CardTitle>
+                    <div className="flex flex-col items-end gap-1">
+                      {!exam.isVisible && (
+                        <Badge variant="outline">Hidden</Badge>
+                      )}
+                      {isPastExam(exam.date) ? (
+                        <Badge variant="secondary">Past</Badge>
+                      ) : (
+                        <Badge>Upcoming</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <CardDescription className="mt-1">
+                    {getCourseName(exam.courseId)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <p className="text-sm mb-3">{exam.description}</p>
+                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      <span>{formatExamDateTime(exam.date)}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>Duration: {formatDuration(exam.duration)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+                {isProfessor && (
+                  <CardFooter className="border-t bg-muted/30 px-6 py-3">
+                    <div className="flex justify-between w-full">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleToggleVisibility(exam.id)}
+                        title={exam.isVisible ? "Hide from students" : "Make visible to students"}
+                      >
+                        {exam.isVisible ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => openEditDialog(exam)}
+                          title="Edit exam"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => openDeleteDialog(exam)}
+                          title="Delete exam"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardFooter>
+                )}
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {displayedExams.map((exam) => (
+              <div key={exam.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
+                <div className="space-y-1 mb-2 sm:mb-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">{exam.title}</h3>
+                    {!exam.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
                     {isPastExam(exam.date) ? (
-                      <Badge variant="secondary">Past</Badge>
+                      <Badge variant="secondary" className="h-5">Past</Badge>
                     ) : (
-                      <Badge variant="primary">Upcoming</Badge>
+                      <Badge className="h-5">Upcoming</Badge>
                     )}
                   </div>
-                </div>
-                <CardDescription className="mt-1">
-                  {getCourseName(exam.courseId)}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <p className="text-sm mb-3">{exam.description}</p>
-                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-1" />
+                  <p className="text-sm text-muted-foreground">{getCourseName(exam.courseId)}</p>
+                  <div className="flex items-center text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3 mr-1" />
                     <span>{formatExamDateTime(exam.date)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
+                    <span className="mx-2">•</span>
+                    <Clock className="h-3 w-3 mr-1" />
                     <span>Duration: {formatDuration(exam.duration)}</span>
                   </div>
                 </div>
-              </CardContent>
-              {isProfessor && (
-                <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                  <div className="flex justify-between w-full">
+                
+                {isProfessor && (
+                  <div className="flex space-x-2 w-full sm:w-auto justify-end">
                     <Button 
                       variant="ghost" 
-                      size="icon"
+                      size="sm"
                       onClick={() => handleToggleVisibility(exam.id)}
-                      title={exam.isVisible ? "Hide from students" : "Make visible to students"}
                     >
                       {exam.isVisible ? (
-                        <EyeOff className="h-4 w-4" />
+                        <EyeOff className="h-4 w-4 mr-1" />
                       ) : (
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 mr-1" />
                       )}
+                      <span>{exam.isVisible ? "Hide" : "Show"}</span>
                     </Button>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => openEditDialog(exam)}
-                        title="Edit exam"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => openDeleteDialog(exam)}
-                        title="Delete exam"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => openEditDialog(exam)}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      <span>Edit</span>
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => openDeleteDialog(exam)}
+                    >
+                      <Trash className="h-4 w-4 mr-1" />
+                      <span>Delete</span>
+                    </Button>
                   </div>
-                </CardFooter>
-              )}
-            </Card>
-          ))}
-        </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
           <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-medium">No exams found</h3>
           <p className="text-muted-foreground text-center max-w-md mt-2">
             {isProfessor 
-              ? "You haven't scheduled any exams yet. Add your first exam to get started."
-              : "You don't have any exams scheduled yet."}
+              ? selectedCourseFilter !== "all" 
+                ? `You haven't scheduled any exams for ${getCourseName(selectedCourseFilter)} yet.`
+                : "You haven't scheduled any exams yet. Add your first exam to get started."
+              : selectedCourseFilter !== "all"
+                ? `No exams are currently scheduled for ${getCourseName(selectedCourseFilter)}.`
+                : "You don't have any exams scheduled yet."}
           </p>
           {isProfessor && (
             <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Schedule Your First Exam
+              {selectedCourseFilter !== "all" 
+                ? `Schedule Exam for ${getCourseName(selectedCourseFilter)}`
+                : "Schedule Your First Exam"}
             </Button>
           )}
         </div>

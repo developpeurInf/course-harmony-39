@@ -25,7 +25,10 @@ import {
   Trash, 
   Plus,
   Users,
-  CheckCircle
+  FileText,
+  Calendar,
+  LayoutGrid,
+  LayoutList
 } from "lucide-react";
 import {
   Select,
@@ -34,11 +37,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 
 const Courses = () => {
   const { user, getStudents } = useAuth();
   const { 
     courses, 
+    exercises,
+    exams,
     addCourse, 
     updateCourse, 
     deleteCourse, 
@@ -48,10 +54,12 @@ const Courses = () => {
     getVisibleCoursesForStudent
   } = useCourses();
   
+  const navigate = useNavigate();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -149,6 +157,31 @@ const Courses = () => {
     toggleCourseVisibility(courseId);
   };
 
+  // Toggle view mode between grid and list
+  const toggleViewMode = () => {
+    setViewMode(viewMode === "grid" ? "list" : "grid");
+  };
+
+  // Get course statistics
+  const getCourseStats = (courseId: string) => {
+    const courseExercises = exercises.filter(e => e.courseId === courseId);
+    const courseExams = exams.filter(e => e.courseId === courseId);
+    
+    return {
+      exerciseCount: courseExercises.length,
+      examCount: courseExams.length
+    };
+  };
+
+  // Navigate to filtered exercises/exams for a course
+  const navigateToExercises = (courseId: string) => {
+    navigate(`/exercises?course=${courseId}`);
+  };
+
+  const navigateToExams = (courseId: string) => {
+    navigate(`/exams?course=${courseId}`);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -161,133 +194,253 @@ const Courses = () => {
           </p>
         </div>
         
-        {isProfessor && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Course
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Course</DialogTitle>
-                <DialogDescription>
-                  Create a new course and make it available to students.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Course Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Introduction to Computer Science"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Enter course description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="visibility"
-                    checked={isVisible}
-                    onCheckedChange={setIsVisible}
-                  />
-                  <Label htmlFor="visibility">Visible to students</Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={toggleViewMode}
+            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
+          >
+            {viewMode === "grid" ? (
+              <LayoutList className="h-4 w-4" />
+            ) : (
+              <LayoutGrid className="h-4 w-4" />
+            )}
+          </Button>
+          
+          {isProfessor && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Course
                 </Button>
-                <Button onClick={handleAddCourse}>
-                  Create Course
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Course</DialogTitle>
+                  <DialogDescription>
+                    Create a new course and make it available to students.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Course Title</Label>
+                    <Input
+                      id="title"
+                      placeholder="e.g., Introduction to Computer Science"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Enter course description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="visibility"
+                      checked={isVisible}
+                      onCheckedChange={setIsVisible}
+                    />
+                    <Label htmlFor="visibility">Visible to students</Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddCourse}>
+                    Create Course
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {displayedCourses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayedCourses.map((course) => (
-            <Card key={course.id} className="overflow-hidden card-hover">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <CardTitle>{course.title}</CardTitle>
-                  {!course.isVisible && (
-                    <Badge variant="outline">Hidden</Badge>
-                  )}
-                </div>
-                <CardDescription className="mt-2">
-                  {course.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <div className="flex justify-between items-center text-sm">
-                  <div className="flex items-center text-muted-foreground">
-                    <Users className="h-4 w-4 mr-1" />
-                    <span>{course.enrolledStudents.length} students</span>
-                  </div>
-                </div>
-              </CardContent>
-              {isProfessor && (
-                <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                  <div className="flex justify-between w-full">
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => handleToggleVisibility(course.id)}
-                      title={course.isVisible ? "Hide from students" : "Make visible to students"}
-                    >
-                      {course.isVisible ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
+        viewMode === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {displayedCourses.map((course) => {
+              const stats = getCourseStats(course.id);
+              
+              return (
+                <Card key={course.id} className="overflow-hidden card-hover">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <CardTitle>{course.title}</CardTitle>
+                      {!course.isVisible && (
+                        <Badge variant="outline">Hidden</Badge>
                       )}
-                    </Button>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => openEnrollDialog(course)}
-                        title="Manage students"
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => openEditDialog(course)}
-                        title="Edit course"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => openDeleteDialog(course)}
-                        title="Delete course"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
+                    </div>
+                    <CardDescription className="mt-2">
+                      {course.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <div className="flex items-center text-muted-foreground">
+                          <Users className="h-4 w-4 mr-1" />
+                          <span>{course.enrolledStudents.length} students</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-3 mt-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7"
+                          onClick={() => navigateToExercises(course.id)}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          {stats.exerciseCount} {stats.exerciseCount === 1 ? "Exercise" : "Exercises"}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7"
+                          onClick={() => navigateToExams(course.id)}
+                        >
+                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          {stats.examCount} {stats.examCount === 1 ? "Exam" : "Exams"}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                  {isProfessor && (
+                    <CardFooter className="border-t bg-muted/30 px-6 py-3">
+                      <div className="flex justify-between w-full">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleToggleVisibility(course.id)}
+                          title={course.isVisible ? "Hide from students" : "Make visible to students"}
+                        >
+                          {course.isVisible ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openEnrollDialog(course)}
+                            title="Manage students"
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openEditDialog(course)}
+                            title="Edit course"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openDeleteDialog(course)}
+                            title="Delete course"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardFooter>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {displayedCourses.map((course) => {
+              const stats = getCourseStats(course.id);
+              
+              return (
+                <div key={course.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
+                  <div className="space-y-1 mb-2 sm:mb-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium">{course.title}</h3>
+                      {!course.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{course.description}</p>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      <Users className="h-3 w-3 mr-1" />
+                      <span>{course.enrolledStudents.length} students</span>
+                      <span className="mx-2">•</span>
+                      <FileText className="h-3 w-3 mr-1" />
+                      <span>{stats.exerciseCount} exercises</span>
+                      <span className="mx-2">•</span>
+                      <Calendar className="h-3 w-3 mr-1" />
+                      <span>{stats.examCount} exams</span>
                     </div>
                   </div>
-                </CardFooter>
-              )}
-            </Card>
-          ))}
-        </div>
+                  
+                  <div className="flex space-x-2 w-full sm:w-auto justify-end">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigateToExercises(course.id)}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      <span>Exercises</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigateToExams(course.id)}
+                    >
+                      <Calendar className="h-4 w-4 mr-1" />
+                      <span>Exams</span>
+                    </Button>
+                    
+                    {isProfessor && (
+                      <>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openEnrollDialog(course)}
+                        >
+                          <Users className="h-4 w-4 mr-1" />
+                          <span>Students</span>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openEditDialog(course)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          <span>Edit</span>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openDeleteDialog(course)}
+                        >
+                          <Trash className="h-4 w-4 mr-1" />
+                          <span>Delete</span>
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
           <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
