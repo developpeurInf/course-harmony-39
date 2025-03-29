@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { GraduationCap, BookOpen } from "lucide-react";
+import { GraduationCap, BookOpen, LogIn } from "lucide-react";
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
@@ -98,7 +98,17 @@ const LoginForm = () => {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login"}
+              {isLoading ? (
+                <span className="flex items-center">
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+                  Logging in...
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Login
+                </span>
+              )}
             </Button>
           </form>
         </CardContent>

@@ -50,6 +50,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   getStudents: () => User[];
+  isLoggedIn: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,12 +58,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     // Check for saved login
     const savedUser = localStorage.getItem("courseHarmonyUser");
     if (savedUser) {
       setUser(JSON.parse(savedUser));
+      setIsLoggedIn(true);
     }
     setLoading(false);
   }, []);
@@ -74,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (foundUser) {
       setUser(foundUser);
+      setIsLoggedIn(true);
       localStorage.setItem("courseHarmonyUser", JSON.stringify(foundUser));
       toast.success(`Welcome, ${foundUser.name}!`);
       return true;
@@ -85,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setIsLoggedIn(false);
     localStorage.removeItem("courseHarmonyUser");
     toast.info("You have been logged out");
   };
@@ -95,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, getStudents }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, getStudents, isLoggedIn }}>
       {children}
     </AuthContext.Provider>
   );

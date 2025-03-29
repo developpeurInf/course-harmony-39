@@ -12,6 +12,8 @@ export interface Course {
   professorId: string;
   enrolledStudents: string[]; // Student IDs
   createdAt: string;
+  pdfFile?: File | null;
+  pdfFileName?: string;
 }
 
 export interface Exercise {
@@ -22,6 +24,8 @@ export interface Exercise {
   dueDate: string;
   isVisible: boolean;
   createdAt: string;
+  pdfFile?: File | null;
+  pdfFileName?: string;
 }
 
 export interface Exam {
@@ -33,6 +37,8 @@ export interface Exam {
   duration: number; // in minutes
   isVisible: boolean;
   createdAt: string;
+  pdfFile?: File | null;
+  pdfFileName?: string;
 }
 
 // Mock initial data
@@ -150,6 +156,9 @@ interface CourseContextType {
   getVisibleCoursesForStudent: (studentId: string) => Course[];
   getVisibleExercisesForStudent: (studentId: string) => Exercise[];
   getVisibleExamsForStudent: (studentId: string) => Exam[];
+  setCourseFile: (courseId: string, file: File | null) => void;
+  setExerciseFile: (exerciseId: string, file: File | null) => void;
+  setExamFile: (examId: string, file: File | null) => void;
 }
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
@@ -173,10 +182,74 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   // Save data to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem("courseHarmonyCourses", JSON.stringify(courses));
-    localStorage.setItem("courseHarmonyExercises", JSON.stringify(exercises));
-    localStorage.setItem("courseHarmonyExams", JSON.stringify(exams));
+    localStorage.setItem("courseHarmonyCourses", JSON.stringify(courses.map(course => {
+      // Remove the actual File object before storing in localStorage
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { pdfFile, ...courseWithoutFile } = course;
+      return courseWithoutFile;
+    })));
+    
+    localStorage.setItem("courseHarmonyExercises", JSON.stringify(exercises.map(exercise => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { pdfFile, ...exerciseWithoutFile } = exercise;
+      return exerciseWithoutFile;
+    })));
+    
+    localStorage.setItem("courseHarmonyExams", JSON.stringify(exams.map(exam => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { pdfFile, ...examWithoutFile } = exam;
+      return examWithoutFile;
+    })));
   }, [courses, exercises, exams]);
+
+  // File handling functions
+  const setCourseFile = (courseId: string, file: File | null) => {
+    setCourses(
+      courses.map((course) => {
+        if (course.id === courseId) {
+          return {
+            ...course,
+            pdfFile: file,
+            pdfFileName: file ? file.name : undefined
+          };
+        }
+        return course;
+      })
+    );
+    toast.success(file ? "PDF added to course" : "PDF removed from course");
+  };
+
+  const setExerciseFile = (exerciseId: string, file: File | null) => {
+    setExercises(
+      exercises.map((exercise) => {
+        if (exercise.id === exerciseId) {
+          return {
+            ...exercise,
+            pdfFile: file,
+            pdfFileName: file ? file.name : undefined
+          };
+        }
+        return exercise;
+      })
+    );
+    toast.success(file ? "PDF added to exercise" : "PDF removed from exercise");
+  };
+
+  const setExamFile = (examId: string, file: File | null) => {
+    setExams(
+      exams.map((exam) => {
+        if (exam.id === examId) {
+          return {
+            ...exam,
+            pdfFile: file,
+            pdfFileName: file ? file.name : undefined
+          };
+        }
+        return exam;
+      })
+    );
+    toast.success(file ? "PDF added to exam" : "PDF removed from exam");
+  };
 
   // Course functions
   const addCourse = (course: Omit<Course, "id" | "createdAt" | "professorId">) => {
@@ -384,6 +457,9 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         getVisibleCoursesForStudent,
         getVisibleExercisesForStudent,
         getVisibleExamsForStudent,
+        setCourseFile,
+        setExerciseFile,
+        setExamFile,
       }}
     >
       {children}
