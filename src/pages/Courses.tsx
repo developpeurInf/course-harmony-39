@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,8 @@ import {
   FileText,
   Calendar,
   LayoutGrid,
-  LayoutList
+  LayoutList,
+  Building
 } from "lucide-react";
 import {
   Select,
@@ -37,11 +38,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Courses = () => {
   const { user, getStudents } = useAuth();
   const { 
+    rooms,
     courses, 
     exercises,
     exams,
@@ -54,6 +56,7 @@ const Courses = () => {
     getVisibleCoursesForStudent
   } = useCourses();
   
+  const location = useLocation();
   const navigate = useNavigate();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -63,22 +66,47 @@ const Courses = () => {
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [roomId, setRoomId] = useState("");
   const [isVisible, setIsVisible] = useState(true);
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>("all");
   
   const students = getStudents();
   const isProfessor = user?.role === "professor";
   
-  // Filter courses based on user role
-  const displayedCourses = isProfessor 
+  // Parse room ID from URL query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const roomParam = params.get('room');
+    if (roomParam && rooms.some(r => r.id === roomParam)) {
+      setSelectedRoomFilter(roomParam);
+    }
+  }, [location.search, rooms]);
+  
+  // Update URL when filter changes
+  const updateUrlWithFilter = (roomId: string) => {
+    if (roomId === "all") {
+      navigate('/courses');
+    } else {
+      navigate(`/courses?room=${roomId}`);
+    }
+  };
+  
+  // Filter courses based on user role and selected room
+  const userCourses = isProfessor 
     ? courses 
     : (user ? getVisibleCoursesForStudent(user.id) : []);
+  
+  const displayedCourses = selectedRoomFilter === "all" 
+    ? userCourses 
+    : userCourses.filter(course => course.roomId === selectedRoomFilter);
 
   // Reset form
   const resetForm = () => {
     setTitle("");
     setDescription("");
+    setRoomId("");
     setIsVisible(true);
     setCurrentCourse(null);
     setSelectedStudentId("");
@@ -90,6 +118,7 @@ const Courses = () => {
       title,
       description,
       isVisible,
+      roomId: roomId || undefined,
       enrolledStudents: []
     });
     setIsAddDialogOpen(false);
@@ -102,6 +131,7 @@ const Courses = () => {
       updateCourse(currentCourse.id, {
         title,
         description,
+        roomId: roomId || undefined,
         isVisible
       });
       setIsEditDialogOpen(false);
@@ -123,6 +153,7 @@ const Courses = () => {
     setCurrentCourse(course);
     setTitle(course.title);
     setDescription(course.description);
+    setRoomId(course.roomId || "");
     setIsVisible(course.isVisible);
     setIsEditDialogOpen(true);
   };
@@ -173,6 +204,13 @@ const Courses = () => {
     };
   };
 
+  // Get room name from ID
+  const getRoomName = (roomId?: string) => {
+    if (!roomId) return "No Room";
+    const room = rooms.find(r => r.id === roomId);
+    return room ? room.name : "Unknown Room";
+  };
+
   // Navigate to filtered exercises/exams for a course
   const navigateToExercises = (courseId: string) => {
     navigate(`/exercises?course=${courseId}`);
@@ -181,6 +219,19 @@ const Courses = () => {
   const navigateToExams = (courseId: string) => {
     navigate(`/exams?course=${courseId}`);
   };
+
+  // Handle room filter change
+  const handleRoomFilterChange = (roomId: string) => {
+    setSelectedRoomFilter(roomId);
+    updateUrlWithFilter(roomId);
+  };
+
+  // Set initial roomId for new course form if a room is selected
+  useEffect(() => {
+    if (selectedRoomFilter !== "all" && selectedRoomFilter) {
+      setRoomId(selectedRoomFilter);
+    }
+  }, [selectedRoomFilter, isAddDialogOpen]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -226,6 +277,22 @@ const Courses = () => {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
+                    <Label htmlFor="room">Room (Optional)</Label>
+                    <Select value={roomId} onValueChange={setRoomId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a room" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Room</SelectItem>
+                        {rooms.map(room => (
+                          <SelectItem key={room.id} value={room.id}>
+                            {room.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="title">Course Title</Label>
                     <Input
                       id="title"
@@ -267,6 +334,29 @@ const Courses = () => {
         </div>
       </div>
 
+      {/* Room filter */}
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+        <div className="w-full sm:w-64">
+          <Select value={selectedRoomFilter} onValueChange={handleRoomFilterChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by room" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Rooms</SelectItem>
+              {rooms.map(room => (
+                <SelectItem key={room.id} value={room.id}>
+                  {room.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Showing {displayedCourses.length} {displayedCourses.length === 1 ? "course" : "courses"}
+          {selectedRoomFilter !== "all" && " in " + getRoomName(selectedRoomFilter)}
+        </p>
+      </div>
+
       {displayedCourses.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -294,6 +384,14 @@ const Courses = () => {
                           <span>{course.enrolledStudents.length} students</span>
                         </div>
                       </div>
+                      
+                      {course.roomId && (
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Building className="h-4 w-4 mr-1" />
+                          <span>Room: {getRoomName(course.roomId)}</span>
+                        </div>
+                      )}
+                      
                       <div className="flex flex-wrap gap-3 mt-3">
                         <Button 
                           variant="outline" 
@@ -377,15 +475,25 @@ const Courses = () => {
                       {!course.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground">{course.description}</p>
-                    <div className="flex items-center text-xs text-muted-foreground mt-1">
-                      <Users className="h-3 w-3 mr-1" />
-                      <span>{course.enrolledStudents.length} students</span>
-                      <span className="mx-2">•</span>
-                      <FileText className="h-3 w-3 mr-1" />
-                      <span>{stats.exerciseCount} exercises</span>
-                      <span className="mx-2">•</span>
-                      <Calendar className="h-3 w-3 mr-1" />
-                      <span>{stats.examCount} exams</span>
+                    <div className="flex flex-wrap items-center text-xs text-muted-foreground mt-1 gap-x-2">
+                      <div className="flex items-center">
+                        <Users className="h-3 w-3 mr-1" />
+                        <span>{course.enrolledStudents.length} students</span>
+                      </div>
+                      {course.roomId && (
+                        <div className="flex items-center">
+                          <Building className="h-3 w-3 mr-1" />
+                          <span>{getRoomName(course.roomId)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center">
+                        <FileText className="h-3 w-3 mr-1" />
+                        <span>{stats.exerciseCount} exercises</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        <span>{stats.examCount} exams</span>
+                      </div>
                     </div>
                   </div>
                   
@@ -447,13 +555,19 @@ const Courses = () => {
           <h3 className="text-xl font-medium">No courses found</h3>
           <p className="text-muted-foreground text-center max-w-md mt-2">
             {isProfessor 
-              ? "You haven't created any courses yet. Add your first course to get started."
-              : "You are not enrolled in any courses yet. Contact your professor for enrollment."}
+              ? selectedRoomFilter !== "all"
+                ? `There are no courses in ${getRoomName(selectedRoomFilter)} yet.`
+                : "You haven't created any courses yet. Add your first course to get started."
+              : selectedRoomFilter !== "all"
+                ? `You are not enrolled in any courses in ${getRoomName(selectedRoomFilter)}.`
+                : "You are not enrolled in any courses yet. Contact your professor for enrollment."}
           </p>
           {isProfessor && (
             <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Your First Course
+              {selectedRoomFilter !== "all" 
+                ? `Add Course to ${getRoomName(selectedRoomFilter)}`
+                : "Add Your First Course"}
             </Button>
           )}
         </div>
@@ -469,6 +583,22 @@ const Courses = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-room">Room (Optional)</Label>
+              <Select value={roomId} onValueChange={setRoomId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a room" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No Room</SelectItem>
+                  {rooms.map(room => (
+                    <SelectItem key={room.id} value={room.id}>
+                      {room.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-title">Course Title</Label>
               <Input
@@ -514,7 +644,7 @@ const Courses = () => {
           <DialogHeader>
             <DialogTitle>Delete Course</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {currentCourse?.title}? This action cannot be undone.
+              Are you sure you want to delete {currentCourse?.title}? This action cannot be undone and will also delete all associated exercises and exams.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -8,7 +8,8 @@ import {
   Users, 
   Calendar,
   Settings,
-  User
+  User,
+  Building
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -25,6 +26,11 @@ const Sidebar = () => {
         <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Home size={20} />
           <span>Dashboard</span>
+        </NavLink>
+        
+        <NavLink to="/rooms" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Building size={20} />
+          <span>Rooms</span>
         </NavLink>
         
         <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
