@@ -1,524 +1,331 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCourses, Exercise } from "@/contexts/CourseContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useCourses, Exercise, Course } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter,
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
-  FileText, 
-  Eye, 
-  EyeOff, 
-  Edit, 
-  Trash, 
-  Plus,
-  Calendar,
-  LayoutGrid,
-  LayoutList
-} from "lucide-react";
-import { format } from "date-fns";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2 } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import FileUpload from "@/components/FileUpload";
+import PdfInfo from "@/components/PdfInfo";
 
 const Exercises = () => {
   const { user } = useAuth();
-  const { 
-    courses, 
-    exercises, 
-    addExercise, 
-    updateExercise, 
-    deleteExercise, 
-    toggleExerciseVisibility,
-    getVisibleExercisesForStudent 
-  } = useCourses();
-  
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, setExerciseFile } = useCourses();
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [courseId, setCourseId] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [isVisible, setIsVisible] = useState(true);
-  const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
-  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>("all");
+  const [formData, setFormData] = useState({
+    id: "",
+    courseId: "",
+    title: "",
+    description: "",
+    dueDate: "",
+    isVisible: true,
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const isProfessor = user?.role === "professor";
-  
-  // Parse course ID from URL query parameters
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const courseParam = params.get('course');
-    if (courseParam && courses.some(c => c.id === courseParam)) {
-      setSelectedCourseFilter(courseParam);
-    }
-  }, [location.search, courses]);
-  
-  // Update URL when filter changes
-  const updateUrlWithFilter = (courseId: string) => {
-    if (courseId === "all") {
-      navigate('/exercises');
-    } else {
-      navigate(`/exercises?course=${courseId}`);
-    }
-  };
+  const visibleExercises = exercises.filter(
+    (exercise) => exercise.isVisible || isProfessor
+  );
 
-  // Filter exercises based on user role and selected course
-  const userExercises = isProfessor 
-    ? exercises 
-    : (user ? getVisibleExercisesForStudent(user.id) : []);
-  const displayedExercises = selectedCourseFilter === "all" 
-    ? userExercises 
-    : userExercises.filter(exercise => exercise.courseId === selectedCourseFilter);
-
-  // Filter courses based on user role for the course dropdown
-  const availableCourses = isProfessor 
-    ? courses 
-    : courses.filter(course => 
-        course.isVisible && user && course.enrolledStudents.includes(user.id)
-      );
-
-  // Reset form
   const resetForm = () => {
-    setTitle("");
-    setDescription("");
-    setCourseId("");
-    setDueDate("");
-    setIsVisible(true);
-    setCurrentExercise(null);
-  };
-
-  // Format date for input field
-  const formatDateForInput = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toISOString().split('T')[0];
-  };
-
-  // Add new exercise
-  const handleAddExercise = () => {
-    addExercise({
-      title,
-      description,
-      courseId,
-      dueDate: new Date(dueDate).toISOString(),
-      isVisible
+    setFormData({
+      id: "",
+      courseId: "",
+      title: "",
+      description: "",
+      dueDate: "",
+      isVisible: true,
     });
-    setIsAddDialogOpen(false);
+    setSelectedFile(null);
+  };
+
+  const handleAddExercise = () => {
+    if (!formData.courseId || !formData.title || !formData.dueDate) return;
+    
+    addExercise({
+      courseId: formData.courseId,
+      title: formData.title,
+      description: formData.description,
+      dueDate: formData.dueDate,
+      isVisible: formData.isVisible,
+    });
+    
+    // Handle file upload if file is selected
+    if (selectedFile) {
+      const newExerciseId = `e${Date.now()}`;
+      setExerciseFile(newExerciseId, selectedFile);
+    }
+    
     resetForm();
+    setIsAddDialogOpen(false);
   };
 
-  // Edit exercise
   const handleEditExercise = () => {
-    if (currentExercise) {
-      updateExercise(currentExercise.id, {
-        title,
-        description,
-        courseId,
-        dueDate: new Date(dueDate).toISOString(),
-        isVisible
-      });
-      setIsEditDialogOpen(false);
-      resetForm();
+    if (!formData.id || !formData.courseId || !formData.title || !formData.dueDate) return;
+    
+    updateExercise(formData.id, {
+      courseId: formData.courseId,
+      title: formData.title,
+      description: formData.description,
+      dueDate: formData.dueDate,
+      isVisible: formData.isVisible,
+    });
+    
+    // Handle file upload if file is selected
+    if (selectedFile) {
+      setExerciseFile(formData.id, selectedFile);
     }
+    
+    resetForm();
+    setIsEditDialogOpen(false);
   };
 
-  // Delete exercise
-  const handleDeleteExercise = () => {
-    if (currentExercise) {
-      deleteExercise(currentExercise.id);
-      setIsDeleteDialogOpen(false);
-      resetForm();
-    }
-  };
-
-  // Open edit dialog with exercise data
   const openEditDialog = (exercise: Exercise) => {
-    setCurrentExercise(exercise);
-    setTitle(exercise.title);
-    setDescription(exercise.description);
-    setCourseId(exercise.courseId);
-    setDueDate(formatDateForInput(exercise.dueDate));
-    setIsVisible(exercise.isVisible);
+    setFormData({
+      id: exercise.id,
+      courseId: exercise.courseId,
+      title: exercise.title,
+      description: exercise.description,
+      dueDate: exercise.dueDate.split("T")[0], // Format date for input
+      isVisible: exercise.isVisible,
+    });
     setIsEditDialogOpen(true);
   };
 
-  // Open delete confirmation dialog
-  const openDeleteDialog = (exercise: Exercise) => {
-    setCurrentExercise(exercise);
-    setIsDeleteDialogOpen(true);
+  const handleDeleteExercise = (id: string) => {
+    if (confirm(t("exercise.delete") + "?")) {
+      deleteExercise(id);
+    }
   };
 
-  // Toggle exercise visibility
-  const handleToggleVisibility = (exerciseId: string) => {
-    toggleExerciseVisibility(exerciseId);
-  };
-
-  // Get course name from ID
-  const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
+  const findCourseName = (courseId: string): string => {
+    const course = courses.find((c) => c.id === courseId);
     return course ? course.title : "Unknown Course";
   };
 
-  // Format due date
-  const formatDueDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), "PPP");
-    } catch (error) {
-      return "Invalid date";
+  const handleViewPdf = (exercise: Exercise) => {
+    if (exercise.pdfFile) {
+      const url = URL.createObjectURL(exercise.pdfFile);
+      window.open(url, "_blank");
     }
   };
 
-  // Check if due date is in the past
-  const isPastDue = (dateString: string) => {
-    const now = new Date();
-    const dueDate = new Date(dateString);
-    return dueDate < now;
-  };
-
-  // Toggle view mode between grid and list
-  const toggleViewMode = () => {
-    setViewMode(viewMode === "grid" ? "list" : "grid");
-  };
-
-  // Handle course filter change
-  const handleCourseFilterChange = (courseId: string) => {
-    setSelectedCourseFilter(courseId);
-    updateUrlWithFilter(courseId);
-  };
-
-  // Set initial courseId for new exercise form if a course is selected
-  useEffect(() => {
-    if (selectedCourseFilter !== "all" && selectedCourseFilter) {
-      setCourseId(selectedCourseFilter);
+  const handleDownloadPdf = (exercise: Exercise) => {
+    if (exercise.pdfFile) {
+      const url = URL.createObjectURL(exercise.pdfFile);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exercise.pdfFileName || "exercise.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
-  }, [selectedCourseFilter, isAddDialogOpen]);
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Exercises</h1>
-          <p className="text-muted-foreground mt-1">
-            {isProfessor 
-              ? "Manage exercises and assignments for your courses" 
-              : "View and complete your assigned exercises"}
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={toggleViewMode}
-            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
-          >
-            {viewMode === "grid" ? (
-              <LayoutList className="h-4 w-4" />
-            ) : (
-              <LayoutGrid className="h-4 w-4" />
-            )}
-          </Button>
-          
-          {isProfessor && (
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Exercise
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Exercise</DialogTitle>
-                  <DialogDescription>
-                    Create a new exercise for one of your courses.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="course">Course</Label>
-                    <Select value={courseId} onValueChange={setCourseId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a course" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {courses.map(course => (
-                          <SelectItem key={course.id} value={course.id}>
-                            {course.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Exercise Title</Label>
-                    <Input
-                      id="title"
-                      placeholder="e.g., Programming Assignment 1"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Enter exercise description and requirements"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={3}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dueDate">Due Date</Label>
-                    <Input
-                      id="dueDate"
-                      type="date"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                    />
-                  </div>
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">{t("nav.exercises")}</h1>
+        {isProfessor && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-1" onClick={resetForm}>
+                <Plus size={16} /> {t("exercise.add")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>{t("exercise.add")}</DialogTitle>
+                <DialogDescription>
+                  {t("file.upload")}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="course">{t("nav.courses")}</Label>
+                  <Select
+                    value={formData.courseId}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, courseId: value })
+                    }
+                  >
+                    <SelectTrigger id="course">
+                      <SelectValue placeholder={t("nav.courses")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map((course: Course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="title">{t("form.title")}</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">{t("form.description")}</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dueDate">{t("form.dueDate")}</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dueDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="visible">{t("form.visible")}</Label>
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id="visibility"
-                      checked={isVisible}
-                      onCheckedChange={setIsVisible}
+                      id="visible"
+                      checked={formData.isVisible}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, isVisible: checked })
+                      }
                     />
-                    <Label htmlFor="visibility">Visible to students</Label>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleAddExercise}
-                    disabled={!title || !courseId || !dueDate}
-                  >
-                    Create Exercise
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </div>
-
-      {/* Course filter */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-        <div className="w-full sm:w-64">
-          <Select value={selectedCourseFilter} onValueChange={handleCourseFilterChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by course" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Courses</SelectItem>
-              {availableCourses.map(course => (
-                <SelectItem key={course.id} value={course.id}>
-                  {course.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Showing {displayedExercises.length} {displayedExercises.length === 1 ? "exercise" : "exercises"}
-          {selectedCourseFilter !== "all" && " for " + getCourseName(selectedCourseFilter)}
-        </p>
-      </div>
-
-      {displayedExercises.length > 0 ? (
-        viewMode === "grid" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {displayedExercises.map((exercise) => (
-              <Card key={exercise.id} className="overflow-hidden card-hover">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <CardTitle>{exercise.title}</CardTitle>
-                    <div className="flex flex-col items-end gap-1">
-                      {!exercise.isVisible && (
-                        <Badge variant="outline">Hidden</Badge>
-                      )}
-                      {isPastDue(exercise.dueDate) ? (
-                        <Badge variant="destructive">Past Due</Badge>
-                      ) : (
-                        <Badge variant="secondary">Active</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <CardDescription className="mt-1">
-                    {getCourseName(exercise.courseId)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pb-3">
-                  <p className="text-sm mb-3">{exercise.description}</p>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    <span>Due: {formatDueDate(exercise.dueDate)}</span>
-                  </div>
-                </CardContent>
-                {isProfessor && (
-                  <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                    <div className="flex justify-between w-full">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleToggleVisibility(exercise.id)}
-                        title={exercise.isVisible ? "Hide from students" : "Make visible to students"}
-                      >
-                        {exercise.isVisible ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => openEditDialog(exercise)}
-                          title="Edit exercise"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => openDeleteDialog(exercise)}
-                          title="Delete exercise"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardFooter>
-                )}
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {displayedExercises.map((exercise) => (
-              <div key={exercise.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
-                <div className="space-y-1 mb-2 sm:mb-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium">{exercise.title}</h3>
-                    {!exercise.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
-                    {isPastDue(exercise.dueDate) ? (
-                      <Badge variant="destructive" className="h-5">Past Due</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="h-5">Active</Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{getCourseName(exercise.courseId)}</p>
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    <span>Due: {formatDueDate(exercise.dueDate)}</span>
+                    <Label htmlFor="visible">{formData.isVisible ? t("app.view") : t("app.view")}</Label>
                   </div>
                 </div>
                 
+                {/* File Upload */}
+                <div className="grid gap-2">
+                  <Label htmlFor="pdf">{t("file.upload")}</Label>
+                  <FileUpload
+                    onFileSelect={(file) => setSelectedFile(file)}
+                    selectedFile={selectedFile}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  {t("app.cancel")}
+                </Button>
+                <Button onClick={handleAddExercise}>{t("form.create")}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visibleExercises.map((exercise) => (
+          <Card key={exercise.id} className="shadow-sm">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  {exercise.title}
+                </CardTitle>
                 {isProfessor && (
-                  <div className="flex space-x-2 w-full sm:w-auto justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleToggleVisibility(exercise.id)}
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleExerciseVisibility(exercise.id)}
+                      title={exercise.isVisible ? "Hide" : "Show"}
                     >
-                      {exercise.isVisible ? (
-                        <EyeOff className="h-4 w-4 mr-1" />
-                      ) : (
-                        <Eye className="h-4 w-4 mr-1" />
-                      )}
-                      <span>{exercise.isVisible ? "Hide" : "Show"}</span>
+                      {exercise.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => openEditDialog(exercise)}
+                      title={t("app.edit")}
                     >
-                      <Edit className="h-4 w-4 mr-1" />
-                      <span>Edit</span>
+                      <Edit size={16} />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => openDeleteDialog(exercise)}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteExercise(exercise.id)}
+                      title={t("app.delete")}
                     >
-                      <Trash className="h-4 w-4 mr-1" />
-                      <span>Delete</span>
+                      <Trash2 size={16} />
                     </Button>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        )
-      ) : (
-        <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
-          <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-medium">No exercises found</h3>
-          <p className="text-muted-foreground text-center max-w-md mt-2">
-            {isProfessor 
-              ? selectedCourseFilter !== "all" 
-                ? `You haven't created any exercises for ${getCourseName(selectedCourseFilter)} yet.`
-                : "You haven't created any exercises yet. Add your first exercise to get started."
-              : selectedCourseFilter !== "all"
-                ? `No exercises are currently available for ${getCourseName(selectedCourseFilter)}.`
-                : "You don't have any assigned exercises yet."}
-          </p>
-          {isProfessor && (
-            <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              {selectedCourseFilter !== "all" 
-                ? `Add Exercise for ${getCourseName(selectedCourseFilter)}`
-                : "Add Your First Exercise"}
-            </Button>
-          )}
-        </div>
-      )}
-      
+              <CardDescription>
+                {findCourseName(exercise.courseId)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="py-2">
+              <p className="text-sm line-clamp-3">{exercise.description}</p>
+              
+              {/* PDF Information */}
+              {exercise.pdfFileName && (
+                <PdfInfo
+                  fileName={exercise.pdfFileName}
+                  onView={() => handleViewPdf(exercise)}
+                  onDownload={() => handleDownloadPdf(exercise)}
+                  className="mt-3"
+                />
+              )}
+            </CardContent>
+            <CardFooter className="pt-2 flex justify-between">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4 mr-1" />
+                {format(parseISO(exercise.dueDate), "PPP")}
+              </div>
+              <Badge variant={exercise.isVisible ? "default" : "secondary"}>
+                {exercise.isVisible ? t("app.view") : t("app.view")}
+              </Badge>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+
       {/* Edit Exercise Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Edit Exercise</DialogTitle>
-            <DialogDescription>
-              Update the exercise details and due date.
-            </DialogDescription>
+            <DialogTitle>{t("exercise.edit")}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-course">Course</Label>
-              <Select value={courseId} onValueChange={setCourseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a course" />
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-course">{t("nav.courses")}</Label>
+              <Select
+                value={formData.courseId}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, courseId: value })
+                }
+              >
+                <SelectTrigger id="edit-course">
+                  <SelectValue placeholder={t("nav.courses")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map(course => (
+                  {courses.map((course) => (
                     <SelectItem key={course.id} value={course.id}>
                       {course.title}
                     </SelectItem>
@@ -526,73 +333,65 @@ const Exercises = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-title">Exercise Title</Label>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-title">{t("form.title")}</Label>
               <Input
                 id="edit-title"
-                placeholder="Exercise title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">{t("form.description")}</Label>
               <Textarea
                 id="edit-description"
-                placeholder="Exercise description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-dueDate">Due Date</Label>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-dueDate">{t("form.dueDate")}</Label>
               <Input
                 id="edit-dueDate"
                 type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                value={formData.dueDate}
+                onChange={(e) =>
+                  setFormData({ ...formData, dueDate: e.target.value })
+                }
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit-visibility"
-                checked={isVisible}
-                onCheckedChange={setIsVisible}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-visible">{t("form.visible")}</Label>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-visible"
+                  checked={formData.isVisible}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isVisible: checked })
+                  }
+                />
+                <Label htmlFor="edit-visible">{formData.isVisible ? t("app.view") : t("app.view")}</Label>
+              </div>
+            </div>
+            
+            {/* File Upload */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-pdf">{t("file.upload")}</Label>
+              <FileUpload
+                onFileSelect={(file) => setSelectedFile(file)}
+                selectedFile={selectedFile}
               />
-              <Label htmlFor="edit-visibility">Visible to students</Label>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
+              {t("app.cancel")}
             </Button>
-            <Button 
-              onClick={handleEditExercise}
-              disabled={!title || !courseId || !dueDate}
-            >
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Exercise Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Exercise</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {currentExercise?.title}? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteExercise}>
-              Delete Exercise
-            </Button>
+            <Button onClick={handleEditExercise}>{t("form.update")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

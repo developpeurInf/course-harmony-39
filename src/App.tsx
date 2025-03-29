@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { CourseProvider } from "./contexts/CourseContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 
 import MainLayout from "./components/layout/MainLayout";
 import Index from "./pages/Index";
@@ -25,29 +26,31 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <CourseProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route element={<MainLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/rooms" element={<Rooms />} />
-                <Route path="/courses" element={<Courses />} />
-                <Route path="/exercises" element={<Exercises />} />
-                <Route path="/exams" element={<Exams />} />
-                <Route path="/students" element={<Students />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/settings" element={<Settings />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </CourseProvider>
+      <LanguageProvider>
+        <CourseProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route element={<MainLayout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/rooms" element={<Rooms />} />
+                  <Route path="/courses" element={<Courses />} />
+                  <Route path="/exercises" element={<Exercises />} />
+                  <Route path="/exams" element={<Exams />} />
+                  <Route path="/students" element={<Students />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </CourseProvider>
+      </LanguageProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
