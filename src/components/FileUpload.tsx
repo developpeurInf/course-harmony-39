@@ -3,9 +3,10 @@ import { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { FileText, Upload, X } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface FileUploadProps {
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File | null) => void;
   selectedFile: File | null;
   accept?: string;
   maxSizeMB?: number;
@@ -19,6 +20,7 @@ const FileUpload = ({
 }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useLanguage();
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -63,7 +65,7 @@ const FileUpload = ({
   };
 
   const removeFile = () => {
-    onFileSelect(null as unknown as File);
+    onFileSelect(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -96,10 +98,10 @@ const FileUpload = ({
           />
           <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
           <p className="text-sm font-medium">
-            Drag and drop your PDF here or click to browse
+            {t("file.drag")}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            PDF files only, up to {maxSizeMB}MB
+            {t("file.limit")}
           </p>
         </div>
       ) : (

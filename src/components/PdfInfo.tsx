@@ -1,5 +1,5 @@
 
-import { FileText, Download } from "lucide-react";
+import { File, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PdfInfoProps {
@@ -10,36 +10,35 @@ interface PdfInfoProps {
 }
 
 const PdfInfo = ({ fileName, onView, onDownload, className = "" }: PdfInfoProps) => {
-  if (!fileName) return null;
-
   return (
-    <div className={`flex items-center space-x-3 p-2 bg-muted/30 rounded-md ${className}`}>
-      <div className="bg-primary/10 p-2 rounded-full">
-        <FileText className="h-4 w-4 text-primary" />
+    <div className={`flex items-center rounded-md bg-muted/50 p-2 ${className}`}>
+      <div className="flex items-center flex-1 min-w-0">
+        <div className="bg-primary/10 p-2 rounded mr-2">
+          <File className="h-4 w-4 text-primary" />
+        </div>
+        <span className="text-sm font-medium truncate">
+          {fileName}
+        </span>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{fileName}</p>
-      </div>
-      <div className="flex space-x-1">
+      <div className="flex gap-1">
         {onView && (
           <Button 
-            variant="outline" 
-            size="sm"
-            onClick={onView}
-            className="h-8 px-2 text-xs"
+            variant="ghost" 
+            size="sm" 
+            onClick={onView} 
+            className="h-8 w-8 p-0"
           >
-            View
+            <Eye className="h-4 w-4" />
           </Button>
         )}
         {onDownload && (
           <Button 
-            variant="outline" 
+            variant="ghost" 
             size="sm" 
-            onClick={onDownload}
-            className="h-8 px-2 text-xs"
+            onClick={onDownload} 
+            className="h-8 w-8 p-0"
           >
-            <Download className="h-3 w-3 mr-1" />
-            Download
+            <Download className="h-4 w-4" />
           </Button>
         )}
       </div>
