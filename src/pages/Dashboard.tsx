@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Course, Exercise, Exam } from "@/contexts/CourseContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { 
   Card, 
   CardContent, 
@@ -15,6 +16,7 @@ import { format } from "date-fns";
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { 
     courses, 
     exercises, 
@@ -80,18 +82,18 @@ const Dashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold">Welcome, {user?.name}</h1>
+        <h1 className="text-3xl font-bold">{t("dashboard.welcome")}, {user?.name}</h1>
         <p className="text-muted-foreground mt-1">
           {user?.role === "professor" 
-            ? "Manage your courses, exercises, and exams" 
-            : "View your courses, assignments, and exams"}
+            ? t("dashboard.professor.subtitle") 
+            : t("dashboard.student.subtitle")}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Courses</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("nav.courses")}</CardTitle>
             <BookOpen className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
@@ -100,15 +102,15 @@ const Dashboard = () => {
             </div>
             <p className="text-xs text-muted-foreground">
               {user?.role === "professor" 
-                ? "Total courses you manage" 
-                : "Courses you're enrolled in"}
+                ? t("dashboard.courses.professor") 
+                : t("dashboard.courses.student")}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Exercises</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("nav.exercises")}</CardTitle>
             <FileText className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
@@ -117,15 +119,15 @@ const Dashboard = () => {
             </div>
             <p className="text-xs text-muted-foreground">
               {user?.role === "professor" 
-                ? "Total assigned exercises" 
-                : "Exercises assigned to you"}
+                ? t("dashboard.exercises.professor") 
+                : t("dashboard.exercises.student")}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Exams</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("nav.exams")}</CardTitle>
             <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
@@ -134,8 +136,8 @@ const Dashboard = () => {
             </div>
             <p className="text-xs text-muted-foreground">
               {user?.role === "professor" 
-                ? "Total scheduled exams" 
-                : "Upcoming exams"}
+                ? t("dashboard.exams.professor") 
+                : t("dashboard.exams.student")}
             </p>
           </CardContent>
         </Card>
@@ -143,7 +145,7 @@ const Dashboard = () => {
         {user?.role === "professor" && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Students</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("nav.students")}</CardTitle>
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
@@ -156,7 +158,7 @@ const Dashboard = () => {
                 ).length}
               </div>
               <p className="text-xs text-muted-foreground">
-                Total enrolled students
+                {t("dashboard.students.total")}
               </p>
             </CardContent>
           </Card>
@@ -166,9 +168,9 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="col-span-1">
           <CardHeader>
-            <CardTitle>Upcoming Deadlines</CardTitle>
+            <CardTitle>{t("dashboard.deadlines")}</CardTitle>
             <CardDescription>
-              Exercises due in the next 14 days
+              {t("dashboard.deadlines.desc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -183,7 +185,7 @@ const Dashboard = () => {
                         <div className="text-sm text-muted-foreground">{course?.title}</div>
                       </div>
                       <Badge variant="outline">
-                        Due {format(new Date(exercise.dueDate), "MMM dd")}
+                        {t("dashboard.due")} {format(new Date(exercise.dueDate), "MMM dd")}
                       </Badge>
                     </li>
                   );
@@ -191,7 +193,7 @@ const Dashboard = () => {
               </ul>
             ) : (
               <div className="text-center py-4 text-muted-foreground">
-                No upcoming deadlines in the next 14 days
+                {t("dashboard.no.deadlines")}
               </div>
             )}
           </CardContent>
@@ -199,9 +201,9 @@ const Dashboard = () => {
 
         <Card className="col-span-1">
           <CardHeader>
-            <CardTitle>Upcoming Exams</CardTitle>
+            <CardTitle>{t("dashboard.upcoming.exams")}</CardTitle>
             <CardDescription>
-              Exams scheduled in the next 14 days
+              {t("dashboard.upcoming.exams.desc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -224,7 +226,7 @@ const Dashboard = () => {
               </ul>
             ) : (
               <div className="text-center py-4 text-muted-foreground">
-                No upcoming exams in the next 14 days
+                {t("dashboard.no.exams")}
               </div>
             )}
           </CardContent>
@@ -233,11 +235,11 @@ const Dashboard = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Your Courses</CardTitle>
+          <CardTitle>{t("dashboard.your.courses")}</CardTitle>
           <CardDescription>
             {user?.role === "professor" 
-              ? "Courses you are teaching" 
-              : "Courses you are enrolled in"}
+              ? t("dashboard.your.courses.professor") 
+              : t("dashboard.your.courses.student")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -249,7 +251,7 @@ const Dashboard = () => {
                     <div className="flex justify-between">
                       <CardTitle className="text-lg">{course.title}</CardTitle>
                       {!course.isVisible && (
-                        <Badge variant="outline" className="ml-2">Hidden</Badge>
+                        <Badge variant="outline" className="ml-2">{t("dashboard.hidden")}</Badge>
                       )}
                     </div>
                   </CardHeader>
@@ -257,7 +259,7 @@ const Dashboard = () => {
                     <p className="text-sm text-muted-foreground mb-2">{course.description}</p>
                     <div className="flex items-center text-xs text-muted-foreground">
                       <Users className="h-3 w-3 mr-1" />
-                      {course.enrolledStudents.length} students
+                      {course.enrolledStudents.length} {t("dashboard.students.count")}
                     </div>
                   </CardContent>
                 </Card>
@@ -266,8 +268,8 @@ const Dashboard = () => {
           ) : (
             <div className="text-center py-4 text-muted-foreground">
               {user?.role === "student" 
-                ? "You are not enrolled in any courses yet" 
-                : "You haven't created any courses yet"}
+                ? t("dashboard.no.courses.student") 
+                : t("dashboard.no.courses.professor")}
             </div>
           )}
         </CardContent>

@@ -2,12 +2,14 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { GraduationCap, BookOpen, FileText, Calendar, ArrowRight } from "lucide-react";
 
 const Index = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,9 +23,9 @@ const Index = () => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-accent/20 p-4">
       <div className="max-w-4xl w-full space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
-          <h1 className="text-4xl md:text-5xl font-bold text-primary">Course Harmony</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-primary">{t("app.name")}</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            A complete platform for professors to manage courses, exercises, and exams
+            {t("index.subtitle")}
           </p>
         </div>
 

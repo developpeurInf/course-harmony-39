@@ -1,6 +1,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,6 +10,7 @@ import { Mail, BookOpen, FileText, Calendar, GraduationCap, User } from "lucide-
 
 const Profile = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { 
     courses, 
     exercises, 
@@ -38,16 +40,16 @@ const Profile = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold">My Profile</h1>
+        <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
         <p className="text-muted-foreground mt-1">
-          View and manage your account information
+          {t("profile.subtitle")}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle>Account Information</CardTitle>
+            <CardTitle>{t("profile.account")}</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <div className="flex flex-col items-center pb-6">
@@ -63,9 +65,9 @@ const Profile = () => {
               </div>
               <Badge className="mt-3" variant={isProfessor ? "default" : "secondary"}>
                 {isProfessor ? (
-                  <><GraduationCap className="h-3 w-3 mr-1" /> Professor</>
+                  <><GraduationCap className="h-3 w-3 mr-1" /> {t("profile.professor")}</>
                 ) : (
-                  <><User className="h-3 w-3 mr-1" /> Student</>
+                  <><User className="h-3 w-3 mr-1" /> {t("profile.student")}</>
                 )}
               </Badge>
             </div>
@@ -74,22 +76,22 @@ const Profile = () => {
             
             <div className="space-y-4">
               <div>
-                <h3 className="font-medium text-sm mb-2">Account Statistics</h3>
+                <h3 className="font-medium text-sm mb-2">{t("profile.statistics")}</h3>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="flex flex-col items-center p-2 bg-muted rounded-md">
                     <BookOpen className="h-4 w-4 mb-1 text-primary" />
                     <p className="text-xl font-bold">{userCourses.length}</p>
-                    <p className="text-xs text-muted-foreground">Courses</p>
+                    <p className="text-xs text-muted-foreground">{t("nav.courses")}</p>
                   </div>
                   <div className="flex flex-col items-center p-2 bg-muted rounded-md">
                     <FileText className="h-4 w-4 mb-1 text-primary" />
                     <p className="text-xl font-bold">{userExercises.length}</p>
-                    <p className="text-xs text-muted-foreground">Exercises</p>
+                    <p className="text-xs text-muted-foreground">{t("nav.exercises")}</p>
                   </div>
                   <div className="flex flex-col items-center p-2 bg-muted rounded-md">
                     <Calendar className="h-4 w-4 mb-1 text-primary" />
                     <p className="text-xl font-bold">{userExams.length}</p>
-                    <p className="text-xs text-muted-foreground">Exams</p>
+                    <p className="text-xs text-muted-foreground">{t("nav.exams")}</p>
                   </div>
                 </div>
               </div>
@@ -97,11 +99,11 @@ const Profile = () => {
               <Separator className="my-4" />
               
               <div>
-                <h3 className="font-medium text-sm mb-2">Account Details</h3>
+                <h3 className="font-medium text-sm mb-2">{t("profile.details")}</h3>
                 <ul className="space-y-2">
                   <li className="flex justify-between">
-                    <span className="text-muted-foreground">Role</span>
-                    <span className="font-medium">{user.role === "professor" ? "Professor" : "Student"}</span>
+                    <span className="text-muted-foreground">{t("profile.role")}</span>
+                    <span className="font-medium">{user.role === "professor" ? t("profile.professor") : t("profile.student")}</span>
                   </li>
                   <li className="flex justify-between">
                     <span className="text-muted-foreground">ID</span>
@@ -115,16 +117,16 @@ const Profile = () => {
 
         <Card className="md:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle>My Activity</CardTitle>
+            <CardTitle>{t("profile.activity")}</CardTitle>
             <CardDescription>
-              Summary of your courses and academic activity
+              {t("profile.activity.desc")}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <div className="space-y-6">
               <div>
                 <h3 className="font-medium mb-3">
-                  {isProfessor ? "Courses You Teach" : "Your Enrolled Courses"}
+                  {isProfessor ? t("profile.courses.teach") : t("profile.courses.enrolled")}
                 </h3>
                 {userCourses.length > 0 ? (
                   <div className="grid grid-cols-1 gap-3">
@@ -135,14 +137,14 @@ const Profile = () => {
                           <div className="text-sm text-muted-foreground">{course.description}</div>
                         </div>
                         {!course.isVisible && (
-                          <Badge variant="outline">Hidden</Badge>
+                          <Badge variant="outline">{t("dashboard.hidden")}</Badge>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-4 text-muted-foreground border rounded-md">
-                    No courses found
+                    {t("profile.no.courses")}
                   </div>
                 )}
               </div>
@@ -150,7 +152,7 @@ const Profile = () => {
               <Separator />
               
               <div>
-                <h3 className="font-medium mb-3">Recent Activity</h3>
+                <h3 className="font-medium mb-3">{t("profile.recent.activity")}</h3>
                 {(userExercises.length > 0 || userExams.length > 0) ? (
                   <div className="space-y-3">
                     {userExercises.slice(0, 3).map(exercise => (
@@ -158,10 +160,10 @@ const Profile = () => {
                         <div>
                           <div className="font-medium">{exercise.title}</div>
                           <div className="text-sm text-muted-foreground">
-                            Exercise for {courses.find(c => c.id === exercise.courseId)?.title || "Unknown Course"}
+                            {t("profile.exercise.for")} {courses.find(c => c.id === exercise.courseId)?.title || t("profile.unknown.course")}
                           </div>
                         </div>
-                        <Badge variant="secondary">Exercise</Badge>
+                        <Badge variant="secondary">{t("profile.exercise")}</Badge>
                       </div>
                     ))}
                     
@@ -170,16 +172,16 @@ const Profile = () => {
                         <div>
                           <div className="font-medium">{exam.title}</div>
                           <div className="text-sm text-muted-foreground">
-                            Exam for {courses.find(c => c.id === exam.courseId)?.title || "Unknown Course"}
+                            {t("profile.exam.for")} {courses.find(c => c.id === exam.courseId)?.title || t("profile.unknown.course")}
                           </div>
                         </div>
-                        <Badge variant="default">Exam</Badge>
+                        <Badge variant="default">{t("profile.exam")}</Badge>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-4 text-muted-foreground border rounded-md">
-                    No recent activity
+                    {t("profile.no.activity")}
                   </div>
                 )}
               </div>
