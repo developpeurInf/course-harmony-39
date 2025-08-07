@@ -111,11 +111,13 @@
 }
 
 .rtl .ml-auto {
-  @apply mr-auto ml-0;
+  margin-left: 0;
+  margin-right: auto;
 }
 
 .rtl .mr-auto {
-  @apply ml-auto mr-0;
+  margin-right: 0;
+  margin-left: auto;
 }
 
 .rtl .mr-1,

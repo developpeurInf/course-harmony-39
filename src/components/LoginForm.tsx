@@ -66,15 +66,15 @@ const LoginForm = () => {
     <div className="flex justify-center items-center min-h-screen bg-muted/30">
       <Card className="w-[350px] shadow-lg animate-fade-in">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Course Harmony</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">{t("login.title")}</CardTitle>
           <CardDescription className="text-center">
-            Login to access your academic portal
+            {t("login.subtitle")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("form.email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -86,9 +86,9 @@ const LoginForm = () => {
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("form.password")}</Label>
                 <a href="#" className="text-sm text-primary hover:underline">
-                  Forgot password?
+                  {t("login.forgot")}
                 </a>
               </div>
               <Input
@@ -103,12 +103,12 @@ const LoginForm = () => {
               {isLoading ? (
                 <span className="flex items-center">
                   <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-                  Logging in...
+                  {t("login.logging")}
                 </span>
               ) : (
                 <span className="flex items-center">
                   <LogIn className="mr-2 h-4 w-4" />
-                  Login
+                  {t("nav.login")}
                 </span>
               )}
             </Button>
@@ -116,7 +116,7 @@ const LoginForm = () => {
         </CardContent>
         <CardFooter className="flex flex-col space-y-2">
           <div className="text-sm text-muted-foreground text-center mb-2">
-            Demo Logins
+            {t("login.demo")}
           </div>
           <div className="flex gap-2 w-full">
             <Button
@@ -126,7 +126,7 @@ const LoginForm = () => {
               disabled={isLoading}
             >
               <GraduationCap className="mr-1 h-4 w-4" />
-              Professor
+              {t("profile.professor")}
             </Button>
             <Button
               variant="outline"
@@ -135,7 +135,7 @@ const LoginForm = () => {
               disabled={isLoading}
             >
               <BookOpen className="mr-1 h-4 w-4" />
-              Student
+              {t("profile.student")}
             </Button>
           </div>
         </CardFooter>

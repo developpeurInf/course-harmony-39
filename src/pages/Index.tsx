@@ -31,9 +31,9 @@ const Index = () => {
 
         <Card className="border-2 border-primary/10 shadow-lg">
           <CardHeader className="pb-4">
-            <CardTitle className="text-2xl">Get Started</CardTitle>
+            <CardTitle className="text-2xl">{t("index.get.started")}</CardTitle>
             <CardDescription>
-              Log in to access your academic portal
+              {t("index.login.desc")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -41,18 +41,18 @@ const Index = () => {
               <div className="flex gap-2 items-start p-4 border rounded-lg">
                 <GraduationCap className="h-6 w-6 text-primary mt-1" />
                 <div>
-                  <h3 className="font-medium mb-1">For Professors</h3>
+                  <h3 className="font-medium mb-1">{t("index.for.professors")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Create and manage courses, set up exercises and exams, and track student progress.
+                    {t("index.professors.desc")}
                   </p>
                 </div>
               </div>
               <div className="flex gap-2 items-start p-4 border rounded-lg">
                 <BookOpen className="h-6 w-6 text-primary mt-1" />
                 <div>
-                  <h3 className="font-medium mb-1">For Students</h3>
+                  <h3 className="font-medium mb-1">{t("index.for.students")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Access course materials, complete exercises, and stay prepared for upcoming exams.
+                    {t("index.students.desc")}
                   </p>
                 </div>
               </div>
@@ -60,7 +60,7 @@ const Index = () => {
           </CardContent>
           <CardFooter>
             <Button className="w-full" onClick={() => navigate("/login")}>
-              Log In to Your Account
+              {t("index.login.account")}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </CardFooter>
@@ -71,12 +71,12 @@ const Index = () => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Course Management</CardTitle>
+                <CardTitle className="text-lg">{t("index.course.management")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Organize and control visibility of course materials for your students.
+                {t("index.course.management.desc")}
               </p>
             </CardContent>
           </Card>
@@ -85,12 +85,12 @@ const Index = () => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Exercise Tracking</CardTitle>
+                <CardTitle className="text-lg">{t("index.exercise.tracking")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Create exercises with deadlines and control when they're available.
+                {t("index.exercise.tracking.desc")}
               </p>
             </CardContent>
           </Card>
@@ -99,12 +99,12 @@ const Index = () => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Exam Scheduling</CardTitle>
+                <CardTitle className="text-lg">{t("index.exam.scheduling")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Schedule and manage exams with detailed timing and visibility controls.
+                {t("index.exam.scheduling.desc")}
               </p>
             </CardContent>
           </Card>
@@ -112,7 +112,7 @@ const Index = () => {
 
         <div className="text-center pt-6">
           <Button variant="outline" onClick={() => navigate("/login")}>
-            Log In Now
+            {t("index.login.now")}
           </Button>
         </div>
       </div>
