@@ -20,72 +20,73 @@ import PdfInfo from "@/components/PdfInfo";
 const Exercises = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, setExerciseFile } = useCourses();
+  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf } = useCourses();
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     id: "",
-    courseId: "",
+    course_id: "",
     title: "",
     description: "",
-    dueDate: "",
-    isVisible: true,
+    due_date: "",
+    is_visible: true,
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const isProfessor = user?.role === "professor";
   const visibleExercises = exercises.filter(
-    (exercise) => exercise.isVisible || isProfessor
+    (exercise) => exercise.is_visible || isProfessor
   );
 
   const resetForm = () => {
     setFormData({
       id: "",
-      courseId: "",
+      course_id: "",
       title: "",
       description: "",
-      dueDate: "",
-      isVisible: true,
+      due_date: "",
+      is_visible: true,
     });
     setSelectedFile(null);
   };
 
-  const handleAddExercise = () => {
-    if (!formData.courseId || !formData.title || !formData.dueDate) return;
+  const handleAddExercise = async () => {
+    if (!formData.course_id || !formData.title || !formData.due_date) return;
     
-    addExercise({
-      courseId: formData.courseId,
+    const success = await addExercise({
+      course_id: formData.course_id,
       title: formData.title,
       description: formData.description,
-      dueDate: formData.dueDate,
-      isVisible: formData.isVisible,
+      due_date: formData.due_date,
+      is_visible: formData.is_visible,
     });
     
-    // Handle file upload if file is selected
-    if (selectedFile) {
-      const newExerciseId = `e${Date.now()}`;
-      setExerciseFile(newExerciseId, selectedFile);
+    // Handle file upload if file is selected and exercise was created
+    if (selectedFile && success) {
+      // We would need the created exercise ID here, but the current API doesn't return it
+      // For now, we'll skip the file upload on creation and allow it on edit
+      console.log("File upload on creation not yet supported");
     }
     
     resetForm();
     setIsAddDialogOpen(false);
   };
 
-  const handleEditExercise = () => {
-    if (!formData.id || !formData.courseId || !formData.title || !formData.dueDate) return;
+  const handleEditExercise = async () => {
+    if (!formData.id || !formData.course_id || !formData.title || !formData.due_date) return;
     
-    updateExercise(formData.id, {
-      courseId: formData.courseId,
+    const success = await updateExercise(formData.id, {
+      course_id: formData.course_id,
       title: formData.title,
       description: formData.description,
-      dueDate: formData.dueDate,
-      isVisible: formData.isVisible,
+      due_date: formData.due_date,
+      is_visible: formData.is_visible,
     });
     
     // Handle file upload if file is selected
-    if (selectedFile) {
-      setExerciseFile(formData.id, selectedFile);
+    if (selectedFile && success) {
+      await uploadExercisePdf(formData.id, selectedFile);
     }
     
     resetForm();
@@ -95,11 +96,11 @@ const Exercises = () => {
   const openEditDialog = (exercise: Exercise) => {
     setFormData({
       id: exercise.id,
-      courseId: exercise.courseId,
+      course_id: exercise.course_id,
       title: exercise.title,
       description: exercise.description,
-      dueDate: exercise.dueDate.split("T")[0], // Format date for input
-      isVisible: exercise.isVisible,
+      due_date: exercise.due_date.split("T")[0], // Format date for input
+      is_visible: exercise.is_visible,
     });
     setIsEditDialogOpen(true);
   };
@@ -116,18 +117,16 @@ const Exercises = () => {
   };
 
   const handleViewPdf = (exercise: Exercise) => {
-    if (exercise.pdfFile) {
-      const url = URL.createObjectURL(exercise.pdfFile);
-      window.open(url, "_blank");
+    if (exercise.pdf_url) {
+      window.open(exercise.pdf_url, "_blank");
     }
   };
 
   const handleDownloadPdf = (exercise: Exercise) => {
-    if (exercise.pdfFile) {
-      const url = URL.createObjectURL(exercise.pdfFile);
+    if (exercise.pdf_url) {
       const a = document.createElement("a");
-      a.href = url;
-      a.download = exercise.pdfFileName || "exercise.pdf";
+      a.href = exercise.pdf_url;
+      a.download = `${exercise.title}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -156,9 +155,9 @@ const Exercises = () => {
                 <div className="grid gap-2">
                   <Label htmlFor="course">{t("nav.courses")}</Label>
                   <Select
-                    value={formData.courseId}
+                    value={formData.course_id}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, courseId: value })
+                      setFormData({ ...formData, course_id: value })
                     }
                   >
                     <SelectTrigger id="course">
@@ -198,9 +197,9 @@ const Exercises = () => {
                   <Input
                     id="dueDate"
                     type="date"
-                    value={formData.dueDate}
+                    value={formData.due_date}
                     onChange={(e) =>
-                      setFormData({ ...formData, dueDate: e.target.value })
+                      setFormData({ ...formData, due_date: e.target.value })
                     }
                   />
                 </div>
@@ -209,12 +208,12 @@ const Exercises = () => {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="visible"
-                      checked={formData.isVisible}
+                      checked={formData.is_visible}
                       onCheckedChange={(checked) =>
-                        setFormData({ ...formData, isVisible: checked })
+                        setFormData({ ...formData, is_visible: checked })
                       }
                     />
-                    <Label htmlFor="visible">{formData.isVisible ? t("app.view") : t("app.view")}</Label>
+                    <Label htmlFor="visible">{formData.is_visible ? t("app.view") : t("app.view")}</Label>
                   </div>
                 </div>
                 
@@ -253,9 +252,9 @@ const Exercises = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => toggleExerciseVisibility(exercise.id)}
-                      title={exercise.isVisible ? "Hide" : "Show"}
+                      title={exercise.is_visible ? "Hide" : "Show"}
                     >
-                      {exercise.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                      {exercise.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
                     </Button>
                     <Button
                       variant="ghost"
@@ -277,16 +276,16 @@ const Exercises = () => {
                 )}
               </div>
               <CardDescription>
-                {findCourseName(exercise.courseId)}
+                {findCourseName(exercise.course_id)}
               </CardDescription>
             </CardHeader>
             <CardContent className="py-2">
               <p className="text-sm line-clamp-3">{exercise.description}</p>
               
               {/* PDF Information */}
-              {exercise.pdfFileName && (
+              {exercise.pdf_url && (
                 <PdfInfo
-                  fileName={exercise.pdfFileName}
+                  fileName={`${exercise.title}.pdf`}
                   onView={() => handleViewPdf(exercise)}
                   onDownload={() => handleDownloadPdf(exercise)}
                   className="mt-3"
@@ -296,10 +295,10 @@ const Exercises = () => {
             <CardFooter className="pt-2 flex justify-between">
               <div className="flex items-center text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4 mr-1" />
-                {format(parseISO(exercise.dueDate), "PPP")}
+                {format(parseISO(exercise.due_date), "PPP")}
               </div>
-              <Badge variant={exercise.isVisible ? "default" : "secondary"}>
-                {exercise.isVisible ? t("app.view") : t("app.view")}
+              <Badge variant={exercise.is_visible ? "default" : "secondary"}>
+                {exercise.is_visible ? t("app.view") : t("app.view")}
               </Badge>
             </CardFooter>
           </Card>
@@ -316,9 +315,9 @@ const Exercises = () => {
             <div className="grid gap-2">
               <Label htmlFor="edit-course">{t("nav.courses")}</Label>
               <Select
-                value={formData.courseId}
+                value={formData.course_id}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, courseId: value })
+                  setFormData({ ...formData, course_id: value })
                 }
               >
                 <SelectTrigger id="edit-course">
@@ -358,9 +357,9 @@ const Exercises = () => {
               <Input
                 id="edit-dueDate"
                 type="date"
-                value={formData.dueDate}
+                value={formData.due_date}
                 onChange={(e) =>
-                  setFormData({ ...formData, dueDate: e.target.value })
+                  setFormData({ ...formData, due_date: e.target.value })
                 }
               />
             </div>
@@ -369,12 +368,12 @@ const Exercises = () => {
               <div className="flex items-center space-x-2">
                 <Switch
                   id="edit-visible"
-                  checked={formData.isVisible}
+                  checked={formData.is_visible}
                   onCheckedChange={(checked) =>
-                    setFormData({ ...formData, isVisible: checked })
+                    setFormData({ ...formData, is_visible: checked })
                   }
                 />
-                <Label htmlFor="edit-visible">{formData.isVisible ? t("app.view") : t("app.view")}</Label>
+                <Label htmlFor="edit-visible">{formData.is_visible ? t("app.view") : t("app.view")}</Label>
               </div>
             </div>
             

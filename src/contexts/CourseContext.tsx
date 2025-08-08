@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -627,34 +628,41 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   const getEnrolledStudents = async (courseId: string): Promise<UserProfile[]> => {
     try {
-      const { data, error } = await supabase
+      // Get enrollments for this course
+      const { data: enrollmentData, error: enrollmentError } = await supabase
         .from('enrollments')
-        .select(`
-          student_id,
-          profiles!enrollments_student_id_fkey (
-            id,
-            name,
-            email,
-            role,
-            avatar_url
-          )
-        `)
+        .select('student_id')
         .eq('course_id', courseId);
 
-      if (error) {
-        console.error('Failed to fetch enrolled students:', error);
+      if (enrollmentError) {
+        console.error('Failed to fetch enrollments:', enrollmentError);
         return [];
       }
 
-      return (data || [])
-        .filter(item => item.profiles)
-        .map(item => ({
-          id: item.profiles!.id,
-          name: item.profiles!.name,
-          email: item.profiles!.email || '',
-          role: item.profiles!.role as UserRole,
-          avatar_url: item.profiles!.avatar_url
-        }));
+      if (!enrollmentData || enrollmentData.length === 0) {
+        return [];
+      }
+
+      const studentIds = enrollmentData.map(e => e.student_id);
+
+      // Get profiles for these students
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, name, email, role, avatar_url')
+        .in('id', studentIds);
+
+      if (profileError) {
+        console.error('Failed to fetch student profiles:', profileError);
+        return [];
+      }
+
+      return (profileData || []).map(profile => ({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email || '',
+        role: profile.role as UserRole,
+        avatar_url: profile.avatar_url
+      }));
     } catch (error) {
       console.error('Failed to fetch enrolled students:', error);
       return [];

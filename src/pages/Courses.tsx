@@ -47,13 +47,15 @@ const Courses = () => {
     courses, 
     exercises,
     exams,
+    enrollments,
     addCourse, 
     updateCourse, 
     deleteCourse, 
     toggleCourseVisibility,
     enrollStudent,
     unenrollStudent,
-    getVisibleCoursesForStudent
+    getVisibleCoursesForStudent,
+    getEnrolledStudents
   } = useCourses();
   
   const location = useLocation();
@@ -63,6 +65,7 @@ const Courses = () => {
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -100,7 +103,7 @@ const Courses = () => {
   
   const displayedCourses = selectedRoomFilter === "all" 
     ? userCourses 
-    : userCourses.filter(course => course.roomId === selectedRoomFilter);
+    : userCourses.filter(course => course.room_id === selectedRoomFilter);
 
   // Reset form
   const resetForm = () => {
@@ -113,26 +116,25 @@ const Courses = () => {
   };
 
   // Add new course
-  const handleAddCourse = () => {
-    addCourse({
+  const handleAddCourse = async () => {
+    await addCourse({
       title,
       description,
-      isVisible,
-      roomId: roomId || undefined,
-      enrolledStudents: []
+      is_visible: isVisible,
+      room_id: roomId || undefined
     });
     setIsAddDialogOpen(false);
     resetForm();
   };
 
   // Edit course
-  const handleEditCourse = () => {
+  const handleEditCourse = async () => {
     if (currentCourse) {
-      updateCourse(currentCourse.id, {
+      await updateCourse(currentCourse.id, {
         title,
         description,
-        roomId: roomId || undefined,
-        isVisible
+        room_id: roomId || undefined,
+        is_visible: isVisible
       });
       setIsEditDialogOpen(false);
       resetForm();
@@ -140,9 +142,9 @@ const Courses = () => {
   };
 
   // Delete course
-  const handleDeleteCourse = () => {
+  const handleDeleteCourse = async () => {
     if (currentCourse) {
-      deleteCourse(currentCourse.id);
+      await deleteCourse(currentCourse.id);
       setIsDeleteDialogOpen(false);
       resetForm();
     }
@@ -153,8 +155,8 @@ const Courses = () => {
     setCurrentCourse(course);
     setTitle(course.title);
     setDescription(course.description);
-    setRoomId(course.roomId || "");
-    setIsVisible(course.isVisible);
+    setRoomId(course.room_id || "");
+    setIsVisible(course.is_visible);
     setIsEditDialogOpen(true);
   };
 
@@ -165,22 +167,34 @@ const Courses = () => {
   };
 
   // Open enrollment dialog
-  const openEnrollDialog = (course: Course) => {
+  const openEnrollDialog = async (course: Course) => {
     setCurrentCourse(course);
+    const students = await getEnrolledStudents(course.id);
+    setEnrolledStudents(students);
     setIsEnrollDialogOpen(true);
   };
 
   // Handle enrollment
-  const handleEnrollStudent = () => {
+  const handleEnrollStudent = async () => {
     if (currentCourse && selectedStudentId) {
-      enrollStudent(currentCourse.id, selectedStudentId);
-      setSelectedStudentId("");
+      const success = await enrollStudent(currentCourse.id, selectedStudentId);
+      if (success) {
+        // Refresh enrolled students list
+        const students = await getEnrolledStudents(currentCourse.id);
+        setEnrolledStudents(students);
+        setSelectedStudentId("");
+      }
     }
   };
 
   // Handle unenrollment
-  const handleUnenrollStudent = (courseId: string, studentId: string) => {
-    unenrollStudent(courseId, studentId);
+  const handleUnenrollStudent = async (courseId: string, studentId: string) => {
+    const success = await unenrollStudent(courseId, studentId);
+    if (success && currentCourse) {
+      // Refresh enrolled students list
+      const students = await getEnrolledStudents(currentCourse.id);
+      setEnrolledStudents(students);
+    }
   };
 
   // Toggle course visibility
@@ -195,13 +209,18 @@ const Courses = () => {
 
   // Get course statistics
   const getCourseStats = (courseId: string) => {
-    const courseExercises = exercises.filter(e => e.courseId === courseId);
-    const courseExams = exams.filter(e => e.courseId === courseId);
+    const courseExercises = exercises.filter(e => e.course_id === courseId);
+    const courseExams = exams.filter(e => e.course_id === courseId);
     
     return {
       exerciseCount: courseExercises.length,
       examCount: courseExams.length
     };
+  };
+
+  // Get enrollment count for a course
+  const getEnrollmentCount = (courseId: string) => {
+    return enrollments.filter(e => e.course_id === courseId).length;
   };
 
   // Get room name from ID
@@ -362,13 +381,14 @@ const Courses = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedCourses.map((course) => {
               const stats = getCourseStats(course.id);
+              const enrollmentCount = getEnrollmentCount(course.id);
               
               return (
                 <Card key={course.id} className="overflow-hidden card-hover">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <CardTitle>{course.title}</CardTitle>
-                      {!course.isVisible && (
+                      {!course.is_visible && (
                         <Badge variant="outline">Hidden</Badge>
                       )}
                     </div>
@@ -381,14 +401,14 @@ const Courses = () => {
                       <div className="flex justify-between items-center text-sm">
                         <div className="flex items-center text-muted-foreground">
                           <Users className="h-4 w-4 mr-1" />
-                          <span>{course.enrolledStudents.length} students</span>
+                          <span>{enrollmentCount} students</span>
                         </div>
                       </div>
                       
-                      {course.roomId && (
+                      {course.room_id && (
                         <div className="flex items-center text-sm text-muted-foreground">
                           <Building className="h-4 w-4 mr-1" />
-                          <span>Room: {getRoomName(course.roomId)}</span>
+                          <span>Room: {getRoomName(course.room_id)}</span>
                         </div>
                       )}
                       
@@ -421,9 +441,9 @@ const Courses = () => {
                           variant="ghost" 
                           size="icon"
                           onClick={() => handleToggleVisibility(course.id)}
-                          title={course.isVisible ? "Hide from students" : "Make visible to students"}
+                          title={course.is_visible ? "Hide from students" : "Make visible to students"}
                         >
-                          {course.isVisible ? (
+                          {course.is_visible ? (
                             <EyeOff className="h-4 w-4" />
                           ) : (
                             <Eye className="h-4 w-4" />
@@ -466,24 +486,25 @@ const Courses = () => {
           <div className="space-y-3">
             {displayedCourses.map((course) => {
               const stats = getCourseStats(course.id);
+              const enrollmentCount = getEnrollmentCount(course.id);
               
               return (
                 <div key={course.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
                   <div className="space-y-1 mb-2 sm:mb-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-medium">{course.title}</h3>
-                      {!course.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
+                      {!course.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground">{course.description}</p>
                     <div className="flex flex-wrap items-center text-xs text-muted-foreground mt-1 gap-x-2">
                       <div className="flex items-center">
                         <Users className="h-3 w-3 mr-1" />
-                        <span>{course.enrolledStudents.length} students</span>
+                        <span>{enrollmentCount} students</span>
                       </div>
-                      {course.roomId && (
+                      {course.room_id && (
                         <div className="flex items-center">
                           <Building className="h-3 w-3 mr-1" />
-                          <span>{getRoomName(course.roomId)}</span>
+                          <span>{getRoomName(course.room_id)}</span>
                         </div>
                       )}
                       <div className="flex items-center">
@@ -678,7 +699,7 @@ const Courses = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {students.filter(student => 
-                      !currentCourse?.enrolledStudents.includes(student.id)
+                      !enrolledStudents.some(enrolled => enrolled.id === student.id)
                     ).map(student => (
                       <SelectItem key={student.id} value={student.id}>
                         {student.name}
@@ -700,27 +721,24 @@ const Courses = () => {
             <div className="space-y-2">
               <Label>Enrolled students</Label>
               <div className="border rounded-md overflow-hidden">
-                {currentCourse?.enrolledStudents.length === 0 ? (
+                {enrolledStudents.length === 0 ? (
                   <div className="p-3 text-center text-muted-foreground">
                     No students enrolled yet
                   </div>
                 ) : (
                   <ul className="divide-y">
-                    {currentCourse?.enrolledStudents.map(studentId => {
-                      const student = students.find(s => s.id === studentId);
-                      return (
-                        <li key={studentId} className="flex justify-between items-center p-3">
-                          <span>{student?.name}</span>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => currentCourse && handleUnenrollStudent(currentCourse.id, studentId)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </li>
-                      );
-                    })}
+                    {enrolledStudents.map(student => (
+                      <li key={student.id} className="flex justify-between items-center p-3">
+                        <span>{student.name}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => currentCourse && handleUnenrollStudent(currentCourse.id, student.id)}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>
