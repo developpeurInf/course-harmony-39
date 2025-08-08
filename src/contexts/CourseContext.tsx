@@ -189,17 +189,56 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const refreshData = async () => {
+  const refreshData = async (roomId?: string) => {
     if (!user) return;
     
     setLoading(true);
     try {
+      // Fetch rooms first - always get all rooms for the professor
+      let roomsQuery = supabase.from('rooms').select('*').order('created_at', { ascending: false });
+      if (user.role === 'professor') {
+        roomsQuery = roomsQuery.eq('professor_id', user.id);
+      }
+      
+      // For courses, exercises, and exams - filter by room if provided
+      let coursesQuery = supabase.from('courses').select('*').order('created_at', { ascending: false });
+      let exercisesQuery = supabase.from('exercises').select('*').order('created_at', { ascending: false });
+      let examsQuery = supabase.from('exams').select('*').order('created_at', { ascending: false });
+      
+      if (roomId) {
+        // Filter courses by room
+        coursesQuery = coursesQuery.eq('room_id', roomId);
+        
+        // For exercises and exams, we need to join with courses to filter by room
+        exercisesQuery = supabase
+          .from('exercises')
+          .select(`
+            *,
+            courses!inner (
+              room_id
+            )
+          `)
+          .eq('courses.room_id', roomId)
+          .order('created_at', { ascending: false });
+          
+        examsQuery = supabase
+          .from('exams')
+          .select(`
+            *,
+            courses!inner (
+              room_id
+            )
+          `)
+          .eq('courses.room_id', roomId)
+          .order('created_at', { ascending: false });
+      }
+      
       // Fetch all data in parallel
       const [roomsData, coursesData, exercisesData, examsData, enrollmentsData, questionsData, optionsData, submissionsData, answersData] = await Promise.all([
-        supabase.from('rooms').select('*').order('created_at', { ascending: false }),
-        supabase.from('courses').select('*').order('created_at', { ascending: false }),
-        supabase.from('exercises').select('*').order('created_at', { ascending: false }),
-        supabase.from('exams').select('*').order('created_at', { ascending: false }),
+        roomsQuery,
+        coursesQuery,
+        exercisesQuery,
+        examsQuery,
         supabase.from('enrollments').select('*'),
         supabase.from('quiz_questions').select('*').order('question_order', { ascending: true }),
         supabase.from('quiz_options').select('*').order('option_order', { ascending: true }),
@@ -214,10 +253,30 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       else setCourses(coursesData.data || []);
 
       if (exercisesData.error) console.error('Exercises fetch error:', exercisesData.error);
-      else setExercises(exercisesData.data || []);
+      else {
+        // Clean up the exercises data if it came from a join query
+        const cleanExercises = (exercisesData.data || []).map((exercise: any) => {
+          if (exercise.courses) {
+            const { courses, ...cleanExercise } = exercise;
+            return cleanExercise;
+          }
+          return exercise;
+        });
+        setExercises(cleanExercises);
+      }
 
       if (examsData.error) console.error('Exams fetch error:', examsData.error);
-      else setExams(examsData.data || []);
+      else {
+        // Clean up the exams data if it came from a join query
+        const cleanExams = (examsData.data || []).map((exam: any) => {
+          if (exam.courses) {
+            const { courses, ...cleanExam } = exam;
+            return cleanExam;
+          }
+          return exam;
+        });
+        setExams(cleanExams);
+      }
 
       if (enrollmentsData.error) console.error('Enrollments fetch error:', enrollmentsData.error);
       else setEnrollments(enrollmentsData.data || []);

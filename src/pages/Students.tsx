@@ -34,10 +34,12 @@ import {
   LayoutGrid,
   LayoutList
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { toast } from "sonner";
+import { StudentExcelManager } from "@/components/StudentExcelManager";
 
 const Students = () => {
+  const { roomId } = useParams();
   const { user, getStudents, addStudent } = useAuth();
   const { courses, enrollments, enrollStudent, removeEnrollment } = useCourses();
   const navigate = useNavigate();
@@ -57,13 +59,10 @@ const Students = () => {
     password: ""
   });
 
-  // Redirect if not professor
-  useEffect(() => {
-    if (user && user.role !== "professor") {
-      navigate("/dashboard");
-      return;
-    }
-  }, [user, navigate]);
+  // Redirect to dashboard if not a professor or no roomId
+  if (!user || user.role !== "professor" || !roomId) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   // Fetch students
   useEffect(() => {
@@ -239,6 +238,15 @@ const Students = () => {
           </Button>
         </div>
       </div>
+
+      {/* Student Excel Manager */}
+      <StudentExcelManager 
+        roomId={roomId} 
+        onStudentsImported={async () => {
+          const updatedStudents = await getStudents();
+          setStudents(updatedStudents);
+        }}
+      />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
