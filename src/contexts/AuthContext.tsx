@@ -25,6 +25,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   uploadAvatar: (file: File) => Promise<string | null>;
   getStudents: () => Promise<UserProfile[]>;
+  addStudent: (email: string, password: string, name: string) => Promise<boolean>;
   isLoggedIn: boolean;
 }
 
@@ -254,6 +255,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addStudent = async (email: string, password: string, name: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role: 'student'
+          }
+        }
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+
+      toast.success("Student added successfully! They will receive an email to verify their account.");
+      return true;
+    } catch (error) {
+      toast.error("Failed to add student");
+      return false;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -265,8 +292,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetPassword,
       updateProfile,
       uploadAvatar,
-      getStudents, 
-      isLoggedIn 
+      getStudents,
+      addStudent,
+      isLoggedIn
     }}>
       {children}
     </AuthContext.Provider>

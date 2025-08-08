@@ -38,7 +38,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 const Students = () => {
-  const { user, getStudents } = useAuth();
+  const { user, getStudents, addStudent } = useAuth();
   const { courses, enrollments, enrollStudent, removeEnrollment } = useCourses();
   const navigate = useNavigate();
 
@@ -50,6 +50,12 @@ const Students = () => {
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [enrollCourseId, setEnrollCourseId] = useState("");
+  const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
+  const [newStudentData, setNewStudentData] = useState({
+    name: "",
+    email: "",
+    password: ""
+  });
 
   // Redirect if not professor
   useEffect(() => {
@@ -167,6 +173,22 @@ const Students = () => {
     setViewMode(viewMode === "grid" ? "list" : "grid");
   };
 
+  const handleAddStudent = async () => {
+    if (!newStudentData.name || !newStudentData.email || !newStudentData.password) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    const success = await addStudent(newStudentData.email, newStudentData.password, newStudentData.name);
+    if (success) {
+      setIsAddStudentDialogOpen(false);
+      setNewStudentData({ name: "", email: "", password: "" });
+      // Refresh students list
+      const updatedStudents = await getStudents();
+      setStudents(updatedStudents);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -192,19 +214,30 @@ const Students = () => {
           </p>
         </div>
         
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={toggleViewMode}
-          title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
-        >
-          {viewMode === "grid" ? (
-            <LayoutList className="h-4 w-4" />
-          ) : (
-            <LayoutGrid className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Student
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+        
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={toggleViewMode}
+            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
+          >
+            {viewMode === "grid" ? (
+              <LayoutList className="h-4 w-4" />
+            ) : (
+              <LayoutGrid className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -399,6 +432,62 @@ const Students = () => {
               disabled={!enrollCourseId}
             >
               Enroll Student
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Student Dialog */}
+      <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Student</DialogTitle>
+            <DialogDescription>
+              Create a new student account. They will receive an email to verify their account.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                placeholder="Enter student's full name"
+                value={newStudentData.name}
+                onChange={(e) => setNewStudentData(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter student's email"
+                value={newStudentData.email}
+                onChange={(e) => setNewStudentData(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Temporary Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter temporary password"
+                value={newStudentData.password}
+                onChange={(e) => setNewStudentData(prev => ({ ...prev, password: e.target.value }))}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddStudentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddStudent}
+              disabled={!newStudentData.name || !newStudentData.email || !newStudentData.password}
+            >
+              Add Student
             </Button>
           </DialogFooter>
         </DialogContent>

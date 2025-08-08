@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
+import NotificationBell from "@/components/NotificationBell";
 
 const TopNav = () => {
   const { user, logout } = useAuth();
@@ -47,9 +48,7 @@ const TopNav = () => {
       </Sheet>
 
       <div className="ml-auto flex items-center space-x-4">
-        <Button variant="ghost" size="icon">
-          <Bell className="h-5 w-5" />
-        </Button>
+        <NotificationBell />
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

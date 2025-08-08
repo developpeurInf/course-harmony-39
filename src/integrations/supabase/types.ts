@@ -216,6 +216,48 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          exam_id: string | null
+          exercise_id: string | null
+          id: string
+          message: string
+          read: boolean
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          exam_id?: string | null
+          exercise_id?: string | null
+          id?: string
+          message: string
+          read?: boolean
+          title: string
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          exam_id?: string | null
+          exercise_id?: string | null
+          id?: string
+          message?: string
+          read?: boolean
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

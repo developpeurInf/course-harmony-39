@@ -269,6 +269,12 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       setCourses(prev => [data, ...prev]);
       toast.success("Course added successfully");
+      
+      // Notify enrolled students (though a new course won't have students yet)
+      setTimeout(async () => {
+        await notifyStudentsAboutUpdate(data.id, course.title, 'course');
+      }, 1000);
+      
       return true;
     } catch (error) {
       toast.error("Failed to add course");
@@ -379,6 +385,12 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       setExercises(prev => [data, ...prev]);
       toast.success("Exercise added successfully");
+      
+      // Notify enrolled students
+      setTimeout(async () => {
+        await notifyStudentsAboutUpdate(exercise.course_id, exercise.title, 'exercise');
+      }, 1000);
+      
       return true;
     } catch (error) {
       toast.error("Failed to add exercise");
@@ -484,6 +496,12 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       setExams(prev => [data, ...prev]);
       toast.success("Exam added successfully");
+      
+      // Notify enrolled students
+      setTimeout(async () => {
+        await notifyStudentsAboutUpdate(exam.course_id, exam.title, 'exam');
+      }, 1000);
+      
       return true;
     } catch (error) {
       toast.error("Failed to add exam");
@@ -719,6 +737,42 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return exams.filter(exam => 
       courseIds.includes(exam.course_id) && exam.is_visible
     );
+  };
+
+  const notifyStudentsAboutUpdate = async (courseId: string, title: string, type: 'course' | 'exercise' | 'exam') => {
+    try {
+      // Get all students enrolled in the course
+      const { data: enrollments, error: enrollmentError } = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .eq('course_id', courseId);
+
+      if (enrollmentError || !enrollments || enrollments.length === 0) {
+        return;
+      }
+
+      const studentIds = enrollments.map(e => e.student_id);
+
+      // Create notification for each student
+      const notificationData = {
+        title: `New ${type} available`,
+        message: `${title} has been added to your course`,
+        type: 'info' as const,
+        read: false,
+        course_id: courseId
+      };
+
+      const notifications = studentIds.map(studentId => ({
+        ...notificationData,
+        user_id: studentId
+      }));
+
+      await supabase
+        .from('notifications')
+        .insert(notifications);
+    } catch (error) {
+      console.error('Failed to notify students:', error);
+    }
   };
 
   return (
