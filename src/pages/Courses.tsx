@@ -370,10 +370,9 @@ const Courses = () => {
                     <Label htmlFor="room">Room (Optional)</Label>
                     <Select value={roomId} onValueChange={setRoomId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a room" />
+                        <SelectValue placeholder="Select a room (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No Room</SelectItem>
                         {rooms.map(room => (
                           <SelectItem key={room.id} value={room.id}>
                             {room.name}
@@ -719,10 +718,9 @@ const Courses = () => {
               <Label htmlFor="edit-room">Room (Optional)</Label>
               <Select value={roomId} onValueChange={setRoomId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a room" />
+                  <SelectValue placeholder="Select a room (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Room</SelectItem>
                   {rooms.map(room => (
                     <SelectItem key={room.id} value={room.id}>
                       {room.name}
