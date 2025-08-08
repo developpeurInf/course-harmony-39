@@ -132,8 +132,8 @@ const Exams = () => {
   };
 
   // Add new exam
-  const handleAddExam = () => {
-    addExam({
+  const handleAddExam = async () => {
+    const success = await addExam({
       title,
       description,
       course_id: courseId,
@@ -141,14 +141,17 @@ const Exams = () => {
       duration_minutes: duration,
       is_visible: isVisible
     });
-    setIsAddDialogOpen(false);
-    resetForm();
+    
+    if (success) {
+      setIsAddDialogOpen(false);
+      resetForm();
+    }
   };
 
   // Edit exam
-  const handleEditExam = () => {
+  const handleEditExam = async () => {
     if (currentExam) {
-      updateExam(currentExam.id, {
+      const success = await updateExam(currentExam.id, {
         title,
         description,
         course_id: courseId,
@@ -156,8 +159,11 @@ const Exams = () => {
         duration_minutes: duration,
         is_visible: isVisible
       });
-      setIsEditDialogOpen(false);
-      resetForm();
+      
+      if (success) {
+        setIsEditDialogOpen(false);
+        resetForm();
+      }
     }
   };
 

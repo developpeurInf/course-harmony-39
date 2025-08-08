@@ -98,6 +98,7 @@ interface CourseContextType {
   // Enrollment operations
   enrollStudent: (courseId: string, studentId: string) => Promise<boolean>;
   unenrollStudent: (courseId: string, studentId: string) => Promise<boolean>;
+  removeEnrollment: (enrollmentId: string) => Promise<boolean>;
   getEnrolledStudents: (courseId: string) => Promise<UserProfile[]>;
   getStudentCourses: (studentId: string) => Course[];
   getVisibleCoursesForStudent: (studentId: string) => Course[];
@@ -669,6 +670,27 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const removeEnrollment = async (enrollmentId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('id', enrollmentId);
+
+      if (error) {
+        toast.error("Failed to remove enrollment");
+        return false;
+      }
+
+      setEnrollments(prev => prev.filter(enr => enr.id !== enrollmentId));
+      toast.success("Student removed from course successfully");
+      return true;
+    } catch (error) {
+      toast.error("Failed to remove enrollment");
+      return false;
+    }
+  };
+
   const getStudentCourses = (studentId: string): Course[] => {
     const enrolledCourseIds = enrollments
       .filter(enr => enr.student_id === studentId)
@@ -728,6 +750,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       uploadExamPdf,
       enrollStudent,
       unenrollStudent,
+      removeEnrollment,
       getEnrolledStudents,
       getStudentCourses,
       getVisibleCoursesForStudent,

@@ -58,19 +58,14 @@ const Exercises = () => {
       course_id: formData.course_id,
       title: formData.title,
       description: formData.description,
-      due_date: formData.due_date,
+      due_date: new Date(formData.due_date).toISOString(),
       is_visible: formData.is_visible,
     });
     
-    // Handle file upload if file is selected and exercise was created
-    if (selectedFile && success) {
-      // We would need the created exercise ID here, but the current API doesn't return it
-      // For now, we'll skip the file upload on creation and allow it on edit
-      console.log("File upload on creation not yet supported");
+    if (success) {
+      resetForm();
+      setIsAddDialogOpen(false);
     }
-    
-    resetForm();
-    setIsAddDialogOpen(false);
   };
 
   const handleEditExercise = async () => {
@@ -80,7 +75,7 @@ const Exercises = () => {
       course_id: formData.course_id,
       title: formData.title,
       description: formData.description,
-      due_date: formData.due_date,
+      due_date: new Date(formData.due_date).toISOString(),
       is_visible: formData.is_visible,
     });
     
@@ -89,8 +84,10 @@ const Exercises = () => {
       await uploadExercisePdf(formData.id, selectedFile);
     }
     
-    resetForm();
-    setIsEditDialogOpen(false);
+    if (success) {
+      resetForm();
+      setIsEditDialogOpen(false);
+    }
   };
 
   const openEditDialog = (exercise: Exercise) => {
@@ -144,7 +141,7 @@ const Exercises = () => {
                 <Plus size={16} /> {t("exercise.add")}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t("exercise.add")}</DialogTitle>
                 <DialogDescription>
@@ -307,7 +304,7 @@ const Exercises = () => {
 
       {/* Edit Exercise Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("exercise.edit")}</DialogTitle>
           </DialogHeader>

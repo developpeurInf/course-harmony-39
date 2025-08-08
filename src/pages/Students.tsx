@@ -1,84 +1,197 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutGrid, LayoutList, Mail, BookOpen } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { 
+  Users, 
+  Search, 
+  Plus, 
+  Mail, 
+  BookOpen,
+  UserPlus,
+  UserMinus,
+  LayoutGrid,
+  LayoutList
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const Students = () => {
   const { user, getStudents } = useAuth();
-  const { courses, enrollments } = useCourses();
+  const { courses, enrollments, enrollStudent, removeEnrollment } = useCourses();
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const isProfessor = user?.role === "professor";
-  
-  // Redirect if not a professor
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [enrollCourseId, setEnrollCourseId] = useState("");
+
+  // Redirect if not professor
   useEffect(() => {
-    if (!isProfessor) {
+    if (user && user.role !== "professor") {
       navigate("/dashboard");
+      return;
     }
-  }, [isProfessor, navigate]);
+  }, [user, navigate]);
 
   // Fetch students
   useEffect(() => {
     const fetchStudents = async () => {
-      if (isProfessor) {
-        setLoading(true);
-        const studentsData = await getStudents();
-        setStudents(studentsData);
+      setLoading(true);
+      try {
+        const studentsList = await getStudents();
+        setStudents(studentsList);
+      } catch (error) {
+        console.error("Failed to fetch students:", error);
+        toast.error("Failed to load students");
+      } finally {
         setLoading(false);
       }
     };
 
-    fetchStudents();
-  }, [isProfessor, getStudents]);
+    if (user?.role === "professor") {
+      fetchStudents();
+    }
+  }, [user, getStudents]);
 
-  if (!isProfessor) {
-    return null; // Will redirect
-  }
+  // Filter students by professor's courses
+  const professorCourses = courses.filter(c => c.professor_id === user?.id);
+  const professorCourseIds = professorCourses.map(c => c.id);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // Get students enrolled in professor's courses
+  const enrolledStudents = students.filter(student => 
+    enrollments.some(e => 
+      e.student_id === student.id && 
+      professorCourseIds.includes(e.course_id)
+    )
+  );
 
-  // Count number of courses a student is enrolled in
-  const getStudentCourseCount = (studentId: string) => {
-    return enrollments.filter(enrollment => enrollment.student_id === studentId).length;
-  };
-
-  // Get courses for a student
-  const getStudentCourses = (studentId: string) => {
-    const enrolledCourseIds = enrollments
-      .filter(enrollment => enrollment.student_id === studentId)
-      .map(enrollment => enrollment.course_id);
+  // Filter students based on search and course selection
+  const filteredStudents = enrolledStudents.filter(student => {
+    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.email.toLowerCase().includes(searchTerm.toLowerCase());
     
-    return courses.filter(course => enrolledCourseIds.includes(course.id));
+    if (selectedCourse === "all") return matchesSearch;
+    
+    return matchesSearch && enrollments.some(e => 
+      e.student_id === student.id && 
+      e.course_id === selectedCourse
+    );
+  });
+
+  // Get student's enrolled courses count
+  const getStudentCourseCount = (studentId: string): number => {
+    return enrollments.filter(e => 
+      e.student_id === studentId && 
+      professorCourseIds.includes(e.course_id)
+    ).length;
   };
 
-  // Toggle view mode between grid and list
+  // Get courses a student is enrolled in
+  const getStudentCourses = (studentId: string) => {
+    const studentEnrollments = enrollments.filter(e => e.student_id === studentId);
+    return professorCourses.filter(course => 
+      studentEnrollments.some(e => e.course_id === course.id)
+    );
+  };
+
+  // Handle student enrollment
+  const handleEnrollStudent = async () => {
+    if (!selectedStudent || !enrollCourseId) return;
+
+    // Check if already enrolled
+    const alreadyEnrolled = enrollments.some(e => 
+      e.student_id === selectedStudent.id && 
+      e.course_id === enrollCourseId
+    );
+
+    if (alreadyEnrolled) {
+      toast.error("Student is already enrolled in this course");
+      return;
+    }
+
+    const success = await enrollStudent(enrollCourseId, selectedStudent.id);
+    if (success) {
+      setIsEnrollDialogOpen(false);
+      setSelectedStudent(null);
+      setEnrollCourseId("");
+    }
+  };
+
+  // Handle remove enrollment
+  const handleRemoveEnrollment = async (studentId: string, courseId: string) => {
+    const enrollment = enrollments.find(e => 
+      e.student_id === studentId && 
+      e.course_id === courseId
+    );
+    
+    if (!enrollment) return;
+
+    const success = await removeEnrollment(enrollment.id);
+    if (success) {
+      toast.success("Student removed from course");
+    }
+  };
+
+  const openEnrollDialog = (student: any) => {
+    setSelectedStudent(student);
+    setIsEnrollDialogOpen(true);
+  };
+
   const toggleViewMode = () => {
     setViewMode(viewMode === "grid" ? "list" : "grid");
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading students...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Students</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Users className="h-8 w-8" />
+            Student Management
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Manage and view information about your students
+            Manage students enrolled in your courses
           </p>
         </div>
+        
         <Button
           variant="outline"
           size="sm"
@@ -94,171 +207,202 @@ const Students = () => {
         </Button>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="all">All Students</TabsTrigger>
-          <TabsTrigger value="byCourse">By Course</TabsTrigger>
-        </TabsList>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            placeholder="Search students by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+          <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectValue placeholder="Filter by course" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Courses</SelectItem>
+            {professorCourses.map(course => (
+              <SelectItem key={course.id} value={course.id}>
+                {course.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        <TabsContent value="all" className="space-y-4">
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {students.map(student => (
-                <Card key={student.id} className="overflow-hidden card-hover">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2">
-                      {student.avatar_url && (
-                        <img 
-                          src={student.avatar_url} 
-                          alt={student.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      )}
-                      {student.name}
-                    </CardTitle>
-                    <CardDescription className="flex items-center mt-1">
-                      <Mail className="h-4 w-4 mr-1" />
-                      {student.email}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <BookOpen className="h-4 w-4 mr-1" />
-                        <span>
-                          Enrolled in {getStudentCourseCount(student.id)} course{getStudentCourseCount(student.id) !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {getStudentCourseCount(student.id) > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium mb-2">Enrolled Courses</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {getStudentCourses(student.id).map(course => (
-                            <Badge key={course.id} variant="outline" className="bg-accent/50">
-                              {course.title}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {students.map(student => (
-                <div key={student.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
-                  <div className="space-y-1 mb-2 sm:mb-0">
-                    <div className="flex items-center gap-2">
-                      {student.avatar_url && (
-                        <img 
-                          src={student.avatar_url} 
-                          alt={student.name}
-                          className="w-6 h-6 rounded-full object-cover"
-                        />
-                      )}
-                      <h3 className="font-medium">{student.name}</h3>
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Mail className="h-4 w-4 mr-1" />
-                      <span>{student.email}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <BookOpen className="h-4 w-4 mr-1" />
-                      <span>
-                        Enrolled in {getStudentCourseCount(student.id)} course{getStudentCourseCount(student.id) !== 1 ? 's' : ''}
-                      </span>
+      {/* Students Display */}
+      {filteredStudents.length > 0 ? (
+        viewMode === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredStudents.map((student) => (
+              <Card key={student.id} className="overflow-hidden card-hover">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={student.avatar_url} alt={student.name} />
+                      <AvatarFallback>
+                        {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{student.name}</CardTitle>
+                      <CardDescription className="flex items-center gap-1 mt-1">
+                        <Mail className="h-3 w-3" />
+                        {student.email}
+                      </CardDescription>
                     </div>
                   </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Enrolled Courses:</span>
+                    <Badge variant="secondary">
+                      {getStudentCourseCount(student.id)}
+                    </Badge>
+                  </div>
                   
-                  {getStudentCourseCount(student.id) > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {getStudentCourses(student.id).map(course => (
-                        <Badge key={course.id} variant="outline" className="bg-accent/50">
-                          {course.title}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {students.length === 0 && (
-            <div className="text-center py-12">
-              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">No Students Found</h3>
-              <p className="mt-2 text-muted-foreground">
-                Students will appear here when they register for your courses.
-              </p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="byCourse" className="space-y-6">
-          {courses
-            .filter(course => course.professor_id === user?.id)
-            .map(course => {
-              const enrolledStudents = students.filter(student => 
-                enrollments.some(enrollment => 
-                  enrollment.course_id === course.id && enrollment.student_id === student.id
-                )
-              );
-
-              return (
-                <Card key={course.id} className="overflow-hidden">
-                  <CardHeader>
-                    <CardTitle>{course.title}</CardTitle>
-                    <CardDescription>
-                      {enrolledStudents.length} enrolled student{enrolledStudents.length !== 1 ? 's' : ''}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {enrolledStudents.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {enrolledStudents.map(student => (
-                          <div key={student.id} className="flex items-center p-3 border rounded-md">
-                            <div className="flex items-center gap-2">
-                              {student.avatar_url && (
-                                <img 
-                                  src={student.avatar_url} 
-                                  alt={student.name}
-                                  className="w-8 h-8 rounded-full object-cover"
-                                />
-                              )}
-                              <div>
-                                <div className="font-medium">{student.name}</div>
-                                <div className="text-sm text-muted-foreground">{student.email}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                  {/* Course List */}
+                  <div className="space-y-1">
+                    {getStudentCourses(student.id).slice(0, 3).map(course => (
+                      <div key={course.id} className="flex items-center justify-between text-sm">
+                        <span className="truncate">{course.title}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={() => handleRemoveEnrollment(student.id, course.id)}
+                          title="Remove from course"
+                        >
+                          <UserMinus className="h-3 w-3" />
+                        </Button>
                       </div>
-                    ) : (
-                      <div className="text-center py-4 text-muted-foreground">
-                        No students enrolled in this course
-                      </div>
+                    ))}
+                    {getStudentCourses(student.id).length > 3 && (
+                      <p className="text-xs text-muted-foreground">
+                        +{getStudentCourses(student.id).length - 3} more courses
+                      </p>
                     )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => openEnrollDialog(student)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Enroll in Course
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredStudents.map((student) => (
+              <div key={student.id} className="flex items-center justify-between p-4 border rounded-lg bg-card">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={student.avatar_url} alt={student.name} />
+                    <AvatarFallback>
+                      {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="font-medium">{student.name}</h3>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {student.email}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">
+                    {getStudentCourseCount(student.id)} courses
+                  </Badge>
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEnrollDialog(student)}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Enroll
+                </Button>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Users className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No Students Found</h3>
+            <p className="text-muted-foreground text-center">
+              {searchTerm || selectedCourse !== "all" 
+                ? "No students match your current filters." 
+                : "No students are enrolled in your courses yet."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-          {courses.filter(course => course.professor_id === user?.id).length === 0 && (
-            <div className="text-center py-12">
-              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">No Courses Found</h3>
-              <p className="mt-2 text-muted-foreground">
-                Create some courses first to see student enrollments.
-              </p>
+      {/* Enrollment Dialog */}
+      <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enroll Student in Course</DialogTitle>
+            <DialogDescription>
+              Select a course to enroll {selectedStudent?.name} in.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="course">Course</Label>
+              <Select value={enrollCourseId} onValueChange={setEnrollCourseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {professorCourses.map(course => {
+                    const isEnrolled = selectedStudent && enrollments.some(e => 
+                      e.student_id === selectedStudent.id && 
+                      e.course_id === course.id
+                    );
+                    
+                    return (
+                      <SelectItem 
+                        key={course.id} 
+                        value={course.id}
+                        disabled={isEnrolled}
+                      >
+                        {course.title} {isEnrolled && "(Already enrolled)"}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEnrollDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleEnrollStudent}
+              disabled={!enrollCourseId}
+            >
+              Enroll Student
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
