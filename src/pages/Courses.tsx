@@ -2,6 +2,9 @@
 import { useState, useEffect } from "react";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
+import PdfUpload from "@/components/PdfUpload";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -29,7 +32,9 @@ import {
   Calendar,
   LayoutGrid,
   LayoutList,
-  Building
+  Building,
+  Download,
+  File
 } from "lucide-react";
 import {
   Select,
@@ -66,6 +71,7 @@ const Courses = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
+  const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -122,18 +128,52 @@ const Courses = () => {
     setIsVisible(true);
     setCurrentCourse(null);
     setSelectedStudentId("");
+    setSelectedPdfFile(null);
   };
 
   // Add new course
   const handleAddCourse = async () => {
-    await addCourse({
+    let pdfUrl: string | undefined;
+    
+    // Upload PDF if selected
+    if (selectedPdfFile && user) {
+      try {
+        const fileExt = selectedPdfFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `courses/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('course-materials')
+          .upload(filePath, selectedPdfFile);
+        
+        if (uploadError) {
+          toast.error("Failed to upload PDF file");
+          return;
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('course-materials')
+          .getPublicUrl(filePath);
+        
+        pdfUrl = publicUrl;
+      } catch (error) {
+        toast.error("Failed to upload PDF file");
+        return;
+      }
+    }
+    
+    const success = await addCourse({
       title,
       description,
       is_visible: isVisible,
-      room_id: roomId || undefined
+      room_id: roomId || undefined,
+      pdf_url: pdfUrl
     });
-    setIsAddDialogOpen(false);
-    resetForm();
+    
+    if (success) {
+      setIsAddDialogOpen(false);
+      resetForm();
+    }
   };
 
   // Edit course
@@ -248,6 +288,28 @@ const Courses = () => {
     navigate(`/exams?course=${courseId}`);
   };
 
+  // Handle PDF view/download
+  const handleViewPdf = (pdfUrl: string) => {
+    window.open(pdfUrl, '_blank');
+  };
+
+  const handleDownloadPdf = async (pdfUrl: string, courseName: string) => {
+    try {
+      const response = await fetch(pdfUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${courseName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_materials.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Failed to download PDF");
+    }
+  };
+
   // Handle room filter change
   const handleRoomFilterChange = (roomId: string) => {
     setSelectedRoomFilter(roomId);
@@ -339,6 +401,15 @@ const Courses = () => {
                       rows={3}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Course Materials (PDF)</Label>
+                    <PdfUpload
+                      onFileSelect={setSelectedPdfFile}
+                      selectedFile={selectedPdfFile}
+                      accept=".pdf"
+                      maxSizeMB={50}
+                    />
+                  </div>
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="visibility"
@@ -352,7 +423,7 @@ const Courses = () => {
                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleAddCourse}>
+                  <Button onClick={handleAddCourse} disabled={!title}>
                     Create Course
                   </Button>
                 </DialogFooter>
@@ -440,6 +511,17 @@ const Courses = () => {
                           <Calendar className="h-3.5 w-3.5 mr-1" />
                           {stats.examCount} {stats.examCount === 1 ? "Exam" : "Exams"}
                         </Button>
+                        {course.pdf_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-7"
+                            onClick={() => handleViewPdf(course.pdf_url!)}
+                          >
+                            <File className="h-3.5 w-3.5 mr-1" />
+                            Materials
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -544,6 +626,26 @@ const Courses = () => {
                       <Calendar className="h-4 w-4 mr-1" />
                       <span>Exams</span>
                     </Button>
+                    {course.pdf_url && (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewPdf(course.pdf_url!)}
+                        >
+                          <File className="h-4 w-4 mr-1" />
+                          <span>View Materials</span>
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDownloadPdf(course.pdf_url!, course.title)}
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          <span>Download</span>
+                        </Button>
+                      </>
+                    )}
                     
                     {isProfessor && (
                       <>
