@@ -136,6 +136,7 @@ export type Database = {
           is_visible: boolean
           pdf_url: string | null
           title: string
+          type: Database["public"]["Enums"]["exam_type"]
           updated_at: string
         }
         Insert: {
@@ -148,6 +149,7 @@ export type Database = {
           is_visible?: boolean
           pdf_url?: string | null
           title: string
+          type?: Database["public"]["Enums"]["exam_type"]
           updated_at?: string
         }
         Update: {
@@ -160,6 +162,7 @@ export type Database = {
           is_visible?: boolean
           pdf_url?: string | null
           title?: string
+          type?: Database["public"]["Enums"]["exam_type"]
           updated_at?: string
         }
         Relationships: [
@@ -288,6 +291,178 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_answers: {
+        Row: {
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          points_earned: number | null
+          question_id: string
+          selected_option_id: string | null
+          submission_id: string
+          text_answer: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          points_earned?: number | null
+          question_id: string
+          selected_option_id?: string | null
+          submission_id: string
+          text_answer?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          points_earned?: number | null
+          question_id?: string
+          selected_option_id?: string | null
+          submission_id?: string
+          text_answer?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_quiz_answers_option"
+            columns: ["selected_option_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_quiz_answers_question"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_quiz_answers_submission"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_correct: boolean
+          option_order: number
+          option_text: string
+          question_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          option_order: number
+          option_text: string
+          question_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          option_order?: number
+          option_text?: string
+          question_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_quiz_options_question"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          created_at: string
+          exam_id: string
+          id: string
+          points: number
+          question: string
+          question_order: number
+          question_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          exam_id: string
+          id?: string
+          points?: number
+          question: string
+          question_order: number
+          question_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          exam_id?: string
+          id?: string
+          points?: number
+          question?: string
+          question_order?: number
+          question_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_quiz_questions_exam"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_submissions: {
+        Row: {
+          exam_id: string
+          id: string
+          is_completed: boolean
+          score: number | null
+          student_id: string
+          submitted_at: string
+          time_taken_minutes: number | null
+          total_points: number | null
+        }
+        Insert: {
+          exam_id: string
+          id?: string
+          is_completed?: boolean
+          score?: number | null
+          student_id: string
+          submitted_at?: string
+          time_taken_minutes?: number | null
+          total_points?: number | null
+        }
+        Update: {
+          exam_id?: string
+          id?: string
+          is_completed?: boolean
+          score?: number | null
+          student_id?: string
+          submitted_at?: string
+          time_taken_minutes?: number | null
+          total_points?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_quiz_submissions_exam"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           created_at: string
@@ -326,7 +501,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      exam_type: "exam" | "quiz"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -453,6 +628,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      exam_type: ["exam", "quiz"],
+    },
   },
 } as const

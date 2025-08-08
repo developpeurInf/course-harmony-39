@@ -48,8 +48,51 @@ export interface Exam {
   duration_minutes: number;
   is_visible: boolean;
   pdf_url?: string;
+  type: 'exam' | 'quiz';
   created_at: string;
   updated_at: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  exam_id: string;
+  question: string;
+  question_order: number;
+  question_type: 'multiple_choice' | 'true_false' | 'short_answer';
+  points: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuizOption {
+  id: string;
+  question_id: string;
+  option_text: string;
+  is_correct: boolean;
+  option_order: number;
+  created_at: string;
+}
+
+export interface QuizSubmission {
+  id: string;
+  exam_id: string;
+  student_id: string;
+  submitted_at: string;
+  score?: number;
+  total_points?: number;
+  is_completed: boolean;
+  time_taken_minutes?: number;
+}
+
+export interface QuizAnswer {
+  id: string;
+  submission_id: string;
+  question_id: string;
+  selected_option_id?: string;
+  text_answer?: string;
+  is_correct?: boolean;
+  points_earned?: number;
+  created_at: string;
 }
 
 export interface Enrollment {
@@ -66,6 +109,10 @@ interface CourseContextType {
   exercises: Exercise[];
   exams: Exam[];
   enrollments: Enrollment[];
+  quizQuestions: QuizQuestion[];
+  quizOptions: QuizOption[];
+  quizSubmissions: QuizSubmission[];
+  quizAnswers: QuizAnswer[];
   loading: boolean;
   
   // Room operations
@@ -95,6 +142,17 @@ interface CourseContextType {
   toggleExamVisibility: (examId: string) => Promise<boolean>;
   uploadExamPdf: (examId: string, file: File) => Promise<string | null>;
   
+  // Quiz operations
+  addQuizQuestion: (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">) => Promise<boolean>;
+  addQuizOption: (option: Omit<QuizOption, "id" | "created_at">) => Promise<boolean>;
+  updateQuizQuestion: (questionId: string, updates: Partial<QuizQuestion>) => Promise<boolean>;
+  deleteQuizQuestion: (questionId: string) => Promise<boolean>;
+  getQuizQuestions: (examId: string) => QuizQuestion[];
+  getQuizOptions: (questionId: string) => QuizOption[];
+  submitQuiz: (submission: Omit<QuizSubmission, "id" | "submitted_at">, answers: Omit<QuizAnswer, "id" | "submission_id" | "created_at">[]) => Promise<boolean>;
+  getQuizSubmissions: (examId: string) => QuizSubmission[];
+  getStudentQuizSubmission: (examId: string, studentId: string) => QuizSubmission | null;
+  
   // Enrollment operations
   enrollStudent: (courseId: string, studentId: string) => Promise<boolean>;
   unenrollStudent: (courseId: string, studentId: string) => Promise<boolean>;
@@ -118,6 +176,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizOptions, setQuizOptions] = useState<QuizOption[]>([]);
+  const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmission[]>([]);
+  const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Load initial data
@@ -133,12 +195,16 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       // Fetch all data in parallel
-      const [roomsData, coursesData, exercisesData, examsData, enrollmentsData] = await Promise.all([
+      const [roomsData, coursesData, exercisesData, examsData, enrollmentsData, questionsData, optionsData, submissionsData, answersData] = await Promise.all([
         supabase.from('rooms').select('*').order('created_at', { ascending: false }),
         supabase.from('courses').select('*').order('created_at', { ascending: false }),
         supabase.from('exercises').select('*').order('created_at', { ascending: false }),
         supabase.from('exams').select('*').order('created_at', { ascending: false }),
-        supabase.from('enrollments').select('*')
+        supabase.from('enrollments').select('*'),
+        supabase.from('quiz_questions').select('*').order('question_order', { ascending: true }),
+        supabase.from('quiz_options').select('*').order('option_order', { ascending: true }),
+        supabase.from('quiz_submissions').select('*').order('submitted_at', { ascending: false }),
+        supabase.from('quiz_answers').select('*')
       ]);
 
       if (roomsData.error) console.error('Rooms fetch error:', roomsData.error);
@@ -155,6 +221,18 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (enrollmentsData.error) console.error('Enrollments fetch error:', enrollmentsData.error);
       else setEnrollments(enrollmentsData.data || []);
+
+      if (questionsData.error) console.error('Quiz questions fetch error:', questionsData.error);
+      else setQuizQuestions((questionsData.data || []) as QuizQuestion[]);
+
+      if (optionsData.error) console.error('Quiz options fetch error:', optionsData.error);
+      else setQuizOptions(optionsData.data || []);
+
+      if (submissionsData.error) console.error('Quiz submissions fetch error:', submissionsData.error);
+      else setQuizSubmissions(submissionsData.data || []);
+
+      if (answersData.error) console.error('Quiz answers fetch error:', answersData.error);
+      else setQuizAnswers(answersData.data || []);
 
     } catch (error) {
       console.error('Failed to refresh data:', error);
@@ -739,6 +817,150 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  // Quiz operations
+  const addQuizQuestion = async (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_questions')
+        .insert([question])
+        .select()
+        .single();
+
+      if (error) {
+        toast.error("Failed to add question");
+        return false;
+      }
+
+      setQuizQuestions(prev => [...prev, data as QuizQuestion]);
+      toast.success("Question added successfully");
+      return true;
+    } catch (error) {
+      toast.error("Failed to add question");
+      return false;
+    }
+  };
+
+  const addQuizOption = async (option: Omit<QuizOption, "id" | "created_at">): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_options')
+        .insert([option])
+        .select()
+        .single();
+
+      if (error) {
+        toast.error("Failed to add option");
+        return false;
+      }
+
+      setQuizOptions(prev => [...prev, data]);
+      return true;
+    } catch (error) {
+      toast.error("Failed to add option");
+      return false;
+    }
+  };
+
+  const updateQuizQuestion = async (questionId: string, updates: Partial<QuizQuestion>): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('quiz_questions')
+        .update(updates)
+        .eq('id', questionId);
+
+      if (error) {
+        toast.error("Failed to update question");
+        return false;
+      }
+
+      setQuizQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } : q));
+      toast.success("Question updated successfully");
+      return true;
+    } catch (error) {
+      toast.error("Failed to update question");
+      return false;
+    }
+  };
+
+  const deleteQuizQuestion = async (questionId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('quiz_questions')
+        .delete()
+        .eq('id', questionId);
+
+      if (error) {
+        toast.error("Failed to delete question");
+        return false;
+      }
+
+      setQuizQuestions(prev => prev.filter(q => q.id !== questionId));
+      setQuizOptions(prev => prev.filter(opt => opt.question_id !== questionId));
+      toast.success("Question deleted successfully");
+      return true;
+    } catch (error) {
+      toast.error("Failed to delete question");
+      return false;
+    }
+  };
+
+  const getQuizQuestions = (examId: string): QuizQuestion[] => {
+    return quizQuestions.filter(q => q.exam_id === examId).sort((a, b) => a.question_order - b.question_order);
+  };
+
+  const getQuizOptions = (questionId: string): QuizOption[] => {
+    return quizOptions.filter(opt => opt.question_id === questionId).sort((a, b) => a.option_order - b.option_order);
+  };
+
+  const submitQuiz = async (submission: Omit<QuizSubmission, "id" | "submitted_at">, answers: Omit<QuizAnswer, "id" | "submission_id" | "created_at">[]): Promise<boolean> => {
+    try {
+      // Insert submission
+      const { data: submissionData, error: submissionError } = await supabase
+        .from('quiz_submissions')
+        .insert([submission])
+        .select()
+        .single();
+
+      if (submissionError) {
+        toast.error("Failed to submit quiz");
+        return false;
+      }
+
+      // Insert answers
+      const answersWithSubmissionId = answers.map(answer => ({
+        ...answer,
+        submission_id: submissionData.id
+      }));
+
+      const { error: answersError } = await supabase
+        .from('quiz_answers')
+        .insert(answersWithSubmissionId);
+
+      if (answersError) {
+        toast.error("Failed to save answers");
+        return false;
+      }
+
+      // Update local state
+      setQuizSubmissions(prev => [...prev, submissionData]);
+      refreshData(); // Refresh to get the inserted answers
+      
+      toast.success("Quiz submitted successfully");
+      return true;
+    } catch (error) {
+      toast.error("Failed to submit quiz");
+      return false;
+    }
+  };
+
+  const getQuizSubmissions = (examId: string): QuizSubmission[] => {
+    return quizSubmissions.filter(sub => sub.exam_id === examId);
+  };
+
+  const getStudentQuizSubmission = (examId: string, studentId: string): QuizSubmission | null => {
+    return quizSubmissions.find(sub => sub.exam_id === examId && sub.student_id === studentId) || null;
+  };
+
   const notifyStudentsAboutUpdate = async (courseId: string, title: string, type: 'course' | 'exercise' | 'exam') => {
     try {
       // Get all students enrolled in the course
@@ -782,6 +1004,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       exercises,
       exams,
       enrollments,
+      quizQuestions,
+      quizOptions,
+      quizSubmissions,
+      quizAnswers,
       loading,
       addRoom,
       updateRoom,
@@ -802,6 +1028,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       deleteExam,
       toggleExamVisibility,
       uploadExamPdf,
+      addQuizQuestion,
+      addQuizOption,
+      updateQuizQuestion,
+      deleteQuizQuestion,
+      getQuizQuestions,
+      getQuizOptions,
+      submitQuiz,
+      getQuizSubmissions,
+      getStudentQuizSubmission,
       enrollStudent,
       unenrollStudent,
       removeEnrollment,

@@ -33,8 +33,13 @@ import {
   Plus,
   Clock,
   LayoutGrid,
-  LayoutList
+  LayoutList,
+  BookOpen,
+  Settings,
+  Play
 } from "lucide-react";
+import QuizBuilder from "@/components/QuizBuilder";
+import QuizTaker from "@/components/QuizTaker";
 import { format } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -66,8 +71,11 @@ const Exams = () => {
   const [examTime, setExamTime] = useState("");
   const [duration, setDuration] = useState(60);
   const [isVisible, setIsVisible] = useState(true);
+  const [examType, setExamType] = useState<"exam" | "quiz">("exam");
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>("all");
+  const [showQuizBuilder, setShowQuizBuilder] = useState<string | null>(null);
+  const [showQuizTaker, setShowQuizTaker] = useState<Exam | null>(null);
   
   const isProfessor = user?.role === "professor";
   
@@ -111,6 +119,7 @@ const Exams = () => {
     setExamTime("");
     setDuration(60);
     setIsVisible(true);
+    setExamType("exam");
     setCurrentExam(null);
   };
 
@@ -139,7 +148,8 @@ const Exams = () => {
       course_id: courseId,
       exam_date: combineDateTime(examDate, examTime),
       duration_minutes: duration,
-      is_visible: isVisible
+      is_visible: isVisible,
+      type: examType
     });
     
     if (success) {
@@ -157,7 +167,8 @@ const Exams = () => {
         course_id: courseId,
         exam_date: combineDateTime(examDate, examTime),
         duration_minutes: duration,
-        is_visible: isVisible
+        is_visible: isVisible,
+        type: examType
       });
       
       if (success) {
@@ -186,6 +197,7 @@ const Exams = () => {
     setExamTime(formatTimeForInput(exam.exam_date));
     setDuration(exam.duration_minutes);
     setIsVisible(exam.is_visible);
+    setExamType(exam.type);
     setIsEditDialogOpen(true);
   };
 
@@ -352,6 +364,18 @@ const Exams = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="examType">Type</Label>
+                    <Select value={examType} onValueChange={(value: "exam" | "quiz") => setExamType(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="exam">Regular Exam</SelectItem>
+                        <SelectItem value="quiz">Quiz</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="duration">Duration (minutes)</Label>
                     <Input
                       id="duration"
@@ -379,7 +403,7 @@ const Exams = () => {
                     onClick={handleAddExam}
                     disabled={!title || !courseId || !examDate || !examTime}
                   >
-                    Schedule Exam
+                    {examType === 'quiz' ? 'Create Quiz' : 'Schedule Exam'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -387,6 +411,28 @@ const Exams = () => {
           )}
         </div>
       </div>
+
+      {/* Quiz Builder Modal */}
+      {showQuizBuilder && (
+        <Dialog open={!!showQuizBuilder} onOpenChange={() => setShowQuizBuilder(null)}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+            <div className="h-full overflow-y-auto p-6">
+              <QuizBuilder examId={showQuizBuilder} onClose={() => setShowQuizBuilder(null)} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Quiz Taker Modal */}
+      {showQuizTaker && (
+        <Dialog open={!!showQuizTaker} onOpenChange={() => setShowQuizTaker(null)}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+            <div className="h-full overflow-y-auto p-6">
+              <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Course filter */}
       <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
@@ -420,6 +466,9 @@ const Exams = () => {
                   <div className="flex justify-between items-start">
                     <CardTitle>{exam.title}</CardTitle>
                     <div className="flex flex-col items-end gap-1">
+                      <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'}>
+                        {exam.type === 'quiz' ? 'Quiz' : 'Exam'}
+                      </Badge>
                       {!exam.is_visible && (
                         <Badge variant="outline">Hidden</Badge>
                       )}
@@ -447,42 +496,67 @@ const Exams = () => {
                     </div>
                   </div>
                 </CardContent>
-                {isProfessor && (
-                  <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                    <div className="flex justify-between w-full">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleToggleVisibility(exam.id)}
-                        title={exam.is_visible ? "Hide from students" : "Make visible to students"}
-                      >
-                        {exam.is_visible ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <div className="flex gap-2">
+                <CardFooter className="border-t bg-muted/30 px-6 py-3">
+                  <div className="flex justify-between w-full">
+                    {isProfessor ? (
+                      <>
+                        <div className="flex gap-2">
+                          {exam.type === 'quiz' && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => setShowQuizBuilder(exam.id)}
+                              title="Manage quiz questions"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleToggleVisibility(exam.id)}
+                            title={exam.is_visible ? "Hide from students" : "Make visible to students"}
+                          >
+                            {exam.is_visible ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openEditDialog(exam)}
+                            title="Edit exam"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => openDeleteDialog(exam)}
+                            title="Delete exam"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </>
+                    ) : exam.type === 'quiz' && !isPastExam(exam.exam_date) && (
+                      <div className="flex justify-end w-full">
                         <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => openEditDialog(exam)}
-                          title="Edit exam"
+                          size="sm"
+                          onClick={() => setShowQuizTaker(exam)}
+                          className="flex items-center gap-2"
                         >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => openDeleteDialog(exam)}
-                          title="Delete exam"
-                        >
-                          <Trash className="h-4 w-4" />
+                          <Play className="h-4 w-4" />
+                          Take Quiz
                         </Button>
                       </div>
-                    </div>
-                  </CardFooter>
-                )}
+                    )}
+                  </div>
+                </CardFooter>
               </Card>
             ))}
           </div>
@@ -490,16 +564,19 @@ const Exams = () => {
           <div className="space-y-3">
             {displayedExams.map((exam) => (
               <div key={exam.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
-                <div className="space-y-1 mb-2 sm:mb-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium">{exam.title}</h3>
-                    {!exam.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
-                    {isPastExam(exam.exam_date) ? (
-                      <Badge variant="secondary" className="h-5">Past</Badge>
-                    ) : (
-                      <Badge className="h-5">Upcoming</Badge>
-                    )}
-                  </div>
+                  <div className="space-y-1 mb-2 sm:mb-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium">{exam.title}</h3>
+                      <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="h-5">
+                        {exam.type === 'quiz' ? 'Quiz' : 'Exam'}
+                      </Badge>
+                      {!exam.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
+                      {isPastExam(exam.exam_date) ? (
+                        <Badge variant="secondary" className="h-5">Past</Badge>
+                      ) : (
+                        <Badge className="h-5">Upcoming</Badge>
+                      )}
+                    </div>
                   <p className="text-sm text-muted-foreground">{getCourseName(exam.course_id)}</p>
                   <div className="flex items-center text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3 mr-1" />
