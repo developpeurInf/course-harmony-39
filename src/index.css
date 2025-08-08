@@ -124,28 +124,15 @@
 .rtl .mr-2,
 .rtl .mr-3,
 .rtl .mr-4 {
-  margin-right: 0;
+  margin-right: 0 !important;
+  margin-left: 0.25rem;
 }
 
 .rtl .ml-1,
 .rtl .ml-2,
 .rtl .ml-3,
 .rtl .ml-4 {
-  margin-left: 0;
+  margin-left: 0 !important;
+  margin-right: 0.25rem;
 }
 
-.rtl .mr-1 {
-  @apply ml-1;
-}
-
-.rtl .mr-2 {
-  @apply ml-2;
-}
-
-.rtl .mr-3 {
-  @apply ml-3;
-}
-
-.rtl .mr-4 {
-  @apply ml-4;
-}
