@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Course, Exercise, Exam } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useNavigate } from "react-router-dom";
 import { 
   Card, 
   CardContent, 
@@ -11,17 +12,20 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, FileText, Calendar, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BookOpen, FileText, Calendar, Users, Building } from "lucide-react";
 import { format } from "date-fns";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const { 
     courses, 
     exercises, 
     exams,
     enrollments,
+    rooms,
     getVisibleCoursesForStudent,
     getVisibleExercisesForStudent,
     getVisibleExamsForStudent
@@ -80,6 +84,10 @@ const Dashboard = () => {
     }
   }, [user, courses, exercises, exams, getVisibleCoursesForStudent, getVisibleExercisesForStudent, getVisibleExamsForStudent]);
 
+  // Check if professor has any rooms
+  const isProfessor = user?.role === "professor";
+  const hasRooms = isProfessor ? rooms.filter(room => room.professor_id === user.id).length > 0 : rooms.length > 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -90,6 +98,29 @@ const Dashboard = () => {
             : t("dashboard.student.subtitle")}
         </p>
       </div>
+
+      {/* No rooms prompt for professors */}
+      {isProfessor && !hasRooms && (
+        <Card className="p-8 text-center border-dashed">
+          <CardHeader>
+            <Building className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <CardTitle>Welcome to Your Teaching Platform</CardTitle>
+            <CardDescription className="text-base">
+              Get started by creating your first room. Rooms help you organize your courses, students, and academic content.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={() => navigate('/create-room')} 
+              size="lg" 
+              className="mt-4"
+            >
+              <Building className="mr-2 h-4 w-4" />
+              Create Your First Room
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

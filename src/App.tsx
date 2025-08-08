@@ -12,7 +12,7 @@ import MainLayout from "./components/layout/MainLayout";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Rooms from "./pages/Rooms";
+import CreateRoom from "./pages/CreateRoom";
 import Courses from "./pages/Courses";
 import Exercises from "./pages/Exercises";
 import Exams from "./pages/Exams";
@@ -37,13 +37,13 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route element={<MainLayout />}>
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/rooms" element={<Rooms />} />
-                  <Route path="/courses" element={<Courses />} />
-                  <Route path="/exercises" element={<Exercises />} />
-                  <Route path="/exams" element={<Exams />} />
-                  <Route path="/students" element={<Students />} />
+                  <Route path="/create-room" element={<CreateRoom />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/room/:roomId/courses" element={<Courses />} />
+                  <Route path="/room/:roomId/exercises" element={<Exercises />} />
+                  <Route path="/room/:roomId/exams" element={<Exams />} />
+                  <Route path="/room/:roomId/students" element={<Students />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

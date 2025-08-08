@@ -1,7 +1,8 @@
 
-import { NavLink } from "react-router-dom";
+import { NavLink, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCourses } from "@/contexts/CourseContext";
 import { 
   Home, 
   BookOpen, 
@@ -10,13 +11,32 @@ import {
   Calendar,
   Settings,
   User,
-  Building
+  Building,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
+import { useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const Sidebar = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { rooms } = useCourses();
+  const { roomId } = useParams();
+  const [openRooms, setOpenRooms] = useState<Record<string, boolean>>({});
   const isProfessor = user?.role === "professor";
+
+  const userRooms = isProfessor 
+    ? rooms.filter(room => room.professor_id === user.id) 
+    : rooms.filter(room => room.is_visible);
+
+  const toggleRoom = (roomId: string) => {
+    setOpenRooms(prev => ({ ...prev, [roomId]: !prev[roomId] }));
+  };
 
   return (
     <aside className="hidden md:flex md:w-64 flex-col bg-sidebar border-r shadow-sm">
@@ -30,42 +50,73 @@ const Sidebar = () => {
           <span>{t("nav.dashboard")}</span>
         </NavLink>
         
-        <NavLink to="/rooms" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Building size={20} />
-          <span>{t("nav.rooms")}</span>
-        </NavLink>
+        {/* Room-based navigation */}
+        {userRooms.map(room => (
+          <Collapsible 
+            key={room.id} 
+            open={openRooms[room.id] || roomId === room.id}
+            onOpenChange={() => toggleRoom(room.id)}
+          >
+            <CollapsibleTrigger className="flex items-center justify-between w-full nav-link">
+              <div className="flex items-center gap-3">
+                <Building size={20} />
+                <span className="truncate">{room.name}</span>
+              </div>
+              {openRooms[room.id] || roomId === room.id ? 
+                <ChevronDown size={16} className="flex-shrink-0" /> : 
+                <ChevronRight size={16} className="flex-shrink-0" />
+              }
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent className="ml-6 space-y-1 mt-1">
+              <NavLink 
+                to={`/room/${room.id}/courses`} 
+                className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+              >
+                <BookOpen size={16} />
+                <span>{t("nav.courses")}</span>
+              </NavLink>
+              
+              <NavLink 
+                to={`/room/${room.id}/exercises`} 
+                className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+              >
+                <FileText size={16} />
+                <span>{t("nav.exercises")}</span>
+              </NavLink>
+              
+              <NavLink 
+                to={`/room/${room.id}/exams`} 
+                className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+              >
+                <Calendar size={16} />
+                <span>{t("nav.exams")}</span>
+              </NavLink>
+              
+              {isProfessor && (
+                <NavLink 
+                  to={`/room/${room.id}/students`} 
+                  className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+                >
+                  <Users size={16} />
+                  <span>{t("nav.students")}</span>
+                </NavLink>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        ))}
         
-        <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <BookOpen size={20} />
-          <span>{t("nav.courses")}</span>
-        </NavLink>
-        
-        <NavLink to="/exercises" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <FileText size={20} />
-          <span>{t("nav.exercises")}</span>
-        </NavLink>
-        
-        <NavLink to="/exams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Calendar size={20} />
-          <span>{t("nav.exams")}</span>
-        </NavLink>
-        
-        {isProfessor && (
-          <NavLink to="/students" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Users size={20} />
-            <span>{t("nav.students")}</span>
+        <div className="border-t pt-4 mt-4">
+          <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <User size={20} />
+            <span>{t("nav.profile")}</span>
           </NavLink>
-        )}
-        
-        <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <User size={20} />
-          <span>{t("nav.profile")}</span>
-        </NavLink>
-        
-        <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Settings size={20} />
-          <span>{t("nav.settings")}</span>
-        </NavLink>
+          
+          <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <Settings size={20} />
+            <span>{t("nav.settings")}</span>
+          </NavLink>
+        </div>
       </nav>
       
       <div className="p-4 border-t">
