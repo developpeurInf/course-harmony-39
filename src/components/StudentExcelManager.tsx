@@ -103,47 +103,39 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         return;
       }
 
-      // Create students in Supabase Auth and profiles
-      for (const student of studentsToCreate) {
-        try {
-          // Create user account
-          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-            email: `${student.username}@school.edu`,
-            password: student.temporaryPassword,
-            user_metadata: {
-              name: `${student.prenom} ${student.nom}`,
-              role: 'student',
-              room_id: roomId
-            }
-          });
-
-          if (authError) {
-            console.error(`Failed to create user ${student.username}:`, authError);
-            continue;
+      // Create students using edge function
+      try {
+        const { data: result, error: functionError } = await supabase.functions.invoke('create-student', {
+          body: { 
+            students: studentsToCreate,
+            roomId: roomId 
           }
+        });
 
-          // Create profile (this should be handled by the trigger, but let's ensure it)
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: authData.user.id,
-              name: `${student.prenom} ${student.nom}`,
-              email: `${student.username}@school.edu`,
-              role: 'student'
-            });
-
-          if (profileError) {
-            console.error(`Failed to create profile for ${student.username}:`, profileError);
-          }
-
-          createdStudents.push(student);
-        } catch (error) {
-          console.error(`Error creating student ${student.username}:`, error);
+        if (functionError) {
+          console.error('Edge function error:', functionError);
+          toast.error("Failed to create students: " + functionError.message);
+          return;
         }
+
+        if (result && result.success) {
+          setGeneratedStudents(result.createdStudents || studentsToCreate);
+          
+          if (result.errors && result.errors.length > 0) {
+            console.warn('Some students failed to create:', result.errors);
+            toast.error(`Created ${result.created} out of ${result.total} students. Check console for details.`);
+          } else {
+            toast.success(`Successfully imported ${result.created} students`);
+          }
+        } else {
+          throw new Error(result?.error || 'Unknown error occurred');
+        }
+      } catch (error) {
+        console.error('Error calling create-student function:', error);
+        toast.error("Failed to import students");
+        return;
       }
 
-      setGeneratedStudents(createdStudents);
-      toast.success(`Successfully imported ${createdStudents.length} students`);
       setIsImportDialogOpen(false);
       setSelectedFile(null);
       onStudentsImported?.();

@@ -161,9 +161,9 @@ const Rooms = () => {
     console.log("Remove course from room functionality not implemented");
   };
 
-  // Navigate to courses page filtered by room
+  // Navigate to room courses page
   const navigateToCourses = (roomId: string) => {
-    navigate(`/courses?room=${roomId}`);
+    navigate(`/room/${roomId}/courses`);
   };
 
   // Get available courses for a room (courses not already in the room)
@@ -497,7 +497,7 @@ const Rooms = () => {
           <DialogHeader>
             <DialogTitle>Delete Room</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {currentRoom?.name}? The associated courses will not be deleted, but they will no longer be part of this room.
+              Are you sure you want to delete {currentRoom?.name}? This will permanently delete the room and ALL associated courses, exercises, exams, quiz questions, student submissions, and enrollments. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

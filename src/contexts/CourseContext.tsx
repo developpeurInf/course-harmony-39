@@ -206,6 +206,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       let examsQuery = supabase.from('exams').select('*').order('created_at', { ascending: false });
       
       if (roomId) {
+        // Clear previous data when filtering by room to prevent stale data
+        setCourses([]);
+        setExercises([]);
+        setExams([]);
+        
         // Filter courses by room
         coursesQuery = coursesQuery.eq('room_id', roomId);
         

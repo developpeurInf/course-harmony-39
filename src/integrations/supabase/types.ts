@@ -354,6 +354,20 @@ export type Database = {
             referencedRelation: "quiz_submissions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quiz_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_answers_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_submissions"
+            referencedColumns: ["id"]
+          },
         ]
       }
       quiz_options: {
@@ -384,6 +398,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "fk_quiz_options_question"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_options_question_id_fkey"
             columns: ["question_id"]
             isOneToOne: false
             referencedRelation: "quiz_questions"
@@ -430,6 +451,13 @@ export type Database = {
             referencedRelation: "exams"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quiz_questions_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
         ]
       }
       quiz_submissions: {
@@ -466,6 +494,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "fk_quiz_submissions_exam"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_submissions_exam_id_fkey"
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
