@@ -14,6 +14,9 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CreateRoom from "./pages/CreateRoom";
 import Courses from "./pages/Courses";
+import RoomCourses from "./pages/RoomCourses";
+import RoomExercises from "./pages/RoomExercises";
+import RoomExams from "./pages/RoomExams";
 import Exercises from "./pages/Exercises";
 import Exams from "./pages/Exams";
 import Students from "./pages/Students";
@@ -40,9 +43,9 @@ const App = () => (
                   <Route path="/create-room" element={<CreateRoom />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/settings" element={<Settings />} />
-                  <Route path="/room/:roomId/courses" element={<Courses />} />
-                  <Route path="/room/:roomId/exercises" element={<Exercises />} />
-                  <Route path="/room/:roomId/exams" element={<Exams />} />
+                  <Route path="/room/:roomId/courses" element={<RoomCourses />} />
+                  <Route path="/room/:roomId/exercises" element={<RoomExercises />} />
+                  <Route path="/room/:roomId/exams" element={<RoomExams />} />
                   <Route path="/room/:roomId/students" element={<Students />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

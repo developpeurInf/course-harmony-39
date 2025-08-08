@@ -164,7 +164,7 @@ interface CourseContextType {
   getVisibleExamsForStudent: (studentId: string) => Exam[];
   
   // Utility functions
-  refreshData: () => Promise<void>;
+  refreshData: (roomId?: string) => Promise<void>;
 }
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
