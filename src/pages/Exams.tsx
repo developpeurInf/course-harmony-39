@@ -43,6 +43,7 @@ const Exams = () => {
   const { 
     courses, 
     exams, 
+    enrollments,
     addExam, 
     updateExam, 
     deleteExam, 
@@ -92,13 +93,13 @@ const Exams = () => {
   const userExams = isProfessor ? exams : (user ? getVisibleExamsForStudent(user.id) : []);
   const displayedExams = selectedCourseFilter === "all" 
     ? userExams 
-    : userExams.filter(exam => exam.courseId === selectedCourseFilter);
+    : userExams.filter(exam => exam.course_id === selectedCourseFilter);
 
   // Filter courses based on user role for the course dropdown
   const availableCourses = isProfessor 
     ? courses 
     : courses.filter(course => 
-        course.isVisible && user && course.enrolledStudents.includes(user.id)
+        course.is_visible && user && enrollments.some(e => e.course_id === course.id && e.student_id === user.id)
       );
 
   // Reset form
@@ -135,10 +136,10 @@ const Exams = () => {
     addExam({
       title,
       description,
-      courseId,
-      date: combineDateTime(examDate, examTime),
-      duration,
-      isVisible
+      course_id: courseId,
+      exam_date: combineDateTime(examDate, examTime),
+      duration_minutes: duration,
+      is_visible: isVisible
     });
     setIsAddDialogOpen(false);
     resetForm();
@@ -150,10 +151,10 @@ const Exams = () => {
       updateExam(currentExam.id, {
         title,
         description,
-        courseId,
-        date: combineDateTime(examDate, examTime),
-        duration,
-        isVisible
+        course_id: courseId,
+        exam_date: combineDateTime(examDate, examTime),
+        duration_minutes: duration,
+        is_visible: isVisible
       });
       setIsEditDialogOpen(false);
       resetForm();
@@ -174,11 +175,11 @@ const Exams = () => {
     setCurrentExam(exam);
     setTitle(exam.title);
     setDescription(exam.description);
-    setCourseId(exam.courseId);
-    setExamDate(formatDateForInput(exam.date));
-    setExamTime(formatTimeForInput(exam.date));
-    setDuration(exam.duration);
-    setIsVisible(exam.isVisible);
+    setCourseId(exam.course_id);
+    setExamDate(formatDateForInput(exam.exam_date));
+    setExamTime(formatTimeForInput(exam.exam_date));
+    setDuration(exam.duration_minutes);
+    setIsVisible(exam.is_visible);
     setIsEditDialogOpen(true);
   };
 
@@ -413,10 +414,10 @@ const Exams = () => {
                   <div className="flex justify-between items-start">
                     <CardTitle>{exam.title}</CardTitle>
                     <div className="flex flex-col items-end gap-1">
-                      {!exam.isVisible && (
+                      {!exam.is_visible && (
                         <Badge variant="outline">Hidden</Badge>
                       )}
-                      {isPastExam(exam.date) ? (
+                      {isPastExam(exam.exam_date) ? (
                         <Badge variant="secondary">Past</Badge>
                       ) : (
                         <Badge>Upcoming</Badge>
@@ -424,7 +425,7 @@ const Exams = () => {
                     </div>
                   </div>
                   <CardDescription className="mt-1">
-                    {getCourseName(exam.courseId)}
+                    {getCourseName(exam.course_id)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pb-3">
@@ -432,11 +433,11 @@ const Exams = () => {
                   <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-1" />
-                      <span>{formatExamDateTime(exam.date)}</span>
+                      <span>{formatExamDateTime(exam.exam_date)}</span>
                     </div>
                     <div className="flex items-center">
                       <Clock className="h-4 w-4 mr-1" />
-                      <span>Duration: {formatDuration(exam.duration)}</span>
+                      <span>Duration: {formatDuration(exam.duration_minutes)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -447,9 +448,9 @@ const Exams = () => {
                         variant="ghost" 
                         size="icon"
                         onClick={() => handleToggleVisibility(exam.id)}
-                        title={exam.isVisible ? "Hide from students" : "Make visible to students"}
+                        title={exam.is_visible ? "Hide from students" : "Make visible to students"}
                       >
-                        {exam.isVisible ? (
+                        {exam.is_visible ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />
@@ -486,20 +487,20 @@ const Exams = () => {
                 <div className="space-y-1 mb-2 sm:mb-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium">{exam.title}</h3>
-                    {!exam.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
-                    {isPastExam(exam.date) ? (
+                    {!exam.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
+                    {isPastExam(exam.exam_date) ? (
                       <Badge variant="secondary" className="h-5">Past</Badge>
                     ) : (
                       <Badge className="h-5">Upcoming</Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{getCourseName(exam.courseId)}</p>
+                  <p className="text-sm text-muted-foreground">{getCourseName(exam.course_id)}</p>
                   <div className="flex items-center text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3 mr-1" />
-                    <span>{formatExamDateTime(exam.date)}</span>
+                    <span>{formatExamDateTime(exam.exam_date)}</span>
                     <span className="mx-2">•</span>
                     <Clock className="h-3 w-3 mr-1" />
-                    <span>Duration: {formatDuration(exam.duration)}</span>
+                    <span>Duration: {formatDuration(exam.duration_minutes)}</span>
                   </div>
                 </div>
                 
@@ -510,12 +511,12 @@ const Exams = () => {
                       size="sm"
                       onClick={() => handleToggleVisibility(exam.id)}
                     >
-                      {exam.isVisible ? (
+                      {exam.is_visible ? (
                         <EyeOff className="h-4 w-4 mr-1" />
                       ) : (
                         <Eye className="h-4 w-4 mr-1" />
                       )}
-                      <span>{exam.isVisible ? "Hide" : "Show"}</span>
+                      <span>{exam.is_visible ? "Hide" : "Show"}</span>
                     </Button>
                     <Button 
                       variant="ghost" 

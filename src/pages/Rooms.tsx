@@ -46,9 +46,9 @@ const Rooms = () => {
     updateRoom, 
     deleteRoom, 
     toggleRoomVisibility,
-    getCoursesForRoom,
-    addCourseToRoom,
-    removeCourseFromRoom
+    // getCoursesForRoom,
+    // addCourseToRoom,
+    // removeCourseFromRoom
   } = useCourses();
   
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ const Rooms = () => {
   // Filter rooms based on user role
   const displayedRooms = isProfessor 
     ? rooms 
-    : rooms.filter(room => room.isVisible);
+    : rooms.filter(room => room.is_visible);
 
   // Reset form
   const resetForm = () => {
@@ -85,8 +85,7 @@ const Rooms = () => {
     addRoom({
       name,
       description,
-      isVisible,
-      courses: []
+      is_visible: isVisible
     });
     setIsAddDialogOpen(false);
     resetForm();
@@ -98,7 +97,7 @@ const Rooms = () => {
       updateRoom(currentRoom.id, {
         name,
         description,
-        isVisible
+        is_visible: isVisible
       });
       setIsEditDialogOpen(false);
       resetForm();
@@ -119,7 +118,7 @@ const Rooms = () => {
     setCurrentRoom(room);
     setName(room.name);
     setDescription(room.description);
-    setIsVisible(room.isVisible);
+    setIsVisible(room.is_visible);
     setIsEditDialogOpen(true);
   };
 
@@ -145,17 +144,21 @@ const Rooms = () => {
     setViewMode(viewMode === "grid" ? "list" : "grid");
   };
 
+  // Get courses for a room (courses in the room)
+  const getCoursesForRoom = (roomId: string) => {
+    return courses.filter(course => course.room_id === roomId);
+  };
+
   // Add course to room
   const handleAddCourseToRoom = () => {
-    if (currentRoom && selectedCourseId) {
-      addCourseToRoom(currentRoom.id, selectedCourseId);
-      setSelectedCourseId("");
-    }
+    // This functionality would need to be implemented in the context
+    console.log("Add course to room functionality not implemented");
   };
 
   // Remove course from room
   const handleRemoveCourseFromRoom = (roomId: string, courseId: string) => {
-    removeCourseFromRoom(roomId, courseId);
+    // This functionality would need to be implemented in the context
+    console.log("Remove course from room functionality not implemented");
   };
 
   // Navigate to courses page filtered by room
@@ -165,7 +168,7 @@ const Rooms = () => {
 
   // Get available courses for a room (courses not already in the room)
   const getAvailableCourses = (roomId: string): Course[] => {
-    return courses.filter(course => !course.roomId || course.roomId !== roomId);
+    return courses.filter(course => !course.room_id || course.room_id !== roomId);
   };
 
   return (
@@ -264,7 +267,7 @@ const Rooms = () => {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <CardTitle>{room.name}</CardTitle>
-                      {!room.isVisible && (
+                      {!room.is_visible && (
                         <Badge variant="outline">Hidden</Badge>
                       )}
                     </div>
@@ -317,9 +320,9 @@ const Rooms = () => {
                           variant="ghost" 
                           size="icon"
                           onClick={() => handleToggleVisibility(room.id)}
-                          title={room.isVisible ? "Hide from students" : "Make visible to students"}
+                          title={room.is_visible ? "Hide from students" : "Make visible to students"}
                         >
-                          {room.isVisible ? (
+                          {room.is_visible ? (
                             <EyeOff className="h-4 w-4" />
                           ) : (
                             <Eye className="h-4 w-4" />
@@ -368,7 +371,7 @@ const Rooms = () => {
                   <div className="space-y-1 mb-2 sm:mb-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-medium">{room.name}</h3>
-                      {!room.isVisible && <Badge variant="outline" className="h-5">Hidden</Badge>}
+                      {!room.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground">{room.description}</p>
                     <div className="flex items-center text-xs text-muted-foreground mt-1">

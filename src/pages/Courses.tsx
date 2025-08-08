@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
 import { 
@@ -75,7 +75,16 @@ const Courses = () => {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>("all");
   
-  const students = getStudents();
+  const [students, setStudents] = useState<UserProfile[]>([]);
+  
+  // Load students
+  useEffect(() => {
+    const loadStudents = async () => {
+      const studentList = await getStudents();
+      setStudents(studentList);
+    };
+    loadStudents();
+  }, [getStudents]);
   const isProfessor = user?.role === "professor";
   
   // Parse room ID from URL query parameters

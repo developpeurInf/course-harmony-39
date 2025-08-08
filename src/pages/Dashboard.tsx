@@ -21,6 +21,7 @@ const Dashboard = () => {
     courses, 
     exercises, 
     exams,
+    enrollments,
     getVisibleCoursesForStudent,
     getVisibleExercisesForStudent,
     getVisibleExamsForStudent
@@ -51,28 +52,28 @@ const Dashboard = () => {
     if (user?.role === "professor") {
       setUpcomingExercises(
         exercises.filter(ex => {
-          const dueDate = new Date(ex.dueDate);
+          const dueDate = new Date(ex.due_date);
           return dueDate >= now && dueDate <= twoWeeksFromNow;
         })
       );
       
       setUpcomingExams(
         exams.filter(ex => {
-          const examDate = new Date(ex.date);
+          const examDate = new Date(ex.exam_date);
           return examDate >= now && examDate <= twoWeeksFromNow;
         })
       );
     } else if (user?.role === "student" && user.id) {
       setUpcomingExercises(
         getVisibleExercisesForStudent(user.id).filter(ex => {
-          const dueDate = new Date(ex.dueDate);
+          const dueDate = new Date(ex.due_date);
           return dueDate >= now && dueDate <= twoWeeksFromNow;
         })
       );
       
       setUpcomingExams(
         getVisibleExamsForStudent(user.id).filter(ex => {
-          const examDate = new Date(ex.date);
+          const examDate = new Date(ex.exam_date);
           return examDate >= now && examDate <= twoWeeksFromNow;
         })
       );
@@ -153,7 +154,7 @@ const Dashboard = () => {
                 {/* Count unique students across all courses */}
                 {Array.from(
                   new Set(
-                    courses.flatMap(course => course.enrolledStudents)
+                    enrollments.filter(e => courses.some(c => c.id === e.course_id)).map(e => e.student_id)
                   )
                 ).length}
               </div>
@@ -177,7 +178,7 @@ const Dashboard = () => {
             {upcomingExercises.length > 0 ? (
               <ul className="space-y-2">
                 {upcomingExercises.map(exercise => {
-                  const course = courses.find(c => c.id === exercise.courseId);
+                  const course = courses.find(c => c.id === exercise.course_id);
                   return (
                     <li key={exercise.id} className="flex justify-between items-center p-2 border rounded-md">
                       <div>
@@ -185,7 +186,7 @@ const Dashboard = () => {
                         <div className="text-sm text-muted-foreground">{course?.title}</div>
                       </div>
                       <Badge variant="outline">
-                        {t("dashboard.due")} {format(new Date(exercise.dueDate), "MMM dd")}
+                        {t("dashboard.due")} {format(new Date(exercise.due_date), "MMM dd")}
                       </Badge>
                     </li>
                   );
@@ -210,7 +211,7 @@ const Dashboard = () => {
             {upcomingExams.length > 0 ? (
               <ul className="space-y-2">
                 {upcomingExams.map(exam => {
-                  const course = courses.find(c => c.id === exam.courseId);
+                  const course = courses.find(c => c.id === exam.course_id);
                   return (
                     <li key={exam.id} className="flex justify-between items-center p-2 border rounded-md">
                       <div>
@@ -218,7 +219,7 @@ const Dashboard = () => {
                         <div className="text-sm text-muted-foreground">{course?.title}</div>
                       </div>
                       <Badge variant="outline">
-                        {format(new Date(exam.date), "MMM dd, HH:mm")}
+                        {format(new Date(exam.exam_date), "MMM dd, HH:mm")}
                       </Badge>
                     </li>
                   );
@@ -250,7 +251,7 @@ const Dashboard = () => {
                   <CardHeader className="pb-2">
                     <div className="flex justify-between">
                       <CardTitle className="text-lg">{course.title}</CardTitle>
-                      {!course.isVisible && (
+                      {!course.is_visible && (
                         <Badge variant="outline" className="ml-2">{t("dashboard.hidden")}</Badge>
                       )}
                     </div>
@@ -259,7 +260,7 @@ const Dashboard = () => {
                     <p className="text-sm text-muted-foreground mb-2">{course.description}</p>
                     <div className="flex items-center text-xs text-muted-foreground">
                       <Users className="h-3 w-3 mr-1" />
-                      {course.enrolledStudents.length} {t("dashboard.students.count")}
+                      {enrollments.filter(e => e.course_id === course.id).length} {t("dashboard.students.count")}
                     </div>
                   </CardContent>
                 </Card>
