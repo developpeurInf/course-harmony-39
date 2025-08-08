@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,11 +10,12 @@ import { Button } from "@/components/ui/button";
 
 const Students = () => {
   const { user, getStudents } = useAuth();
-  const { courses } = useCourses();
+  const { courses, enrollments } = useCourses();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  const students = getStudents();
   const isProfessor = user?.role === "professor";
   
   // Redirect if not a professor
@@ -25,18 +25,44 @@ const Students = () => {
     }
   }, [isProfessor, navigate]);
 
+  // Fetch students
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (isProfessor) {
+        setLoading(true);
+        const studentsData = await getStudents();
+        setStudents(studentsData);
+        setLoading(false);
+      }
+    };
+
+    fetchStudents();
+  }, [isProfessor, getStudents]);
+
   if (!isProfessor) {
     return null; // Will redirect
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   // Count number of courses a student is enrolled in
   const getStudentCourseCount = (studentId: string) => {
-    return courses.filter(course => course.enrolledStudents.includes(studentId)).length;
+    return enrollments.filter(enrollment => enrollment.student_id === studentId).length;
   };
 
   // Get courses for a student
   const getStudentCourses = (studentId: string) => {
-    return courses.filter(course => course.enrolledStudents.includes(studentId));
+    const enrolledCourseIds = enrollments
+      .filter(enrollment => enrollment.student_id === studentId)
+      .map(enrollment => enrollment.course_id);
+    
+    return courses.filter(course => enrolledCourseIds.includes(course.id));
   };
 
   // Toggle view mode between grid and list
@@ -80,7 +106,16 @@ const Students = () => {
               {students.map(student => (
                 <Card key={student.id} className="overflow-hidden card-hover">
                   <CardHeader className="pb-3">
-                    <CardTitle>{student.name}</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      {student.avatar_url && (
+                        <img 
+                          src={student.avatar_url} 
+                          alt={student.name}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      )}
+                      {student.name}
+                    </CardTitle>
                     <CardDescription className="flex items-center mt-1">
                       <Mail className="h-4 w-4 mr-1" />
                       {student.email}
@@ -117,7 +152,16 @@ const Students = () => {
               {students.map(student => (
                 <div key={student.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
                   <div className="space-y-1 mb-2 sm:mb-0">
-                    <h3 className="font-medium">{student.name}</h3>
+                    <div className="flex items-center gap-2">
+                      {student.avatar_url && (
+                        <img 
+                          src={student.avatar_url} 
+                          alt={student.name}
+                          className="w-6 h-6 rounded-full object-cover"
+                        />
+                      )}
+                      <h3 className="font-medium">{student.name}</h3>
+                    </div>
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Mail className="h-4 w-4 mr-1" />
                       <span>{student.email}</span>
@@ -143,40 +187,76 @@ const Students = () => {
               ))}
             </div>
           )}
+
+          {students.length === 0 && (
+            <div className="text-center py-12">
+              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-semibold">No Students Found</h3>
+              <p className="mt-2 text-muted-foreground">
+                Students will appear here when they register for your courses.
+              </p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="byCourse" className="space-y-6">
-          {courses.map(course => (
-            <Card key={course.id} className="overflow-hidden">
-              <CardHeader>
-                <CardTitle>{course.title}</CardTitle>
-                <CardDescription>
-                  {course.enrolledStudents.length} enrolled student{course.enrolledStudents.length !== 1 ? 's' : ''}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {course.enrolledStudents.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {course.enrolledStudents.map(studentId => {
-                      const student = students.find(s => s.id === studentId);
-                      return student ? (
-                        <div key={studentId} className="flex items-center p-3 border rounded-md">
-                          <div>
-                            <div className="font-medium">{student.name}</div>
-                            <div className="text-sm text-muted-foreground">{student.email}</div>
+          {courses
+            .filter(course => course.professor_id === user?.id)
+            .map(course => {
+              const enrolledStudents = students.filter(student => 
+                enrollments.some(enrollment => 
+                  enrollment.course_id === course.id && enrollment.student_id === student.id
+                )
+              );
+
+              return (
+                <Card key={course.id} className="overflow-hidden">
+                  <CardHeader>
+                    <CardTitle>{course.title}</CardTitle>
+                    <CardDescription>
+                      {enrolledStudents.length} enrolled student{enrolledStudents.length !== 1 ? 's' : ''}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {enrolledStudents.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {enrolledStudents.map(student => (
+                          <div key={student.id} className="flex items-center p-3 border rounded-md">
+                            <div className="flex items-center gap-2">
+                              {student.avatar_url && (
+                                <img 
+                                  src={student.avatar_url} 
+                                  alt={student.name}
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                              )}
+                              <div>
+                                <div className="font-medium">{student.name}</div>
+                                <div className="text-sm text-muted-foreground">{student.email}</div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No students enrolled in this course
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        No students enrolled in this course
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+          {courses.filter(course => course.professor_id === user?.id).length === 0 && (
+            <div className="text-center py-12">
+              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-semibold">No Courses Found</h3>
+              <p className="mt-2 text-muted-foreground">
+                Create some courses first to see student enrollments.
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

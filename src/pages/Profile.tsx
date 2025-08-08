@@ -1,193 +1,278 @@
-
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCourses } from "@/contexts/CourseContext";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { Mail, BookOpen, FileText, Calendar, GraduationCap, User } from "lucide-react";
+import { User, Camera, Shield, KeyRound } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { UserRole } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateProfile, uploadAvatar, resetPassword } = useAuth();
   const { t } = useLanguage();
-  const { 
-    courses, 
-    exercises, 
-    exams, 
-    getVisibleCoursesForStudent, 
-    getVisibleExercisesForStudent, 
-    getVisibleExamsForStudent 
-  } = useCourses();
-
-  if (!user) return null;
-
-  const isProfessor = user.role === "professor";
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   
-  // Get relevant data based on user role
-  const userCourses = isProfessor
-    ? courses
-    : getVisibleCoursesForStudent(user.id);
+  // Form state
+  const [name, setName] = useState(user?.name || "");
+  const [role, setRole] = useState<UserRole>(user?.role || "student");
+
+  const handleSave = async () => {
+    if (!user) return;
     
-  const userExercises = isProfessor
-    ? exercises
-    : getVisibleExercisesForStudent(user.id);
+    setLoading(true);
+    try {
+      const success = await updateProfile({
+        name,
+        role
+      });
+      
+      if (success) {
+        setIsEditing(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setName(user?.name || "");
+    setRole(user?.role || "student");
+    setIsEditing(false);
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await uploadAvatar(file);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!user?.email) return;
     
-  const userExams = isProfessor
-    ? exams
-    : getVisibleExamsForStudent(user.id);
+    setResetLoading(true);
+    try {
+      await resetPassword(user.email);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold">No user found</h2>
+          <p className="text-muted-foreground mt-2">Please log in to view your profile.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold">{t("profile.title")}</h1>
+        <h1 className="text-3xl font-bold">Profile</h1>
         <p className="text-muted-foreground mt-1">
-          {t("profile.subtitle")}
+          Manage your account settings and preferences
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle>{t("profile.account")}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="flex flex-col items-center pb-6">
-              <Avatar className="h-24 w-24 mb-4">
-                <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                  {user.name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <h2 className="text-xl font-bold">{user.name}</h2>
-              <div className="flex items-center mt-1 text-muted-foreground">
-                <Mail className="h-4 w-4 mr-1" />
-                {user.email}
-              </div>
-              <Badge className="mt-3" variant={isProfessor ? "default" : "secondary"}>
-                {isProfessor ? (
-                  <><GraduationCap className="h-3 w-3 mr-1" /> {t("profile.professor")}</>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile Information */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Personal Information
+              </CardTitle>
+              <CardDescription>
+                Update your personal details and account information
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                {isEditing ? (
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your full name"
+                  />
                 ) : (
-                  <><User className="h-3 w-3 mr-1" /> {t("profile.student")}</>
+                  <div className="p-2 bg-muted rounded-md">{user.name}</div>
                 )}
-              </Badge>
-            </div>
-            
-            <Separator className="my-4" />
-            
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium text-sm mb-2">{t("profile.statistics")}</h3>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="flex flex-col items-center p-2 bg-muted rounded-md">
-                    <BookOpen className="h-4 w-4 mb-1 text-primary" />
-                    <p className="text-xl font-bold">{userCourses.length}</p>
-                    <p className="text-xs text-muted-foreground">{t("nav.courses")}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="p-2 bg-muted rounded-md">{user.email}</div>
+                <p className="text-sm text-muted-foreground">
+                  Email cannot be changed. Contact support if you need to update it.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                {isEditing ? (
+                  <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="professor">Professor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="p-2 bg-muted rounded-md flex items-center gap-2">
+                    <Badge variant={user.role === "professor" ? "default" : "secondary"}>
+                      {user.role === "professor" ? "Professor" : "Student"}
+                    </Badge>
                   </div>
-                  <div className="flex flex-col items-center p-2 bg-muted rounded-md">
-                    <FileText className="h-4 w-4 mb-1 text-primary" />
-                    <p className="text-xl font-bold">{userExercises.length}</p>
-                    <p className="text-xs text-muted-foreground">{t("nav.exercises")}</p>
-                  </div>
-                  <div className="flex flex-col items-center p-2 bg-muted rounded-md">
-                    <Calendar className="h-4 w-4 mb-1 text-primary" />
-                    <p className="text-xl font-bold">{userExams.length}</p>
-                    <p className="text-xs text-muted-foreground">{t("nav.exams")}</p>
-                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                {isEditing ? (
+                  <>
+                    <Button onClick={handleSave} disabled={loading}>
+                      {loading ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button variant="outline" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={() => setIsEditing(true)}>
+                    Edit Profile
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Avatar and Security */}
+        <div className="space-y-6">
+          {/* Avatar Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Profile Picture
+              </CardTitle>
+              <CardDescription>
+                Upload a profile picture to personalize your account
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col items-center space-y-4">
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src={user.avatar_url} alt={user.name} />
+                  <AvatarFallback className="text-lg">
+                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="text-center">
+                  <Label htmlFor="avatar-upload" className="cursor-pointer">
+                    <Button variant="outline" size="sm" asChild>
+                      <span>
+                        <Camera className="h-4 w-4 mr-2" />
+                        Change Photo
+                      </span>
+                    </Button>
+                  </Label>
+                  <Input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    JPG, PNG or GIF. Max 5MB.
+                  </p>
                 </div>
               </div>
-              
-              <Separator className="my-4" />
-              
-              <div>
-                <h3 className="font-medium text-sm mb-2">{t("profile.details")}</h3>
-                <ul className="space-y-2">
-                  <li className="flex justify-between">
-                    <span className="text-muted-foreground">{t("profile.role")}</span>
-                    <span className="font-medium">{user.role === "professor" ? t("profile.professor") : t("profile.student")}</span>
-                  </li>
-                  <li className="flex justify-between">
-                    <span className="text-muted-foreground">ID</span>
-                    <span className="font-medium">{user.id}</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle>{t("profile.activity")}</CardTitle>
-            <CardDescription>
-              {t("profile.activity.desc")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium mb-3">
-                  {isProfessor ? t("profile.courses.teach") : t("profile.courses.enrolled")}
-                </h3>
-                {userCourses.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3">
-                    {userCourses.map(course => (
-                      <div key={course.id} className="flex justify-between items-center border p-3 rounded-md">
-                        <div>
-                          <div className="font-medium">{course.title}</div>
-                          <div className="text-sm text-muted-foreground">{course.description}</div>
-                        </div>
-                        {!course.isVisible && (
-                          <Badge variant="outline">{t("dashboard.hidden")}</Badge>
-                        )}
-                      </div>
-                    ))}
+          {/* Security Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Security
+              </CardTitle>
+              <CardDescription>
+                Manage your account security settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium">Password</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Reset your password via email
+                    </p>
                   </div>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground border rounded-md">
-                    {t("profile.no.courses")}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handlePasswordReset}
+                    disabled={resetLoading}
+                  >
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    {resetLoading ? "Sending..." : "Reset"}
+                  </Button>
+                </div>
+                
+                {/* Future: 2FA section */}
+                <div className="flex items-center justify-between opacity-50">
+                  <div>
+                    <h4 className="text-sm font-medium">Two-Factor Authentication</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Coming soon: Add an extra layer of security
+                    </p>
                   </div>
-                )}
+                  <Button variant="outline" size="sm" disabled>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Setup
+                  </Button>
+                </div>
               </div>
-              
-              <Separator />
-              
-              <div>
-                <h3 className="font-medium mb-3">{t("profile.recent.activity")}</h3>
-                {(userExercises.length > 0 || userExams.length > 0) ? (
-                  <div className="space-y-3">
-                    {userExercises.slice(0, 3).map(exercise => (
-                      <div key={exercise.id} className="flex justify-between items-center border p-3 rounded-md">
-                        <div>
-                          <div className="font-medium">{exercise.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {t("profile.exercise.for")} {courses.find(c => c.id === exercise.courseId)?.title || t("profile.unknown.course")}
-                          </div>
-                        </div>
-                        <Badge variant="secondary">{t("profile.exercise")}</Badge>
-                      </div>
-                    ))}
-                    
-                    {userExams.slice(0, 3).map(exam => (
-                      <div key={exam.id} className="flex justify-between items-center border p-3 rounded-md">
-                        <div>
-                          <div className="font-medium">{exam.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {t("profile.exam.for")} {courses.find(c => c.id === exam.courseId)?.title || t("profile.unknown.course")}
-                          </div>
-                        </div>
-                        <Badge variant="default">{t("profile.exam")}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground border rounded-md">
-                    {t("profile.no.activity")}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useAuth, UserProfile } from "@/contexts/AuthContext";
+import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -631,7 +631,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .from('enrollments')
         .select(`
           student_id,
-          profiles (
+          profiles!enrollments_student_id_fkey (
             id,
             name,
             email,
@@ -649,11 +649,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       return (data || [])
         .filter(item => item.profiles)
         .map(item => ({
-          id: item.profiles.id,
-          name: item.profiles.name,
-          email: item.profiles.email || '',
-          role: item.profiles.role as UserRole,
-          avatar_url: item.profiles.avatar_url
+          id: item.profiles!.id,
+          name: item.profiles!.name,
+          email: item.profiles!.email || '',
+          role: item.profiles!.role as UserRole,
+          avatar_url: item.profiles!.avatar_url
         }));
     } catch (error) {
       console.error('Failed to fetch enrolled students:', error);
