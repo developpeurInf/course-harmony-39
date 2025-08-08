@@ -101,18 +101,21 @@ export type Database = {
           course_id: string
           enrolled_at: string
           id: string
+          room_id: string | null
           student_id: string
         }
         Insert: {
           course_id: string
           enrolled_at?: string
           id?: string
+          room_id?: string | null
           student_id: string
         }
         Update: {
           course_id?: string
           enrolled_at?: string
           id?: string
+          room_id?: string | null
           student_id?: string
         }
         Relationships: [
@@ -121,6 +124,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
         ]
