@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
-import PdfUpload from "@/components/PdfUpload";
+import MultiPdfUpload from "@/components/MultiPdfUpload";
+import CourseMaterials from "@/components/CourseMaterials";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,8 @@ const Courses = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
-  const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
+  const [selectedPdfFiles, setSelectedPdfFiles] = useState<File[]>([]);
+  const [courseMaterials, setCourseMaterials] = useState<{[courseId: string]: any[]}>({});
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -120,6 +122,34 @@ const Courses = () => {
     ? userCourses 
     : userCourses.filter(course => course.room_id === selectedRoomFilter);
 
+  // Fetch course materials
+  const fetchCourseMaterials = async (courseId: string) => {
+    const { data, error } = await supabase
+      .from('course_materials')
+      .select('*')
+      .eq('course_id', courseId)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching course materials:', error);
+      return [];
+    }
+    return data || [];
+  };
+
+  // Load course materials for all courses
+  const loadCourseMaterials = async () => {
+    if (!courses) return;
+    
+    const materialsMap: {[courseId: string]: any[]} = {};
+    
+    for (const course of courses) {
+      materialsMap[course.id] = await fetchCourseMaterials(course.id);
+    }
+    
+    setCourseMaterials(materialsMap);
+  };
+
   // Reset form
   const resetForm = () => {
     setTitle("");
@@ -128,52 +158,77 @@ const Courses = () => {
     setIsVisible(true);
     setCurrentCourse(null);
     setSelectedStudentId("");
-    setSelectedPdfFile(null);
+    setSelectedPdfFiles([]);
   };
 
   // Add new course
   const handleAddCourse = async () => {
-    let pdfUrl: string | undefined;
-    
-    // Upload PDF if selected
-    if (selectedPdfFile && user) {
-      try {
-        const fileExt = selectedPdfFile.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `courses/${fileName}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('course-materials')
-          .upload(filePath, selectedPdfFile);
-        
-        if (uploadError) {
-          toast.error("Failed to upload PDF file");
-          return;
-        }
-        
-        const { data: { publicUrl } } = supabase.storage
-          .from('course-materials')
-          .getPublicUrl(filePath);
-        
-        pdfUrl = publicUrl;
-      } catch (error) {
-        toast.error("Failed to upload PDF file");
-        return;
-      }
-    }
-    
+    // Create the course first
     const success = await addCourse({
       title,
       description,
       is_visible: isVisible,
-      room_id: roomId || undefined,
-      pdf_url: pdfUrl
+      room_id: roomId || undefined
     });
-    
-    if (success) {
-      setIsAddDialogOpen(false);
-      resetForm();
+    if (!success) return;
+
+    // Get the newly created course to get its ID
+    const { data: newCourses } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('professor_id', user?.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const newCourse = newCourses?.[0];
+    if (!newCourse) {
+      toast.error("Failed to create course");
+      return;
     }
+
+    // Upload PDFs if selected
+    if (selectedPdfFiles.length > 0 && user) {
+      for (const file of selectedPdfFiles) {
+        try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `courses/${newCourse.id}/${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('course-materials')
+            .upload(filePath, file);
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            toast.error(`Failed to upload ${file.name}`);
+            continue;
+          }
+          
+          // Save file info to course_materials table
+          const { error: dbError } = await supabase
+            .from('course_materials')
+            .insert({
+              course_id: newCourse.id,
+              file_name: file.name,
+              file_path: filePath,
+              file_size: file.size,
+              uploaded_by: user.id
+            });
+
+          if (dbError) {
+            console.error('DB error:', dbError);
+            toast.error(`Failed to save ${file.name} info`);
+          }
+        } catch (error) {
+          console.error('Error uploading PDF:', error);
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+    }
+
+    setIsAddDialogOpen(false);
+    resetForm();
+    await loadCourseMaterials(); // Refresh materials
   };
 
   // Edit course
@@ -323,6 +378,13 @@ const Courses = () => {
     }
   }, [selectedRoomFilter, isAddDialogOpen]);
 
+  // Load course materials when courses change
+  useEffect(() => {
+    if (courses && courses.length > 0) {
+      loadCourseMaterials();
+    }
+  }, [courses]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -401,11 +463,11 @@ const Courses = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Course Materials (PDF)</Label>
-                    <PdfUpload
-                      onFileSelect={setSelectedPdfFile}
-                      selectedFile={selectedPdfFile}
-                      accept=".pdf"
+                    <Label>Course Materials (PDFs)</Label>
+                    <MultiPdfUpload
+                      onFilesChange={setSelectedPdfFiles}
+                      selectedFiles={selectedPdfFiles}
+                      maxFiles={5}
                       maxSizeMB={50}
                     />
                   </div>
@@ -510,16 +572,23 @@ const Courses = () => {
                           <Calendar className="h-3.5 w-3.5 mr-1" />
                           {stats.examCount} {stats.examCount === 1 ? "Exam" : "Exams"}
                         </Button>
-                        {course.pdf_url && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="h-7"
-                            onClick={() => handleViewPdf(course.pdf_url!)}
-                          >
-                            <File className="h-3.5 w-3.5 mr-1" />
-                            Materials
-                          </Button>
+                        {(course.pdf_url || (courseMaterials[course.id] && courseMaterials[course.id].length > 0)) && (
+                          courseMaterials[course.id] && courseMaterials[course.id].length > 0 ? (
+                            <CourseMaterials 
+                              materials={courseMaterials[course.id]} 
+                              compact={true}
+                            />
+                          ) : course.pdf_url ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-7"
+                              onClick={() => handleViewPdf(course.pdf_url!)}
+                            >
+                              <File className="h-3.5 w-3.5 mr-1" />
+                              Materials
+                            </Button>
+                          ) : null
                         )}
                       </div>
                     </div>
@@ -625,25 +694,32 @@ const Courses = () => {
                       <Calendar className="h-4 w-4 mr-1" />
                       <span>Exams</span>
                     </Button>
-                    {course.pdf_url && (
-                      <>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleViewPdf(course.pdf_url!)}
-                        >
-                          <File className="h-4 w-4 mr-1" />
-                          <span>View Materials</span>
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDownloadPdf(course.pdf_url!, course.title)}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          <span>Download</span>
-                        </Button>
-                      </>
+                    {(course.pdf_url || (courseMaterials[course.id] && courseMaterials[course.id].length > 0)) && (
+                      courseMaterials[course.id] && courseMaterials[course.id].length > 0 ? (
+                        <CourseMaterials 
+                          materials={courseMaterials[course.id]} 
+                          compact={true}
+                        />
+                      ) : course.pdf_url ? (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewPdf(course.pdf_url!)}
+                          >
+                            <File className="h-4 w-4 mr-1" />
+                            <span>View Materials</span>
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDownloadPdf(course.pdf_url!, course.title)}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            <span>Download</span>
+                          </Button>
+                        </>
+                      ) : null
                     )}
                     
                     {isProfessor && (
