@@ -163,7 +163,7 @@ const AuthForm = () => {
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
                   <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                    <SelectTrigger>
+                    <SelectTrigger id="role">
                       <SelectValue placeholder="Select your role" />
                     </SelectTrigger>
                     <SelectContent>
