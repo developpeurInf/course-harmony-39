@@ -142,8 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginStudent = async (username: string, password: string): Promise<boolean> => {
     try {
-      console.log('Attempting student login with username:', username);
-      
       // Find user by username
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -152,25 +150,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('role', 'student')
         .maybeSingle();
 
-      console.log('Profile lookup result:', { profile, profileError });
-
       if (profileError || !profile) {
-        console.error('Profile not found or error:', profileError);
         toast.error("Invalid username or password");
         return false;
       }
 
       // Check temporary password
       if (profile.temporary_password !== password) {
-        console.error('Password mismatch:', { 
-          entered: password, 
-          stored: profile.temporary_password 
-        });
         toast.error("Invalid username or password");
         return false;
       }
-
-      console.log('Password validated, attempting login with email:', profile.email);
 
       // Login with email (since Supabase auth uses email)
       const { error } = await supabase.auth.signInWithPassword({
@@ -179,15 +168,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        console.error('Supabase auth error:', error);
         toast.error("Login failed. Please contact your professor.");
         return false;
       }
 
-      console.log('Student login successful');
       return true;
     } catch (error) {
-      console.error('Unexpected login error:', error);
       toast.error("Login failed");
       return false;
     }
