@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,9 +15,28 @@ import { cn } from "@/lib/utils";
 const NotificationBell = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const handleNotificationClick = async (id: string) => {
-    await markAsRead(id);
+  const handleNotificationClick = async (notification: any) => {
+    await markAsRead(notification.id);
+    
+    // Navigate based on notification type
+    switch (notification.type) {
+      case 'course':
+        navigate('/courses');
+        break;
+      case 'exercise':
+        navigate('/exercises');
+        break;
+      case 'exam':
+        navigate('/exams');
+        break;
+      default:
+        navigate('/dashboard');
+        break;
+    }
+    
+    setIsOpen(false);
   };
 
   const handleMarkAllAsRead = async () => {
@@ -77,7 +97,7 @@ const NotificationBell = () => {
                     "p-3 border-l-2 hover:bg-muted/50 cursor-pointer",
                     notification.read ? "border-transparent" : "border-primary bg-primary/5"
                   )}
-                  onClick={() => handleNotificationClick(notification.id)}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1 flex-1">

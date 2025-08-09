@@ -484,28 +484,39 @@ const Courses = () => {
         </div>
       </div>
 
-      {/* Room filter */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-        <div className="w-full sm:w-64">
-          <Select value={selectedRoomFilter} onValueChange={handleRoomFilterChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by room" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Rooms</SelectItem>
-              {rooms.map(room => (
-                <SelectItem key={room.id} value={room.id}>
-                  {room.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Room filter - Only for professors */}
+      {isProfessor && (
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+          <div className="w-full sm:w-64">
+            <Select value={selectedRoomFilter} onValueChange={handleRoomFilterChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by room" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Rooms</SelectItem>
+                {rooms.map(room => (
+                  <SelectItem key={room.id} value={room.id}>
+                    {room.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Showing {displayedCourses.length} {displayedCourses.length === 1 ? "course" : "courses"}
+            {selectedRoomFilter !== "all" && " in " + getRoomName(selectedRoomFilter)}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Showing {displayedCourses.length} {displayedCourses.length === 1 ? "course" : "courses"}
-          {selectedRoomFilter !== "all" && " in " + getRoomName(selectedRoomFilter)}
-        </p>
-      </div>
+      )}
+      
+      {/* Course count for students */}
+      {!isProfessor && (
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-muted-foreground">
+            You are enrolled in {displayedCourses.length} {displayedCourses.length === 1 ? "course" : "courses"}
+          </p>
+        </div>
+      )}
 
       {displayedCourses.length > 0 ? (
         viewMode === "grid" ? (

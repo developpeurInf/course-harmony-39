@@ -35,7 +35,7 @@ const TopNav = () => {
   };
 
   return (
-    <header className="bg-card border-b h-16 flex items-center px-4 md:px-6">
+    <header className="bg-card border-b h-16 flex items-center px-4 md:px-6 shadow-sm">
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="md:hidden">
@@ -46,6 +46,15 @@ const TopNav = () => {
           <Sidebar />
         </SheetContent>
       </Sheet>
+
+      <div className="flex items-center space-x-4 ml-4 md:ml-0">
+        <h1 className="text-xl font-bold text-gradient hidden sm:block">
+          MAATAOUI Academy
+        </h1>
+        <h1 className="text-lg font-bold text-gradient sm:hidden">
+          MA
+        </h1>
+      </div>
 
       <div className="ml-auto flex items-center space-x-4">
         <NotificationBell />
