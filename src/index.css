@@ -48,8 +48,6 @@
 
     --gradient-primary: linear-gradient(135deg, hsl(220 91% 48%), hsl(220 85% 65%));
     --gradient-accent: linear-gradient(135deg, hsl(45 93% 58%), hsl(35 95% 60%));
-    --shadow-elegant: 0 10px 30px -10px hsl(220 91% 48% / 0.2);
-    --shadow-glow: 0 0 40px hsl(220 85% 65% / 0.3);
 
     --radius: 0.75rem;
   }
@@ -98,8 +96,6 @@
 
     --gradient-primary: linear-gradient(135deg, hsl(220 85% 65%), hsl(220 80% 75%));
     --gradient-accent: linear-gradient(135deg, hsl(45 85% 58%), hsl(35 90% 60%));
-    --shadow-elegant: 0 10px 30px -10px hsl(220 85% 65% / 0.3);
-    --shadow-glow: 0 0 40px hsl(220 80% 75% / 0.4);
   }
 }
 
