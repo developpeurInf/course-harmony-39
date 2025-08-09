@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import ViewToggle from "@/components/ViewToggle";
 
 interface Room {
   id: string;
@@ -35,6 +36,7 @@ const ClassManagement = () => {
   const [roomsWithCounts, setRoomsWithCounts] = useState<Room[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -258,7 +260,12 @@ const ClassManagement = () => {
             Manage your classes and their associated content
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <div className="flex items-center gap-2">
+          <ViewToggle
+            view={viewMode}
+            onViewChange={(view) => setViewMode(view)}
+          />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
@@ -312,10 +319,133 @@ const ClassManagement = () => {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {viewMode === "table" ? (
+        <div className="border rounded-lg">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="p-4 text-left font-medium">Class Name</th>
+                <th className="p-4 text-left font-medium">Description</th>
+                <th className="p-4 text-left font-medium">Courses</th>
+                <th className="p-4 text-left font-medium">Students</th>
+                <th className="p-4 text-left font-medium">Exercises</th>
+                <th className="p-4 text-left font-medium">Exams</th>
+                <th className="p-4 text-left font-medium">Visibility</th>
+                <th className="p-4 text-left font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roomsWithCounts.map((room) => (
+                <tr key={room.id} className="border-t">
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Building className="h-4 w-4 text-primary" />
+                      <span className="font-medium">{room.name}</span>
+                    </div>
+                  </td>
+                  <td className="p-4 text-muted-foreground">
+                    {room.description || "No description"}
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1">
+                      <BookOpen className="h-4 w-4 text-blue-600" />
+                      <span>{room._count?.courses}</span>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4 text-green-600" />
+                      <span>{room._count?.students}</span>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1">
+                      <FileText className="h-4 w-4 text-orange-600" />
+                      <span>{room._count?.exercises}</span>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4 text-purple-600" />
+                      <span>{room._count?.exams}</span>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      room.is_visible ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                    }`}>
+                      {room.is_visible ? "Visible" : "Hidden"}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEditDialog(room)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                              <AlertTriangle className="h-5 w-5 text-destructive" />
+                              Delete Class
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the class "{room.name}" and ALL related content including:
+                              <ul className="mt-2 list-disc list-inside space-y-1">
+                                <li>{room._count?.courses} courses</li>
+                                <li>{room._count?.exercises} exercises</li>
+                                <li>{room._count?.exams} exams</li>
+                                <li>{room._count?.students} student enrollments</li>
+                              </ul>
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteRoom(room.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete Everything
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {roomsWithCounts.length === 0 && (
+            <div className="p-8 text-center">
+              <Building className="h-12 w-12 text-muted-foreground mb-4 mx-auto" />
+              <p className="text-lg font-medium mb-2">No classes created yet</p>
+              <p className="text-muted-foreground text-center mb-4">
+                Create your first class to start organizing courses and students
+              </p>
+              <Button onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Your First Class
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {roomsWithCounts.map((room) => (
           <Card key={room.id} className="relative">
             <CardHeader>
@@ -401,12 +531,13 @@ const ClassManagement = () => {
                   </span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+      )}
 
-      {roomsWithCounts.length === 0 && (
+    {viewMode === "grid" && roomsWithCounts.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8">
             <Building className="h-12 w-12 text-muted-foreground mb-4" />
@@ -418,9 +549,11 @@ const ClassManagement = () => {
               <Plus className="mr-2 h-4 w-4" />
               Create Your First Class
             </Button>
-          </CardContent>
-        </Card>
-      )}
+        </CardContent>
+      </Card>
+    )}
+
+    {/* Add missing imports at the top if needed */}
 
       {/* Edit Dialog */}
       <Dialog open={!!editingRoom} onOpenChange={() => setEditingRoom(null)}>

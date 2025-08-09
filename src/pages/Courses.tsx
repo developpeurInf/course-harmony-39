@@ -27,8 +27,10 @@ import {
   EyeOff, 
   Edit, 
   Trash, 
+  Trash2,
   Plus,
   Users,
+  UserPlus,
   FileText,
   Calendar,
   LayoutGrid,
@@ -630,118 +632,123 @@ const Courses = () => {
             })}
           </div>
         ) : (
-          <div className="space-y-3">
-            {displayedCourses.map((course) => {
-              const stats = getCourseStats(course.id);
-              const enrollmentCount = getEnrollmentCount(course.id);
-              
-              return (
-                <div key={course.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
-                  <div className="space-y-1 mb-2 sm:mb-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{course.title}</h3>
-                      {!course.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{course.description}</p>
-                    <div className="flex flex-wrap items-center text-xs text-muted-foreground mt-1 gap-x-2">
-                      <div className="flex items-center">
-                        <Users className="h-3 w-3 mr-1" />
-                        <span>{enrollmentCount} students</span>
-                      </div>
-                      {course.room_id && (
-                        <div className="flex items-center">
-                          <Building className="h-3 w-3 mr-1" />
-                          <span>{getRoomName(course.room_id)}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        <FileText className="h-3 w-3 mr-1" />
-                        <span>{stats.exerciseCount} exercises</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        <span>{stats.examCount} exams</span>
-                      </div>
-                    </div>
-                  </div>
+          <div className="border rounded-lg">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="p-4 text-left font-medium">Course</th>
+                  <th className="p-4 text-left font-medium">Room</th>
+                  <th className="p-4 text-left font-medium">Students</th>
+                  <th className="p-4 text-left font-medium">Exercises</th>
+                  <th className="p-4 text-left font-medium">Exams</th>
+                  <th className="p-4 text-left font-medium">Visibility</th>
+                  {isProfessor && <th className="p-4 text-left font-medium">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {displayedCourses.map((course) => {
+                  const stats = getCourseStats(course.id);
+                  const enrollmentCount = getEnrollmentCount(course.id);
                   
-                  <div className="flex space-x-2 w-full sm:w-auto justify-end">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => navigateToExercises(course.id)}
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      <span>Exercises</span>
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => navigateToExams(course.id)}
-                    >
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span>Exams</span>
-                    </Button>
-                    {(course.pdf_url || (courseMaterials[course.id] && courseMaterials[course.id].length > 0)) && (
-                      courseMaterials[course.id] && courseMaterials[course.id].length > 0 ? (
-                        <CourseMaterials 
-                          materials={courseMaterials[course.id]} 
-                          compact={true}
-                        />
-                      ) : course.pdf_url ? (
-                        <>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleViewPdf(course.pdf_url!)}
-                          >
-                            <File className="h-4 w-4 mr-1" />
-                            <span>View Materials</span>
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleDownloadPdf(course.pdf_url!, course.title)}
-                          >
-                            <Download className="h-4 w-4 mr-1" />
-                            <span>Download</span>
-                          </Button>
-                        </>
-                      ) : null
-                    )}
-                    
-                    {isProfessor && (
-                      <>
+                  return (
+                    <tr key={course.id} className="border-t">
+                      <td className="p-4">
+                        <div>
+                          <h3 className="font-medium">{course.title}</h3>
+                          <p className="text-sm text-muted-foreground">{course.description}</p>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1">
+                          <Building className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {course.room_id ? getRoomName(course.room_id) : "No Room"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1">
+                          <Users className="h-4 w-4 text-blue-600" />
+                          <span>{enrollmentCount}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
-                          onClick={() => openEnrollDialog(course)}
+                          onClick={() => navigateToExercises(course.id)}
+                          className="h-7"
                         >
-                          <Users className="h-4 w-4 mr-1" />
-                          <span>Students</span>
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          {stats.exerciseCount}
                         </Button>
+                      </td>
+                      <td className="p-4">
                         <Button 
-                          variant="ghost" 
+                          variant="outline" 
                           size="sm"
-                          onClick={() => openEditDialog(course)}
+                          onClick={() => navigateToExams(course.id)}
+                          className="h-7"
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          <span>Edit</span>
+                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          {stats.examCount}
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => openDeleteDialog(course)}
-                        >
-                          <Trash className="h-4 w-4 mr-1" />
-                          <span>Delete</span>
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          course.is_visible ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                        }`}>
+                          {course.is_visible ? "Visible" : "Hidden"}
+                        </span>
+                      </td>
+                      {isProfessor && (
+                        <td className="p-4">
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleToggleVisibility(course.id)}
+                              title={course.is_visible ? "Hide from students" : "Make visible to students"}
+                            >
+                              {course.is_visible ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => openEnrollDialog(course)}
+                            >
+                              <UserPlus className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => openEditDialog(course)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => openDeleteDialog(course)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )
       ) : (

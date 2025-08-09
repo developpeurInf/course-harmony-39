@@ -30,7 +30,9 @@ import {
   EyeOff, 
   Edit, 
   Trash, 
+  Trash2,
   Plus,
+  PlusCircle,
   Clock,
   LayoutGrid,
   LayoutList,
@@ -549,66 +551,97 @@ const Exams = () => {
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
-            {displayedExams.map((exam) => (
-              <div key={exam.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-card">
-                  <div className="space-y-1 mb-2 sm:mb-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{exam.title}</h3>
-                      <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="h-5">
+          <div className="border rounded-lg">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="p-4 text-left font-medium">Exam</th>
+                  <th className="p-4 text-left font-medium">Course</th>
+                  <th className="p-4 text-left font-medium">Date & Time</th>
+                  <th className="p-4 text-left font-medium">Duration</th>
+                  <th className="p-4 text-left font-medium">Type</th>
+                  <th className="p-4 text-left font-medium">Status</th>
+                  {isProfessor && <th className="p-4 text-left font-medium">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {displayedExams.map((exam) => (
+                  <tr key={exam.id} className="border-t">
+                    <td className="p-4">
+                      <div>
+                        <h3 className="font-medium">{exam.title}</h3>
+                        <p className="text-sm text-muted-foreground">{exam.description}</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1">
+                        <BookOpen className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm">{getCourseName(exam.course_id)}</span>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="text-sm">
+                        <div>{format(new Date(exam.exam_date), "PPP")}</div>
+                        <div className="text-muted-foreground">{format(new Date(exam.exam_date), "p")}</div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{exam.duration_minutes}min</span>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'}>
                         {exam.type === 'quiz' ? 'Quiz' : 'Exam'}
                       </Badge>
-                      {!exam.is_visible && <Badge variant="outline" className="h-5">Hidden</Badge>}
-                      {isPastExam(exam.exam_date) ? (
-                        <Badge variant="secondary" className="h-5">Past</Badge>
-                      ) : (
-                        <Badge className="h-5">Upcoming</Badge>
-                      )}
-                    </div>
-                  <p className="text-sm text-muted-foreground">{getCourseName(exam.course_id)}</p>
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    <span>{formatExamDateTime(exam.exam_date)}</span>
-                    <span className="mx-2">•</span>
-                    <Clock className="h-3 w-3 mr-1" />
-                    <span>Duration: {formatDuration(exam.duration_minutes)}</span>
-                  </div>
-                </div>
-                
-                {isProfessor && (
-                  <div className="flex space-x-2 w-full sm:w-auto justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleToggleVisibility(exam.id)}
-                    >
-                      {exam.is_visible ? (
-                        <EyeOff className="h-4 w-4 mr-1" />
-                      ) : (
-                        <Eye className="h-4 w-4 mr-1" />
-                      )}
-                      <span>{exam.is_visible ? "Hide" : "Show"}</span>
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => openEditDialog(exam)}
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      <span>Edit</span>
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => openDeleteDialog(exam)}
-                    >
-                      <Trash className="h-4 w-4 mr-1" />
-                      <span>Delete</span>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-col gap-1">
+                        {isPastExam(exam.exam_date) ? (
+                          <Badge variant="outline" className="w-fit">Past</Badge>
+                        ) : (
+                          <Badge variant="default" className="w-fit">Upcoming</Badge>
+                        )}
+                        {!exam.is_visible && (
+                          <Badge variant="outline" className="w-fit">Hidden</Badge>
+                        )}
+                      </div>
+                    </td>
+                    {isProfessor && (
+                      <td className="p-4">
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setShowQuizBuilder(exam.id)}
+                          >
+                            <PlusCircle className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => openEditDialog(exam)}
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => openDeleteDialog(exam)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )
       ) : (
