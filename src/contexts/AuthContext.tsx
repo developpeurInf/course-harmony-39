@@ -164,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Login with email (since Supabase auth uses email)
       const { error } = await supabase.auth.signInWithPassword({
         email: profile.email,
-        password: profile.temporary_password
+        password: password // Use the password entered by user, not stored temporary_password
       });
 
       if (error) {

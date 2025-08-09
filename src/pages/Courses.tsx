@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNavigate, useLocation } from "react-router-dom";
+import ViewToggle from "@/components/ViewToggle";
 
 const Courses = () => {
   const { user, getStudents } = useAuth();
@@ -70,7 +71,7 @@ const Courses = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [selectedPdfFiles, setSelectedPdfFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<{[courseId: string]: any[]}>({});
@@ -306,10 +307,6 @@ const Courses = () => {
     toggleCourseVisibility(courseId);
   };
 
-  // Toggle view mode between grid and list
-  const toggleViewMode = () => {
-    setViewMode(viewMode === "grid" ? "list" : "grid");
-  };
 
   // Get course statistics
   const getCourseStats = (courseId: string) => {
@@ -398,19 +395,10 @@ const Courses = () => {
         </div>
         
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={toggleViewMode}
-            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
-          >
-            {viewMode === "grid" ? (
-              <LayoutList className="h-4 w-4" />
-            ) : (
-              <LayoutGrid className="h-4 w-4" />
-            )}
-          </Button>
+          <ViewToggle
+            view={viewMode}
+            onViewChange={(view) => setViewMode(view)}
+          />
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

@@ -42,6 +42,7 @@ import QuizBuilder from "@/components/QuizBuilder";
 import QuizTaker from "@/components/QuizTaker";
 import { format } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
+import ViewToggle from "@/components/ViewToggle";
 
 const Exams = () => {
   const { user } = useAuth();
@@ -62,7 +63,7 @@ const Exams = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -248,10 +249,6 @@ const Exams = () => {
     return examDate < now;
   };
 
-  // Toggle view mode between grid and list
-  const toggleViewMode = () => {
-    setViewMode(viewMode === "grid" ? "list" : "grid");
-  };
 
   // Handle course filter change
   const handleCourseFilterChange = (courseId: string) => {
@@ -279,19 +276,10 @@ const Exams = () => {
         </div>
         
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={toggleViewMode}
-            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
-          >
-            {viewMode === "grid" ? (
-              <LayoutList className="h-4 w-4" />
-            ) : (
-              <LayoutGrid className="h-4 w-4" />
-            )}
-          </Button>
+          <ViewToggle
+            view={viewMode}
+            onViewChange={(view) => setViewMode(view)}
+          />
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
