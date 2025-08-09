@@ -44,47 +44,23 @@ const RoomStudents = () => {
     
     setLoading(true);
     try {
-      // Get all enrollments for courses in this room
-      const { data: enrollments, error: enrollmentsError } = await supabase
-        .from('enrollments')
-        .select(`
-          student_id,
-          courses!inner (
-            room_id
-          )
-        `)
-        .eq('courses.room_id', roomId);
+      // Get all students for professors (they can manage and enroll them as needed)
+      // This includes newly imported students who may not be enrolled in courses yet
+      const { data: allStudents, error: allStudentsError } = await supabase
+        .from('profiles')
+        .select('id, name, email, username, role, avatar_url, created_at')
+        .eq('role', 'student');
 
-      if (enrollmentsError) {
-        console.error('Error fetching enrollments:', enrollmentsError);
+      if (allStudentsError) {
+        console.error('Error fetching students:', allStudentsError);
         toast.error("Failed to load students");
         return;
       }
 
-      if (!enrollments || enrollments.length === 0) {
-        setStudents([]);
-        return;
-      }
+      setStudents(allStudents || []);
 
-      // Get unique student IDs
-      const studentIds = [...new Set(enrollments.map(e => e.student_id))];
-
-      // Get student profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, name, email, username, role, avatar_url, created_at')
-        .in('id', studentIds)
-        .eq('role', 'student');
-
-      if (profilesError) {
-        console.error('Error fetching student profiles:', profilesError);
-        toast.error("Failed to load student profiles");
-        return;
-      }
-
-      setStudents(profiles || []);
     } catch (error) {
-      console.error('Error loading students:', error);
+      console.error('Error in loadStudents:', error);
       toast.error("Failed to load students");
     } finally {
       setLoading(false);

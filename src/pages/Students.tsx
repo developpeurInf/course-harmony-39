@@ -205,6 +205,14 @@ const Students = () => {
     );
   }
 
+  // Debug logging
+  console.log('Students page debug:', {
+    totalStudents: students.length,
+    filteredStudents: filteredStudents.length,
+    userRole: user?.role,
+    professorStudents: professorStudents.length
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
