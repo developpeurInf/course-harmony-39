@@ -271,6 +271,45 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_requests: {
+        Row: {
+          created_at: string
+          id: string
+          professor_id: string
+          requested_at: string
+          resolved_at: string | null
+          resolved_by: string | null
+          room_id: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          professor_id: string
+          requested_at?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          room_id?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          professor_id?: string
+          requested_at?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          room_id?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

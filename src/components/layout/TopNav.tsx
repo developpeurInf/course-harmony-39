@@ -63,8 +63,8 @@ const TopNav = () => {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground rounded-full">
+            <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
+              <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground rounded-full shadow-sm ring-2 ring-background">
                 {user?.name?.charAt(0) || "U"}
               </div>
             </Button>

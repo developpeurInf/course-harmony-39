@@ -24,6 +24,7 @@ import Students from "@/pages/Students";
 import Profile from "@/pages/Profile";
 import RoomExams from "@/pages/RoomExams";
 import Settings from "@/pages/Settings";
+import Reports from "@/pages/Reports";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => {
                       <Route path="/rooms/:roomId/courses" element={<RoomCourses />} />
                       <Route path="/rooms/:roomId/exercises" element={<RoomExercises />} />
                       <Route path="/rooms/:roomId/exams" element={<RoomExams />} />
+                      <Route path="/reports" element={<Reports />} />
                       <Route path="/settings" element={<Settings />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />

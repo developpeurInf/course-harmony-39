@@ -138,6 +138,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
       setIsImportDialogOpen(false);
       setSelectedFile(null);
+      // Force parent component refresh
       onStudentsImported?.();
 
     } catch (error) {

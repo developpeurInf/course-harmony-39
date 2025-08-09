@@ -9,19 +9,73 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Globe, Moon, Key, Mail } from "lucide-react";
+import { Globe, Moon, Key, Mail, AlertCircle } from "lucide-react";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
+import { PasswordResetManager } from "@/components/PasswordResetManager";
+import { supabase } from "@/integrations/supabase/client";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
 
   const handleSaveSettings = () => {
     toast.success(t("app.save") + " " + t("nav.settings"));
+  };
+
+  const handleRequestPasswordReset = async () => {
+    if (!user || user.role !== 'student') return;
+
+    setIsRequestingReset(true);
+    try {
+      // Get professor from enrollments
+      const { data: enrollments, error: enrollError } = await supabase
+        .from('enrollments')
+        .select(`
+          courses!inner (
+            professor_id,
+            room_id
+          )
+        `)
+        .eq('student_id', user.id)
+        .limit(1);
+
+      if (enrollError || !enrollments?.length) {
+        toast.error("Unable to find your professor. Please contact support.");
+        return;
+      }
+
+      const professorId = enrollments[0].courses.professor_id;
+      const roomId = enrollments[0].courses.room_id;
+
+      // Create password reset request
+      const { error: insertError } = await supabase
+        .from('password_reset_requests')
+        .insert({
+          student_id: user.id,
+          professor_id: professorId,
+          room_id: roomId,
+          status: 'pending'
+        });
+
+      if (insertError) {
+        console.error('Error creating password reset request:', insertError);
+        toast.error("Failed to request password reset");
+        return;
+      }
+
+      toast.success("Password reset request sent to your professor");
+
+    } catch (error) {
+      console.error('Error requesting password reset:', error);
+      toast.error("Failed to request password reset");
+    } finally {
+      setIsRequestingReset(false);
+    }
   };
 
   return (
@@ -116,10 +170,21 @@ const Settings = () => {
           </Button>
           
           {user?.role === 'student' && (
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                <strong>For password reset:</strong> Contact your professor to reset your password to a new temporary password. You'll receive it via your registered contact method.
-              </p>
+            <div className="space-y-3">
+              <Button 
+                variant="outline"
+                onClick={handleRequestPasswordReset}
+                disabled={isRequestingReset}
+                className="w-full"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                {isRequestingReset ? "Requesting..." : "Request Password Reset from Professor"}
+              </Button>
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> Click the button above to send a reset request to your professor. They will provide you with a new temporary password.
+                </p>
+              </div>
             </div>
           )}
         </CardContent>
@@ -180,6 +245,11 @@ const Settings = () => {
         </CardFooter>
       </Card>
       
+      {/* Password Reset Manager for Professors */}
+      {user?.role === 'professor' && (
+        <PasswordResetManager />
+      )}
+
       <ChangePasswordDialog 
         open={passwordDialogOpen} 
         onOpenChange={setPasswordDialogOpen}

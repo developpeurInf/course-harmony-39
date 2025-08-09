@@ -14,7 +14,8 @@ import {
   Building,
   ChevronDown,
   ChevronRight,
-  FolderOpen
+  FolderOpen,
+  BarChart3
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -125,20 +126,27 @@ const Sidebar = () => {
         ) : (
           /* Student: Simple navigation */
           <>
-            <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <BookOpen size={20} />
-              <span>Courses</span>
-            </NavLink>
-            
-            <NavLink to="/exercises" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <FileText size={20} />
-              <span>Exercises</span>
-            </NavLink>
-            
-            <NavLink to="/exams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <Calendar size={20} />
-              <span>Exams</span>
-            </NavLink>
+        <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <BookOpen size={20} />
+          <span>Courses</span>
+        </NavLink>
+        
+        <NavLink to="/exercises" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <FileText size={20} />
+          <span>Exercises</span>
+        </NavLink>
+        
+        <NavLink to="/exams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Calendar size={20} />
+          <span>Exams</span>
+        </NavLink>
+
+        {isProfessor && (
+          <NavLink to="/reports" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <BarChart3 size={20} />
+            <span>Reports</span>
+          </NavLink>
+        )}
           </>
         )}
         
