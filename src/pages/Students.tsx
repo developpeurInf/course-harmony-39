@@ -43,7 +43,7 @@ import { StudentExcelManager } from "@/components/StudentExcelManager";
 const Students = () => {
   const { roomId } = useParams();
   const { user, getStudents, addStudent } = useAuth();
-  const { courses, enrollments, enrollStudent, removeEnrollment, refreshData } = useCourses();
+  const { courses, enrollments, enrollStudent, removeEnrollment, refreshData, rooms } = useCourses();
   const navigate = useNavigate();
 
   const [students, setStudents] = useState<any[]>([]);
@@ -98,10 +98,17 @@ const Students = () => {
     )
   );
 
+  // Get professor's rooms to show students imported to those rooms
+  const professorRooms = rooms.filter(r => r.professor_id === user?.id);
+  
+  // Get all students that belong to the professor (either enrolled in courses or imported to their rooms)
+  // For now, show all students since students are created through the professor's room context
+  const professorStudents = user?.role === 'professor' ? students : enrolledStudents;
+
   // Filter students based on search and course selection
-  const filteredStudents = enrolledStudents.filter(student => {
+  const filteredStudents = professorStudents.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.email.toLowerCase().includes(searchTerm.toLowerCase());
+                         (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()));
     
     if (selectedCourse === "all") return matchesSearch;
     
