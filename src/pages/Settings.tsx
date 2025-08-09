@@ -7,12 +7,18 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Globe } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Globe, Moon, Key, Mail } from "lucide-react";
+import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
+  const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
 
   const handleSaveSettings = () => {
     toast.success(t("app.save") + " " + t("nav.settings"));
@@ -21,6 +27,39 @@ const Settings = () => {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <h1 className="text-2xl font-bold">{t("nav.settings")}</h1>
+      
+      {/* Theme Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Moon className="h-5 w-5" />
+            Theme
+          </CardTitle>
+          <CardDescription>
+            Choose your preferred theme appearance
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="theme">Theme</Label>
+              <Select
+                value={theme}
+                onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
+              >
+                <SelectTrigger id="theme">
+                  <SelectValue placeholder="Select theme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light</SelectItem>
+                  <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       
       {/* Language Settings */}
       <Card>
@@ -54,6 +93,35 @@ const Settings = () => {
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
+      
+      {/* Password Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Password & Security
+          </CardTitle>
+          <CardDescription>
+            {user?.role === 'student' 
+              ? "Change your temporary password or request a password reset from your professor"
+              : "Manage your account password"
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button onClick={() => setPasswordDialogOpen(true)}>
+            Change Password
+          </Button>
+          
+          {user?.role === 'student' && (
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>For password reset:</strong> Contact your professor to reset your password to a new temporary password. You'll receive it via your registered contact method.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -111,6 +179,11 @@ const Settings = () => {
           <Button onClick={handleSaveSettings}>{t("app.save")}</Button>
         </CardFooter>
       </Card>
+      
+      <ChangePasswordDialog 
+        open={passwordDialogOpen} 
+        onOpenChange={setPasswordDialogOpen}
+      />
     </div>
   );
 };

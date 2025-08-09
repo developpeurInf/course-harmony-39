@@ -88,7 +88,7 @@ const AuthForm = () => {
           <CardHeader className="space-y-1">
             <div className="text-center mb-4">
               <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                CourseHarmony
+                MAATAOUI Academy
               </h2>
             </div>
             <CardTitle className="text-2xl text-center">Welcome</CardTitle>
@@ -142,9 +142,9 @@ const AuthForm = () => {
               </Button>
             )}
             <div className="text-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                CourseHarmony
-              </h2>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              MAATAOUI Academy
+            </h2>
             </div>
           </div>
           <CardTitle className="text-2xl text-center">

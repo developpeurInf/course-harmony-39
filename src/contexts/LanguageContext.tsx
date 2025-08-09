@@ -607,13 +607,13 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Get saved language or default to English
   const [language, setLanguage] = useState<Language>(() => {
-    const savedLanguage = localStorage.getItem("courseHarmonyLanguage");
+    const savedLanguage = localStorage.getItem("maataoui-language");
     return (savedLanguage as Language) || "en";
   });
 
   // Save language to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem("courseHarmonyLanguage", language);
+    localStorage.setItem("maataoui-language", language);
     
     // Set the dir attribute on the document for RTL support
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
