@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -189,7 +189,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const refreshData = async (roomId?: string) => {
+  const refreshData = useCallback(async (roomId?: string) => {
     if (!user) return;
     
     setLoading(true);
@@ -303,7 +303,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   // Room operations
   const addRoom = async (room: Omit<Room, "id" | "created_at" | "updated_at" | "professor_id">): Promise<boolean> => {
