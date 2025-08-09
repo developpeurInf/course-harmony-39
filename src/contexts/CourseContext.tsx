@@ -144,7 +144,7 @@ interface CourseContextType {
   uploadExamPdf: (examId: string, file: File) => Promise<string | null>;
   
   // Quiz operations
-  addQuizQuestion: (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">) => Promise<boolean>;
+  addQuizQuestion: (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">) => Promise<QuizQuestion | null>;
   addQuizOption: (option: Omit<QuizOption, "id" | "created_at">) => Promise<boolean>;
   updateQuizQuestion: (questionId: string, updates: Partial<QuizQuestion>) => Promise<boolean>;
   deleteQuizQuestion: (questionId: string) => Promise<boolean>;
@@ -883,7 +883,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Quiz operations
-  const addQuizQuestion = async (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">): Promise<boolean> => {
+  const addQuizQuestion = async (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">): Promise<QuizQuestion | null> => {
     try {
       const { data, error } = await supabase
         .from('quiz_questions')
@@ -893,15 +893,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         toast.error("Failed to add question");
-        return false;
+        return null;
       }
 
       setQuizQuestions(prev => [...prev, data as QuizQuestion]);
       toast.success("Question added successfully");
-      return true;
+      return data as QuizQuestion;
     } catch (error) {
       toast.error("Failed to add question");
-      return false;
+      return null;
     }
   };
 

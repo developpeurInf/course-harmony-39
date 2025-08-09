@@ -116,7 +116,7 @@ const QuizBuilder = ({ examId, onClose }: QuizBuilderProps) => {
     }
 
     try {
-      const success = await addQuizQuestion({
+      const newQuestion = await addQuizQuestion({
         exam_id: examId,
         question: currentQuestion.question,
         question_type: currentQuestion.question_type,
@@ -124,48 +124,43 @@ const QuizBuilder = ({ examId, onClose }: QuizBuilderProps) => {
         question_order: currentQuestion.question_order
       });
 
-      if (success) {
-        // Reload questions to get the new question with ID
-        loadQuestions();
-        
+      if (newQuestion) {
         // Add options for multiple choice or true/false
         if (currentQuestion.question_type === 'multiple_choice') {
-          const newQuestions = getQuizQuestions(examId);
-          const newQuestion = newQuestions.find(q => q.question === currentQuestion.question);
+          const validOptions = currentOptions.filter(opt => opt.option_text.trim());
+          console.log('Saving multiple choice options:', validOptions);
           
-          if (newQuestion) {
-            const validOptions = currentOptions.filter(opt => opt.option_text.trim());
-            for (const option of validOptions) {
-              await addQuizOption({
-                question_id: newQuestion.id,
-                option_text: option.option_text,
-                is_correct: option.is_correct,
-                option_order: option.option_order
-              });
-            }
-            loadQuestions(); // Reload to get options
+          for (const option of validOptions) {
+            const optionSaved = await addQuizOption({
+              question_id: newQuestion.id,
+              option_text: option.option_text,
+              is_correct: option.is_correct,
+              option_order: option.option_order
+            });
+            console.log('Option saved:', option.option_text, optionSaved);
           }
         } else if (currentQuestion.question_type === 'true_false') {
-          const newQuestions = getQuizQuestions(examId);
-          const newQuestion = newQuestions.find(q => q.question === currentQuestion.question);
+          const tfOptions = currentOptions.filter(opt => opt.option_text);
+          console.log('Saving true/false options:', tfOptions);
           
-          if (newQuestion) {
-            for (const option of currentOptions.filter(opt => opt.option_text)) {
-              await addQuizOption({
-                question_id: newQuestion.id,
-                option_text: option.option_text,
-                is_correct: option.is_correct,
-                option_order: option.option_order
-              });
-            }
-            loadQuestions(); // Reload to get options
+          for (const option of tfOptions) {
+            const optionSaved = await addQuizOption({
+              question_id: newQuestion.id,
+              option_text: option.option_text,
+              is_correct: option.is_correct,
+              option_order: option.option_order
+            });
+            console.log('Option saved:', option.option_text, optionSaved);
           }
         }
         
+        // Reload questions to get the latest data including options
+        loadQuestions();
         resetForm();
         toast.success("Question added successfully");
       }
     } catch (error) {
+      console.error('Error adding question:', error);
       toast.error("Failed to add question");
     }
   };
