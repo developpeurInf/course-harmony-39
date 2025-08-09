@@ -70,13 +70,16 @@ const Sidebar = () => {
             </CollapsibleTrigger>
             
             <CollapsibleContent className="ml-6 space-y-1 mt-1">
-              <NavLink 
-                to={`/rooms/${room.id}/students`} 
-                className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-              >
-                <Users size={16} />
-                <span>Students</span>
-              </NavLink>
+              {/* Students link only for professors */}
+              {isProfessor && (
+                <NavLink 
+                  to={`/rooms/${room.id}/students`} 
+                  className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+                >
+                  <Users size={16} />
+                  <span>Students</span>
+                </NavLink>
+              )}
               
               <NavLink 
                 to={`/rooms/${room.id}/courses`} 

@@ -124,18 +124,9 @@ const RoomStudents = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Redirect students away from this page
   if (user?.role !== 'professor') {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              Access denied. Only professors can view student management.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

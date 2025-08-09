@@ -303,7 +303,10 @@ const QuizTaker = ({ exam, onClose }: QuizTakerProps) => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <h3 className="text-lg font-medium">{currentQuestion.question}</h3>
+          <div 
+            className="text-lg font-medium prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: currentQuestion.question }}
+          />
           
           {currentQuestion.question_type === 'multiple_choice' && (
             <RadioGroup

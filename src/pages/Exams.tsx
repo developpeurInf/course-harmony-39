@@ -38,10 +38,12 @@ import {
   LayoutList,
   BookOpen,
   Settings,
-  Play
+  Play,
+  Trophy
 } from "lucide-react";
 import QuizBuilder from "@/components/QuizBuilder";
 import QuizTaker from "@/components/QuizTaker";
+import QuizResults from "@/components/QuizResults";
 import { format } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
@@ -79,6 +81,7 @@ const Exams = () => {
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>("all");
   const [showQuizBuilder, setShowQuizBuilder] = useState<string | null>(null);
   const [showQuizTaker, setShowQuizTaker] = useState<Exam | null>(null);
+  const [showQuizResults, setShowQuizResults] = useState<string | null>(null);
   
   const isProfessor = user?.role === "professor";
   
@@ -402,15 +405,9 @@ const Exams = () => {
         </div>
       </div>
 
-      {/* Quiz Builder Modal */}
+      {/* Quiz Builder */}
       {showQuizBuilder && (
-        <Dialog open={!!showQuizBuilder} onOpenChange={() => setShowQuizBuilder(null)}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
-            <div className="h-full overflow-y-auto p-6">
-              <QuizBuilder examId={showQuizBuilder} onClose={() => setShowQuizBuilder(null)} />
-            </div>
-          </DialogContent>
-        </Dialog>
+        <QuizBuilder examId={showQuizBuilder} onClose={() => setShowQuizBuilder(null)} />
       )}
 
       {/* Quiz Taker Modal */}
@@ -419,6 +416,17 @@ const Exams = () => {
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
             <div className="h-full overflow-y-auto p-6">
               <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Quiz Results Modal */}
+      {showQuizResults && (
+        <Dialog open={!!showQuizResults} onOpenChange={() => setShowQuizResults(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+            <div className="h-full overflow-y-auto p-6">
+              <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
             </div>
           </DialogContent>
         </Dialog>
@@ -490,31 +498,34 @@ const Exams = () => {
                   <div className="flex justify-between w-full">
                     {isProfessor ? (
                       <>
-                        <div className="flex gap-2">
-                          {exam.type === 'quiz' && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => setShowQuizBuilder(exam.id)}
-                              title="Manage quiz questions"
-                            >
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleToggleVisibility(exam.id)}
-                            title={exam.is_visible ? "Hide from students" : "Make visible to students"}
-                          >
-                            {exam.is_visible ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                        <div className="flex gap-2">
+                         <div className="flex gap-2">
+                           {exam.type === 'quiz' && (
+                             <QuizBuilder examId={exam.id} onClose={() => {}} />
+                           )}
+                           {exam.type === 'quiz' && (
+                             <Button 
+                               variant="ghost" 
+                               size="icon"
+                               onClick={() => setShowQuizResults(exam.id)}
+                               title="View quiz results"
+                             >
+                               <Trophy className="h-4 w-4" />
+                             </Button>
+                           )}
+                           <Button 
+                             variant="ghost" 
+                             size="icon"
+                             onClick={() => handleToggleVisibility(exam.id)}
+                             title={exam.is_visible ? "Hide from students" : "Make visible to students"}
+                           >
+                             {exam.is_visible ? (
+                               <EyeOff className="h-4 w-4" />
+                             ) : (
+                               <Eye className="h-4 w-4" />
+                             )}
+                           </Button>
+                         </div>
+                         <div className="flex gap-2">
                           <Button 
                             variant="ghost" 
                             size="icon"
