@@ -1,116 +1,152 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.54.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+interface Student {
+  prenom: string;
+  nom: string;
+  username: string;
+  temporaryPassword: string;
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    
     const { students, roomId } = await req.json()
-
-    if (!Array.isArray(students) || students.length === 0) {
+    
+    if (!students || !Array.isArray(students) || !roomId) {
       return new Response(
-        JSON.stringify({ error: 'Invalid students data' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Missing students array or roomId' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
       )
     }
 
-    const createdStudents = []
+    const results = []
     const errors = []
+    let created = 0
 
-    for (const student of students) {
+    console.log(`Creating ${students.length} students for room ${roomId}`)
+
+    for (const student of students as Student[]) {
       try {
-        const { prenom, nom, username, temporaryPassword } = student
-
-        if (!prenom?.trim() || !nom?.trim() || !username || !temporaryPassword) {
-          errors.push({ student, error: 'Missing required fields' })
-          continue
-        }
-
-        // Create user in Auth
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: `${username}@school.edu`,
-          password: temporaryPassword,
+        // Create auth user with username as email (temporary approach)
+        const fakeEmail = `${student.username}@student.internal`
+        
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: fakeEmail,
+          password: student.temporaryPassword,
           user_metadata: {
-            name: `${prenom} ${nom}`,
-            role: 'student',
-            room_id: roomId
+            name: `${student.prenom} ${student.nom}`,
+            username: student.username,
+            role: 'student'
           }
         })
 
         if (authError) {
-          console.error(`Failed to create user ${username}:`, authError)
-          errors.push({ student, error: authError.message })
+          console.error('Auth error for student:', student.username, authError)
+          errors.push({ 
+            student: `${student.prenom} ${student.nom}`, 
+            error: authError.message 
+          })
           continue
         }
 
-        if (!authData.user) {
-          errors.push({ student, error: 'Failed to create user' })
-          continue
-        }
+        console.log('Created auth user:', authData.user.id)
 
-        // Create profile (this should be handled by the trigger, but let's ensure it)
-        const { error: profileError } = await supabaseAdmin
+        // Update the profile with username and temporary password
+        const { error: profileError } = await supabase
           .from('profiles')
-          .upsert({
-            id: authData.user.id,
-            name: `${prenom} ${nom}`,
-            email: `${username}@school.edu`,
+          .update({
+            username: student.username,
+            temporary_password: student.temporaryPassword,
             role: 'student'
           })
+          .eq('id', authData.user.id)
 
         if (profileError) {
-          console.error(`Failed to create profile for ${username}:`, profileError)
-          errors.push({ student, error: `Profile creation failed: ${profileError.message}` })
+          console.error('Profile update error:', profileError)
+          errors.push({ 
+            student: `${student.prenom} ${student.nom}`, 
+            error: `Profile update failed: ${profileError.message}` 
+          })
           continue
         }
 
-        createdStudents.push(student)
+        // Get all courses in this room to auto-enroll the student
+        const { data: courses, error: coursesError } = await supabase
+          .from('courses')
+          .select('id')
+          .eq('room_id', roomId)
+
+        if (coursesError) {
+          console.error('Failed to get courses for room:', coursesError)
+        } else if (courses && courses.length > 0) {
+          // Create enrollments for all courses in the room
+          const enrollments = courses.map(course => ({
+            student_id: authData.user.id,
+            course_id: course.id,
+            room_id: roomId
+          }))
+
+          const { error: enrollmentError } = await supabase
+            .from('enrollments')
+            .insert(enrollments)
+
+          if (enrollmentError) {
+            console.error('Enrollment error:', enrollmentError)
+          }
+        }
+
+        results.push({
+          ...student,
+          id: authData.user.id
+        })
+        created++
 
       } catch (error) {
-        console.error(`Error creating student ${student.username}:`, error)
-        errors.push({ student, error: error.message })
+        console.error('Unexpected error creating student:', student.username, error)
+        errors.push({ 
+          student: `${student.prenom} ${student.nom}`, 
+          error: error.message 
+        })
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        created: createdStudents.length, 
+      JSON.stringify({
+        success: true,
+        created,
         total: students.length,
-        createdStudents,
-        errors 
+        createdStudents: results,
+        errors: errors.length > 0 ? errors : undefined
       }),
       { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
 
   } catch (error) {
     console.error('Edge function error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ error: error.message }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }

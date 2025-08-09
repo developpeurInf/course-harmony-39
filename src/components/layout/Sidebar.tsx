@@ -70,38 +70,36 @@ const Sidebar = () => {
             
             <CollapsibleContent className="ml-6 space-y-1 mt-1">
               <NavLink 
-                to={`/room/${room.id}/courses`} 
+                to={`/rooms/${room.id}/students`} 
+                className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+              >
+                <Users size={16} />
+                <span>Students</span>
+              </NavLink>
+              
+              <NavLink 
+                to={`/rooms/${room.id}/courses`} 
                 className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
               >
                 <BookOpen size={16} />
-                <span>{t("nav.courses")}</span>
+                <span>Courses</span>
               </NavLink>
               
               <NavLink 
-                to={`/room/${room.id}/exercises`} 
+                to={`/rooms/${room.id}/exercises`} 
                 className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
               >
                 <FileText size={16} />
-                <span>{t("nav.exercises")}</span>
+                <span>Exercises</span>
               </NavLink>
               
               <NavLink 
-                to={`/room/${room.id}/exams`} 
+                to={`/rooms/${room.id}/exams`} 
                 className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
               >
                 <Calendar size={16} />
-                <span>{t("nav.exams")}</span>
+                <span>Exams</span>
               </NavLink>
-              
-              {isProfessor && (
-                <NavLink 
-                  to={`/room/${room.id}/students`} 
-                  className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-                >
-                  <Users size={16} />
-                  <span>{t("nav.students")}</span>
-                </NavLink>
-              )}
             </CollapsibleContent>
           </Collapsible>
         ))}
