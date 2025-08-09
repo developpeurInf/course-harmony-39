@@ -3,15 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Save, Edit2 } from "lucide-react";
+import { Trash2, Plus, Save, Edit2, Settings } from "lucide-react";
 import { useCourses, QuizQuestion, QuizOption } from "@/contexts/CourseContext";
 import { toast } from "sonner";
 import RichTextEditor from "@/components/RichTextEditor";
+import QuizSettings, { QuizSettings as QuizSettingsType } from "@/components/QuizSettings";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface QuizBuilderProps {
   examId: string;
@@ -31,9 +32,14 @@ const QuizBuilder = ({ examId, onClose }: QuizBuilderProps) => {
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [options, setOptions] = useState<QuizOption[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState({
+  const [currentQuestion, setCurrentQuestion] = useState<{
+    question: string;
+    question_type: 'multiple_choice' | 'true_false' | 'short_answer';
+    points: number;
+    question_order: number;
+  }>({
     question: "",
-    question_type: "multiple_choice" as const,
+    question_type: "multiple_choice",
     points: 1,
     question_order: 1
   });
@@ -44,6 +50,16 @@ const QuizBuilder = ({ examId, onClose }: QuizBuilderProps) => {
     { option_text: "", is_correct: false, option_order: 4 }
   ]);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [quizSettings, setQuizSettings] = useState<QuizSettingsType>({
+    sequentialQuestions: false,
+    allowMultipleAttempts: false,
+    allowCorrections: true,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    timeLimit: null,
+    showResultsImmediately: true,
+    allowReview: true,
+  });
 
   useEffect(() => {
     loadQuestions();
@@ -154,25 +170,53 @@ const QuizBuilder = ({ examId, onClose }: QuizBuilderProps) => {
     }
   };
 
+  const handleUpdateQuestion = async () => {
+    if (!editingQuestionId) return;
+    
+    const success = await updateQuizQuestion(editingQuestionId, {
+      question: currentQuestion.question,
+      points: currentQuestion.points
+    });
+    
+    if (success) {
+      loadQuestions();
+      resetForm();
+      toast.success("Question updated successfully");
+    }
+  };
+
+  const handleEditQuestion = (question: QuizQuestion) => {
+    setCurrentQuestion({
+      question: question.question,
+      question_type: question.question_type,
+      points: question.points,
+      question_order: question.question_order
+    });
+    
+    // Load current options for editing
+    const questionOptions = getQuestionOptions(question.id);
+    if (question.question_type === 'multiple_choice') {
+      const editOptions = [...Array(4)].map((_, index) => {
+        const existingOption = questionOptions[index];
+        return existingOption || { option_text: "", is_correct: false, option_order: index + 1 };
+      });
+      setCurrentOptions(editOptions);
+    } else if (question.question_type === 'true_false') {
+      setCurrentOptions([
+        { option_text: "True", is_correct: questionOptions.find(opt => opt.option_text === "True")?.is_correct || false, option_order: 1 },
+        { option_text: "False", is_correct: questionOptions.find(opt => opt.option_text === "False")?.is_correct || false, option_order: 2 }
+      ]);
+    }
+    
+    setEditingQuestionId(question.id);
+  };
+
   const handleDeleteQuestion = async (questionId: string) => {
     const success = await deleteQuizQuestion(questionId);
     if (success) {
       loadQuestions();
       toast.success("Question deleted");
     }
-  };
-
-  const handleOptionChange = (index: number, field: keyof typeof currentOptions[0], value: string | boolean) => {
-    const newOptions = [...currentOptions];
-    if (field === 'is_correct' && value === true) {
-      // For single correct answer, uncheck others
-      newOptions.forEach((opt, i) => {
-        opt.is_correct = i === index;
-      });
-    } else {
-      (newOptions[index] as any)[field] = value;
-    }
-    setCurrentOptions(newOptions);
   };
 
   const getQuestionOptions = (questionId: string) => {
@@ -182,204 +226,237 @@ const QuizBuilder = ({ examId, onClose }: QuizBuilderProps) => {
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Build Quiz
+        <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-lg">
+          <Edit2 className="h-4 w-4 mr-2" />
+          Edit Quiz Questions
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Quiz Builder</DialogTitle>
-          <DialogDescription>
-            Create and manage quiz questions for this exam.
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="text-xl font-bold text-primary">Quiz Builder</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Create questions and configure quiz settings
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-6 py-4">
-          {/* Add Question Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{editingQuestionId ? "Edit Question" : "Add New Question"}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="question">Question</Label>
-                <RichTextEditor
-                  content={currentQuestion.question}
-                  onChange={(content) => setCurrentQuestion(prev => ({ ...prev, question: content }))}
-                  placeholder="Enter your question here... You can add formatting, images, and links."
-                  className="min-h-[150px]"
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="questionType">Question Type</Label>
-                  <Select 
-                    value={currentQuestion.question_type} 
-                    onValueChange={(value: any) => setCurrentQuestion(prev => ({ ...prev, question_type: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
-                      <SelectItem value="true_false">True/False</SelectItem>
-                      <SelectItem value="short_answer">Short Answer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="points">Points</Label>
-                  <Input
-                    id="points"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={currentQuestion.points}
-                    onChange={(e) => setCurrentQuestion(prev => ({ ...prev, points: parseInt(e.target.value) || 1 }))}
-                  />
-                </div>
-              </div>
-
-              {currentQuestion.question_type === 'multiple_choice' && (
-                <div className="space-y-3">
-                  <Label>Answer Options</Label>
-                  <RadioGroup className="space-y-2">
-                    {currentOptions.map((option, index) => (
-                      <div key={index} className="flex items-center space-x-3 p-3 border rounded-lg">
-                        <RadioGroupItem
-                          value={index.toString()}
-                          checked={option.is_correct}
-                          onClick={() => handleOptionChange(index, 'is_correct', !option.is_correct)}
-                        />
-                        <Input
-                          placeholder={`Option ${index + 1}`}
-                          value={option.option_text}
-                          onChange={(e) => handleOptionChange(index, 'option_text', e.target.value)}
-                          className="flex-1"
-                        />
-                        <Badge variant={option.is_correct ? "default" : "secondary"}>
-                          {option.is_correct ? "Correct" : "Incorrect"}
-                        </Badge>
-                      </div>
+        <div className="flex-1 overflow-auto">
+          <Tabs defaultValue="questions" className="h-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="questions">Questions</TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Settings
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="questions" className="mt-4 space-y-6">
+              {/* Questions List */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-foreground">Quiz Questions</h3>
+                {questions.length === 0 ? (
+                  <Card className="p-8 text-center">
+                    <p className="text-muted-foreground">No questions added yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Add your first question below</p>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {questions.map((question, index) => (
+                      <Card key={question.id} className="p-5 border-l-4 border-l-primary/30 hover:border-l-primary transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Badge variant="outline" className="text-primary border-primary/50">Q{index + 1}</Badge>
+                              <Badge variant="secondary">{question.question_type.replace('_', ' ')}</Badge>
+                              <Badge className="bg-primary/10 text-primary">{question.points} points</Badge>
+                            </div>
+                            <div 
+                              className="prose prose-sm max-w-none mb-3 text-foreground"
+                              dangerouslySetInnerHTML={{ __html: question.question }}
+                            />
+                            {/* Show options for multiple choice questions */}
+                            {question.question_type === 'multiple_choice' && (
+                              <div className="space-y-2 ml-4 mt-3">
+                                {getQuestionOptions(question.id).map((option, optIndex) => (
+                                  <div key={option.id} className={`text-sm flex items-center gap-2 p-2 rounded-md ${option.is_correct ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-muted/30 text-muted-foreground'}`}>
+                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${option.is_correct ? 'bg-green-200' : 'bg-muted'}`}>
+                                      {String.fromCharCode(65 + optIndex)}
+                                    </span>
+                                    {option.option_text}
+                                    {option.is_correct && <Badge variant="outline" className="ml-auto text-xs">Correct</Badge>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditQuestion(question)}
+                              className="hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteQuestion(question.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
                     ))}
-                  </RadioGroup>
-                </div>
-              )}
-
-              {(currentQuestion.question_type as string) === 'true_false' && (
-                <div className="space-y-2">
-                  <Label>Correct Answer</Label>
-                  <Select 
-                    value={currentOptions.find(opt => opt.is_correct)?.option_text?.toLowerCase() || "true"} 
-                    onValueChange={(value) => {
-                      setCurrentOptions([
-                        { option_text: "True", is_correct: value === "true", option_order: 1 },
-                        { option_text: "False", is_correct: value === "false", option_order: 2 }
-                      ]);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">True</SelectItem>
-                      <SelectItem value="false">False</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button onClick={handleAddQuestion} className="flex-1">
-                  <Save className="h-4 w-4 mr-2" />
-                  {editingQuestionId ? "Update Question" : "Add Question"}
-                </Button>
-                {editingQuestionId && (
-                  <Button onClick={resetForm} variant="outline">
-                    Cancel
-                  </Button>
+                  </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Questions List */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Questions ({questions.length})</h3>
-            {questions.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  No questions added yet. Add your first question above.
-                </CardContent>
-              </Card>
-            ) : (
-              questions
-                .sort((a, b) => a.question_order - b.question_order)
-                .map((question, index) => (
-                  <Card key={question.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline">Q{index + 1}</Badge>
-                            <Badge>{question.question_type.replace('_', ' ').toUpperCase()}</Badge>
-                            <Badge variant="secondary">{question.points} pts</Badge>
-                          </div>
-                          <div 
-                            className="font-medium mb-3 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: question.question }}
+              {/* Question Form */}
+              <Card className="p-6 bg-gradient-to-br from-background to-muted/20 border-2">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-primary" />
+                  {editingQuestionId ? "Edit Question" : "Add New Question"}
+                </h3>
+                
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="question-type" className="text-sm font-medium">Question Type</Label>
+                      <Select
+                        value={currentQuestion.question_type}
+                        onValueChange={(value: any) => 
+                          setCurrentQuestion(prev => ({ ...prev, question_type: value }))
+                        }
+                      >
+                        <SelectTrigger className="border-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                          <SelectItem value="true_false">True/False</SelectItem>
+                          <SelectItem value="short_answer">Short Answer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="points" className="text-sm font-medium">Points</Label>
+                      <Input
+                        id="points"
+                        type="number"
+                        min="1"
+                        value={currentQuestion.points}
+                        onChange={(e) => setCurrentQuestion(prev => ({ 
+                          ...prev, 
+                          points: parseInt(e.target.value) || 1 
+                        }))}
+                        className="border-2"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="question" className="text-sm font-medium">Question</Label>
+                    <div className="border-2 rounded-md">
+                      <RichTextEditor
+                        content={currentQuestion.question}
+                        onChange={(content) => setCurrentQuestion(prev => ({ 
+                          ...prev, 
+                          question: content 
+                        }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Options for multiple choice */}
+                  {currentQuestion.question_type === 'multiple_choice' && (
+                    <div className="space-y-4">
+                      <Label className="text-sm font-medium">Answer Options</Label>
+                      {currentOptions.map((option, index) => (
+                        <div key={index} className="flex items-center gap-3 p-4 border-2 rounded-lg bg-background">
+                          <span className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-sm font-bold text-primary">
+                            {String.fromCharCode(65 + index)}
+                          </span>
+                          <Input
+                            placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                            value={option.option_text}
+                            onChange={(e) => {
+                              const newOptions = [...currentOptions];
+                              newOptions[index] = { ...option, option_text: e.target.value };
+                              setCurrentOptions(newOptions);
+                            }}
+                            className="flex-1"
                           />
-                          
-                          {question.question_type === 'multiple_choice' && (
-                            <div className="space-y-1">
-                              {getQuestionOptions(question.id).map((option, optIndex) => (
-                                <div key={option.id} className="flex items-center gap-2 text-sm">
-                                  <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
-                                    {String.fromCharCode(65 + optIndex)}
-                                  </span>
-                                  <span className={option.is_correct ? "font-medium text-green-600" : ""}>
-                                    {option.option_text}
-                                  </span>
-                                  {option.is_correct && (
-                                    <Badge variant="default" className="text-xs">Correct</Badge>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {question.question_type === 'true_false' && (
-                            <div className="text-sm">
-                              <span className="font-medium text-green-600">
-                                Correct Answer: {getQuestionOptions(question.id).find(opt => opt.is_correct)?.option_text || "Not set"}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={`correct-${index}`}
+                              checked={option.is_correct}
+                              onChange={(e) => {
+                                const newOptions = [...currentOptions];
+                                newOptions[index] = { ...option, is_correct: e.target.checked };
+                                setCurrentOptions(newOptions);
+                              }}
+                              className="rounded border-2"
+                            />
+                            <Label htmlFor={`correct-${index}`} className="text-sm font-medium">Correct</Label>
+                          </div>
                         </div>
-                        <div className="flex gap-2 ml-4">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteQuestion(question.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Options for true/false */}
+                  {currentQuestion.question_type === 'true_false' && (
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Correct Answer</Label>
+                      <RadioGroup
+                        value={currentOptions.find(opt => opt.is_correct)?.option_text || ""}
+                        onValueChange={(value) => {
+                          setCurrentOptions([
+                            { option_text: "True", is_correct: value === "True", option_order: 1 },
+                            { option_text: "False", is_correct: value === "False", option_order: 2 }
+                          ]);
+                        }}
+                        className="grid grid-cols-2 gap-4"
+                      >
+                        <div className="flex items-center space-x-2 p-3 border-2 rounded-lg">
+                          <RadioGroupItem value="True" id="true" />
+                          <Label htmlFor="true" className="font-medium">True</Label>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-            )}
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button onClick={() => setIsDialogOpen(false)} variant="outline">
-              Close
-            </Button>
-          </div>
+                        <div className="flex items-center space-x-2 p-3 border-2 rounded-lg">
+                          <RadioGroupItem value="False" id="false" />
+                          <Label htmlFor="false" className="font-medium">False</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={resetForm}
+                      className="border-2"
+                    >
+                      {editingQuestionId ? "Cancel Edit" : "Clear Form"}
+                    </Button>
+                    <Button 
+                      onClick={editingQuestionId ? handleUpdateQuestion : handleAddQuestion}
+                      className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {editingQuestionId ? "Update Question" : "Add Question"}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="settings" className="mt-4">
+              <QuizSettings onSettingsChange={setQuizSettings} />
+            </TabsContent>
+          </Tabs>
         </div>
       </DialogContent>
     </Dialog>

@@ -100,6 +100,7 @@ export interface Enrollment {
   student_id: string;
   course_id: string;
   enrolled_at: string;
+  room_id?: string;
 }
 
 // Context type

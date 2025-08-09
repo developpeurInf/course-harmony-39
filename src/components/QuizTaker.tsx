@@ -314,19 +314,19 @@ const QuizTaker = ({ exam, onClose }: QuizTakerProps) => {
               onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
             >
               <div className="space-y-3">
-                {questionOptions.map((option, index) => (
-                  <div key={option.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                    <RadioGroupItem value={option.id} />
-                    <label className="flex-1 cursor-pointer">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                          {String.fromCharCode(65 + index)}
-                        </span>
-                        {option.option_text}
-                      </span>
-                    </label>
-                  </div>
-                ))}
+                 {questionOptions.map((option, index) => (
+                   <div key={option.id} className="flex items-center space-x-3 p-4 border-2 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer">
+                     <RadioGroupItem value={option.id} id={`option-${option.id}`} />
+                     <label htmlFor={`option-${option.id}`} className="flex-1 cursor-pointer">
+                       <span className="inline-flex items-center gap-3">
+                         <span className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-sm font-bold text-primary">
+                           {String.fromCharCode(65 + index)}
+                         </span>
+                         <span className="text-base">{option.option_text}</span>
+                       </span>
+                     </label>
+                   </div>
+                 ))}
               </div>
             </RadioGroup>
           )}
@@ -337,14 +337,14 @@ const QuizTaker = ({ exam, onClose }: QuizTakerProps) => {
               onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
             >
               <div className="space-y-3">
-                {questionOptions.map((option) => (
-                  <div key={option.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50">
-                    <RadioGroupItem value={option.id} />
-                    <label className="flex-1 cursor-pointer font-medium">
-                      {option.option_text}
-                    </label>
-                  </div>
-                ))}
+                 {questionOptions.map((option) => (
+                   <div key={option.id} className="flex items-center space-x-3 p-4 border-2 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer">
+                     <RadioGroupItem value={option.id} id={`tf-option-${option.id}`} />
+                     <label htmlFor={`tf-option-${option.id}`} className="flex-1 cursor-pointer">
+                       <span className="text-base font-medium">{option.option_text}</span>
+                     </label>
+                   </div>
+                 ))}
               </div>
             </RadioGroup>
           )}
