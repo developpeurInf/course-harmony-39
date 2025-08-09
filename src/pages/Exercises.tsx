@@ -12,10 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import FileUpload from "@/components/FileUpload";
 import PdfInfo from "@/components/PdfInfo";
+import ViewToggle from "@/components/ViewToggle";
 
 const Exercises = () => {
   const { user } = useAuth();
@@ -33,6 +35,7 @@ const Exercises = () => {
     is_visible: true,
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   
   const isProfessor = user?.role === "professor";
   const visibleExercises = exercises.filter(
@@ -134,13 +137,15 @@ const Exercises = () => {
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">{t("nav.exercises")}</h1>
-        {isProfessor && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center gap-1" onClick={resetForm}>
-                <Plus size={16} /> {t("exercise.add")}
-              </Button>
-            </DialogTrigger>
+        <div className="flex items-center gap-4">
+          {isProfessor && <ViewToggle view={viewMode} onViewChange={setViewMode} />}
+          {isProfessor && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-1" onClick={resetForm}>
+                  <Plus size={16} /> {t("exercise.add")}
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t("exercise.add")}</DialogTitle>
@@ -231,10 +236,12 @@ const Exercises = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleExercises.map((exercise) => (
           <Card key={exercise.id} className="shadow-sm">
             <CardHeader className="pb-2">
@@ -300,7 +307,91 @@ const Exercises = () => {
             </CardFooter>
           </Card>
         ))}
-      </div>
+        </div>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Exercise</TableHead>
+                <TableHead>Course</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>PDF</TableHead>
+                {isProfessor && <TableHead>Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleExercises.map((exercise) => (
+                <TableRow key={exercise.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <div>
+                        <div className="font-medium">{exercise.title}</div>
+                        <div className="text-sm text-muted-foreground truncate max-w-[200px]">
+                          {exercise.description}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>{findCourseName(exercise.course_id)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{format(parseISO(exercise.due_date), "PPP")}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={exercise.is_visible ? "default" : "secondary"}>
+                      {exercise.is_visible ? t("app.view") : t("app.view")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {exercise.pdf_url && (
+                      <PdfInfo
+                        fileName={`${exercise.title}.pdf`}
+                        onView={() => handleViewPdf(exercise)}
+                        onDownload={() => handleDownloadPdf(exercise)}
+                      />
+                    )}
+                  </TableCell>
+                  {isProfessor && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleExerciseVisibility(exercise.id)}
+                          title={exercise.is_visible ? "Hide" : "Show"}
+                        >
+                          {exercise.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(exercise)}
+                          title={t("app.edit")}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteExercise(exercise.id)}
+                          title={t("app.delete")}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
 
       {/* Edit Exercise Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

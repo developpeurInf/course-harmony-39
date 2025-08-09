@@ -19,6 +19,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  loginStudent: (username: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string, role: UserRole) => Promise<boolean>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
@@ -129,6 +130,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           toast.error(error.message);
         }
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      toast.error("Login failed");
+      return false;
+    }
+  };
+
+  const loginStudent = async (username: string, password: string): Promise<boolean> => {
+    try {
+      // Find user by username
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('email, temporary_password')
+        .eq('username', username)
+        .eq('role', 'student')
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        toast.error("Invalid username or password");
+        return false;
+      }
+
+      // Check temporary password
+      if (profile.temporary_password !== password) {
+        toast.error("Invalid username or password");
+        return false;
+      }
+
+      // Login with email (since Supabase auth uses email)
+      const { error } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: profile.temporary_password
+      });
+
+      if (error) {
+        toast.error("Login failed. Please contact your professor.");
         return false;
       }
 
@@ -287,6 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       loading, 
       login, 
+      loginStudent,
       register,
       logout, 
       resetPassword,

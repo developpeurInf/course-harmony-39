@@ -34,6 +34,8 @@ import {
   LayoutGrid,
   LayoutList
 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import ViewToggle from "@/components/ViewToggle";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
@@ -48,7 +50,7 @@ const Students = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCourse, setSelectedCourse] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [enrollCourseId, setEnrollCourseId] = useState("");
@@ -168,9 +170,6 @@ const Students = () => {
     setIsEnrollDialogOpen(true);
   };
 
-  const toggleViewMode = () => {
-    setViewMode(viewMode === "grid" ? "list" : "grid");
-  };
 
   const handleAddStudent = async () => {
     if (!newStudentData.name || !newStudentData.email || !newStudentData.password) {
@@ -214,6 +213,7 @@ const Students = () => {
         </div>
         
         <div className="flex gap-2">
+          <ViewToggle view={viewMode} onViewChange={setViewMode} />
           <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -222,20 +222,6 @@ const Students = () => {
               </Button>
             </DialogTrigger>
           </Dialog>
-        
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={toggleViewMode}
-            title={viewMode === "grid" ? "Switch to list view" : "Switch to grid view"}
-          >
-            {viewMode === "grid" ? (
-              <LayoutList className="h-4 w-4" />
-            ) : (
-              <LayoutGrid className="h-4 w-4" />
-            )}
-          </Button>
         </div>
       </div>
 
@@ -344,39 +330,71 @@ const Students = () => {
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredStudents.map((student) => (
-              <div key={student.id} className="flex items-center justify-between p-4 border rounded-lg bg-card">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={student.avatar_url} alt={student.name} />
-                    <AvatarFallback>
-                      {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-medium">{student.name}</h3>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {student.email}
-                    </p>
-                  </div>
-                  <Badge variant="secondary">
-                    {getStudentCourseCount(student.id)} courses
-                  </Badge>
-                </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEnrollDialog(student)}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Enroll
-                </Button>
-              </div>
-            ))}
-          </div>
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Courses</TableHead>
+                  <TableHead>Enrolled Courses</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents.map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={student.avatar_url} alt={student.name} />
+                          <AvatarFallback>
+                            {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{student.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{student.email}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {getStudentCourseCount(student.id)} courses
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {getStudentCourses(student.id).slice(0, 2).map(course => (
+                          <div key={course.id} className="flex items-center justify-between">
+                            <span className="truncate max-w-[150px]">{course.title}</span>
+                          </div>
+                        ))}
+                        {getStudentCourses(student.id).length > 2 && (
+                          <span className="text-muted-foreground">
+                            +{getStudentCourses(student.id).length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEnrollDialog(student)}
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Enroll
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         )
       ) : (
         <Card>

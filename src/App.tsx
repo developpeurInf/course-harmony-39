@@ -12,6 +12,7 @@ import Index from "@/pages/Index";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import CreateRoom from "@/pages/CreateRoom";
+import ClassManagement from "@/pages/ClassManagement";
 import Courses from "@/pages/Courses";
 import RoomStudents from "@/pages/RoomStudents";
 import RoomCourses from "@/pages/RoomCourses";
@@ -42,6 +43,7 @@ const App = () => {
                   <Route element={<MainLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/create-room" element={<CreateRoom />} />
+                    <Route path="/class-management" element={<ClassManagement />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/courses" element={<Courses />} />
                     <Route path="/exercises" element={<Exercises />} />

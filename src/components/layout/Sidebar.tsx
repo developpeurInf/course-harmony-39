@@ -13,7 +13,8 @@ import {
   User,
   Building,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  FolderOpen
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -105,6 +106,13 @@ const Sidebar = () => {
         ))}
         
         <div className="border-t pt-4 mt-4">
+          {isProfessor && (
+            <NavLink to="/class-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <FolderOpen size={20} />
+              <span>Manage Classes</span>
+            </NavLink>
+          )}
+          
           <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <User size={20} />
             <span>{t("nav.profile")}</span>
