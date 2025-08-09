@@ -43,7 +43,7 @@ import { StudentExcelManager } from "@/components/StudentExcelManager";
 const Students = () => {
   const { roomId } = useParams();
   const { user, getStudents, addStudent } = useAuth();
-  const { courses, enrollments, enrollStudent, removeEnrollment } = useCourses();
+  const { courses, enrollments, enrollStudent, removeEnrollment, refreshData } = useCourses();
   const navigate = useNavigate();
 
   const [students, setStudents] = useState<any[]>([]);
@@ -231,6 +231,8 @@ const Students = () => {
         onStudentsImported={async () => {
           const updatedStudents = await getStudents();
           setStudents(updatedStudents);
+          // Also refresh enrollments data to show newly imported students
+          await refreshData(roomId);
         }}
       />
 
