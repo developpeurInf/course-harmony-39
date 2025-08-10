@@ -14,6 +14,7 @@ import { Users, UserX, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
+import StudentActivities from "@/components/StudentActivities";
 
 interface Student {
   id: string;
@@ -44,20 +45,20 @@ const RoomStudents = () => {
     
     setLoading(true);
     try {
-      // Get all students for professors (they can manage and enroll them as needed)
-      // This includes newly imported students who may not be enrolled in courses yet
-      const { data: allStudents, error: allStudentsError } = await supabase
+      // Get students specifically for this room
+      const { data: roomStudents, error: roomStudentsError } = await supabase
         .from('profiles')
         .select('id, name, email, username, role, avatar_url, created_at')
-        .eq('role', 'student');
+        .eq('role', 'student')
+        .eq('room_id', roomId);
 
-      if (allStudentsError) {
-        console.error('Error fetching students:', allStudentsError);
+      if (roomStudentsError) {
+        console.error('Error fetching room students:', roomStudentsError);
         toast.error("Failed to load students");
         return;
       }
 
-      setStudents(allStudents || []);
+      setStudents(roomStudents || []);
 
     } catch (error) {
       console.error('Error in loadStudents:', error);
@@ -214,6 +215,11 @@ const RoomStudents = () => {
           ))}
         </div>
       )}
+
+      {/* Student Activities Section */}
+      <div className="mt-8">
+        <StudentActivities roomId={roomId} />
+      </div>
     </div>
   );
 };

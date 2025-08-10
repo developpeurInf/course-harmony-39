@@ -69,14 +69,15 @@ Deno.serve(async (req) => {
 
         console.log('Created auth user:', authData.user.id)
 
-        // Update the profile with username, email and temporary password
+        // Update the profile with username, email, temporary password and room_id
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
             username: student.username,
             email: fakeEmail, // Store the fake email for login purposes
             temporary_password: student.temporaryPassword,
-            role: 'student'
+            role: 'student',
+            room_id: roomId // Associate student with the room
           })
           .eq('id', authData.user.id)
 
