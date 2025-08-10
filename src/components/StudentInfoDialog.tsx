@@ -33,12 +33,35 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
 
   const copyToClipboard = async (text: string, fieldName: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(fieldName);
-      toast.success(`${fieldName} copied to clipboard`);
-      
-      // Reset the copied state after 2 seconds
-      setTimeout(() => setCopiedField(null), 2000);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopiedField(fieldName);
+        toast.success(`${fieldName} copied to clipboard`);
+        
+        // Reset the copied state after 2 seconds
+        setTimeout(() => setCopiedField(null), 2000);
+      } else {
+        // Fallback for browsers that don't support clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          setCopiedField(fieldName);
+          toast.success(`${fieldName} copied to clipboard`);
+          setTimeout(() => setCopiedField(null), 2000);
+        } catch (err) {
+          toast.error("Failed to copy to clipboard");
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
     } catch (error) {
       console.error('Failed to copy:', error);
       toast.error("Failed to copy to clipboard");
@@ -110,6 +133,9 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
               </div>
             </div>
           </DialogTitle>
+          <DialogDescription>
+            View and copy student details including login credentials and personal information.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">

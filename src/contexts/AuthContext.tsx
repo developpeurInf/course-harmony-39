@@ -25,7 +25,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<boolean>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   uploadAvatar: (file: File) => Promise<string | null>;
-  getStudents: () => Promise<UserProfile[]>;
+  getStudents: (roomId?: string) => Promise<UserProfile[]>;
   addStudent: (email: string, password: string, name: string) => Promise<boolean>;
   isLoggedIn: boolean;
 }
@@ -270,12 +270,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const getStudents = async (): Promise<UserProfile[]> => {
+  const getStudents = async (roomId?: string): Promise<UserProfile[]> => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select('*')
         .eq('role', 'student');
+
+      // If roomId is provided, filter by room_id
+      if (roomId) {
+        query = query.eq('room_id', roomId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Failed to fetch students:', error);

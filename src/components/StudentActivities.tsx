@@ -245,10 +245,20 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
     
-    return sessions.filter(session => 
+    // Get active sessions and join with student profiles
+    const activeSessions = sessions.filter(session => 
       session.is_active && 
       new Date(session.last_activity) > fiveMinutesAgo
     );
+
+    return activeSessions.map(session => {
+      const student = students.find(s => s.id === session.student_id);
+      return {
+        ...session,
+        student_name: student?.name || 'Unknown Student',
+        student_avatar: student?.avatar_url || null
+      };
+    });
   };
 
   const getTotalStudyTime = () => {

@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { useCourses, Course, Exercise, Exam } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
@@ -36,6 +37,7 @@ const Dashboard = () => {
   const [studentExams, setStudentExams] = useState<Exam[]>([]);
   const [upcomingExercises, setUpcomingExercises] = useState<Exercise[]>([]);
   const [upcomingExams, setUpcomingExams] = useState<Exam[]>([]);
+  const [totalStudents, setTotalStudents] = useState<number>(0);
 
   useEffect(() => {
     if (user?.role === "student" && user.id) {
@@ -83,6 +85,50 @@ const Dashboard = () => {
       );
     }
   }, [user, courses, exercises, exams, getVisibleCoursesForStudent, getVisibleExercisesForStudent, getVisibleExamsForStudent]);
+
+  // Fetch student count for professors
+  useEffect(() => {
+    const fetchStudentCount = async () => {
+      if (user?.role === "professor") {
+        try {
+          // Get all rooms created by this professor
+          const { data: professorRooms, error: roomsError } = await supabase
+            .from('rooms')
+            .select('id')
+            .eq('professor_id', user.id);
+
+          if (roomsError) {
+            console.error('Failed to fetch rooms:', roomsError);
+            return;
+          }
+
+          if (professorRooms && professorRooms.length > 0) {
+            const roomIds = professorRooms.map(room => room.id);
+            
+            // Count unique students in these rooms
+            const { data: students, error: studentsError } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('role', 'student')
+              .in('room_id', roomIds);
+
+            if (studentsError) {
+              console.error('Failed to fetch students:', studentsError);
+              return;
+            }
+
+            setTotalStudents(students?.length || 0);
+          } else {
+            setTotalStudents(0);
+          }
+        } catch (error) {
+          console.error('Failed to fetch student count:', error);
+        }
+      }
+    };
+
+    fetchStudentCount();
+  }, [user]);
 
   // Check if professor has any rooms
   const isProfessor = user?.role === "professor";
@@ -182,12 +228,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {/* Count unique students across all courses */}
-                {Array.from(
-                  new Set(
-                    enrollments.filter(e => courses.some(c => c.id === e.course_id)).map(e => e.student_id)
-                  )
-                ).length}
+                {totalStudents}
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("dashboard.students.total")}
