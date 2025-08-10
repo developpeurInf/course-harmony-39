@@ -21,6 +21,7 @@ import RoomExercises from "@/pages/RoomExercises";
 import Exercises from "@/pages/Exercises";
 import Exams from "@/pages/Exams";
 import Students from "@/pages/Students";
+import StudentsActivities from "@/pages/StudentsActivities";
 import Profile from "@/pages/Profile";
 import RoomExams from "@/pages/RoomExams";
 import Settings from "@/pages/Settings";
@@ -53,6 +54,7 @@ const App = () => {
                       <Route path="/exams" element={<Exams />} />
                       <Route path="/students" element={<Students />} />
                       <Route path="/rooms/:roomId/students" element={<RoomStudents />} />
+                      <Route path="/rooms/:roomId/students-activities" element={<StudentsActivities />} />
                       <Route path="/rooms/:roomId/courses" element={<RoomCourses />} />
                       <Route path="/rooms/:roomId/exercises" element={<RoomExercises />} />
                       <Route path="/rooms/:roomId/exams" element={<RoomExams />} />

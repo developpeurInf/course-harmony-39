@@ -47,58 +47,49 @@ Deno.serve(async (req) => {
         // Create auth user with username as email (temporary approach)
         const fakeEmail = `${student.username}@student.internal`
         
-        // First check if user already exists
-        const { data: existingUser, error: existingError } = await supabase.auth.admin.listUsers()
-        const userExists = existingUser?.users?.find(u => u.email === fakeEmail)
+        // First check if user already exists by searching specifically for this email
+        const { data: existingUsers, error: existingError } = await supabase.auth.admin.listUsers()
+        if (existingError) {
+          console.error('Error checking existing users:', existingError)
+        }
+        
+        const userExists = existingUsers?.users?.find(u => u.email === fakeEmail)
         
         let authData
         if (userExists) {
-          console.log('User already exists, updating:', student.username)
-          // Update existing user
-          const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(
-            userExists.id,
-            {
-              password: student.temporaryPassword,
-              user_metadata: {
-                name: `${student.prenom} ${student.nom}`,
-                username: student.username,
-                role: 'student'
-              }
-            }
-          )
-          
-          if (updateError) {
-            console.error('Update error for student:', student.username, updateError)
-            errors.push({ 
-              student: `${student.prenom} ${student.nom}`, 
-              error: updateError.message 
-            })
-            continue
+          console.log('User already exists, deleting and recreating:', student.username)
+          // Delete the existing user first to avoid conflicts
+          const { error: deleteError } = await supabase.auth.admin.deleteUser(userExists.id)
+          if (deleteError) {
+            console.error('Error deleting existing user:', deleteError)
+            // Continue anyway, maybe we can update instead
+          } else {
+            console.log('Successfully deleted existing user:', userExists.id)
           }
-          authData = updateData
-        } else {
-          // Create new user
-          const { data: createData, error: authError } = await supabase.auth.admin.createUser({
-            email: fakeEmail,
-            password: student.temporaryPassword,
-            email_confirm: true, // Auto-confirm email for students
-            user_metadata: {
-              name: `${student.prenom} ${student.nom}`,
-              username: student.username,
-              role: 'student'
-            }
-          })
-
-          if (authError) {
-            console.error('Auth error for student:', student.username, authError)
-            errors.push({ 
-              student: `${student.prenom} ${student.nom}`, 
-              error: authError.message 
-            })
-            continue
-          }
-          authData = createData
         }
+        
+        // Always create new user (either fresh or after deletion)
+        console.log('Creating new user with email:', fakeEmail)
+        const { data: createData, error: authError } = await supabase.auth.admin.createUser({
+          email: fakeEmail,
+          password: student.temporaryPassword,
+          email_confirm: true, // Auto-confirm email for students
+          user_metadata: {
+            name: `${student.prenom} ${student.nom}`,
+            username: student.username,
+            role: 'student'
+          }
+        })
+
+        if (authError) {
+          console.error('Auth error for student:', student.username, authError)
+          errors.push({ 
+            student: `${student.prenom} ${student.nom}`, 
+            error: authError.message 
+          })
+          continue
+        }
+        authData = createData
 
         console.log('Created auth user:', authData.user.id)
 

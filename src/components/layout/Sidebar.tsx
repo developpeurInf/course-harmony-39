@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
-  BarChart3
+  BarChart3,
+  Activity
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -95,6 +96,14 @@ const Sidebar = () => {
                 >
                   <Users size={16} />
                   <span>Students</span>
+                </NavLink>
+                
+                <NavLink 
+                  to={`/rooms/${room.id}/students-activities`} 
+                  className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
+                >
+                  <Activity size={16} />
+                  <span>Students Activities</span>
                 </NavLink>
                 
                 <NavLink 

@@ -15,7 +15,6 @@ import { Users, UserX, Plus, Search, Grid, List, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
-import StudentActivities from "@/components/StudentActivities";
 import { EditStudentDialog } from "@/components/EditStudentDialog";
 
 interface Student {
@@ -338,11 +337,6 @@ const RoomStudents = () => {
           </Table>
         </Card>
       )}
-
-      {/* Student Activities Section */}
-      <div className="mt-8">
-        <StudentActivities roomId={roomId} />
-      </div>
 
       {/* Edit Student Dialog */}
       <EditStudentDialog

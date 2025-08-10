@@ -45,18 +45,29 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
 
     setIsUpdating(true);
     try {
-      const { error } = await supabase
+      console.log('Updating student:', student.id, { name: name.trim(), username: username.trim() || null, email: email.trim() || null });
+      
+      const { data, error } = await supabase
         .from('profiles')
         .update({
           name: name.trim(),
           username: username.trim() || null,
           email: email.trim() || null,
         })
-        .eq('id', student.id);
+        .eq('id', student.id)
+        .select();
+
+      console.log('Update result:', { data, error });
 
       if (error) {
-        toast.error("Failed to update student");
+        toast.error("Failed to update student: " + error.message);
         console.error('Error updating student:', error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        toast.error("No student was updated. Check permissions.");
+        console.error('No data returned from update');
         return;
       }
 
