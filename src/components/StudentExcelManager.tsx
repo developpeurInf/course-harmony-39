@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,17 +20,20 @@ interface StudentData {
 interface StudentExcelManagerProps {
   roomId: string;
   onStudentsImported?: () => void;
+  existingStudents?: StudentData[];
 }
 
 export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({ 
   roomId, 
-  onStudentsImported 
+  onStudentsImported,
+  existingStudents = []
 }) => {
   const { user } = useAuth();
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [generatedStudents, setGeneratedStudents] = useState<StudentData[]>([]);
+  const [allStudentsForDownload, setAllStudentsForDownload] = useState<StudentData[]>([]);
 
   // Generate username from name
   const generateUsername = (prenom: string, nom: string): string => {
@@ -156,15 +159,52 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     }
   };
 
+  // Fetch existing students from database
+  const fetchExistingStudents = async () => {
+    try {
+      const { data: students, error } = await supabase
+        .from('profiles')
+        .select('name, username, email, temporary_password')
+        .eq('role', 'student')
+        .eq('room_id', roomId);
+
+      if (error) {
+        console.error('Error fetching students:', error);
+        return;
+      }
+
+      const formattedStudents: StudentData[] = students.map(student => ({
+        prenom: student.name.split(' ')[0] || '',
+        nom: student.name.split(' ').slice(1).join(' ') || '',
+        username: student.username || '',
+        temporaryPassword: student.temporary_password || ''
+      }));
+
+      setAllStudentsForDownload(formattedStudents);
+    } catch (error) {
+      console.error('Error fetching existing students:', error);
+    }
+  };
+
+  // Load existing students on component mount
+  useEffect(() => {
+    fetchExistingStudents();
+  }, [roomId]);
+
+  // Update download list when students are imported or deleted
+  useEffect(() => {
+    fetchExistingStudents();
+  }, [existingStudents]);
+
   // Download student list with credentials
   const handleDownloadList = async () => {
-    if (generatedStudents.length === 0) {
-      toast.error("No students to download. Import students first.");
+    if (allStudentsForDownload.length === 0) {
+      toast.error("No students to download. Add students first.");
       return;
     }
 
     try {
-      const worksheetData = generatedStudents.map(student => ({
+      const worksheetData = allStudentsForDownload.map(student => ({
         'Prénom': student.prenom,
         'Nom': student.nom,
         'Username': student.username,
@@ -261,18 +301,18 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           <Button
             variant="outline"
             onClick={handleDownloadList}
-            disabled={generatedStudents.length === 0}
+            disabled={allStudentsForDownload.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
             Download List
           </Button>
         </div>
 
-        {generatedStudents.length > 0 && (
+        {allStudentsForDownload.length > 0 && (
           <div className="text-sm text-muted-foreground">
             <p className="flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4" />
-              {generatedStudents.length} students imported and ready for download
+              {allStudentsForDownload.length} students available for download
             </p>
           </div>
         )}

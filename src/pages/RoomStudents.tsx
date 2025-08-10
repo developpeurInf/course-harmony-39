@@ -11,11 +11,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, Plus, Search, Grid, List, Edit } from "lucide-react";
+import { Users, UserX, Plus, Search, Grid, List, Edit, Info } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
 import { EditStudentDialog } from "@/components/EditStudentDialog";
+import { StudentInfoDialog } from "@/components/StudentInfoDialog";
 
 interface Student {
   id: string;
@@ -25,6 +26,7 @@ interface Student {
   role: string;
   avatar_url?: string;
   created_at: string;
+  temporary_password?: string;
 }
 
 const RoomStudents = () => {
@@ -37,6 +39,8 @@ const RoomStudents = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [infoStudent, setInfoStudent] = useState<Student | null>(null);
+  const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user && roomId) {
@@ -52,7 +56,7 @@ const RoomStudents = () => {
       // Get students specifically for this room
       const { data: roomStudents, error: roomStudentsError } = await supabase
         .from('profiles')
-        .select('id, name, email, username, role, avatar_url, created_at')
+        .select('id, name, email, username, role, avatar_url, created_at, temporary_password')
         .eq('role', 'student')
         .eq('room_id', roomId);
 
@@ -110,6 +114,16 @@ const RoomStudents = () => {
     setEditingStudent(null);
   };
 
+  const handleInfoStudent = (student: Student) => {
+    setInfoStudent(student);
+    setIsInfoDialogOpen(true);
+  };
+
+  const handleInfoClose = () => {
+    setIsInfoDialogOpen(false);
+    setInfoStudent(null);
+  };
+
   const filteredStudents = students.filter(student =>
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (student.username && student.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -143,6 +157,12 @@ const RoomStudents = () => {
       <StudentExcelManager 
         roomId={roomId} 
         onStudentsImported={loadStudents}
+        existingStudents={students.map(s => ({
+          prenom: s.name.split(' ')[0] || '',
+          nom: s.name.split(' ').slice(1).join(' ') || '',
+          username: s.username,
+          temporaryPassword: s.temporary_password
+        }))}
       />
 
       {/* Search and View Toggle */}
@@ -217,6 +237,13 @@ const RoomStudents = () => {
                     {student.role}
                   </Badge>
                   <div className="flex space-x-1">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleInfoStudent(student)}
+                    >
+                      <Info className="h-3 w-3" />
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -300,6 +327,13 @@ const RoomStudents = () => {
                       <Button 
                         variant="outline" 
                         size="sm"
+                        onClick={() => handleInfoStudent(student)}
+                      >
+                        <Info className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
                         onClick={() => handleEditStudent(student)}
                       >
                         <Edit className="h-3 w-3" />
@@ -344,6 +378,13 @@ const RoomStudents = () => {
         isOpen={isEditDialogOpen}
         onClose={handleEditClose}
         onStudentUpdated={loadStudents}
+      />
+
+      {/* Student Info Dialog */}
+      <StudentInfoDialog
+        student={infoStudent}
+        isOpen={isInfoDialogOpen}
+        onClose={handleInfoClose}
       />
     </div>
   );
