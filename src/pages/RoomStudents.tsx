@@ -10,11 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Users, UserX, Plus, Search } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Users, UserX, Plus, Search, Grid, List, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
 import StudentActivities from "@/components/StudentActivities";
+import { EditStudentDialog } from "@/components/EditStudentDialog";
 
 interface Student {
   id: string;
@@ -33,6 +35,9 @@ const RoomStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user && roomId) {
@@ -70,25 +75,40 @@ const RoomStudents = () => {
 
   const handleRemoveStudent = async (studentId: string) => {
     try {
-      // Remove all enrollments for this student in courses from this room
-      const { error } = await supabase
-        .from('enrollments')
-        .delete()
-        .eq('student_id', studentId)
-        .eq('room_id', roomId);
+      const { data, error } = await supabase.functions.invoke('delete-student', {
+        body: { 
+          studentId: studentId,
+          roomId: roomId 
+        }
+      });
 
       if (error) {
-        toast.error("Failed to remove student");
+        console.error('Error calling delete-student function:', error);
+        toast.error("Failed to remove student: " + error.message);
         return;
       }
 
-      // Remove from local state
-      setStudents(prev => prev.filter(s => s.id !== studentId));
-      toast.success("Student removed from class");
+      if (data?.success) {
+        // Remove from local state
+        setStudents(prev => prev.filter(s => s.id !== studentId));
+        toast.success("Student removed successfully");
+      } else {
+        toast.error("Failed to remove student: " + (data?.error || "Unknown error"));
+      }
     } catch (error) {
       console.error('Error removing student:', error);
       toast.error("Failed to remove student");
     }
+  };
+
+  const handleEditStudent = (student: Student) => {
+    setEditingStudent(student);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditClose = () => {
+    setIsEditDialogOpen(false);
+    setEditingStudent(null);
   };
 
   const filteredStudents = students.filter(student =>
@@ -126,15 +146,33 @@ const RoomStudents = () => {
         onStudentsImported={loadStudents}
       />
 
-      {/* Search */}
-      <div className="flex items-center space-x-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search students..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      {/* Search and View Toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search students..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant={viewMode === 'cards' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('cards')}
+          >
+            <Grid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Students List */}
@@ -154,7 +192,7 @@ const RoomStudents = () => {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : viewMode === 'cards' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredStudents.map((student) => (
             <Card key={student.id} className="hover:shadow-md transition-shadow">
@@ -180,6 +218,13 @@ const RoomStudents = () => {
                     {student.role}
                   </Badge>
                   <div className="flex space-x-1">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleEditStudent(student)}
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm">
@@ -191,7 +236,7 @@ const RoomStudents = () => {
                           <AlertDialogTitle>Remove Student</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to remove {student.name} from this class? 
-                            This will unenroll them from all courses in this class.
+                            This will permanently delete their account and all associated data.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -214,12 +259,98 @@ const RoomStudents = () => {
             </Card>
           ))}
         </div>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Student</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredStudents.map((student) => (
+                <TableRow key={student.id}>
+                  <TableCell>
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={student.avatar_url || undefined} />
+                        <AvatarFallback>
+                          {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">{student.name}</div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>{student.username ? `@${student.username}` : '-'}</TableCell>
+                  <TableCell>{student.email || '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {student.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{new Date(student.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end space-x-1">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditStudent(student)}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <UserX className="h-3 w-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Student</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove {student.name} from this class? 
+                              This will permanently delete their account and all associated data.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleRemoveStudent(student.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       {/* Student Activities Section */}
       <div className="mt-8">
         <StudentActivities roomId={roomId} />
       </div>
+
+      {/* Edit Student Dialog */}
+      <EditStudentDialog
+        student={editingStudent}
+        isOpen={isEditDialogOpen}
+        onClose={handleEditClose}
+        onStudentUpdated={loadStudents}
+      />
     </div>
   );
 };
