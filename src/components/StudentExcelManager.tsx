@@ -105,12 +105,16 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
       // Create students using edge function
       try {
+        console.log('Creating students:', studentsToCreate);
         const { data: result, error: functionError } = await supabase.functions.invoke('create-student', {
           body: { 
             students: studentsToCreate,
             roomId: roomId 
           }
         });
+
+        console.log('Edge function result:', result);
+        console.log('Edge function error:', functionError);
 
         if (functionError) {
           console.error('Edge function error:', functionError);
@@ -123,11 +127,16 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           
           if (result.errors && result.errors.length > 0) {
             console.warn('Some students failed to create:', result.errors);
-            toast.error(`Created ${result.created} out of ${result.total} students. Check console for details.`);
+            toast.error(`Created ${result.created} out of ${result.total} students. Some failed - check console for details.`);
+            
+            // Still consider it partially successful, so refresh the parent
+            onStudentsImported?.();
           } else {
             toast.success(`Successfully imported ${result.created} students`);
+            onStudentsImported?.();
           }
         } else {
+          console.error('Function result indicates failure:', result);
           throw new Error(result?.error || 'Unknown error occurred');
         }
       } catch (error) {
@@ -138,8 +147,6 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
       setIsImportDialogOpen(false);
       setSelectedFile(null);
-      // Force parent component refresh
-      onStudentsImported?.();
 
     } catch (error) {
       console.error('Error importing students:', error);
