@@ -318,6 +318,7 @@ export type Database = {
           id: string
           name: string
           role: string
+          room_id: string | null
           temporary_password: string | null
           updated_at: string
           username: string | null
@@ -329,6 +330,7 @@ export type Database = {
           id: string
           name: string
           role: string
+          room_id?: string | null
           temporary_password?: string | null
           updated_at?: string
           username?: string | null
@@ -340,11 +342,20 @@ export type Database = {
           id?: string
           name?: string
           role?: string
+          room_id?: string | null
           temporary_password?: string | null
           updated_at?: string
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quiz_answers: {
         Row: {
@@ -580,6 +591,87 @@ export type Database = {
           name?: string
           professor_id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      student_activities: {
+        Row: {
+          activity_data: Json | null
+          activity_type: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          room_id: string | null
+          session_id: string | null
+          student_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          activity_data?: Json | null
+          activity_type: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          room_id?: string | null
+          session_id?: string | null
+          student_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          activity_data?: Json | null
+          activity_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          room_id?: string | null
+          session_id?: string | null
+          student_id?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      student_sessions: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          ip_address: string | null
+          is_active: boolean
+          last_activity: string
+          room_id: string | null
+          session_end: string | null
+          session_start: string
+          student_id: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_activity?: string
+          room_id?: string | null
+          session_end?: string | null
+          session_start?: string
+          student_id: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_activity?: string
+          room_id?: string | null
+          session_end?: string | null
+          session_start?: string
+          student_id?: string
+          updated_at?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
