@@ -41,14 +41,29 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user?.role === "student" && user.id) {
-      setStudentCourses(getVisibleCoursesForStudent(user.id));
-      setStudentExercises(getVisibleExercisesForStudent(user.id));
-      setStudentExams(getVisibleExamsForStudent(user.id));
-    } else {
-      // For professors, we want to show all their courses
-      setStudentCourses(courses);
-      setStudentExercises(exercises);
-      setStudentExams(exams);
+      // For students, filter by their enrollments and room
+      const studentVisibleCourses = getVisibleCoursesForStudent(user.id);
+      const studentVisibleExercises = getVisibleExercisesForStudent(user.id);
+      const studentVisibleExams = getVisibleExamsForStudent(user.id);
+      
+      setStudentCourses(studentVisibleCourses);
+      setStudentExercises(studentVisibleExercises);
+      setStudentExams(studentVisibleExams);
+    } else if (user?.role === "professor") {
+      // For professors, show courses from their rooms only
+      const professorCourses = courses.filter(course => 
+        rooms.some(room => room.id === course.room_id && room.professor_id === user.id)
+      );
+      const professorExercises = exercises.filter(exercise => 
+        professorCourses.some(course => course.id === exercise.course_id)
+      );
+      const professorExams = exams.filter(exam => 
+        professorCourses.some(course => course.id === exam.course_id)
+      );
+      
+      setStudentCourses(professorCourses);
+      setStudentExercises(professorExercises);
+      setStudentExams(professorExams);
     }
 
     // Get upcoming exercises and exams (due within 14 days)
@@ -56,15 +71,26 @@ const Dashboard = () => {
     const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
     
     if (user?.role === "professor") {
+      // Use filtered professor exercises and exams
+      const professorCourses = courses.filter(course => 
+        rooms.some(room => room.id === course.room_id && room.professor_id === user.id)
+      );
+      const professorExercises = exercises.filter(exercise => 
+        professorCourses.some(course => course.id === exercise.course_id)
+      );
+      const professorExams = exams.filter(exam => 
+        professorCourses.some(course => course.id === exam.course_id)
+      );
+      
       setUpcomingExercises(
-        exercises.filter(ex => {
+        professorExercises.filter(ex => {
           const dueDate = new Date(ex.due_date);
           return dueDate >= now && dueDate <= twoWeeksFromNow;
         })
       );
       
       setUpcomingExams(
-        exams.filter(ex => {
+        professorExams.filter(ex => {
           const examDate = new Date(ex.exam_date);
           return examDate >= now && examDate <= twoWeeksFromNow;
         })

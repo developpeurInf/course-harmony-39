@@ -210,13 +210,7 @@ const Reports = () => {
   const loadCourseReports = async () => {
     const { data: courses, error } = await supabase
       .from('courses')
-      .select(`
-        id,
-        title,
-        enrollments (count),
-        exercises (count),
-        exams (count)
-      `)
+      .select('id, title')
       .eq('room_id', selectedRoom);
 
     if (error) {
@@ -224,20 +218,60 @@ const Reports = () => {
       return;
     }
 
-    const courseReports = courses?.map(course => ({
-      id: course.id,
-      title: course.title,
-      students_enrolled: course.enrollments?.length || 0,
-      exercises_count: course.exercises?.length || 0,
-      exams_count: course.exams?.length || 0,
-      completion_rate: Math.random() * 100 // Would need actual completion tracking
-    })) || [];
+    const courseReports = [];
+    
+    for (const course of courses || []) {
+      // Count enrollments for this course
+      const { count: enrollmentCount } = await supabase
+        .from('enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', course.id);
+
+      // Count exercises for this course
+      const { count: exerciseCount } = await supabase
+        .from('exercises')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', course.id);
+
+      // Count exams for this course
+      const { count: examCount } = await supabase
+        .from('exams')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_id', course.id);
+
+      // Calculate completion rate based on quiz submissions
+      let completionRate = 0;
+      if (examCount && examCount > 0) {
+        const { data: submissions } = await supabase
+          .from('quiz_submissions')
+          .select('student_id')
+          .in('exam_id', 
+            await supabase
+              .from('exams')
+              .select('id')
+              .eq('course_id', course.id)
+              .then(({ data }) => data?.map(e => e.id) || [])
+          );
+        
+        const uniqueStudents = new Set(submissions?.map(s => s.student_id) || []);
+        completionRate = enrollmentCount ? (uniqueStudents.size / enrollmentCount) * 100 : 0;
+      }
+
+      courseReports.push({
+        id: course.id,
+        title: course.title,
+        students_enrolled: enrollmentCount || 0,
+        exercises_count: exerciseCount || 0,
+        exams_count: examCount || 0,
+        completion_rate: Math.round(completionRate)
+      });
+    }
 
     setCourseReports(courseReports);
   };
 
   const loadActivityData = async () => {
-    // Generate mock activity data for the last 7 days
+    // Get real activity data for the last 7 days
     const data: ActivityData[] = [];
     const today = new Date();
     
@@ -245,11 +279,53 @@ const Reports = () => {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Get student activities for this day
+      const { data: activities } = await supabase
+        .from('student_activities')
+        .select('student_id')
+        .eq('room_id', selectedRoom)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
+
+      // Get unique active students
+      const activeStudents = new Set(activities?.map(a => a.student_id) || []);
+
+      // Get quiz submissions for this day
+      const { data: submissions } = await supabase
+        .from('quiz_submissions')
+        .select('id, exam_id')
+        .gte('submitted_at', startOfDay.toISOString())
+        .lte('submitted_at', endOfDay.toISOString());
+
+      // Filter submissions to only include those from our room's courses
+      let roomSubmissions = 0;
+      if (submissions) {
+        const { data: roomExams } = await supabase
+          .from('exams')
+          .select('id')
+          .in('course_id', 
+            await supabase
+              .from('courses')
+              .select('id')
+              .eq('room_id', selectedRoom)
+              .then(({ data }) => data?.map(c => c.id) || [])
+          );
+        
+        const roomExamIds = roomExams?.map(e => e.id) || [];
+        roomSubmissions = submissions.filter(s => roomExamIds.includes(s.exam_id)).length;
+      }
+
       data.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        students_active: Math.floor(Math.random() * 20) + 5,
-        exercises_submitted: Math.floor(Math.random() * 15) + 2,
-        exams_taken: Math.floor(Math.random() * 8) + 1
+        students_active: activeStudents.size,
+        exercises_submitted: 0, // Would need exercise submission tracking
+        exams_taken: roomSubmissions
       });
     }
     
