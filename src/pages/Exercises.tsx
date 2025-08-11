@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import FileUpload from "@/components/FileUpload";
+import MultiPdfUpload from "@/components/MultiPdfUpload";
 import PdfInfo from "@/components/PdfInfo";
 import ViewToggle from "@/components/ViewToggle";
 
@@ -34,8 +34,9 @@ const Exercises = () => {
     due_date: "",
     is_visible: true,
   });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [exerciseMaterials, setExerciseMaterials] = useState<{[exerciseId: string]: any[]}>({});
   
   const isProfessor = user?.role === "professor";
   const visibleExercises = exercises.filter(
@@ -51,7 +52,7 @@ const Exercises = () => {
       due_date: "",
       is_visible: true,
     });
-    setSelectedFile(null);
+    setSelectedFiles([]);
   };
 
   const handleAddExercise = async () => {
@@ -82,9 +83,11 @@ const Exercises = () => {
       is_visible: formData.is_visible,
     });
     
-    // Handle file upload if file is selected
-    if (selectedFile && success) {
-      await uploadExercisePdf(formData.id, selectedFile);
+    // Handle multiple file uploads if files are selected
+    if (selectedFiles.length > 0 && success) {
+      for (const file of selectedFiles) {
+        await uploadExercisePdf(formData.id, file);
+      }
     }
     
     if (success) {
@@ -219,12 +222,14 @@ const Exercises = () => {
                   </div>
                 </div>
                 
-                {/* File Upload */}
+                {/* Multiple PDF Upload */}
                 <div className="grid gap-2">
-                  <Label htmlFor="pdf">{t("file.upload")}</Label>
-                  <FileUpload
-                    onFileSelect={(file) => setSelectedFile(file)}
-                    selectedFile={selectedFile}
+                  <Label htmlFor="pdfs">{t("file.upload")} (PDFs)</Label>
+                  <MultiPdfUpload
+                    onFilesChange={setSelectedFiles}
+                    selectedFiles={selectedFiles}
+                    maxFiles={3}
+                    maxSizeMB={20}
                   />
                 </div>
               </div>
@@ -465,12 +470,15 @@ const Exercises = () => {
               </div>
             </div>
             
-            {/* File Upload */}
+            {/* Multiple PDF Upload */}
             <div className="grid gap-2">
-              <Label htmlFor="edit-pdf">{t("file.upload")}</Label>
-              <FileUpload
-                onFileSelect={(file) => setSelectedFile(file)}
-                selectedFile={selectedFile}
+              <Label htmlFor="edit-pdfs">{t("file.upload")} (PDFs)</Label>
+              <MultiPdfUpload
+                onFilesChange={setSelectedFiles}
+                selectedFiles={selectedFiles}
+                maxFiles={3}
+                maxSizeMB={20}
+                existingFiles={exerciseMaterials[formData.id] || []}
               />
             </div>
           </div>

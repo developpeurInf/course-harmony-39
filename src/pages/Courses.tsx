@@ -237,12 +237,54 @@ const Courses = () => {
   // Edit course
   const handleEditCourse = async () => {
     if (currentCourse) {
-      await updateCourse(currentCourse.id, {
+      const success = await updateCourse(currentCourse.id, {
         title,
         description,
         room_id: roomId || undefined,
         is_visible: isVisible
       });
+
+      // Upload new PDFs if selected
+      if (selectedPdfFiles.length > 0 && user && success) {
+        for (const file of selectedPdfFiles) {
+          try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const filePath = `courses/${currentCourse.id}/${fileName}`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from('course-materials')
+              .upload(filePath, file);
+            
+            if (uploadError) {
+              console.error('Upload error:', uploadError);
+              toast.error(`Failed to upload ${file.name}`);
+              continue;
+            }
+            
+            // Save file info to course_materials table
+            const { error: dbError } = await supabase
+              .from('course_materials')
+              .insert({
+                course_id: currentCourse.id,
+                file_name: file.name,
+                file_path: filePath,
+                file_size: file.size,
+                uploaded_by: user.id
+              });
+
+            if (dbError) {
+              console.error('DB error:', dbError);
+              toast.error(`Failed to save ${file.name} info`);
+            }
+          } catch (error) {
+            console.error('Error uploading PDF:', error);
+            toast.error(`Failed to upload ${file.name}`);
+          }
+        }
+        await loadCourseMaterials(); // Refresh materials
+      }
+
       setIsEditDialogOpen(false);
       resetForm();
     }
@@ -264,6 +306,7 @@ const Courses = () => {
     setDescription(course.description);
     setRoomId(course.room_id || "");
     setIsVisible(course.is_visible);
+    setSelectedPdfFiles([]); // Reset selected files for edit
     setIsEditDialogOpen(true);
   };
 
@@ -828,6 +871,16 @@ const Courses = () => {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Course Materials (PDFs)</Label>
+              <MultiPdfUpload
+                onFilesChange={setSelectedPdfFiles}
+                selectedFiles={selectedPdfFiles}
+                maxFiles={5}
+                maxSizeMB={50}
+                existingFiles={courseMaterials[currentCourse?.id || ''] || []}
               />
             </div>
             <div className="flex items-center space-x-2">

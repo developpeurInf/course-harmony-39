@@ -77,6 +77,14 @@ const Reports = () => {
   const [activityData, setActivityData] = useState<ActivityData[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  
+  // Overview data across all rooms
+  const [overviewData, setOverviewData] = useState({
+    totalStudents: 0,
+    totalCourses: 0,
+    totalExams: 0,
+    averageScore: 0
+  });
 
   useEffect(() => {
     if (user?.role === 'professor') {
@@ -88,7 +96,12 @@ const Reports = () => {
     if (selectedRoom) {
       loadReports();
     }
+    loadOverviewData(); // Load overview data regardless of selected room
   }, [selectedRoom]);
+
+  useEffect(() => {
+    loadOverviewData();
+  }, [user]);
 
   const loadRooms = async () => {
     try {
@@ -332,6 +345,78 @@ const Reports = () => {
     setActivityData(data);
   };
 
+  // Load overview data across all professor's rooms
+  const loadOverviewData = async () => {
+    if (!user?.id) return;
+
+    try {
+      // Get all rooms for this professor
+      const { data: professorsRooms, error: roomsError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('professor_id', user.id);
+
+      if (roomsError) {
+        console.error('Error loading professor rooms:', roomsError);
+        return;
+      }
+
+      const roomIds = professorsRooms?.map(r => r.id) || [];
+
+      // Get all courses across all professor's rooms
+      const { data: allCourses, error: coursesError } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('professor_id', user.id);
+
+      if (coursesError) {
+        console.error('Error loading all courses:', coursesError);
+        return;
+      }
+
+      const courseIds = allCourses?.map(c => c.id) || [];
+
+      // Count total students enrolled across all courses
+      const { data: allEnrollments } = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .in('course_id', courseIds);
+
+      const uniqueStudents = new Set(allEnrollments?.map(e => e.student_id) || []);
+      
+      // Count total exams across all courses
+      const { count: totalExams } = await supabase
+        .from('exams')
+        .select('*', { count: 'exact', head: true })
+        .in('course_id', courseIds);
+
+      // Get all quiz submissions to calculate average score
+      const { data: allSubmissions } = await supabase
+        .from('quiz_submissions')
+        .select('score, student_id')
+        .in('student_id', Array.from(uniqueStudents));
+
+      // Calculate average score across all students
+      let averageScore = 0;
+      if (allSubmissions && allSubmissions.length > 0) {
+        const validScores = allSubmissions.filter(s => s.score !== null).map(s => s.score);
+        if (validScores.length > 0) {
+          averageScore = validScores.reduce((sum, score) => sum + score, 0) / validScores.length;
+        }
+      }
+
+      setOverviewData({
+        totalStudents: uniqueStudents.size,
+        totalCourses: courseIds.length,
+        totalExams: totalExams || 0,
+        averageScore: Math.round(averageScore)
+      });
+
+    } catch (error) {
+      console.error('Error loading overview data:', error);
+    }
+  };
+
   const exportReport = () => {
     // Create CSV content
     const csvContent = [
@@ -435,8 +520,8 @@ const Reports = () => {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{studentReports.length}</div>
-                  <p className="text-xs text-muted-foreground">Enrolled in this room</p>
+                  <div className="text-2xl font-bold">{overviewData.totalStudents}</div>
+                  <p className="text-xs text-muted-foreground">Across all rooms</p>
                 </CardContent>
               </Card>
 
@@ -446,7 +531,7 @@ const Reports = () => {
                   <BookOpen className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{courseReports.length}</div>
+                  <div className="text-2xl font-bold">{overviewData.totalCourses}</div>
                   <p className="text-xs text-muted-foreground">Active courses</p>
                 </CardContent>
               </Card>
@@ -457,12 +542,8 @@ const Reports = () => {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {studentReports.length > 0 
-                      ? Math.round(studentReports.reduce((sum, s) => sum + s.average_score, 0) / studentReports.length)
-                      : 0}%
-                  </div>
-                  <p className="text-xs text-muted-foreground">Class average</p>
+                  <div className="text-2xl font-bold">{overviewData.averageScore}%</div>
+                  <p className="text-xs text-muted-foreground">Overall average</p>
                 </CardContent>
               </Card>
 
@@ -472,9 +553,7 @@ const Reports = () => {
                   <GraduationCap className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {courseReports.reduce((sum, c) => sum + c.exams_count, 0)}
-                  </div>
+                  <div className="text-2xl font-bold">{overviewData.totalExams}</div>
                   <p className="text-xs text-muted-foreground">Across all courses</p>
                 </CardContent>
               </Card>
