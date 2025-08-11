@@ -26,6 +26,17 @@ import {
   Plus
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import MultiPdfUpload from "@/components/MultiPdfUpload";
+import CourseMaterials from "@/components/CourseMaterials";
+
+interface CourseMaterial {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size?: number;
+  uploaded_at: string;
+}
 
 const RoomCourses = () => {
   const { roomId } = useParams();
@@ -46,6 +57,9 @@ const RoomCourses = () => {
   const [description, setDescription] = useState("");
   const [isVisible, setIsVisible] = useState(true);
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [courseMaterials, setCourseMaterials] = useState<Record<string, CourseMaterial[]>>({});
+  const [existingFiles, setExistingFiles] = useState<CourseMaterial[]>([]);
   
   const isProfessor = user?.role === "professor";
   
@@ -55,7 +69,7 @@ const RoomCourses = () => {
       refreshData(roomId);
     }
   }, [user, roomId, refreshData]);
-  
+
   // Redirect if no roomId
   if (!roomId) {
     return <Navigate to="/dashboard" replace />;
@@ -66,6 +80,59 @@ const RoomCourses = () => {
   
   // Filter courses for current room
   const roomCourses = courses.filter(course => course.room_id === roomId);
+
+  // Load course materials
+  const loadCourseMaterials = async () => {
+    try {
+      if (roomCourses.length === 0) return;
+      
+      const courseIds = roomCourses.map(course => course.id);
+      const { data: materials, error } = await supabase
+        .from('course_materials')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('uploaded_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Group materials by course_id
+      const materialsByCode: Record<string, CourseMaterial[]> = {};
+      materials?.forEach((material) => {
+        if (!materialsByCode[material.course_id]) {
+          materialsByCode[material.course_id] = [];
+        }
+        materialsByCode[material.course_id].push(material);
+      });
+
+      setCourseMaterials(materialsByCode);
+    } catch (error) {
+      console.error('Error loading course materials:', error);
+    }
+  };
+
+  // Load course materials when room courses change
+  useEffect(() => {
+    if (roomCourses.length > 0) {
+      loadCourseMaterials();
+    }
+  }, [roomCourses]);
+
+  // Load specific course materials
+  const loadCourseSpecificMaterials = async (courseId: string) => {
+    try {
+      const { data: materials, error } = await supabase
+        .from('course_materials')
+        .select('*')
+        .eq('course_id', courseId)
+        .order('uploaded_at', { ascending: false });
+
+      if (error) throw error;
+      return materials || [];
+    } catch (error) {
+      console.error('Error loading course materials:', error);
+      return [];
+    }
+  };
   
   // Handle form submission
   const handleAddCourse = async () => {
@@ -81,12 +148,70 @@ const RoomCourses = () => {
       is_visible: isVisible
     });
 
-    if (success) {
-      setTitle("");
-      setDescription("");
-      setIsVisible(true);
-      setIsAddDialogOpen(false);
+    if (success && selectedFiles.length > 0) {
+      // Refresh data first to get the new course
+      await refreshData(roomId);
+      // Find the newly created course by title and room
+      const newCourse = courses.find(course => 
+        course.title === title.trim() && course.room_id === roomId
+      );
+      if (newCourse) {
+        await uploadFiles(newCourse.id);
+      }
     }
+
+    if (success) {
+      resetForm();
+    }
+  };
+
+  // Upload files
+  const uploadFiles = async (courseId: string) => {
+    for (const file of selectedFiles) {
+      try {
+        // Upload file to storage
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        const { data, error: uploadError } = await supabase.storage
+          .from('course-materials')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        // Save file info to database
+        const { error: dbError } = await supabase
+          .from('course_materials')
+          .insert({
+            course_id: courseId,
+            file_name: file.name,
+            file_path: data.path,
+            file_size: file.size,
+            uploaded_by: user?.id
+          });
+
+        if (dbError) throw dbError;
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        toast.error(`Failed to upload ${file.name}`);
+      }
+    }
+    
+    // Reload materials after upload
+    loadCourseMaterials();
+    toast.success('Course materials uploaded successfully');
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setIsVisible(true);
+    setSelectedFiles([]);
+    setExistingFiles([]);
+    setIsAddDialogOpen(false);
+    setIsEditDialogOpen(false);
+    setCurrentCourse(null);
   };
   
   // Handle edit submission
@@ -104,9 +229,13 @@ const RoomCourses = () => {
       is_visible: isVisible
     });
 
+    // Upload new files if any
+    if (success && selectedFiles.length > 0) {
+      await uploadFiles(currentCourse.id);
+    }
+
     if (success) {
-      setIsEditDialogOpen(false);
-      setCurrentCourse(null);
+      resetForm();
     }
   };
   
@@ -120,12 +249,36 @@ const RoomCourses = () => {
   };
   
   // Open edit dialog
-  const openEditDialog = (course: Course) => {
+  const openEditDialog = async (course: Course) => {
     setCurrentCourse(course);
     setTitle(course.title);
     setDescription(course.description || "");
     setIsVisible(course.is_visible);
+    
+    // Load existing materials for this course
+    const materials = await loadCourseSpecificMaterials(course.id);
+    setExistingFiles(materials);
+    
     setIsEditDialogOpen(true);
+  };
+
+  // Remove existing file
+  const removeExistingFile = async (fileId: string) => {
+    try {
+      const { error } = await supabase
+        .from('course_materials')
+        .delete()
+        .eq('id', fileId);
+
+      if (error) throw error;
+
+      setExistingFiles(prev => prev.filter(file => file.id !== fileId));
+      loadCourseMaterials();
+      toast.success('File removed successfully');
+    } catch (error) {
+      console.error('Error removing file:', error);
+      toast.error('Failed to remove file');
+    }
   };
   
   if (!currentRoom) {
@@ -168,22 +321,31 @@ const RoomCourses = () => {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title">Title</Label>
+                  <Label htmlFor="title">Course Title *</Label>
                   <Input
                     id="title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter course title"
+                    placeholder="e.g., Introduction to Computer Science"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description">Course Description</Label>
                   <Textarea
                     id="description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Enter course description (optional)"
-                    rows={3}
+                    placeholder="Provide a detailed description of the course content, objectives, and what students will learn..."
+                    rows={4}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Course Materials (PDFs)</Label>
+                  <MultiPdfUpload
+                    selectedFiles={selectedFiles}
+                    onFilesChange={setSelectedFiles}
+                    maxFiles={10}
+                    maxSizeMB={50}
                   />
                 </div>
                 <div className="flex items-center space-x-2">
@@ -192,14 +354,14 @@ const RoomCourses = () => {
                     checked={isVisible}
                     onCheckedChange={setIsVisible}
                   />
-                  <Label htmlFor="visible">Visible to students</Label>
+                  <Label htmlFor="visible">Make course visible to students</Label>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" onClick={resetForm}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddCourse}>Add Course</Button>
+                <Button onClick={handleAddCourse}>Create Course</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -226,9 +388,15 @@ const RoomCourses = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground mb-3">
                   Created {new Date(course.created_at).toLocaleDateString()}
                 </div>
+                {courseMaterials[course.id] && courseMaterials[course.id].length > 0 && (
+                  <CourseMaterials 
+                    materials={courseMaterials[course.id]} 
+                    compact={true}
+                  />
+                )}
               </CardContent>
               {isProfessor && (
                 <CardFooter className="pt-0 flex gap-2">
@@ -287,22 +455,33 @@ const RoomCourses = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-title">Title</Label>
+              <Label htmlFor="edit-title">Course Title *</Label>
               <Input
                 id="edit-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter course title"
+                placeholder="e.g., Introduction to Computer Science"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">Course Description</Label>
               <Textarea
                 id="edit-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter course description (optional)"
-                rows={3}
+                placeholder="Provide a detailed description of the course content, objectives, and what students will learn..."
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Course Materials (PDFs)</Label>
+              <MultiPdfUpload
+                selectedFiles={selectedFiles}
+                onFilesChange={setSelectedFiles}
+                existingFiles={existingFiles}
+                onRemoveExisting={removeExistingFile}
+                maxFiles={10}
+                maxSizeMB={50}
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -311,11 +490,11 @@ const RoomCourses = () => {
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
               />
-              <Label htmlFor="edit-visible">Visible to students</Label>
+              <Label htmlFor="edit-visible">Make course visible to students</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={resetForm}>
               Cancel
             </Button>
             <Button onClick={handleEditCourse}>Update Course</Button>
