@@ -91,6 +91,31 @@ const translations: Translations = {
     fr: "Étudiants",
     ar: "الطلاب"
   },
+  "nav.studentsActivities": {
+    en: "Students Activities",
+    fr: "Activités des étudiants",
+    ar: "أنشطة الطلاب"
+  },
+  "nav.reports": {
+    en: "Reports",
+    fr: "Rapports",
+    ar: "التقارير"
+  },
+  "nav.manageClasses": {
+    en: "Manage Classes",
+    fr: "Gérer les classes",
+    ar: "إدارة الفصول"
+  },
+  "nav.professor": {
+    en: "Professor",
+    fr: "Professeur",
+    ar: "أستاذ"
+  },
+  "nav.student": {
+    en: "Student",
+    fr: "Étudiant",
+    ar: "طالب"
+  },
   "nav.profile": {
     en: "Profile",
     fr: "Profil",
