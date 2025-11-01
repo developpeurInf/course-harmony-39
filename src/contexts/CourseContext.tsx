@@ -410,7 +410,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setCourses(prev => [data, ...prev]);
+      // Refresh data to ensure consistency
+      await refreshData(course.room_id);
       toast.success("Course added successfully");
       
       // Notify enrolled students (though a new course won't have students yet)
@@ -437,9 +438,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setCourses(prev => prev.map(course => 
-        course.id === courseId ? { ...course, ...updates } : course
-      ));
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Course updated successfully");
       return true;
     } catch (error) {
@@ -450,25 +450,129 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   const deleteCourse = async (courseId: string): Promise<boolean> => {
     try {
+      // First, delete all related data from the database
+      console.log('Deleting course and all related data for course:', courseId);
+      
+      // Delete course materials
+      const { error: materialsError } = await supabase
+        .from('course_materials')
+        .delete()
+        .eq('course_id', courseId);
+      
+      if (materialsError) console.error('Error deleting course materials:', materialsError);
+      
+      // Get all exams for this course to delete quiz data
+      const { data: courseExams } = await supabase
+        .from('exams')
+        .select('id')
+        .eq('course_id', courseId);
+      
+      if (courseExams && courseExams.length > 0) {
+        const examIds = courseExams.map(e => e.id);
+        
+        // Delete quiz submissions and answers for these exams
+        const { data: submissions } = await supabase
+          .from('quiz_submissions')
+          .select('id')
+          .in('exam_id', examIds);
+        
+        if (submissions && submissions.length > 0) {
+          const submissionIds = submissions.map(s => s.id);
+          
+          // Delete quiz answers
+          await supabase
+            .from('quiz_answers')
+            .delete()
+            .in('submission_id', submissionIds);
+          
+          // Delete quiz submissions
+          await supabase
+            .from('quiz_submissions')
+            .delete()
+            .in('exam_id', examIds);
+        }
+        
+        // Delete quiz options
+        const { data: questions } = await supabase
+          .from('quiz_questions')
+          .select('id')
+          .in('exam_id', examIds);
+        
+        if (questions && questions.length > 0) {
+          const questionIds = questions.map(q => q.id);
+          
+          await supabase
+            .from('quiz_options')
+            .delete()
+            .in('question_id', questionIds);
+          
+          // Delete quiz questions
+          await supabase
+            .from('quiz_questions')
+            .delete()
+            .in('exam_id', examIds);
+        }
+      }
+      
+      // Delete exercises for this course
+      const { error: exercisesError } = await supabase
+        .from('exercises')
+        .delete()
+        .eq('course_id', courseId);
+      
+      if (exercisesError) {
+        console.error('Error deleting exercises:', exercisesError);
+        toast.error("Failed to delete course exercises");
+        return false;
+      }
+      
+      // Delete exams for this course
+      const { error: examsError } = await supabase
+        .from('exams')
+        .delete()
+        .eq('course_id', courseId);
+      
+      if (examsError) {
+        console.error('Error deleting exams:', examsError);
+        toast.error("Failed to delete course exams");
+        return false;
+      }
+      
+      // Delete enrollments
+      const { error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('course_id', courseId);
+      
+      if (enrollmentsError) console.error('Error deleting enrollments:', enrollmentsError);
+      
+      // Delete notifications
+      const { error: notificationsError } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('course_id', courseId);
+      
+      if (notificationsError) console.error('Error deleting notifications:', notificationsError);
+      
+      // Finally, delete the course itself
       const { error } = await supabase
         .from('courses')
         .delete()
         .eq('id', courseId);
 
       if (error) {
+        console.error('Error deleting course:', error);
         toast.error("Failed to delete course");
         return false;
       }
 
-      setCourses(prev => prev.filter(course => course.id !== courseId));
-      // Also remove from local state
-      setExercises(prev => prev.filter(ex => ex.course_id !== courseId));
-      setExams(prev => prev.filter(exam => exam.course_id !== courseId));
-      setEnrollments(prev => prev.filter(enr => enr.course_id !== courseId));
+      // Refresh all data from database to ensure consistency
+      await refreshData();
       
-      toast.success("Course deleted successfully");
+      toast.success("Course and all related data deleted successfully");
       return true;
     } catch (error) {
+      console.error('Exception deleting course:', error);
       toast.error("Failed to delete course");
       return false;
     }
@@ -526,7 +630,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setExercises(prev => [data, ...prev]);
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Exercise added successfully");
       
       // Notify enrolled students
@@ -553,9 +658,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setExercises(prev => prev.map(exercise => 
-        exercise.id === exerciseId ? { ...exercise, ...updates } : exercise
-      ));
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Exercise updated successfully");
       return true;
     } catch (error) {
@@ -576,7 +680,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setExercises(prev => prev.filter(exercise => exercise.id !== exerciseId));
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Exercise deleted successfully");
       return true;
     } catch (error) {
@@ -637,7 +742,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setExams(prev => [data, ...prev]);
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Exam added successfully");
       
       // Notify enrolled students
@@ -664,9 +770,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setExams(prev => prev.map(exam => 
-        exam.id === examId ? { ...exam, ...updates } : exam
-      ));
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Exam updated successfully");
       return true;
     } catch (error) {
@@ -687,7 +792,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      setExams(prev => prev.filter(exam => exam.id !== examId));
+      // Refresh data to ensure consistency
+      await refreshData();
       toast.success("Exam deleted successfully");
       return true;
     } catch (error) {
@@ -861,36 +967,24 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getVisibleCoursesForStudent = (studentId: string): Course[] => {
-    console.log('=== getVisibleCoursesForStudent DEBUG ===');
-    console.log('Student ID:', studentId);
-    console.log('User from context:', user);
-    console.log('All courses:', courses);
-    
     // Get the student's room_id from user context if this is the current user
     const studentRoomId = user?.id === studentId ? user?.room_id : null;
-    console.log('Student room_id:', studentRoomId);
     
     // If we have the student's room, show all visible courses in that room
     if (studentRoomId) {
-      const visibleCourses = courses.filter(course => {
-        console.log(`Course "${course.title}": visible=${course.is_visible}, room_id=${course.room_id}, matches=${course.room_id === studentRoomId}`);
-        return course.is_visible && course.room_id === studentRoomId;
-      });
-      console.log('Visible courses for student:', visibleCourses);
-      return visibleCourses;
+      return courses.filter(course => 
+        course.is_visible && course.room_id === studentRoomId
+      );
     }
     
-    console.log('No student room_id, falling back to enrollment-based filtering');
     // Fallback to enrollment-based filtering for other students (e.g., professor viewing)
     const enrolledCourseIds = enrollments
       .filter(enr => enr.student_id === studentId)
       .map(enr => enr.course_id);
     
-    const enrolledCourses = courses.filter(course => 
+    return courses.filter(course => 
       course.is_visible && enrolledCourseIds.includes(course.id)
     );
-    console.log('Enrolled courses:', enrolledCourses);
-    return enrolledCourses;
   };
 
   const getVisibleExercisesForStudent = (studentId: string): Exercise[] => {
