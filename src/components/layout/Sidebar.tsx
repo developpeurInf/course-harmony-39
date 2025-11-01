@@ -59,7 +59,7 @@ const Sidebar = () => {
   };
 
   const sidebarContent = (
-    <>
+    <div className="flex flex-col h-full bg-sidebar">
       <div className="p-6">
         <h2 className="text-xl font-bold text-primary">{t("app.name")}</h2>
       </div>
@@ -185,12 +185,13 @@ const Sidebar = () => {
           {user?.role === "professor" ? t("nav.professor") : t("nav.student")}
         </div>
       </div>
-    </>
+    </div>
   );
 
-  // Render content directly - TopNav handles Sheet wrapper for mobile
+  // On mobile, content is rendered inside Sheet from TopNav
+  // On desktop, render as a standalone sidebar
   return (
-    <aside className="hidden md:flex flex-col h-full md:w-64 bg-sidebar border-r shadow-sm">
+    <aside className="hidden md:flex md:w-64 border-r shadow-sm">
       {sidebarContent}
     </aside>
   );
