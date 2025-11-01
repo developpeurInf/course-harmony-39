@@ -1,8 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses, Exercise, Course } from "@/contexts/CourseContext";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +22,8 @@ import PdfInfo from "@/components/PdfInfo";
 const Exercises = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf } = useCourses();
+  const { roomId } = useParams();
+  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf, refreshData } = useCourses();
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -38,6 +40,16 @@ const Exercises = () => {
   const [exerciseMaterials, setExerciseMaterials] = useState<{[exerciseId: string]: any[]}>({});
   
   const isProfessor = user?.role === "professor";
+  
+  // Refresh data when component mounts or when navigating between room/global views
+  useEffect(() => {
+    if (user && !roomId) {
+      // If we're NOT in a room context (accessing /exercises directly), refresh all data
+      // RoomExercises component handles refresh for room-specific context
+      refreshData();
+    }
+  }, [user, roomId, refreshData]);
+  
   const visibleExercises = exercises.filter(
     (exercise) => exercise.is_visible || isProfessor
   );

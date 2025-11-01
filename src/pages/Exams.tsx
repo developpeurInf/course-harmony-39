@@ -45,11 +45,12 @@ import QuizBuilder from "@/components/QuizBuilder";
 import QuizTaker from "@/components/QuizTaker";
 import QuizResults from "@/components/QuizResults";
 import { format } from "date-fns";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
 
 const Exams = () => {
   const { user } = useAuth();
+  const { roomId } = useParams();
   const { 
     courses, 
     exams, 
@@ -58,7 +59,8 @@ const Exams = () => {
     updateExam, 
     deleteExam, 
     toggleExamVisibility,
-    getVisibleExamsForStudent 
+    getVisibleExamsForStudent,
+    refreshData
   } = useCourses();
   
   const location = useLocation();
@@ -84,6 +86,17 @@ const Exams = () => {
   const [showQuizResults, setShowQuizResults] = useState<string | null>(null);
   
   const isProfessor = user?.role === "professor";
+  
+  // Refresh data when component mounts or when navigating between room/global views
+  useEffect(() => {
+    if (user) {
+      // If we're NOT in a room context (accessing /exams directly), refresh all data
+      // RoomExams component handles refresh for room-specific context
+      if (!roomId) {
+        refreshData();
+      }
+    }
+  }, [user, roomId, refreshData]);
   
   // Parse course ID from URL query parameters
   useEffect(() => {

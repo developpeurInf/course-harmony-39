@@ -9,12 +9,12 @@ const RoomExams = () => {
   const { user } = useAuth();
   const { refreshData } = useCourses();
   
-  // Load room-specific data when component mounts
+  // Load room-specific data when component mounts or roomId changes
   useEffect(() => {
     if (user && roomId) {
       refreshData(roomId);
     }
-  }, [user, roomId, refreshData]);
+  }, [user, roomId]); // Removed refreshData from deps to prevent infinite loop
   
   // Redirect if no roomId
   if (!roomId) {
