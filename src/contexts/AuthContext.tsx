@@ -43,11 +43,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        // Check for existing session first
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (mounted && session?.user) {
-          // Fetch user profile
+        if (!mounted) return;
+        
+        if (session?.user) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('*')
@@ -75,43 +75,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    initializeAuth();
-
-    // Set up auth state listener for future changes
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
 
         setSession(session);
         
         if (session?.user) {
-          // Fetch user profile
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
-          
-          if (profile && mounted) {
-            setUser({
-              id: profile.id,
-              name: profile.name,
-              email: session.user.email!,
-              role: profile.role as UserRole,
-              avatar_url: profile.avatar_url
-            });
-            setIsLoggedIn(true);
-          }
+          setTimeout(async () => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            
+            if (profile && mounted) {
+              setUser({
+                id: profile.id,
+                name: profile.name,
+                email: session.user.email!,
+                role: profile.role as UserRole,
+                avatar_url: profile.avatar_url
+              });
+              setIsLoggedIn(true);
+            }
+          }, 0);
         } else {
           setUser(null);
           setIsLoggedIn(false);
         }
-        
-        if (mounted) {
-          setLoading(false);
-        }
       }
     );
+
+    initializeAuth();
 
     return () => {
       mounted = false;
