@@ -13,11 +13,10 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2 } from "lucide-react";
+import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2, Grid3x3, List, BookOpen, Clock } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import PdfInfo from "@/components/PdfInfo";
-import ViewToggle from "@/components/ViewToggle";
 
 const Exercises = () => {
   const { user } = useAuth();
@@ -35,7 +34,7 @@ const Exercises = () => {
     is_visible: true,
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [exerciseMaterials, setExerciseMaterials] = useState<{[exerciseId: string]: any[]}>({});
   
   const isProfessor = user?.role === "professor";
@@ -137,23 +136,49 @@ const Exercises = () => {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{t("nav.exercises")}</h1>
-        <div className="flex items-center gap-4">
-          {isProfessor && <ViewToggle view={viewMode} onViewChange={setViewMode} />}
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.exercises")}</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage and view exercises linked to courses
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="h-8"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="h-8"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="flex items-center gap-1" onClick={resetForm}>
-                  <Plus size={16} /> {t("exercise.add")}
+                <Button className="shadow-elegant" onClick={resetForm}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t("exercise.add")}
                 </Button>
               </DialogTrigger>
-            <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t("exercise.add")}</DialogTitle>
                 <DialogDescription>
-                  {t("file.upload")}
+                  Create a new exercise and link it to a course
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4">
@@ -245,164 +270,225 @@ const Exercises = () => {
         </div>
       </div>
 
-      {viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {visibleExercises.map((exercise) => (
-          <Card key={exercise.id} className="shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  {exercise.title}
-                </CardTitle>
-                {isProfessor && (
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => toggleExerciseVisibility(exercise.id)}
-                      title={exercise.is_visible ? "Hide" : "Show"}
-                    >
-                      {exercise.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(exercise)}
-                      title={t("app.edit")}
-                    >
-                      <Edit size={16} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteExercise(exercise.id)}
-                      title={t("app.delete")}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <CardDescription>
-                {findCourseName(exercise.course_id)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="py-2">
-              <p className="text-sm line-clamp-3">{exercise.description}</p>
-              
-              {/* PDF Information */}
-              {exercise.pdf_url && (
-                <PdfInfo
-                  fileName={`${exercise.title}.pdf`}
-                  onView={() => handleViewPdf(exercise)}
-                  onDownload={() => handleDownloadPdf(exercise)}
-                  className="mt-3"
-                />
-              )}
-            </CardContent>
-            <CardFooter className="pt-2 flex justify-between">
-              <div className="flex items-center text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4 mr-1" />
-                {format(parseISO(exercise.due_date), "PPP")}
-              </div>
-              <Badge variant={exercise.is_visible ? "default" : "secondary"}>
-                {exercise.is_visible ? t("app.view") : t("app.view")}
-              </Badge>
-            </CardFooter>
-          </Card>
-        ))}
-        </div>
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Exercise</TableHead>
-                <TableHead>Course</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>PDF</TableHead>
-                {isProfessor && <TableHead>Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleExercises.map((exercise) => (
-                <TableRow key={exercise.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <div>
-                        <div className="font-medium">{exercise.title}</div>
-                        <div className="text-sm text-muted-foreground truncate max-w-[200px]">
-                          {exercise.description}
+      {/* Exercises Display */}
+      {visibleExercises.length > 0 ? (
+        viewMode === "grid" ? (
+          // Grid View
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {visibleExercises.map((exercise) => (
+              <Card key={exercise.id} className="group hover:shadow-elegant transition-all duration-300 hover:-translate-y-1">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-primary/10 rounded">
+                          <FileText className="h-4 w-4 text-primary" />
                         </div>
+                        <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">
+                          {exercise.title}
+                        </CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-xs">
+                          <BookOpen className="h-3 w-3 mr-1" />
+                          {findCourseName(exercise.course_id)}
+                        </Badge>
+                        <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
+                          {exercise.is_visible ? "Visible" : "Hidden"}
+                        </Badge>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>{findCourseName(exercise.course_id)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{format(parseISO(exercise.due_date), "PPP")}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={exercise.is_visible ? "default" : "secondary"}>
-                      {exercise.is_visible ? t("app.view") : t("app.view")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {exercise.pdf_url && (
-                      <PdfInfo
-                        fileName={`${exercise.title}.pdf`}
-                        onView={() => handleViewPdf(exercise)}
-                        onDownload={() => handleDownloadPdf(exercise)}
-                      />
-                    )}
-                  </TableCell>
-                  {isProfessor && (
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleExerciseVisibility(exercise.id)}
-                          title={exercise.is_visible ? "Hide" : "Show"}
-                        >
-                          {exercise.is_visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(exercise)}
-                          title={t("app.edit")}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteExercise(exercise.id)}
-                          title={t("app.delete")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-3">
+                  {exercise.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {exercise.description}
+                    </p>
                   )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
+                    <Clock className="h-4 w-4" />
+                    <span>Due: {format(parseISO(exercise.due_date), "PPP")}</span>
+                  </div>
+                  
+                  {/* PDF Information */}
+                  {exercise.pdf_url && (
+                    <PdfInfo
+                      fileName={`${exercise.title}.pdf`}
+                      onView={() => handleViewPdf(exercise)}
+                      onDownload={() => handleDownloadPdf(exercise)}
+                    />
+                  )}
+                </CardContent>
+                
+                {isProfessor && (
+                  <CardFooter className="pt-3 flex gap-2 border-t bg-muted/30">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleExerciseVisibility(exercise.id)}
+                      className="flex-1"
+                    >
+                      {exercise.is_visible ? (
+                        <>
+                          <EyeOff className="h-4 w-4 mr-1" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4 mr-1" />
+                          Show
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDialog(exercise)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteExercise(exercise.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardFooter>
+                )}
+              </Card>
+            ))}
+          </div>
+        ) : (
+          // List View
+          <div className="space-y-4">
+            {visibleExercises.map((exercise) => (
+              <Card key={exercise.id} className="group hover:shadow-elegant transition-all duration-300">
+                <div className="flex flex-col md:flex-row">
+                  <div className="flex-1 p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-3 mb-2">
+                          <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                            <FileText className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">
+                              {exercise.title}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              <Badge variant="outline" className="text-xs">
+                                <BookOpen className="h-3 w-3 mr-1" />
+                                {findCourseName(exercise.course_id)}
+                              </Badge>
+                              <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
+                                {exercise.is_visible ? "Visible" : "Hidden"}
+                              </Badge>
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Clock className="h-4 w-4" />
+                                <span>Due: {format(parseISO(exercise.due_date), "PPP")}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {exercise.description && (
+                          <p className="text-muted-foreground mt-3 leading-relaxed">
+                            {exercise.description}
+                          </p>
+                        )}
+                        
+                        {/* PDF Information */}
+                        {exercise.pdf_url && (
+                          <div className="mt-4">
+                            <PdfInfo
+                              fileName={`${exercise.title}.pdf`}
+                              onView={() => handleViewPdf(exercise)}
+                              onDownload={() => handleDownloadPdf(exercise)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {isProfessor && (
+                    <div className="flex md:flex-col gap-2 p-4 border-t md:border-t-0 md:border-l bg-muted/30 md:w-32 justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleExerciseVisibility(exercise.id)}
+                        className="flex-1 md:flex-none"
+                      >
+                        {exercise.is_visible ? (
+                          <>
+                            <EyeOff className="h-4 w-4 md:mr-0 mr-1" />
+                            <span className="md:hidden">Hide</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-4 w-4 md:mr-0 mr-1" />
+                            <span className="md:hidden">Show</span>
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(exercise)}
+                        className="flex-1 md:flex-none"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteExercise(exercise.id)}
+                        className="flex-1 md:flex-none text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="p-4 bg-primary/10 rounded-full mb-4">
+              <FileText className="h-12 w-12 text-primary" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No exercises found</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-6">
+              {isProfessor 
+                ? "No exercises have been created yet. Add your first exercise to get started."
+                : "No exercises are currently available."}
+            </p>
+            {isProfessor && (
+              <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Your First Exercise
+              </Button>
+            )}
+          </CardContent>
         </Card>
       )}
 
       {/* Edit Exercise Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("exercise.edit")}</DialogTitle>
+            <DialogDescription>
+              Update exercise details and materials
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-2">
