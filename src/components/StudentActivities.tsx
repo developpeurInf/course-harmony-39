@@ -121,7 +121,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       }
 
       // For now, show placeholder data since we have basic structure
-      setActivities([]);
+      setActivities(data || []);
     } catch (error) {
       console.error('Error loading activities:', error);
       toast.error("Failed to load activities");
@@ -166,7 +166,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       }
 
       // For now, show placeholder data since we have basic structure
-      setSessions([]);
+      setSessions(data || []);
     } catch (error) {
       console.error('Error loading sessions:', error);
       toast.error("Failed to load sessions");

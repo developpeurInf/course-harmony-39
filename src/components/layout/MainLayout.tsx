@@ -2,12 +2,16 @@
 import { useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSessionTracking } from "@/hooks/useSessionTracking";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 
 const MainLayout = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  
+  // Initialize session tracking for students
+  useSessionTracking();
 
   useEffect(() => {
     if (!loading && !user) {
