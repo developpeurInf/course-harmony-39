@@ -188,13 +188,8 @@ const Sidebar = () => {
     </div>
   );
 
-  // On mobile, content is rendered inside Sheet from TopNav
-  // On desktop, render as a standalone sidebar
-  return (
-    <aside className="hidden md:flex md:w-64 border-r shadow-sm">
-      {sidebarContent}
-    </aside>
-  );
+  // Return content directly - parent component handles wrapper
+  return sidebarContent;
 };
 
 export default Sidebar;
