@@ -52,6 +52,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
   const { user } = useAuth();
   const [activities, setActivities] = useState<StudentActivity[]>([]);
   const [sessions, setSessions] = useState<StudentSession[]>([]);
+  const [allActiveSessions, setAllActiveSessions] = useState<StudentSession[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<string>("all");
@@ -63,8 +64,50 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       loadStudents();
       loadActivities();
       loadSessions();
+      loadAllActiveSessions(); // Load all active sessions for online count
     }
   }, [user, roomId, selectedStudent, dateRange]);
+
+  // Real-time subscription for sessions
+  useEffect(() => {
+    if (!user || !roomId) return;
+
+    console.log('Setting up realtime subscription for room:', roomId);
+
+    const channel = supabase
+      .channel('student-sessions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'student_sessions',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          console.log('Realtime session change:', payload);
+          // Reload both filtered and all active sessions
+          loadSessions();
+          loadAllActiveSessions();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
+
+    // Also refresh every 30 seconds to catch any missed updates
+    const refreshInterval = setInterval(() => {
+      console.log('Periodic refresh of sessions');
+      loadSessions();
+      loadAllActiveSessions();
+    }, 30000);
+
+    return () => {
+      console.log('Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+      clearInterval(refreshInterval);
+    };
+  }, [user, roomId]);
 
   const loadStudents = async () => {
     try {
@@ -165,11 +208,40 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
         return;
       }
 
-      // For now, show placeholder data since we have basic structure
       setSessions(data || []);
     } catch (error) {
       console.error('Error loading sessions:', error);
       toast.error("Failed to load sessions");
+    }
+  };
+
+  const loadAllActiveSessions = async () => {
+    try {
+      // Load all currently active sessions regardless of date filter
+      const { data, error } = await supabase
+        .from('student_sessions')
+        .select(`
+          id,
+          student_id,
+          session_start,
+          session_end,
+          duration_minutes,
+          is_active,
+          last_activity
+        `)
+        .eq('room_id', roomId)
+        .eq('is_active', true)
+        .order('last_activity', { ascending: false });
+
+      if (error) {
+        console.error('Error loading active sessions:', error);
+        return;
+      }
+
+      console.log('All active sessions loaded:', data?.length || 0);
+      setAllActiveSessions(data || []);
+    } catch (error) {
+      console.error('Error loading active sessions:', error);
     }
   };
 
@@ -245,11 +317,20 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
     
-    // Get active sessions and join with student profiles
-    const activeSessions = sessions.filter(session => 
-      session.is_active && 
-      new Date(session.last_activity) > fiveMinutesAgo
-    );
+    console.log('Checking online students. Total active sessions:', allActiveSessions.length);
+    
+    // Use allActiveSessions instead of filtered sessions
+    const activeSessions = allActiveSessions.filter(session => {
+      const isActive = session.is_active;
+      const lastActivity = new Date(session.last_activity);
+      const isRecent = lastActivity > fiveMinutesAgo;
+      
+      console.log('Session:', session.student_id, 'Active:', isActive, 'Recent:', isRecent, 'Last activity:', session.last_activity);
+      
+      return isActive && isRecent;
+    });
+
+    console.log('Active sessions found:', activeSessions.length);
 
     return activeSessions.map(session => {
       const student = students.find(s => s.id === session.student_id);
