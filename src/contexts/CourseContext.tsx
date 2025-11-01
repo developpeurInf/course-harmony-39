@@ -861,24 +861,36 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getVisibleCoursesForStudent = (studentId: string): Course[] => {
+    console.log('=== getVisibleCoursesForStudent DEBUG ===');
+    console.log('Student ID:', studentId);
+    console.log('User from context:', user);
+    console.log('All courses:', courses);
+    
     // Get the student's room_id from user context if this is the current user
     const studentRoomId = user?.id === studentId ? user?.room_id : null;
+    console.log('Student room_id:', studentRoomId);
     
     // If we have the student's room, show all visible courses in that room
     if (studentRoomId) {
-      return courses.filter(course => 
-        course.is_visible && course.room_id === studentRoomId
-      );
+      const visibleCourses = courses.filter(course => {
+        console.log(`Course "${course.title}": visible=${course.is_visible}, room_id=${course.room_id}, matches=${course.room_id === studentRoomId}`);
+        return course.is_visible && course.room_id === studentRoomId;
+      });
+      console.log('Visible courses for student:', visibleCourses);
+      return visibleCourses;
     }
     
+    console.log('No student room_id, falling back to enrollment-based filtering');
     // Fallback to enrollment-based filtering for other students (e.g., professor viewing)
     const enrolledCourseIds = enrollments
       .filter(enr => enr.student_id === studentId)
       .map(enr => enr.course_id);
     
-    return courses.filter(course => 
+    const enrolledCourses = courses.filter(course => 
       course.is_visible && enrolledCourseIds.includes(course.id)
     );
+    console.log('Enrolled courses:', enrolledCourses);
+    return enrolledCourses;
   };
 
   const getVisibleExercisesForStudent = (studentId: string): Exercise[] => {
