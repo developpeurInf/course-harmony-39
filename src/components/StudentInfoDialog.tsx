@@ -1,5 +1,6 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,6 +31,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
   onClose 
 }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showAvatarDialog, setShowAvatarDialog] = useState(false);
 
   const copyToClipboard = async (text: string, fieldName: string) => {
     try {
@@ -116,16 +118,20 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
   ];
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={student.avatar_url || undefined} />
-              <AvatarFallback>
-                {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <Avatar 
+                className="h-12 w-12 cursor-pointer hover:opacity-80 transition-opacity" 
+                onClick={() => student.avatar_url && setShowAvatarDialog(true)}
+              >
+                <AvatarImage src={student.avatar_url || undefined} />
+                <AvatarFallback>
+                  {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
             <div>
               <div className="text-xl">{student.name}</div>
               <div className="text-sm text-muted-foreground font-normal">
@@ -195,5 +201,26 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={showAvatarDialog} onOpenChange={setShowAvatarDialog}>
+      <AlertDialogContent className="max-w-3xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{student.name}'s Profile Picture</AlertDialogTitle>
+        </AlertDialogHeader>
+        <div className="flex items-center justify-center p-4">
+          <img 
+            src={student.avatar_url || undefined} 
+            alt={`${student.name}'s avatar`}
+            className="max-w-full max-h-[70vh] object-contain rounded-lg"
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setShowAvatarDialog(false)}>
+            Close
+          </Button>
+        </div>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 };
