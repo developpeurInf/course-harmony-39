@@ -40,6 +40,32 @@ export const useSessionTracking = () => {
 
         console.log('Creating session for room:', profile.room_id);
 
+        // First, close any existing active sessions for this user
+        const now = new Date();
+        const { data: existingSessions } = await supabase
+          .from('student_sessions')
+          .select('id, session_start')
+          .eq('student_id', user.id)
+          .eq('is_active', true);
+
+        if (existingSessions && existingSessions.length > 0) {
+          console.log('Closing', existingSessions.length, 'existing active sessions');
+          
+          for (const session of existingSessions) {
+            const startTime = new Date(session.session_start);
+            const durationMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
+            
+            await supabase
+              .from('student_sessions')
+              .update({
+                session_end: now.toISOString(),
+                is_active: false,
+                duration_minutes: durationMinutes,
+              })
+              .eq('id', session.id);
+          }
+        }
+
         // Create a new session
         const { data, error } = await supabase
           .from('student_sessions')
@@ -95,9 +121,13 @@ export const useSessionTracking = () => {
     };
 
     const endSession = async () => {
-      if (!sessionIdRef.current) return;
+      if (!sessionIdRef.current) {
+        console.log('No active session to end');
+        return;
+      }
 
       try {
+        console.log('Ending session:', sessionIdRef.current);
         const now = new Date();
         
         // Get session start time to calculate duration
@@ -111,8 +141,10 @@ export const useSessionTracking = () => {
           const startTime = new Date(sessionData.session_start);
           const durationMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
 
+          console.log('Session duration:', durationMinutes, 'minutes');
+
           // Update session as ended
-          await supabase
+          const { error: updateError } = await supabase
             .from('student_sessions')
             .update({
               session_end: now.toISOString(),
@@ -120,6 +152,12 @@ export const useSessionTracking = () => {
               duration_minutes: durationMinutes,
             })
             .eq('id', sessionIdRef.current);
+
+          if (updateError) {
+            console.error('Error updating session:', updateError);
+          } else {
+            console.log('Session ended successfully');
+          }
 
           // Log logout activity
           const { data: profile } = await supabase
@@ -139,10 +177,13 @@ export const useSessionTracking = () => {
                 duration_minutes: durationMinutes,
               },
             });
+            console.log('Logout activity logged');
           }
         }
       } catch (error) {
         console.error('Error ending session:', error);
+      } finally {
+        sessionIdRef.current = null;
       }
     };
 

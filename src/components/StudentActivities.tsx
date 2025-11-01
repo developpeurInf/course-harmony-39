@@ -470,32 +470,37 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {students.filter(student => Math.random() > 0.7).slice(0, 3).map((student) => (
-                <Card key={student.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center space-x-3">
-                      <Avatar>
-                        <AvatarImage src={student.avatar_url} />
-                        <AvatarFallback>
-                          {student.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium">{student.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          @{student.username}
-                        </p>
-                        <div className="flex items-center space-x-1 mt-1">
-                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                          <p className="text-xs text-muted-foreground">
-                            Demo: Online now
+              {getOnlineStudents().map((onlineSession) => {
+                const student = students.find(s => s.id === onlineSession.student_id);
+                if (!student) return null;
+                
+                return (
+                  <Card key={onlineSession.id}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center space-x-3">
+                        <Avatar>
+                          <AvatarImage src={student.avatar_url} />
+                          <AvatarFallback>
+                            {student.name.split(' ').map((n: string) => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="font-medium">{student.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            @{student.username}
                           </p>
-                        </div>
+                          <div className="flex items-center space-x-1 mt-1">
+                            <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <p className="text-xs text-muted-foreground">
+                              Active {formatDistanceToNow(new Date(onlineSession.last_activity), { addSuffix: true })}
+                            </p>
+                          </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              );
+              })}
             </div>
           )}
         </TabsContent>
