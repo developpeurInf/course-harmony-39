@@ -23,7 +23,10 @@ import {
   EyeOff, 
   Edit, 
   Trash, 
-  Plus
+  Plus,
+  Grid3x3,
+  List,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +63,7 @@ const RoomCourses = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<Record<string, CourseMaterial[]>>({});
   const [existingFiles, setExistingFiles] = useState<CourseMaterial[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
   const isProfessor = user?.role === "professor";
   
@@ -297,156 +301,293 @@ const RoomCourses = () => {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Courses</h1>
-          <p className="text-muted-foreground">
-            Manage courses in {currentRoom.name}
+          <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage and view courses in {currentRoom.name}
           </p>
         </div>
-        {isProfessor && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Course
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Course</DialogTitle>
-                <DialogDescription>
-                  Create a new course in {currentRoom.name}.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Course Title *</Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g., Introduction to Computer Science"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Course Description</Label>
-                  <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Provide a detailed description of the course content, objectives, and what students will learn..."
-                    rows={4}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Course Materials (PDFs)</Label>
-                  <MultiPdfUpload
-                    selectedFiles={selectedFiles}
-                    onFilesChange={setSelectedFiles}
-                    maxFiles={10}
-                    maxSizeMB={50}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="visible"
-                    checked={isVisible}
-                    onCheckedChange={setIsVisible}
-                  />
-                  <Label htmlFor="visible">Make course visible to students</Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={resetForm}>
-                  Cancel
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="h-8"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="h-8"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {isProfessor && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="shadow-elegant">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Course
                 </Button>
-                <Button onClick={handleAddCourse}>Create Course</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Add New Course</DialogTitle>
+                  <DialogDescription>
+                    Create a new course in {currentRoom.name}.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Course Title *</Label>
+                    <Input
+                      id="title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g., Introduction to Computer Science"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Course Description</Label>
+                    <Textarea
+                      id="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Provide a detailed description of the course content, objectives, and what students will learn..."
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Course Materials (PDFs)</Label>
+                    <MultiPdfUpload
+                      selectedFiles={selectedFiles}
+                      onFilesChange={setSelectedFiles}
+                      maxFiles={10}
+                      maxSizeMB={50}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="visible"
+                      checked={isVisible}
+                      onCheckedChange={setIsVisible}
+                    />
+                    <Label htmlFor="visible">Make course visible to students</Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddCourse}>Create Course</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
       
+      {/* Courses Display */}
       {roomCourses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {roomCourses.map((course) => (
-            <Card key={course.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{course.title}</CardTitle>
-                    <CardDescription className="mt-1">
-                      {course.description || "No description available"}
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Badge variant={course.is_visible ? "default" : "secondary"}>
+        viewMode === 'grid' ? (
+          // Grid View
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {roomCourses.map((course) => (
+              <Card key={course.id} className="group hover:shadow-elegant transition-all duration-300 hover:-translate-y-1">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
+                        {course.title}
+                      </CardTitle>
+                      {course.description && (
+                        <CardDescription className="mt-2 line-clamp-2">
+                          {course.description}
+                        </CardDescription>
+                      )}
+                    </div>
+                    <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">
                       {course.is_visible ? "Visible" : "Hidden"}
                     </Badge>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground mb-3">
-                  Created {new Date(course.created_at).toLocaleDateString()}
-                </div>
-                {courseMaterials[course.id] && courseMaterials[course.id].length > 0 && (
-                  <CourseMaterials 
-                    materials={courseMaterials[course.id]} 
-                    compact={true}
-                  />
+                </CardHeader>
+                
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span>Created {new Date(course.created_at).toLocaleDateString()}</span>
+                  </div>
+                  
+                  {courseMaterials[course.id] && courseMaterials[course.id].length > 0 && (
+                    <div className="pt-2 border-t">
+                      <CourseMaterials 
+                        materials={courseMaterials[course.id]} 
+                        compact={true}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+                
+                {isProfessor && (
+                  <CardFooter className="pt-3 flex gap-2 border-t bg-muted/30">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleCourseVisibility(course.id)}
+                      className="flex-1"
+                    >
+                      {course.is_visible ? (
+                        <>
+                          <EyeOff className="h-4 w-4 mr-1" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4 mr-1" />
+                          Show
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDialog(course)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteCourse(course.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </CardFooter>
                 )}
-              </CardContent>
-              {isProfessor && (
-                <CardFooter className="pt-0 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleCourseVisibility(course.id)}
-                  >
-                    {course.is_visible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(course)}
-                  >
-                    <Edit className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteCourse(course.id)}
-                  >
-                    <Trash className="h-3 w-3" />
-                  </Button>
-                </CardFooter>
-              )}
-            </Card>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          // List View
+          <div className="space-y-4">
+            {roomCourses.map((course) => (
+              <Card key={course.id} className="group hover:shadow-elegant transition-all duration-300">
+                <div className="flex flex-col md:flex-row">
+                  <div className="flex-1 p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-3 mb-2">
+                          <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                            <BookOpen className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">
+                              {course.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Created {new Date(course.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">
+                            {course.is_visible ? "Visible" : "Hidden"}
+                          </Badge>
+                        </div>
+                        
+                        {course.description && (
+                          <p className="text-muted-foreground mt-3 leading-relaxed">
+                            {course.description}
+                          </p>
+                        )}
+                        
+                        {courseMaterials[course.id] && courseMaterials[course.id].length > 0 && (
+                          <div className="mt-4">
+                            <CourseMaterials 
+                              materials={courseMaterials[course.id]} 
+                              compact={false}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {isProfessor && (
+                    <div className="flex md:flex-col gap-2 p-4 border-t md:border-t-0 md:border-l bg-muted/30 md:w-32 justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleCourseVisibility(course.id)}
+                        className="flex-1 md:flex-none"
+                      >
+                        {course.is_visible ? (
+                          <>
+                            <EyeOff className="h-4 w-4 md:mr-0 mr-1" />
+                            <span className="md:hidden">Hide</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-4 w-4 md:mr-0 mr-1" />
+                            <span className="md:hidden">Show</span>
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(course)}
+                        className="flex-1 md:flex-none"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteCourse(course.id)}
+                        className="flex-1 md:flex-none text-destructive hover:text-destructive"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )
       ) : (
-        <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
-          <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-medium">No courses found</h3>
-          <p className="text-muted-foreground text-center max-w-md mt-2">
-            {isProfessor 
-              ? `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`
-              : `You are not enrolled in any courses in ${currentRoom.name}.`}
-          </p>
-          {isProfessor && (
-            <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Your First Course
-            </Button>
-          )}
-        </div>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="p-4 bg-primary/10 rounded-full mb-4">
+              <BookOpen className="h-12 w-12 text-primary" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No courses found</h3>
+            <p className="text-muted-foreground text-center max-w-md mb-6">
+              {isProfessor 
+                ? `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`
+                : `You are not enrolled in any courses in ${currentRoom.name}.`}
+            </p>
+            {isProfessor && (
+              <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Your First Course
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
       
       {/* Edit Course Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Course</DialogTitle>
             <DialogDescription>
