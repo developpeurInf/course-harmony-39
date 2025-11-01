@@ -331,11 +331,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          upsert: true
+        });
 
       if (uploadError) {
         toast.error("Failed to upload avatar");
