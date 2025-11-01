@@ -64,7 +64,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       loadStudents();
       loadActivities();
       loadSessions();
-      loadAllActiveSessions(); // Load all active sessions for online count
+      loadAllActiveSessions(); // This will clean up stale sessions first
     }
   }, [user, roomId, selectedStudent, dateRange]);
 
@@ -217,6 +217,15 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const loadAllActiveSessions = async () => {
     try {
+      // First, clean up stale sessions (close sessions with no activity in 10+ minutes)
+      const { error: cleanupError } = await supabase.rpc('close_stale_sessions');
+      
+      if (cleanupError) {
+        console.error('Error cleaning up stale sessions:', cleanupError);
+      } else {
+        console.log('Stale sessions cleaned up');
+      }
+
       // Load all currently active sessions regardless of date filter
       const { data, error } = await supabase
         .from('student_sessions')
@@ -319,20 +328,31 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     
     console.log('Checking online students. Total active sessions:', allActiveSessions.length);
     
-    // Use allActiveSessions instead of filtered sessions
+    // Use allActiveSessions and filter by recent activity
     const activeSessions = allActiveSessions.filter(session => {
       const isActive = session.is_active;
       const lastActivity = new Date(session.last_activity);
       const isRecent = lastActivity > fiveMinutesAgo;
       
-      console.log('Session:', session.student_id, 'Active:', isActive, 'Recent:', isRecent, 'Last activity:', session.last_activity);
-      
       return isActive && isRecent;
     });
 
-    console.log('Active sessions found:', activeSessions.length);
+    console.log('Active recent sessions found:', activeSessions.length);
 
-    return activeSessions.map(session => {
+    // Group by student_id to get unique students (take the most recent session per student)
+    const uniqueStudentsMap = new Map();
+    
+    activeSessions.forEach(session => {
+      const existing = uniqueStudentsMap.get(session.student_id);
+      if (!existing || new Date(session.last_activity) > new Date(existing.last_activity)) {
+        uniqueStudentsMap.set(session.student_id, session);
+      }
+    });
+
+    console.log('Unique online students:', uniqueStudentsMap.size);
+
+    // Convert map to array and add student details
+    return Array.from(uniqueStudentsMap.values()).map(session => {
       const student = students.find(s => s.id === session.student_id);
       return {
         ...session,

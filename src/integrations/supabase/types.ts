@@ -680,7 +680,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      close_stale_sessions: { Args: never; Returns: undefined }
     }
     Enums: {
       exam_type: "exam" | "quiz"
