@@ -341,7 +341,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const getOnlineStudents = () => {
     const now = new Date();
-    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
+    const ninetySecondsAgo = new Date(now.getTime() - 90 * 1000); // 90 seconds ago
     
     console.log('=== Getting Online Students ===');
     console.log('Total active sessions in state:', allActiveSessions.length);
@@ -350,7 +350,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     const activeSessions = allActiveSessions.filter(session => {
       const isActive = session.is_active;
       const lastActivity = new Date(session.last_activity);
-      const isRecent = lastActivity > fiveMinutesAgo;
+      const isRecent = lastActivity > ninetySecondsAgo;
       
       return isActive && isRecent;
     });
