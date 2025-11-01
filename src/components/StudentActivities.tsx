@@ -576,7 +576,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                 if (!student) return null;
                 
                 return (
-                  <Card key={onlineSession.id}>
+                  <Card key={onlineSession.student_id}>
                     <CardContent className="pt-6">
                       <div className="flex items-center space-x-3">
                         <Avatar>
