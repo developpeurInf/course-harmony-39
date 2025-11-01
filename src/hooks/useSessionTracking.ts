@@ -8,23 +8,37 @@ export const useSessionTracking = () => {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    console.log('Session tracking hook - User:', user?.role, 'Session exists:', !!session);
+    
     if (!user || !session || user.role !== 'student') {
+      console.log('Session tracking skipped - not a student or no session');
       return;
     }
 
     const startSession = async () => {
       try {
+        console.log('Starting session tracking for student:', user.id);
+        
         // Get room_id from profile
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('room_id')
           .eq('id', user.id)
           .single();
 
-        if (!profile?.room_id) {
-          console.log('Student has no room assignment');
+        console.log('Profile data:', profile, 'Error:', profileError);
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
           return;
         }
+
+        if (!profile?.room_id) {
+          console.warn('Student has no room assignment');
+          return;
+        }
+
+        console.log('Creating session for room:', profile.room_id);
 
         // Create a new session
         const { data, error } = await supabase
@@ -44,10 +58,11 @@ export const useSessionTracking = () => {
           return;
         }
 
+        console.log('Session created successfully:', data.id);
         sessionIdRef.current = data.id;
 
         // Log login activity
-        await supabase.from('student_activities').insert({
+        const { error: activityError } = await supabase.from('student_activities').insert({
           student_id: user.id,
           room_id: profile.room_id,
           session_id: data.id,
@@ -56,6 +71,12 @@ export const useSessionTracking = () => {
             timestamp: new Date().toISOString(),
           },
         });
+
+        if (activityError) {
+          console.error('Error creating activity:', activityError);
+        } else {
+          console.log('Login activity logged successfully');
+        }
 
         // Start heartbeat to update last_activity
         heartbeatIntervalRef.current = setInterval(async () => {
