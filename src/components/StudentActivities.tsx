@@ -217,16 +217,23 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const loadAllActiveSessions = async () => {
     try {
-      // First, clean up stale sessions (close sessions with no activity in 10+ minutes)
+      console.log('=== Loading All Active Sessions ===');
+      
+      // First, clean up stale sessions and duplicates
+      console.log('Calling close_stale_sessions()...');
       const { error: cleanupError } = await supabase.rpc('close_stale_sessions');
       
       if (cleanupError) {
         console.error('Error cleaning up stale sessions:', cleanupError);
       } else {
-        console.log('Stale sessions cleaned up');
+        console.log('✓ Stale sessions cleaned up successfully');
       }
 
+      // Wait a moment for the cleanup to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Load all currently active sessions regardless of date filter
+      console.log('Fetching active sessions...');
       const { data, error } = await supabase
         .from('student_sessions')
         .select(`
@@ -247,7 +254,17 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
         return;
       }
 
-      console.log('All active sessions loaded:', data?.length || 0);
+      console.log('✓ Loaded', data?.length || 0, 'active sessions');
+      
+      // Log how many sessions per student
+      const sessionsByStudent = new Map();
+      data?.forEach(session => {
+        const count = sessionsByStudent.get(session.student_id) || 0;
+        sessionsByStudent.set(session.student_id, count + 1);
+      });
+      
+      console.log('Sessions per student:', Object.fromEntries(sessionsByStudent));
+      
       setAllActiveSessions(data || []);
     } catch (error) {
       console.error('Error loading active sessions:', error);
@@ -326,7 +343,8 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     const now = new Date();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
     
-    console.log('Checking online students. Total active sessions:', allActiveSessions.length);
+    console.log('=== Getting Online Students ===');
+    console.log('Total active sessions in state:', allActiveSessions.length);
     
     // Use allActiveSessions and filter by recent activity
     const activeSessions = allActiveSessions.filter(session => {
@@ -337,7 +355,11 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       return isActive && isRecent;
     });
 
-    console.log('Active recent sessions found:', activeSessions.length);
+    console.log('Active recent sessions:', activeSessions.length);
+    console.log('Active recent sessions details:', activeSessions.map(s => ({
+      student_id: s.student_id,
+      last_activity: s.last_activity
+    })));
 
     // Group by student_id to get unique students (take the most recent session per student)
     const uniqueStudentsMap = new Map();
@@ -349,10 +371,11 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       }
     });
 
-    console.log('Unique online students:', uniqueStudentsMap.size);
+    console.log('Unique students map size:', uniqueStudentsMap.size);
+    console.log('Unique student IDs:', Array.from(uniqueStudentsMap.keys()));
 
     // Convert map to array and add student details
-    return Array.from(uniqueStudentsMap.values()).map(session => {
+    const result = Array.from(uniqueStudentsMap.values()).map(session => {
       const student = students.find(s => s.id === session.student_id);
       return {
         ...session,
@@ -360,6 +383,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
         student_avatar: student?.avatar_url || null
       };
     });
+
+    console.log('Final online students count:', result.length);
+    return result;
   };
 
   const getTotalStudyTime = () => {
