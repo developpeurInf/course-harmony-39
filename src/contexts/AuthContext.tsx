@@ -213,6 +213,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async (): Promise<void> => {
     try {
+      // Close any active sessions before logging out
+      if (user && user.role === 'student') {
+        console.log('Closing active sessions before logout for user:', user.id);
+        
+        const now = new Date();
+        
+        // Get all active sessions for this user
+        const { data: activeSessions } = await supabase
+          .from('student_sessions')
+          .select('id, session_start, room_id')
+          .eq('student_id', user.id)
+          .eq('is_active', true);
+
+        console.log('Found active sessions to close:', activeSessions?.length || 0);
+
+        // Close all active sessions
+        if (activeSessions && activeSessions.length > 0) {
+          for (const session of activeSessions) {
+            const startTime = new Date(session.session_start);
+            const durationMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
+            
+            const { error: updateError } = await supabase
+              .from('student_sessions')
+              .update({
+                session_end: now.toISOString(),
+                is_active: false,
+                duration_minutes: durationMinutes,
+              })
+              .eq('id', session.id);
+
+            if (updateError) {
+              console.error('Error closing session:', updateError);
+            } else {
+              console.log('Closed session:', session.id);
+            }
+
+            // Log logout activity
+            await supabase.from('student_activities').insert({
+              student_id: user.id,
+              room_id: session.room_id,
+              session_id: session.id,
+              activity_type: 'logout',
+              activity_data: {
+                timestamp: now.toISOString(),
+                duration_minutes: durationMinutes,
+              },
+            });
+          }
+        }
+      }
+
+      // Now sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         toast.error("Logout failed");
@@ -220,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toast.info("You have been logged out");
       }
     } catch (error) {
+      console.error('Error during logout:', error);
       toast.error("Logout failed");
     }
   };
