@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Copy, User, Mail, Key, AtSign, Calendar, Shield, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Student {
   id: string;
@@ -32,6 +33,23 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
 }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showAvatarDialog, setShowAvatarDialog] = useState(false);
+
+  // Get avatar URL - use public URL from Supabase storage
+  const getAvatarUrl = () => {
+    if (!student?.avatar_url) return undefined;
+    
+    // If it's already a full URL, return it
+    if (student.avatar_url.startsWith('http')) {
+      return student.avatar_url;
+    }
+    
+    // Otherwise, construct the public URL
+    const { data } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(student.avatar_url);
+    
+    return data.publicUrl;
+  };
 
   const copyToClipboard = async (text: string, fieldName: string) => {
     try {
@@ -123,15 +141,15 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
-              <Avatar 
-                className="h-12 w-12 cursor-pointer hover:opacity-80 transition-opacity" 
-                onClick={() => student.avatar_url && setShowAvatarDialog(true)}
-              >
-                <AvatarImage src={student.avatar_url || undefined} />
-                <AvatarFallback>
-                  {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+            <Avatar 
+              className="h-12 w-12 cursor-pointer hover:opacity-80 transition-opacity" 
+              onClick={() => student.avatar_url && setShowAvatarDialog(true)}
+            >
+              <AvatarImage src={getAvatarUrl()} />
+              <AvatarFallback>
+                {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
             <div>
               <div className="text-xl">{student.name}</div>
               <div className="text-sm text-muted-foreground font-normal">
@@ -209,7 +227,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
         </AlertDialogHeader>
         <div className="flex items-center justify-center p-4">
           <img 
-            src={student.avatar_url || undefined} 
+            src={getAvatarUrl()} 
             alt={`${student.name}'s avatar`}
             className="max-w-full max-h-[70vh] object-contain rounded-lg"
           />

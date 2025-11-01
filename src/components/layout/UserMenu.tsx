@@ -19,6 +19,23 @@ export const UserMenu = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
 
+  // Get avatar URL - use public URL from Supabase storage
+  const getAvatarUrl = () => {
+    if (!user?.avatar_url) return undefined;
+    
+    // If it's already a full URL, return it
+    if (user.avatar_url.startsWith('http')) {
+      return user.avatar_url;
+    }
+    
+    // Otherwise, construct the public URL
+    const { data } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(user.avatar_url);
+    
+    return data.publicUrl;
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/login");
@@ -29,7 +46,7 @@ export const UserMenu = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.avatar_url || undefined} />
+            <AvatarImage src={getAvatarUrl()} key={user?.avatar_url} />
             <AvatarFallback>
               {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || <User className="h-4 w-4" />}
             </AvatarFallback>
