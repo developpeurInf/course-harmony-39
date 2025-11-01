@@ -24,12 +24,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const Sidebar = () => {
   const { user } = useAuth();
@@ -37,8 +31,6 @@ const Sidebar = () => {
   const { rooms } = useCourses();
   const { roomId } = useParams();
   const [openRooms, setOpenRooms] = useState<Record<string, boolean>>({});
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const isMobile = useIsMobile();
   const isProfessor = user?.role === "professor";
 
   const { enrollments } = useCourses();
@@ -73,7 +65,7 @@ const Sidebar = () => {
       </div>
       
       <nav className="flex-1 px-4 space-y-2 py-2">
-        <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+        <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Home size={20} />
           <span>{t("nav.dashboard")}</span>
         </NavLink>
@@ -101,7 +93,6 @@ const Sidebar = () => {
                 <NavLink 
                   to={`/rooms/${room.id}/students`} 
                   className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-                  onClick={() => setMobileOpen(false)}
                 >
                   <Users size={16} />
                   <span>{t("nav.students")}</span>
@@ -110,7 +101,6 @@ const Sidebar = () => {
                 <NavLink 
                   to={`/rooms/${room.id}/students-activities`} 
                   className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-                  onClick={() => setMobileOpen(false)}
                 >
                   <Activity size={16} />
                   <span>{t("nav.studentsActivities")}</span>
@@ -119,7 +109,6 @@ const Sidebar = () => {
                 <NavLink 
                   to={`/rooms/${room.id}/courses`} 
                   className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-                  onClick={() => setMobileOpen(false)}
                 >
                   <BookOpen size={16} />
                   <span>{t("nav.courses")}</span>
@@ -128,7 +117,6 @@ const Sidebar = () => {
                 <NavLink 
                   to={`/rooms/${room.id}/exercises`} 
                   className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-                  onClick={() => setMobileOpen(false)}
                 >
                   <FileText size={16} />
                   <span>{t("nav.exercises")}</span>
@@ -137,7 +125,6 @@ const Sidebar = () => {
                 <NavLink 
                   to={`/rooms/${room.id}/exams`} 
                   className={({ isActive }) => `nav-link text-sm ${isActive ? 'active' : ''}`}
-                  onClick={() => setMobileOpen(false)}
                 >
                   <Calendar size={16} />
                   <span>{t("nav.exams")}</span>
@@ -148,17 +135,17 @@ const Sidebar = () => {
         ) : (
           /* Student: Simple navigation */
           <>
-        <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+        <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <BookOpen size={20} />
           <span>{t("nav.courses")}</span>
         </NavLink>
         
-        <NavLink to="/exercises" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+        <NavLink to="/exercises" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <FileText size={20} />
           <span>{t("nav.exercises")}</span>
         </NavLink>
         
-        <NavLink to="/exams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+        <NavLink to="/exams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Calendar size={20} />
           <span>{t("nav.exams")}</span>
         </NavLink>
@@ -169,24 +156,24 @@ const Sidebar = () => {
         <div className="border-t pt-4 mt-4">
           {isProfessor && (
             <>
-              <NavLink to="/reports" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+              <NavLink to="/reports" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 <BarChart3 size={20} />
                 <span>{t("nav.reports")}</span>
               </NavLink>
               
-              <NavLink to="/class-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+              <NavLink to="/class-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 <FolderOpen size={20} />
                 <span>{t("nav.manageClasses")}</span>
               </NavLink>
             </>
           )}
           
-          <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+          <NavLink to="/profile" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <User size={20} />
             <span>{t("nav.profile")}</span>
           </NavLink>
           
-          <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setMobileOpen(false)}>
+          <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <Settings size={20} />
             <span>{t("nav.settings")}</span>
           </NavLink>
@@ -201,20 +188,9 @@ const Sidebar = () => {
     </>
   );
 
-  if (isMobile) {
-    return (
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 p-0">
-          <div className="flex flex-col h-full bg-sidebar">
-            {sidebarContent}
-          </div>
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
+  // Render content directly - TopNav handles Sheet wrapper for mobile
   return (
-    <aside className="hidden md:flex md:w-64 flex-col bg-sidebar border-r shadow-sm">
+    <aside className="hidden md:flex flex-col h-full md:w-64 bg-sidebar border-r shadow-sm">
       {sidebarContent}
     </aside>
   );

@@ -43,7 +43,12 @@ const TopNav = () => {
             <Menu />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="p-0">
+        <SheetContent side="left" className="p-0" onClick={(e) => {
+          // Close sheet when clicking on links inside
+          if ((e.target as HTMLElement).closest('a')) {
+            setIsOpen(false);
+          }
+        }}>
           <Sidebar />
         </SheetContent>
       </Sheet>
