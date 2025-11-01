@@ -12,6 +12,7 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   avatar_url?: string;
+  room_id?: string;
 }
 
 interface AuthContextType {
@@ -60,7 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               name: profile.name,
               email: session.user.email!,
               role: profile.role as UserRole,
-              avatar_url: profile.avatar_url
+              avatar_url: profile.avatar_url,
+              room_id: profile.room_id
             });
             setSession(session);
             setIsLoggedIn(true);
@@ -96,7 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 name: profile.name,
                 email: session.user.email!,
                 role: profile.role as UserRole,
-                avatar_url: profile.avatar_url
+                avatar_url: profile.avatar_url,
+                room_id: profile.room_id
               });
               setIsLoggedIn(true);
             }

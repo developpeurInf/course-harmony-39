@@ -861,7 +861,24 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getVisibleCoursesForStudent = (studentId: string): Course[] => {
-    return getStudentCourses(studentId).filter(course => course.is_visible);
+    // Get the student's room_id from user context if this is the current user
+    const studentRoomId = user?.id === studentId ? user?.room_id : null;
+    
+    // If we have the student's room, show all visible courses in that room
+    if (studentRoomId) {
+      return courses.filter(course => 
+        course.is_visible && course.room_id === studentRoomId
+      );
+    }
+    
+    // Fallback to enrollment-based filtering for other students (e.g., professor viewing)
+    const enrolledCourseIds = enrollments
+      .filter(enr => enr.student_id === studentId)
+      .map(enr => enr.course_id);
+    
+    return courses.filter(course => 
+      course.is_visible && enrolledCourseIds.includes(course.id)
+    );
   };
 
   const getVisibleExercisesForStudent = (studentId: string): Exercise[] => {
