@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,7 @@ const Students = () => {
   const { roomId } = useParams();
   const { user, getStudents, addStudent } = useAuth();
   const { courses, enrollments, enrollStudent, removeEnrollment, refreshData, rooms } = useCourses();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const [students, setStudents] = useState<any[]>([]);
@@ -199,7 +201,7 @@ const Students = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading students...</p>
+          <p>{t("students.loading")}</p>
         </div>
       </div>
     );
@@ -220,10 +222,10 @@ const Students = () => {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Users className="h-8 w-8" />
-            Student Management
+            {t("students.management")}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage students enrolled in your courses
+            {t("students.manage.desc")}
           </p>
         </div>
         
@@ -233,7 +235,7 @@ const Students = () => {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Student
+                {t("students.add")}
               </Button>
             </DialogTrigger>
           </Dialog>
@@ -256,7 +258,7 @@ const Students = () => {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
-            placeholder="Search students by name or email..."
+            placeholder={t("students.search")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -265,10 +267,10 @@ const Students = () => {
         
         <Select value={selectedCourse} onValueChange={setSelectedCourse}>
           <SelectTrigger className="w-full sm:w-[200px]">
-            <SelectValue placeholder="Filter by course" />
+            <SelectValue placeholder={t("students.filter.course")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Courses</SelectItem>
+            <SelectItem value="all">{t("students.all.courses")}</SelectItem>
             {professorCourses.map(course => (
               <SelectItem key={course.id} value={course.id}>
                 {course.title}
@@ -304,7 +306,7 @@ const Students = () => {
                 
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Enrolled Courses:</span>
+                    <span className="text-sm text-muted-foreground">{t("students.enrolled.courses")}</span>
                     <Badge variant="secondary">
                       {getStudentCourseCount(student.id)}
                     </Badge>
@@ -328,7 +330,7 @@ const Students = () => {
                     ))}
                     {getStudentCourses(student.id).length > 3 && (
                       <p className="text-xs text-muted-foreground">
-                        +{getStudentCourses(student.id).length - 3} more courses
+                        +{getStudentCourses(student.id).length - 3} {t("students.more.courses")}
                       </p>
                     )}
                   </div>
@@ -340,7 +342,7 @@ const Students = () => {
                     onClick={() => openEnrollDialog(student)}
                   >
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Enroll in Course
+                    {t("students.enroll.in.course")}
                   </Button>
                 </CardContent>
               </Card>
@@ -351,11 +353,11 @@ const Students = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Courses</TableHead>
-                  <TableHead>Enrolled Courses</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>{t("student.name")}</TableHead>
+                  <TableHead>{t("student.email")}</TableHead>
+                  <TableHead>{t("nav.courses")}</TableHead>
+                  <TableHead>{t("students.enrolled.courses")}</TableHead>
+                  <TableHead>{t("nav.settings")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -380,7 +382,7 @@ const Students = () => {
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {getStudentCourseCount(student.id)} courses
+                        {getStudentCourseCount(student.id)} {t("students.courses")}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -392,7 +394,7 @@ const Students = () => {
                         ))}
                         {getStudentCourses(student.id).length > 2 && (
                           <span className="text-muted-foreground">
-                            +{getStudentCourses(student.id).length - 2} more
+                            +{getStudentCourses(student.id).length - 2} {t("students.more")}
                           </span>
                         )}
                       </div>
@@ -404,7 +406,7 @@ const Students = () => {
                         onClick={() => openEnrollDialog(student)}
                       >
                         <UserPlus className="h-4 w-4 mr-2" />
-                        Enroll
+                        {t("students.enroll")}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -417,11 +419,11 @@ const Students = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Students Found</h3>
+            <h3 className="text-lg font-medium mb-2">{t("students.no.found")}</h3>
             <p className="text-muted-foreground text-center">
               {searchTerm || selectedCourse !== "all" 
-                ? "No students match your current filters." 
-                : "No students are enrolled in your courses yet."}
+                ? t("students.no.match")
+                : t("students.no.enrolled")}
             </p>
           </CardContent>
         </Card>
@@ -431,18 +433,18 @@ const Students = () => {
       <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Enroll Student in Course</DialogTitle>
+            <DialogTitle>{t("students.enroll.title")}</DialogTitle>
             <DialogDescription>
-              Select a course to enroll {selectedStudent?.name} in.
+              {t("students.enroll.desc")} {selectedStudent?.name}.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="course">Course</Label>
+              <Label htmlFor="course">{t("students.course")}</Label>
               <Select value={enrollCourseId} onValueChange={setEnrollCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a course" />
+                  <SelectValue placeholder={t("students.select.course")} />
                 </SelectTrigger>
                 <SelectContent>
                   {professorCourses.map(course => {
@@ -457,7 +459,7 @@ const Students = () => {
                         value={course.id}
                         disabled={isEnrolled}
                       >
-                        {course.title} {isEnrolled && "(Already enrolled)"}
+                        {course.title} {isEnrolled && `(${t("students.already.enrolled")})`}
                       </SelectItem>
                     );
                   })}
@@ -468,13 +470,13 @@ const Students = () => {
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEnrollDialogOpen(false)}>
-              Cancel
+              {t("app.cancel")}
             </Button>
             <Button 
               onClick={handleEnrollStudent}
               disabled={!enrollCourseId}
             >
-              Enroll Student
+              {t("students.enroll")} {t("student.name")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -778,6 +778,142 @@ const translations: Translations = {
     en: "Toggle theme",
     fr: "Changer de thème",
     ar: "تبديل المظهر"
+  },
+  
+  // Students Management
+  "students.management": {
+    en: "Student Management",
+    fr: "Gestion des étudiants",
+    ar: "إدارة الطلاب"
+  },
+  "students.manage.desc": {
+    en: "Manage students enrolled in your courses",
+    fr: "Gérer les étudiants inscrits à vos cours",
+    ar: "إدارة الطلاب المسجلين في دوراتك"
+  },
+  "students.add": {
+    en: "Add Student",
+    fr: "Ajouter un étudiant",
+    ar: "إضافة طالب"
+  },
+  "students.search": {
+    en: "Search students by name or email...",
+    fr: "Rechercher des étudiants par nom ou e-mail...",
+    ar: "البحث عن الطلاب بالاسم أو البريد الإلكتروني..."
+  },
+  "students.filter.course": {
+    en: "Filter by course",
+    fr: "Filtrer par cours",
+    ar: "تصفية حسب الدورة"
+  },
+  "students.all.courses": {
+    en: "All Courses",
+    fr: "Tous les cours",
+    ar: "جميع الدورات"
+  },
+  "students.enrolled.courses": {
+    en: "Enrolled Courses:",
+    fr: "Cours inscrits :",
+    ar: "الدورات المسجلة:"
+  },
+  "students.enroll.in.course": {
+    en: "Enroll in Course",
+    fr: "Inscrire au cours",
+    ar: "التسجيل في الدورة"
+  },
+  "students.enroll": {
+    en: "Enroll",
+    fr: "Inscrire",
+    ar: "تسجيل"
+  },
+  "students.enroll.title": {
+    en: "Enroll Student in Course",
+    fr: "Inscrire l'étudiant au cours",
+    ar: "تسجيل الطالب في الدورة"
+  },
+  "students.enroll.desc": {
+    en: "Select a course to enroll",
+    fr: "Sélectionnez un cours pour inscrire",
+    ar: "اختر دورة للتسجيل"
+  },
+  "students.select.course": {
+    en: "Select a course",
+    fr: "Sélectionner un cours",
+    ar: "اختر دورة"
+  },
+  "students.already.enrolled": {
+    en: "Already enrolled",
+    fr: "Déjà inscrit",
+    ar: "مسجل بالفعل"
+  },
+  "students.course": {
+    en: "Course",
+    fr: "Cours",
+    ar: "الدورة"
+  },
+  "students.courses": {
+    en: "courses",
+    fr: "cours",
+    ar: "دورات"
+  },
+  "students.loading": {
+    en: "Loading students...",
+    fr: "Chargement des étudiants...",
+    ar: "جاري تحميل الطلاب..."
+  },
+  "students.no.found": {
+    en: "No Students Found",
+    fr: "Aucun étudiant trouvé",
+    ar: "لم يتم العثور على طلاب"
+  },
+  "students.no.match": {
+    en: "No students match your current filters.",
+    fr: "Aucun étudiant ne correspond à vos filtres actuels.",
+    ar: "لا يوجد طلاب يطابقون المرشحات الحالية."
+  },
+  "students.no.enrolled": {
+    en: "No students are enrolled in your courses yet.",
+    fr: "Aucun étudiant n'est encore inscrit à vos cours.",
+    ar: "لا يوجد طلاب مسجلون في دوراتك حتى الآن."
+  },
+  "students.more.courses": {
+    en: "more courses",
+    fr: "cours supplémentaires",
+    ar: "دورات إضافية"
+  },
+  "students.more": {
+    en: "more",
+    fr: "plus",
+    ar: "المزيد"
+  },
+  
+  // Students Activities
+  "activities.title": {
+    en: "Students Activities",
+    fr: "Activités des étudiants",
+    ar: "أنشطة الطلاب"
+  },
+  "activities.desc": {
+    en: "Monitor student activities, sessions, and online status",
+    fr: "Surveiller les activités, les sessions et le statut en ligne des étudiants",
+    ar: "مراقبة أنشطة الطلاب والجلسات والحالة عبر الإنترنت"
+  },
+  
+  // Dashboard Welcome
+  "dashboard.welcome.platform": {
+    en: "Welcome to Your Teaching Platform",
+    fr: "Bienvenue sur votre plateforme d'enseignement",
+    ar: "مرحباً بك في منصة التدريس الخاصة بك"
+  },
+  "dashboard.get.started": {
+    en: "Get started by creating your first room. Rooms help you organize your courses, students, and academic content.",
+    fr: "Commencez par créer votre première salle. Les salles vous aident à organiser vos cours, étudiants et contenu académique.",
+    ar: "ابدأ بإنشاء غرفتك الأولى. تساعدك الغرف في تنظيم دوراتك وطلابك والمحتوى الأكاديمي."
+  },
+  "dashboard.create.first.room": {
+    en: "Create Your First Room",
+    fr: "Créer votre première salle",
+    ar: "إنشاء غرفتك الأولى"
   }
 };
 

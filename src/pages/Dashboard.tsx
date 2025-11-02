@@ -176,9 +176,9 @@ const Dashboard = () => {
         <Card className="p-8 text-center border-dashed">
           <CardHeader>
             <Building className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <CardTitle>Welcome to Your Teaching Platform</CardTitle>
+            <CardTitle>{t("dashboard.welcome.platform")}</CardTitle>
             <CardDescription className="text-base">
-              Get started by creating your first room. Rooms help you organize your courses, students, and academic content.
+              {t("dashboard.get.started")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -188,7 +188,7 @@ const Dashboard = () => {
               className="mt-4"
             >
               <Building className="mr-2 h-4 w-4" />
-              Create Your First Room
+              {t("dashboard.create.first.room")}
             </Button>
           </CardContent>
         </Card>
