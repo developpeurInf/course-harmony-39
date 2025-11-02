@@ -617,6 +617,167 @@ const translations: Translations = {
     en: "Return to Home",
     fr: "Retour à l'accueil",
     ar: "العودة إلى الصفحة الرئيسية"
+  },
+  
+  // Students
+  "student.edit": {
+    en: "Edit Student",
+    fr: "Modifier l'étudiant",
+    ar: "تعديل الطالب"
+  },
+  "student.edit.desc": {
+    en: "Update the student's information below.",
+    fr: "Mettez à jour les informations de l'étudiant ci-dessous.",
+    ar: "قم بتحديث معلومات الطالب أدناه."
+  },
+  "student.name": {
+    en: "Full Name",
+    fr: "Nom complet",
+    ar: "الاسم الكامل"
+  },
+  "student.username": {
+    en: "Username",
+    fr: "Nom d'utilisateur",
+    ar: "اسم المستخدم"
+  },
+  "student.email": {
+    en: "Email",
+    fr: "E-mail",
+    ar: "البريد الإلكتروني"
+  },
+  "student.update": {
+    en: "Update Student",
+    fr: "Mettre à jour l'étudiant",
+    ar: "تحديث الطالب"
+  },
+  "student.updating": {
+    en: "Updating...",
+    fr: "Mise à jour...",
+    ar: "جاري التحديث..."
+  },
+  "student.required": {
+    en: "Name is required",
+    fr: "Le nom est obligatoire",
+    ar: "الاسم مطلوب"
+  },
+  "student.updated": {
+    en: "Student updated successfully",
+    fr: "Étudiant mis à jour avec succès",
+    ar: "تم تحديث الطالب بنجاح"
+  },
+  "student.update.failed": {
+    en: "Failed to update student",
+    fr: "Échec de la mise à jour de l'étudiant",
+    ar: "فشل تحديث الطالب"
+  },
+  "student.placeholder.name": {
+    en: "Enter full name",
+    fr: "Entrer le nom complet",
+    ar: "أدخل الاسم الكامل"
+  },
+  "student.placeholder.username": {
+    en: "Enter username",
+    fr: "Entrer le nom d'utilisateur",
+    ar: "أدخل اسم المستخدم"
+  },
+  "student.placeholder.email": {
+    en: "Enter email",
+    fr: "Entrer l'e-mail",
+    ar: "أدخل البريد الإلكتروني"
+  },
+  
+  // Password
+  "password.change": {
+    en: "Change Password",
+    fr: "Changer le mot de passe",
+    ar: "تغيير كلمة المرور"
+  },
+  "password.current": {
+    en: "Current Password",
+    fr: "Mot de passe actuel",
+    ar: "كلمة المرور الحالية"
+  },
+  "password.temp": {
+    en: "Temporary Password",
+    fr: "Mot de passe temporaire",
+    ar: "كلمة المرور المؤقتة"
+  },
+  "password.new": {
+    en: "New Password",
+    fr: "Nouveau mot de passe",
+    ar: "كلمة مرور جديدة"
+  },
+  "password.confirm": {
+    en: "Confirm New Password",
+    fr: "Confirmer le nouveau mot de passe",
+    ar: "تأكيد كلمة المرور الجديدة"
+  },
+  "password.update": {
+    en: "Update Password",
+    fr: "Mettre à jour le mot de passe",
+    ar: "تحديث كلمة المرور"
+  },
+  "password.updating": {
+    en: "Updating...",
+    fr: "Mise à jour...",
+    ar: "جاري التحديث..."
+  },
+  "password.mismatch": {
+    en: "New passwords don't match",
+    fr: "Les nouveaux mots de passe ne correspondent pas",
+    ar: "كلمات المرور الجديدة غير متطابقة"
+  },
+  "password.length": {
+    en: "Password must be at least 6 characters long",
+    fr: "Le mot de passe doit contenir au moins 6 caractères",
+    ar: "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل"
+  },
+  "password.incorrect": {
+    en: "Current password is incorrect",
+    fr: "Le mot de passe actuel est incorrect",
+    ar: "كلمة المرور الحالية غير صحيحة"
+  },
+  "password.updated": {
+    en: "Password updated successfully",
+    fr: "Mot de passe mis à jour avec succès",
+    ar: "تم تحديث كلمة المرور بنجاح"
+  },
+  "password.failed": {
+    en: "Failed to update password",
+    fr: "Échec de la mise à jour du mot de passe",
+    ar: "فشل تحديث كلمة المرور"
+  },
+  "password.temp.desc": {
+    en: "You're currently using a temporary password. Please set a new password.",
+    fr: "Vous utilisez actuellement un mot de passe temporaire. Veuillez définir un nouveau mot de passe.",
+    ar: "أنت تستخدم حالياً كلمة مرور مؤقتة. يرجى تعيين كلمة مرور جديدة."
+  },
+  "password.current.desc": {
+    en: "Enter your current password and choose a new one.",
+    fr: "Entrez votre mot de passe actuel et choisissez-en un nouveau.",
+    ar: "أدخل كلمة المرور الحالية واختر واحدة جديدة."
+  },
+  
+  // Theme
+  "theme.light": {
+    en: "Light",
+    fr: "Clair",
+    ar: "فاتح"
+  },
+  "theme.dark": {
+    en: "Dark",
+    fr: "Sombre",
+    ar: "داكن"
+  },
+  "theme.system": {
+    en: "System",
+    fr: "Système",
+    ar: "النظام"
+  },
+  "theme.toggle": {
+    en: "Toggle theme",
+    fr: "Changer de thème",
+    ar: "تبديل المظهر"
   }
 };
 

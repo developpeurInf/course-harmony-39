@@ -3,6 +3,8 @@ import AuthForm from "@/components/AuthForm";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { LanguageSelector } from "@/components/LanguageSelector";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Login = () => {
   const { isLoggedIn, loading } = useAuth();
@@ -23,7 +25,15 @@ const Login = () => {
     );
   }
 
-  return <AuthForm />;
+  return (
+    <div className="min-h-screen relative">
+      <div className="absolute top-4 right-4 flex gap-2">
+        <LanguageSelector />
+        <ThemeToggle />
+      </div>
+      <AuthForm />
+    </div>
+  );
 };
 
 export default Login;

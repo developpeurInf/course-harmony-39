@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Student {
   id: string;
@@ -24,6 +25,7 @@ interface EditStudentDialogProps {
 }
 
 export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }: EditStudentDialogProps) => {
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -39,7 +41,7 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
 
   const handleUpdate = async () => {
     if (!student || !name.trim()) {
-      toast.error("Name is required");
+      toast.error(t("student.required"));
       return;
     }
 
@@ -60,23 +62,23 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
       console.log('Update result:', { data, error });
 
       if (error) {
-        toast.error("Failed to update student: " + error.message);
+        toast.error(t("student.update.failed") + ": " + error.message);
         console.error('Error updating student:', error);
         return;
       }
 
       if (!data || data.length === 0) {
-        toast.error("No student was updated. Check permissions.");
+        toast.error(t("student.update.failed"));
         console.error('No data returned from update');
         return;
       }
 
-      toast.success("Student updated successfully");
+      toast.success(t("student.updated"));
       onStudentUpdated();
       onClose();
     } catch (error) {
       console.error('Error updating student:', error);
-      toast.error("Failed to update student");
+      toast.error(t("student.update.failed"));
     } finally {
       setIsUpdating(false);
     }
@@ -86,47 +88,47 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Edit Student</DialogTitle>
+          <DialogTitle>{t("student.edit")}</DialogTitle>
           <DialogDescription>
-            Update the student's information below.
+            {t("student.edit.desc")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="name">Full Name *</Label>
+            <Label htmlFor="name">{t("student.name")} *</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter full name"
+              placeholder={t("student.placeholder.name")}
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username">{t("student.username")}</Label>
             <Input
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
+              placeholder={t("student.placeholder.username")}
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("student.email")}</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter email"
+              placeholder={t("student.placeholder.email")}
             />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t("app.cancel")}
           </Button>
           <Button onClick={handleUpdate} disabled={isUpdating}>
-            {isUpdating ? "Updating..." : "Update Student"}
+            {isUpdating ? t("student.updating") : t("student.update")}
           </Button>
         </DialogFooter>
       </DialogContent>
