@@ -898,6 +898,161 @@ const translations: Translations = {
     fr: "Surveiller les activités, les sessions et le statut en ligne des étudiants",
     ar: "مراقبة أنشطة الطلاب والجلسات والحالة عبر الإنترنت"
   },
+  "activities.student.activities": {
+    en: "Student Activities",
+    fr: "Activités des étudiants",
+    ar: "أنشطة الطلاب"
+  },
+  "activities.monitor": {
+    en: "Monitor and track student engagement and activity",
+    fr: "Surveiller et suivre l'engagement et l'activité des étudiants",
+    ar: "مراقبة وتتبع مشاركة الطلاب ونشاطهم"
+  },
+  "activities.export": {
+    en: "Export Activities",
+    fr: "Exporter les activités",
+    ar: "تصدير الأنشطة"
+  },
+  "activities.total.students": {
+    en: "Total Students",
+    fr: "Total étudiants",
+    ar: "إجمالي الطلاب"
+  },
+  "activities.online.now": {
+    en: "Online Now",
+    fr: "En ligne maintenant",
+    ar: "متصل الآن"
+  },
+  "activities.total.study.time": {
+    en: "Total Study Time",
+    fr: "Temps d'étude total",
+    ar: "إجمالي وقت الدراسة"
+  },
+  "activities.today": {
+    en: "Activities Today",
+    fr: "Activités aujourd'hui",
+    ar: "الأنشطة اليوم"
+  },
+  "activities.search": {
+    en: "Search",
+    fr: "Rechercher",
+    ar: "بحث"
+  },
+  "activities.search.placeholder": {
+    en: "Search students or activities...",
+    fr: "Rechercher des étudiants ou des activités...",
+    ar: "البحث عن الطلاب أو الأنشطة..."
+  },
+  "activities.student.filter": {
+    en: "Student",
+    fr: "Étudiant",
+    ar: "طالب"
+  },
+  "activities.all.students": {
+    en: "All Students",
+    fr: "Tous les étudiants",
+    ar: "جميع الطلاب"
+  },
+  "activities.select.student": {
+    en: "Select student",
+    fr: "Sélectionner un étudiant",
+    ar: "اختر طالباً"
+  },
+  "activities.date.range": {
+    en: "Date Range",
+    fr: "Période",
+    ar: "نطاق التاريخ"
+  },
+  "activities.last.week": {
+    en: "Last Week",
+    fr: "Dernière semaine",
+    ar: "الأسبوع الماضي"
+  },
+  "activities.last.month": {
+    en: "Last Month",
+    fr: "Le mois dernier",
+    ar: "الشهر الماضي"
+  },
+  "activities.last.3.months": {
+    en: "Last 3 Months",
+    fr: "3 derniers mois",
+    ar: "آخر 3 أشهر"
+  },
+  "activities.activities": {
+    en: "Activities",
+    fr: "Activités",
+    ar: "الأنشطة"
+  },
+  "activities.sessions": {
+    en: "Sessions",
+    fr: "Sessions",
+    ar: "الجلسات"
+  },
+  "activities.online.students": {
+    en: "Online Students",
+    fr: "Étudiants en ligne",
+    ar: "الطلاب المتصلون"
+  },
+  "activities.no.online": {
+    en: "No students are currently online",
+    fr: "Aucun étudiant n'est actuellement en ligne",
+    ar: "لا يوجد طلاب متصلون حالياً"
+  },
+  "activities.active.for": {
+    en: "Active for",
+    fr: "Actif depuis",
+    ar: "نشط منذ"
+  },
+  "activities.last.active": {
+    en: "Last active",
+    fr: "Dernière activité",
+    ar: "آخر نشاط"
+  },
+  "activities.tracking.ready": {
+    en: "Activity Tracking Ready",
+    fr: "Suivi des activités prêt",
+    ar: "تتبع النشاط جاهز"
+  },
+  "activities.tracking.desc": {
+    en: "The activity tracking system is set up. Student activities will appear here once students start using the platform.",
+    fr: "Le système de suivi des activités est configuré. Les activités des étudiants apparaîtront ici une fois qu'ils commenceront à utiliser la plateforme.",
+    ar: "تم إعداد نظام تتبع النشاط. ستظهر أنشطة الطلاب هنا بمجرد أن يبدأوا في استخدام المنصة."
+  },
+  "activities.no.activities": {
+    en: "No activities found",
+    fr: "Aucune activité trouvée",
+    ar: "لم يتم العثور على أنشطة"
+  },
+  "activities.no.sessions": {
+    en: "No sessions found",
+    fr: "Aucune session trouvée",
+    ar: "لم يتم العثور على جلسات"
+  },
+  "activities.session.started": {
+    en: "Session started",
+    fr: "Session démarrée",
+    ar: "بدأت الجلسة"
+  },
+  "activities.duration": {
+    en: "Duration",
+    fr: "Durée",
+    ar: "المدة"
+  },
+  "activities.minutes": {
+    en: "minutes",
+    fr: "minutes",
+    ar: "دقائق"
+  },
+  "activities.active": {
+    en: "Active",
+    fr: "Actif",
+    ar: "نشط"
+  },
+  "activities.ended": {
+    en: "Ended",
+    fr: "Terminé",
+    ar: "انتهى"
+  },
   
   // Dashboard Welcome
   "dashboard.welcome.platform": {

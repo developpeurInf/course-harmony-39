@@ -11,6 +11,7 @@ import { Clock, Download, Eye, User, Activity, Calendar, TrendingUp } from "luci
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { format, formatDistanceToNow } from "date-fns";
 
 interface StudentActivity {
@@ -50,6 +51,7 @@ interface StudentActivityProps {
 
 const StudentActivities = ({ roomId }: StudentActivityProps) => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [activities, setActivities] = useState<StudentActivity[]>([]);
   const [sessions, setSessions] = useState<StudentSession[]>([]);
   const [allActiveSessions, setAllActiveSessions] = useState<StudentSession[]>([]);
@@ -407,14 +409,14 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Student Activities</h2>
+          <h2 className="text-2xl font-bold">{t("activities.student.activities")}</h2>
           <p className="text-muted-foreground">
-            Monitor and track student engagement and activity
+            {t("activities.monitor")}
           </p>
         </div>
         <Button onClick={exportActivities} variant="outline">
           <Download className="h-4 w-4 mr-2" />
-          Export Activities
+          {t("activities.export")}
         </Button>
       </div>
 
@@ -422,7 +424,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("activities.total.students")}</CardTitle>
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -432,7 +434,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Online Now</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("activities.online.now")}</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -444,7 +446,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Study Time</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("activities.total.study.time")}</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -456,7 +458,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Activities Today</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("activities.today")}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -472,23 +474,23 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       {/* Filters */}
       <div className="flex flex-wrap gap-4 items-end">
         <div className="flex-1 min-w-[200px]">
-          <Label htmlFor="search">Search</Label>
+          <Label htmlFor="search">{t("activities.search")}</Label>
           <Input
             id="search"
-            placeholder="Search students or activities..."
+            placeholder={t("activities.search.placeholder")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
         <div className="min-w-[150px]">
-          <Label htmlFor="student-filter">Student</Label>
+          <Label htmlFor="student-filter">{t("activities.student.filter")}</Label>
           <Select value={selectedStudent} onValueChange={setSelectedStudent}>
             <SelectTrigger>
-              <SelectValue placeholder="Select student" />
+              <SelectValue placeholder={t("activities.select.student")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Students</SelectItem>
+              <SelectItem value="all">{t("activities.all.students")}</SelectItem>
               {students.map((student) => (
                 <SelectItem key={student.id} value={student.id}>
                   {student.name}
@@ -499,16 +501,16 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
         </div>
 
         <div className="min-w-[120px]">
-          <Label htmlFor="date-range">Date Range</Label>
+          <Label htmlFor="date-range">{t("activities.date.range")}</Label>
           <Select value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1">Last Day</SelectItem>
-              <SelectItem value="7">Last Week</SelectItem>
-              <SelectItem value="30">Last Month</SelectItem>
-              <SelectItem value="90">Last 3 Months</SelectItem>
+              <SelectItem value="1">{t("activities.last.week")}</SelectItem>
+              <SelectItem value="7">{t("activities.last.week")}</SelectItem>
+              <SelectItem value="30">{t("activities.last.month")}</SelectItem>
+              <SelectItem value="90">{t("activities.last.3.months")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -517,24 +519,24 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       {/* Activity Tabs */}
       <Tabs defaultValue="activities" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="activities">Activities</TabsTrigger>
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="online">Online Students</TabsTrigger>
+          <TabsTrigger value="activities">{t("activities.activities")}</TabsTrigger>
+          <TabsTrigger value="sessions">{t("activities.sessions")}</TabsTrigger>
+          <TabsTrigger value="online">{t("activities.online.students")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="activities" className="space-y-4">
           {loading ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Loading activities...</p>
+              <p className="text-muted-foreground">{t("students.loading")}</p>
             </div>
           ) : filteredActivities.length === 0 ? (
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Activities Found</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("activities.no.activities")}</h3>
                   <p className="text-muted-foreground">
-                    No student activities match your current filters.
+                    {t("activities.tracking.desc")}
                   </p>
                 </div>
               </CardContent>
@@ -544,9 +546,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Activity Tracking Ready</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("activities.tracking.ready")}</h3>
                   <p className="text-muted-foreground">
-                    The activity tracking system is set up. Student activities will appear here once students start using the platform.
+                    {t("activities.tracking.desc")}
                   </p>
                 </div>
               </CardContent>
@@ -560,9 +562,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Sessions Found</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("activities.no.sessions")}</h3>
                   <p className="text-muted-foreground">
-                    No student sessions match your current filters.
+                    {t("activities.tracking.desc")}
                   </p>
                 </div>
               </CardContent>
@@ -572,9 +574,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Session Tracking Ready</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("activities.tracking.ready")}</h3>
                   <p className="text-muted-foreground">
-                    Student sessions will be tracked here once students start logging in and using the platform.
+                    {t("activities.tracking.desc")}
                   </p>
                 </div>
               </CardContent>
@@ -588,9 +590,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <Eye className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Students Online</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("activities.online.students")}</h3>
                   <p className="text-muted-foreground">
-                    No students are currently active on the platform.
+                    {t("activities.no.online")}
                   </p>
                 </div>
               </CardContent>
@@ -619,7 +621,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                           <div className="flex items-center space-x-1 mt-1">
                             <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
                             <p className="text-xs text-muted-foreground">
-                              Active {formatDistanceToNow(new Date(onlineSession.last_activity), { addSuffix: true })}
+                              {t("activities.active.for")} {formatDistanceToNow(new Date(onlineSession.last_activity), { addSuffix: true })}
                             </p>
                           </div>
                       </div>
