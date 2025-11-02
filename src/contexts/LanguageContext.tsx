@@ -630,10 +630,10 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  // Get saved language or default to English
+  // Get saved language or default to French
   const [language, setLanguage] = useState<Language>(() => {
     const savedLanguage = localStorage.getItem("maataoui-language");
-    return (savedLanguage as Language) || "en";
+    return (savedLanguage as Language) || "fr";
   });
 
   // Save language to localStorage when it changes
