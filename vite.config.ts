@@ -10,16 +10,12 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  build: {
-    // Target ES2015 so the main bundle is readable by Safari 12+
-    target: ['es2015', 'safari12'],
-  },
   plugins: [
     react(),
     legacy({
-      // Generate a legacy bundle for very old browsers (Safari < 12)
-      targets: ['iOS >= 11', 'Safari >= 11'],
-      modernPolyfills: ['es.promise.finally', 'es/global-this'],
+      targets: ['defaults', 'not IE 11', 'iOS >= 11', 'Safari >= 11'],
+      modernTargets: ['safari >= 12', 'iOS >= 12'],
+      modernPolyfills: true,
     }),
     mode === 'development' &&
     componentTagger(),

@@ -1,3 +1,4 @@
+import './polyfills'
 import { createRoot } from 'react-dom/client'
 import './lib/toast-interceptor'
 import './index.css'
