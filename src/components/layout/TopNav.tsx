@@ -27,7 +27,7 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 
 const TopNav = () => {
   const { user, logout } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -56,10 +56,10 @@ const TopNav = () => {
 
       <div className="flex items-center space-x-4 ml-4 md:ml-0">
         <h1 className="text-xl font-bold text-gradient hidden sm:block">
-          MAATAOUI Academy
+          {language === "ar" ? "أكاديمية المعطاوي" : "MAATAOUI Academy"}
         </h1>
         <h1 className="text-lg font-bold text-gradient sm:hidden">
-          MA
+          {language === "ar" ? "المعطاوي" : "MA"}
         </h1>
       </div>
 
