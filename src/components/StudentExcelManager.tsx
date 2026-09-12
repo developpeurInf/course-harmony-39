@@ -87,25 +87,52 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     setSelectedFile(file);
   };
 
+  // Safe ArrayBuffer reader compatible with iOS 12 Safari
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            resolve(e.target.result as ArrayBuffer);
+          } else {
+            reject(new Error('Empty file read result'));
+          }
+        };
+        reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+        reader.readAsArrayBuffer(file);
+      } catch (err) {
+        if (typeof file.arrayBuffer === 'function') {
+          file.arrayBuffer().then(resolve).catch(reject);
+        } else {
+          reject(err);
+        }
+      }
+    });
+  };
+
   // Helper to extract value from row matching various possible column headers
   const getRowVal = (row: any, candidates: string[]): string => {
     for (const [key, val] of Object.entries(row)) {
-      const cleanKey = key.trim().toLowerCase();
+      if (val === null || val === undefined) continue;
+      const cleanKey = key.toString().trim().toLowerCase().replace(/[_\-\s]+/g, ' ');
       for (const cand of candidates) {
-        if (cleanKey === cand.trim().toLowerCase()) {
-          return String(val ?? '').trim();
+        const cleanCand = cand.trim().toLowerCase().replace(/[_\-\s]+/g, ' ');
+        if (cleanKey === cleanCand || cleanKey.includes(cleanCand)) {
+          const strVal = String(val).trim();
+          if (strVal) return strVal;
         }
       }
     }
     return '';
   };
 
-  // Parse Excel file and import students
   // Download a template Excel file
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
       { 'الاسم': 'أحمد', 'النسب': 'العلوي' },
-      { 'الاسم': 'فاطمة', 'النسب': 'الزهراء' }
+      { 'الاسم': 'فاطمة', 'النسب': 'الزهراء' },
+      { 'الاسم': 'يوسف', 'النسب': 'المرابط' }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Students");
@@ -117,35 +144,87 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
     setImporting(true);
     try {
-      const data = await selectedFile.arrayBuffer();
+      // 1. Read file with iOS-safe FileReader
+      const data = await readFileAsArrayBuffer(selectedFile);
       const workbook = XLSX.read(data, { type: 'array' });
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new Error(language === "ar" ? "الملف فارغ أو غير صالح" : "Empty or invalid Excel file");
+      }
+
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
 
+      if (!jsonData || jsonData.length === 0) {
+        toast.error(language === "ar" ? "ملف Excel فارغ أو لا يحتوي على صفوف بيانات" : "Excel file is empty or has no data rows");
+        return;
+      }
+
       const studentsToCreate: StudentData[] = [];
+      const usedUsernames = new Set<string>();
 
       // Process each row
       for (const row of jsonData) {
-        // Support French (Prénom/Nom), English (First name/Last name), and Arabic (الاسم/النسب)
-        const prenom = getRowVal(row, [
-          'Prénom', 'prenom', 'Prenom', 'Prenoms', 'Prénoms',
-          'First name', 'First Name', 'firstname', 'FirstName', 'First_Name', 'first_name',
-          'الاسم', 'اسم', 'الإسم', 'إسم', 'الاسم الشخصي'
+        // Support French, English, Arabic, and Massar column headers
+        let prenom = getRowVal(row, [
+          'Prénom', 'prenom', 'Prenoms', 'Prénoms',
+          'First name', 'First Name', 'firstname', 'first_name',
+          'الاسم', 'اسم', 'الإسم', 'إسم', 'الاسم الشخصي', 'الاسم الشخصي بالعربية', 'الاسم الشخصي بالفرنسية'
         ]);
 
-        const nom = getRowVal(row, [
+        let nom = getRowVal(row, [
           'Nom', 'nom', 'Noms',
-          'Last name', 'Last Name', 'lastname', 'LastName', 'Last_Name', 'last_name',
-          'النسب', 'نسب', 'اللقب', 'لقب', 'الاسم العائلي'
+          'Last name', 'Last Name', 'lastname', 'last_name',
+          'النسب', 'نسب', 'اللقب', 'لقب', 'الاسم العائلي', 'الاسم العائلي بالعربية', 'الاسم العائلي بالفرنسية'
         ]);
+
+        // If not found in separate columns, check for combined full name column
+        if (!prenom || !nom) {
+          const fullName = getRowVal(row, [
+            'Nom et Prénom', 'Nom & Prénom', 'Nom et Prenom', 'Nom Prénom', 'Nom Prenom',
+            'Nom complet', 'Nom Complet', 'Full Name', 'fullname',
+            'الاسم الكامل', 'الاسم والنسب', 'اسم التلميذ', 'التلميذ'
+          ]);
+
+          if (fullName) {
+            const parts = fullName.trim().split(/\s+/);
+            if (parts.length >= 2) {
+              nom = parts[0];
+              prenom = parts.slice(1).join(' ');
+            } else if (parts.length === 1) {
+              nom = parts[0];
+              prenom = parts[0];
+            }
+          }
+        }
+
+        // Positional fallback: if still empty, take first two non-numeric string values
+        if (!prenom || !nom) {
+          const textValues = Object.values(row)
+            .map(v => String(v ?? '').trim())
+            .filter(v => v.length > 0 && isNaN(Number(v)) && !/^\d+$/.test(v));
+
+          if (textValues.length >= 2) {
+            prenom = textValues[0];
+            nom = textValues[1];
+          }
+        }
 
         if (!prenom.trim() || !nom.trim()) {
-          console.warn('Skipping row with missing name:', row);
+          console.warn('Skipping unparseable row:', row);
           continue;
         }
 
-        const username = generateUsername(prenom.trim(), nom.trim());
+        // Generate clean unique username
+        const baseUsername = generateUsername(prenom.trim(), nom.trim());
+        let username = baseUsername;
+        let counter = 1;
+        while (usedUsernames.has(username)) {
+          username = `${baseUsername}${counter}`;
+          counter++;
+        }
+        usedUsernames.add(username);
+
         const temporaryPassword = generateTempPassword();
 
         studentsToCreate.push({
@@ -157,7 +236,11 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       }
 
       if (studentsToCreate.length === 0) {
-        toast.error(language === "ar" ? "لم يتم العثور على بيانات تلاميذ صالحة في ملف Excel" : "No valid student data found in the Excel file");
+        toast.error(
+          language === "ar"
+            ? "لم يتم العثور على بيانات تلاميذ صالحة في ملف Excel. تأكد من وجود عمودي الاسم والنسب."
+            : "No valid student data found in the Excel file. Please ensure 'First name' and 'Last name' columns exist."
+        );
         return;
       }
 
@@ -171,12 +254,9 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           }
         });
 
-        console.log('Edge function result:', result);
-        console.log('Edge function error:', functionError);
-
         if (functionError) {
           console.error('Edge function error:', functionError);
-          toast.error("Failed to create students: " + functionError.message);
+          toast.error((language === "ar" ? "فشل إنشاء حسابات التلاميذ: " : "Failed to create students: ") + functionError.message);
           return;
         }
 
@@ -185,30 +265,41 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           
           if (result.errors && result.errors.length > 0) {
             console.warn('Some students failed to create:', result.errors);
-            toast.error(`Created ${result.created} out of ${result.total} students. Some failed - check console for details.`);
-            
-            // Still consider it partially successful, so refresh the parent
+            toast.error(
+              language === "ar"
+                ? `تم إنشاء ${result.created} من أصل ${result.total} تلميذ. تعذر إنشاء بعض الحسابات.`
+                : `Created ${result.created} out of ${result.total} students. Some failed.`
+            );
             onStudentsImported?.();
           } else {
-            toast.success(`Successfully imported ${result.created} students`);
+            toast.success(
+              language === "ar"
+                ? `تم استيراد ${result.created} تلميذ بنجاح!`
+                : `Successfully imported ${result.created} students!`
+            );
             onStudentsImported?.();
           }
         } else {
           console.error('Function result indicates failure:', result);
           throw new Error(result?.error || 'Unknown error occurred');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error calling create-student function:', error);
-        toast.error("Failed to import students");
+        toast.error((language === "ar" ? "خطأ في إنشاء التلاميذ: " : "Failed to import students: ") + (error?.message || ''));
         return;
       }
 
       setIsImportDialogOpen(false);
       setSelectedFile(null);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error importing students:', error);
-      toast.error("Failed to import students from Excel file");
+      const msg = error?.message ? `: ${error.message}` : '';
+      toast.error(
+        language === "ar"
+          ? `فشل في استيراد التلاميذ من ملف الإكسل${msg}`
+          : `Failed to import students from Excel file${msg}`
+      );
     } finally {
       setImporting(false);
     }

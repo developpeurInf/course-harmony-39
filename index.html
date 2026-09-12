@@ -81,6 +81,32 @@
           }
         }
       } catch (e3) {}
+    
+      // 5. Blob.prototype.arrayBuffer and text for iOS 12 / Safari 12
+      if (typeof Blob !== 'undefined') {
+        if (!Blob.prototype.arrayBuffer) {
+          Blob.prototype.arrayBuffer = function() {
+            var blob = this;
+            return new Promise(function(resolve, reject) {
+              var reader = new FileReader();
+              reader.onload = function() { resolve(reader.result); };
+              reader.onerror = function() { reject(reader.error); };
+              reader.readAsArrayBuffer(blob);
+            });
+          };
+        }
+        if (!Blob.prototype.text) {
+          Blob.prototype.text = function() {
+            var blob = this;
+            return new Promise(function(resolve, reject) {
+              var reader = new FileReader();
+              reader.onload = function() { resolve(reader.result); };
+              reader.onerror = function() { reject(reader.error); };
+              reader.readAsText(blob);
+            });
+          };
+        }
+      }
     </script>
   </head>
 

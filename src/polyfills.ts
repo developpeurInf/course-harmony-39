@@ -83,3 +83,29 @@ if (!String.prototype.replaceAll) {
     return this.split(str).join(newStr);
   };
 }
+
+// 8. Blob.prototype.arrayBuffer & text polyfills for Safari < 14 (iOS 12)
+if (typeof Blob !== 'undefined') {
+  if (!(Blob.prototype as any).arrayBuffer) {
+    (Blob.prototype as any).arrayBuffer = function () {
+      const blob = this;
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(blob);
+      });
+    };
+  }
+  if (!(Blob.prototype as any).text) {
+    (Blob.prototype as any).text = function () {
+      const blob = this;
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(blob);
+      });
+    };
+  }
+}
