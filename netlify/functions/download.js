@@ -1,4 +1,4 @@
-exports.handler = async function (event) {
+export async function handler(event) {
   let filename = 'liste_eleves.xlsx';
   let base64Data = '';
 
@@ -18,7 +18,8 @@ exports.handler = async function (event) {
   }
 
   if (event.httpMethod === 'POST') {
-    if (event.headers['content-type'] && event.headers['content-type'].includes('application/json')) {
+    const contentTypeHeader = event.headers['content-type'] || '';
+    if (contentTypeHeader.includes('application/json')) {
       try {
         const json = JSON.parse(event.body || '{}');
         if (json.filename) filename = json.filename;
@@ -34,6 +35,14 @@ exports.handler = async function (event) {
     base64Data = event.queryStringParameters.data;
   }
 
+  // Also support base64 encoded event body from Netlify form submit
+  if (!base64Data && event.isBase64Encoded && event.body) {
+    const decodedBody = Buffer.from(event.body, 'base64').toString('utf8');
+    const params = new URLSearchParams(decodedBody);
+    if (params.get('filename')) filename = params.get('filename');
+    if (params.get('data')) base64Data = params.get('data');
+  }
+
   return {
     statusCode: 200,
     headers: {
@@ -45,4 +54,4 @@ exports.handler = async function (event) {
     body: base64Data,
     isBase64Encoded: true
   };
-};
+}
