@@ -158,15 +158,20 @@ const Exercises = () => {
     }
   };
 
-  const handleDownloadPdf = async (exercise: Exercise) => {
+  const handleDownloadPdf = (exercise: Exercise) => {
     if (exercise.pdf_url) {
-      try {
-        const response = await fetch(exercise.pdf_url);
-        const blob = await response.blob();
-        iosCompatibleDownload(blob, `${exercise.title}.pdf`);
-      } catch (e) {
-        window.open(exercise.pdf_url, "_blank");
+      const filename = `${exercise.title}.pdf`;
+      let downloadUrl = exercise.pdf_url;
+      if (downloadUrl.includes('supabase.co/storage/v1/object/public') && !downloadUrl.includes('download=')) {
+        downloadUrl += `${downloadUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`;
       }
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 

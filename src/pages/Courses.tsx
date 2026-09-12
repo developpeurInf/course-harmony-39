@@ -400,12 +400,20 @@ const Courses = () => {
     window.open(pdfUrl, '_blank');
   };
 
-  const handleDownloadPdf = async (pdfUrl: string, courseName: string) => {
+  const handleDownloadPdf = (pdfUrl: string, courseName: string) => {
     try {
-      const response = await fetch(pdfUrl);
-      const blob = await response.blob();
       const filename = `${courseName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_materials.pdf`;
-      iosCompatibleDownload(blob, filename);
+      let downloadUrl = pdfUrl;
+      if (downloadUrl.includes('supabase.co/storage/v1/object/public') && !downloadUrl.includes('download=')) {
+        downloadUrl += `${downloadUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`;
+      }
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       toast.error("Failed to download PDF");
     }

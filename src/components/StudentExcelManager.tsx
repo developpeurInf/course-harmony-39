@@ -136,7 +136,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Students");
-    iosCompatibleXlsxDownload(XLSX, wb, "Modele_Eleves.xlsx");
+    XLSX.writeFile(wb, "Modele_Eleves.xlsx");
   };
 
   const handleImportStudents = async () => {
@@ -365,7 +365,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `students_credentials_${timestamp}.xlsx`;
 
-      iosCompatibleXlsxDownload(XLSX, workbook, filename);
+      XLSX.writeFile(workbook, filename);
       toast.success("Student list downloaded successfully");
     } catch (error) {
       console.error('Error downloading student list:', error);

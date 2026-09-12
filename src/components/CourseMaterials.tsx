@@ -49,22 +49,22 @@ const CourseMaterials = ({ materials, compact = false, className = "" }: CourseM
 
   const handleDownloadPdf = async (material: CourseMaterial) => {
     try {
-      const { data, error } = await supabase.storage
+      // Supabase public URL with ?download=filename triggers a real native PDF download
+      const { data } = supabase.storage
         .from('course-materials')
-        .download(material.file_path);
+        .getPublicUrl(material.file_path, { download: material.file_name });
 
-      if (error) throw error;
-      
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = material.file_name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      if (data?.publicUrl) {
+        const link = document.createElement('a');
+        link.href = data.publicUrl;
+        link.download = material.file_name;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (error) {
+      console.error('Download error:', error);
       toast.error('Failed to download PDF');
     }
   };
