@@ -16,10 +16,10 @@ type Translations = {
 const translations: Translations = {
   // General
   "app.name": {
-    en: "Course Harmony",
-    fr: "Harmonie des Cours",
-    ar: "تناغم الدروس"
-  },
+      en: "Math infini ∞",
+      fr: "Math infini ∞",
+      ar: "Math infini ∞"
+    },
   "app.language": {
     en: "Language",
     fr: "Langue",

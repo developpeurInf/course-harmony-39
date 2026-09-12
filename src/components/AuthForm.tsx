@@ -135,7 +135,7 @@ const AuthForm = () => {
           <CardHeader className="space-y-1">
             <div className="text-center mb-4">
               <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                {language === "ar" ? "???????? ????????" : "MAATAOUI Academy"}
+                Math infini ∞
               </h2>
             </div>
             <CardTitle className="text-2xl text-center">{t("Welcome")}</CardTitle>
@@ -200,7 +200,7 @@ const AuthForm = () => {
             )}
             <div className="text-center">
               <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                {language === "ar" ? "???????? ????????" : "MAATAOUI Academy"}
+                Math infini ∞
               </h2>
             </div>
           </div>

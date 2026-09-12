@@ -56,10 +56,10 @@ const TopNav = () => {
 
       <div className="flex items-center space-x-4 ml-4 md:ml-0">
         <h1 className="text-xl font-bold text-gradient hidden sm:block">
-          {language === "ar" ? "أكاديمية المعطاوي" : "MAATAOUI Academy"}
+          Math infini ∞
         </h1>
         <h1 className="text-lg font-bold text-gradient sm:hidden">
-          {language === "ar" ? "المعطاوي" : "MA"}
+          ∞
         </h1>
       </div>
 
