@@ -101,6 +101,17 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
   };
 
   // Parse Excel file and import students
+  // Download a template Excel file
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { 'الاسم': 'أحمد', 'النسب': 'العلوي' },
+      { 'الاسم': 'فاطمة', 'النسب': 'الزهراء' }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    iosCompatibleXlsxDownload(XLSX, wb, "Modele_Eleves.xlsx");
+  };
+
   const handleImportStudents = async () => {
     if (!selectedFile || !user) return;
 
