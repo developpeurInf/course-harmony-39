@@ -103,12 +103,40 @@
   * {
     @apply border-border;
   }
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    -webkit-overflow-scrolling: touch;
   }
   
   html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Smooth momentum touch scrolling for iOS iPad/iPhone */
+  main, .overflow-y-auto, .overflow-x-auto, .overflow-auto {
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Visible and easy-to-use scrollbars for iPad and desktop */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.5);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.4);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.7);
   }
 }
 
