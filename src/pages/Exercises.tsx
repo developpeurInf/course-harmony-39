@@ -1,4 +1,5 @@
 
+import { iosCompatibleDownload } from "@/lib/download";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -157,14 +158,15 @@ const Exercises = () => {
     }
   };
 
-  const handleDownloadPdf = (exercise: Exercise) => {
+  const handleDownloadPdf = async (exercise: Exercise) => {
     if (exercise.pdf_url) {
-      const a = document.createElement("a");
-      a.href = exercise.pdf_url;
-      a.download = `${exercise.title}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      try {
+        const response = await fetch(exercise.pdf_url);
+        const blob = await response.blob();
+        iosCompatibleDownload(blob, `${exercise.title}.pdf`);
+      } catch (e) {
+        window.open(exercise.pdf_url, "_blank");
+      }
     }
   };
 

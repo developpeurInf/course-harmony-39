@@ -1,3 +1,4 @@
+import { iosCompatibleDownload } from "@/lib/download";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -446,14 +447,8 @@ const Reports = () => {
 
     // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `student-report-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    const filename = `student-report-${new Date().toISOString().split('T')[0]}.csv`;
+    iosCompatibleDownload(blob, filename);
     
     toast.success("Report exported successfully");
   };

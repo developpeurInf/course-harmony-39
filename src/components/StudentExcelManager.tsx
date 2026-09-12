@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, Download, FileSpreadsheet, Users } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx';
+import { iosCompatibleXlsxDownload } from '@/lib/download';
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -262,7 +263,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `students_credentials_${timestamp}.xlsx`;
 
-      XLSX.writeFile(workbook, filename);
+      iosCompatibleXlsxDownload(XLSX, workbook, filename);
       toast.success("Student list downloaded successfully");
     } catch (error) {
       console.error('Error downloading student list:', error);

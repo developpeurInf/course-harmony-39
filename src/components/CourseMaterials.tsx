@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { File, Download, Eye, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { iosCompatibleDownload } from '@/lib/download';
 
 interface CourseMaterial {
   id: string;
@@ -39,7 +40,7 @@ const CourseMaterials = ({ materials, compact = false, className = "" }: CourseM
         .getPublicUrl(material.file_path);
       
       if (data?.publicUrl) {
-        window.open(data.publicUrl, '_blank');
+        window.open(data.publicUrl, '_blank', 'noopener');
       }
     } catch (error) {
       toast.error('Failed to open PDF');

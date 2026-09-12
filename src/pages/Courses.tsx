@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
+import { iosCompatibleDownload } from "@/lib/download";
 import CourseMaterials from "@/components/CourseMaterials";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -403,14 +404,8 @@ const Courses = () => {
     try {
       const response = await fetch(pdfUrl);
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${courseName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_materials.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const filename = `${courseName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_materials.pdf`;
+      iosCompatibleDownload(blob, filename);
     } catch (error) {
       toast.error("Failed to download PDF");
     }
