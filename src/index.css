@@ -37,13 +37,13 @@
     --input: 215 20% 88%;
     --ring: 217 91% 60%;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 215 25% 27%;
+    --sidebar-background: 217 35% 88%;
+    --sidebar-foreground: 215 25% 20%;
     --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 32% 96%;
-    --sidebar-accent-foreground: 215 25% 27%;
-    --sidebar-border: 215 20% 88%;
+    --sidebar-accent: 217 40% 82%;
+    --sidebar-accent-foreground: 215 25% 20%;
+    --sidebar-border: 215 25% 78%;
     --sidebar-ring: 217 91% 60%;
 
     --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 85% 75%));

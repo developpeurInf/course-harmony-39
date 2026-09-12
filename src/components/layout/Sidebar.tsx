@@ -54,12 +54,15 @@ const Sidebar = () => {
 
   const userRooms = getEnrolledRooms();
 
-  const toggleRoom = (roomId: string) => {
-    setOpenRooms(prev => ({ ...prev, [roomId]: !prev[roomId] }));
+  const toggleRoom = (roomIdToToggle: string) => {
+    setOpenRooms(prev => {
+      const currentState = prev[roomIdToToggle] ?? (roomId === roomIdToToggle);
+      return { ...prev, [roomIdToToggle]: !currentState };
+    });
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-sidebar">
+    <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
       <div className="p-6">
         <h2 className="text-xl font-bold text-primary">{t("app.name")}</h2>
       </div>
@@ -71,11 +74,10 @@ const Sidebar = () => {
         </NavLink>
         
         {isProfessor ? (
-          /* Professor: Room-based navigation */
           userRooms.map(room => (
             <Collapsible 
               key={room.id} 
-              open={openRooms[room.id] || roomId === room.id}
+              open={openRooms[room.id] ?? (roomId === room.id)}
               onOpenChange={() => toggleRoom(room.id)}
             >
               <CollapsibleTrigger className="flex items-center justify-between w-full nav-link">
@@ -83,7 +85,7 @@ const Sidebar = () => {
                   <Building size={20} />
                   <span className="truncate">{room.name}</span>
                 </div>
-                {openRooms[room.id] || roomId === room.id ? 
+                {(openRooms[room.id] ?? (roomId === room.id)) ? 
                   <ChevronDown size={16} className="flex-shrink-0" /> : 
                   <ChevronRight size={16} className="flex-shrink-0" />
                 }
@@ -133,7 +135,6 @@ const Sidebar = () => {
             </Collapsible>
           ))
         ) : (
-          /* Student: Simple navigation */
           <>
         <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <BookOpen size={20} />

@@ -52,7 +52,7 @@ const Students = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCourse, setSelectedCourse] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [enrollCourseId, setEnrollCourseId] = useState("");
@@ -71,7 +71,7 @@ const Students = () => {
   // Fetch students
   useEffect(() => {
     const fetchStudents = async () => {
-      setLoading(true);
+      if (students.length === 0) setLoading(true);
       try {
         const studentsList = await getStudents();
         setStudents(studentsList);

@@ -23,6 +23,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "./Sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageSelector } from "@/components/LanguageSelector";
 
 const TopNav = () => {
   const { user, logout } = useAuth();
@@ -63,6 +64,7 @@ const TopNav = () => {
       </div>
 
       <div className="ml-auto flex items-center space-x-4">
+        <LanguageSelector />
         <NotificationBell />
         <ThemeToggle />
         

@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import CourseMaterials from "@/components/CourseMaterials";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface CourseMaterial {
   id: string;
@@ -44,6 +45,7 @@ interface CourseMaterial {
 const RoomCourses = () => {
   const { roomId } = useParams();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { 
     rooms, 
     courses, 
@@ -63,7 +65,7 @@ const RoomCourses = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<Record<string, CourseMaterial[]>>({});
   const [existingFiles, setExistingFiles] = useState<CourseMaterial[]>([]);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   
   const isProfessor = user?.role === "professor";
   
@@ -145,26 +147,18 @@ const RoomCourses = () => {
       return;
     }
 
-    const success = await addCourse({
+    const newCourse = await addCourse({
       title: title.trim(),
       description: description.trim(),
       room_id: roomId,
       is_visible: isVisible
     });
 
-    if (success && selectedFiles.length > 0) {
-      // Refresh data first to get the new course
-      await refreshData(roomId);
-      // Find the newly created course by title and room
-      const newCourse = courses.find(course => 
-        course.title === title.trim() && course.room_id === roomId
-      );
-      if (newCourse) {
-        await uploadFiles(newCourse.id);
-      }
+    if (newCourse && selectedFiles.length > 0) {
+      await uploadFiles(newCourse.id);
     }
 
-    if (success) {
+    if (newCourse) {
       resetForm();
     }
   };
@@ -173,15 +167,20 @@ const RoomCourses = () => {
   const uploadFiles = async (courseId: string) => {
     for (const file of selectedFiles) {
       try {
-        // Upload file to storage
+        // Upload file to storage with proper courses/<course_id>/ path for RLS
         const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const safeName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `courses/${courseId}/${safeName}`;
         
         const { data, error: uploadError } = await supabase.storage
           .from('course-materials')
-          .upload(fileName, file);
+          .upload(filePath, file, { upsert: true });
 
         if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('course-materials')
+          .getPublicUrl(filePath);
 
         // Save file info to database
         const { error: dbError } = await supabase
@@ -189,20 +188,27 @@ const RoomCourses = () => {
           .insert({
             course_id: courseId,
             file_name: file.name,
-            file_path: data.path,
+            file_path: filePath,
             file_size: file.size,
             uploaded_by: user?.id
           });
 
         if (dbError) throw dbError;
-      } catch (error) {
+
+        // Also update course pdf_url for fast direct access
+        await supabase
+          .from('courses')
+          .update({ pdf_url: publicUrlData.publicUrl })
+          .eq('id', courseId);
+
+      } catch (error: any) {
         console.error('Error uploading file:', error);
-        toast.error(`Failed to upload ${file.name}`);
+        toast.error(`Failed to upload ${file.name}: ${error.message || ''}`);
       }
     }
     
     // Reload materials after upload
-    loadCourseMaterials();
+    await loadCourseMaterials();
     toast.success('Course materials uploaded successfully');
   };
 
@@ -304,9 +310,9 @@ const RoomCourses = () => {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.courses")}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage and view courses in {currentRoom.name}
+            {language === "ar" ? `إدارة وعرض الدروس في ${currentRoom.name}` : `Manage and view courses in ${currentRoom.name}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -335,38 +341,38 @@ const RoomCourses = () => {
               <DialogTrigger asChild>
                 <Button className="shadow-elegant">
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Course
+                  {t("Add Course")}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Add New Course</DialogTitle>
+                  <DialogTitle>{t("Add New Course")}</DialogTitle>
                   <DialogDescription>
-                    Create a new course in {currentRoom.name}.
+                    {language === "ar" ? `إنشاء درس جديد في ${currentRoom.name}.` : `Create a new course in ${currentRoom.name}.`}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title">Course Title *</Label>
+                    <Label htmlFor="title">{language === "ar" ? "عنوان الدرس *" : "Course Title *"}</Label>
                     <Input
                       id="title"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g., Introduction to Computer Science"
+                      placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : "e.g., Introduction to Computer Science"}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Course Description</Label>
+                    <Label htmlFor="description">{language === "ar" ? "وصف الدرس" : "Course Description"}</Label>
                     <Textarea
                       id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Provide a detailed description of the course content, objectives, and what students will learn..."
+                      placeholder={language === "ar" ? "قدم وصفاً مفصلاً للمحتوى وأهداف الدرس..." : "Provide a detailed description of the course content, objectives, and what students will learn..."}
                       rows={4}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Course Materials (PDFs)</Label>
+                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : "Course Materials (PDFs)"}</Label>
                     <MultiPdfUpload
                       selectedFiles={selectedFiles}
                       onFilesChange={setSelectedFiles}
@@ -380,14 +386,14 @@ const RoomCourses = () => {
                       checked={isVisible}
                       onCheckedChange={setIsVisible}
                     />
-                    <Label htmlFor="visible">Make course visible to students</Label>
+                    <Label htmlFor="visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : "Make course visible to students"}</Label>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={resetForm}>
-                    Cancel
+                    {language === "ar" ? "إلغاء" : "Cancel"}
                   </Button>
-                  <Button onClick={handleAddCourse}>Create Course</Button>
+                  <Button onClick={handleAddCourse}>{language === "ar" ? "إنشاء الدرس" : "Create Course"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -569,16 +575,16 @@ const RoomCourses = () => {
             <div className="p-4 bg-primary/10 rounded-full mb-4">
               <BookOpen className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">No courses found</h3>
+            <h3 className="text-xl font-semibold mb-2">{t("No courses found")}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
               {isProfessor 
-                ? `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`
-                : `You are not enrolled in any courses in ${currentRoom.name}.`}
+                ? (language === "ar" ? `لا توجد دروس في ${currentRoom.name} بعد. أضف درسك الأول للبدء.` : `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`)
+                : (language === "ar" ? `أنت غير مسجل في أي دروس في ${currentRoom.name}.` : `You are not enrolled in any courses in ${currentRoom.name}.`)}
             </p>
             {isProfessor && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Your First Course
+                {t("Add Your First Course")}
               </Button>
             )}
           </CardContent>
@@ -589,33 +595,33 @@ const RoomCourses = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Course</DialogTitle>
+            <DialogTitle>{language === "ar" ? "تعديل الدرس" : "Edit Course"}</DialogTitle>
             <DialogDescription>
-              Update the course details and visibility.
+              {language === "ar" ? "تحديث تفاصيل الدرس ورؤيته للتلاميذ." : "Update the course details and visibility."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-title">Course Title *</Label>
+              <Label htmlFor="edit-title">{language === "ar" ? "عنوان الدرس *" : "Course Title *"}</Label>
               <Input
                 id="edit-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Introduction to Computer Science"
+                placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : "e.g., Introduction to Computer Science"}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Course Description</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "وصف الدرس" : "Course Description"}</Label>
               <Textarea
                 id="edit-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide a detailed description of the course content, objectives, and what students will learn..."
+                placeholder={language === "ar" ? "قدم وصفاً مفصلاً للمحتوى وأهداف الدرس..." : "Provide a detailed description of the course content, objectives, and what students will learn..."}
                 rows={4}
               />
             </div>
             <div className="space-y-2">
-              <Label>Course Materials (PDFs)</Label>
+              <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : "Course Materials (PDFs)"}</Label>
               <MultiPdfUpload
                 selectedFiles={selectedFiles}
                 onFilesChange={setSelectedFiles}
@@ -631,14 +637,14 @@ const RoomCourses = () => {
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
               />
-              <Label htmlFor="edit-visible">Make course visible to students</Label>
+              <Label htmlFor="edit-visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : "Make course visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetForm}>
-              Cancel
+              {language === "ar" ? "إلغاء" : "Cancel"}
             </Button>
-            <Button onClick={handleEditCourse}>Update Course</Button>
+            <Button onClick={handleEditCourse}>{language === "ar" ? "تحديث الدرس" : "Update Course"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

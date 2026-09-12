@@ -21,9 +21,9 @@ import PdfInfo from "@/components/PdfInfo";
 
 const Exercises = () => {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { roomId } = useParams();
-  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf, refreshData } = useCourses();
+  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf, refreshData, getVisibleExercisesForStudent } = useCourses();
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -36,7 +36,7 @@ const Exercises = () => {
     is_visible: true,
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [exerciseMaterials, setExerciseMaterials] = useState<{[exerciseId: string]: any[]}>({});
   
   const isProfessor = user?.role === "professor";
@@ -50,9 +50,25 @@ const Exercises = () => {
     }
   }, [user, roomId, refreshData]);
   
-  const visibleExercises = exercises.filter(
-    (exercise) => exercise.is_visible || isProfessor
-  );
+  const userExercises = isProfessor 
+    ? exercises 
+    : (user ? getVisibleExercisesForStudent(user.id) : []);
+
+  const visibleExercises = isProfessor
+    ? userExercises
+    : userExercises.filter((exercise) => exercise.is_visible);
+
+  const formatDueDate = (dateStr: string) => {
+    try {
+      const d = parseISO(dateStr);
+      if (language === "ar") {
+        return d.toLocaleDateString("ar-MA", { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      return format(d, "PPP");
+    } catch {
+      return dateStr;
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -69,7 +85,7 @@ const Exercises = () => {
   const handleAddExercise = async () => {
     if (!formData.course_id || !formData.title || !formData.due_date) return;
     
-    const success = await addExercise({
+    const newExercise = await addExercise({
       course_id: formData.course_id,
       title: formData.title,
       description: formData.description,
@@ -77,7 +93,12 @@ const Exercises = () => {
       is_visible: formData.is_visible,
     });
     
-    if (success) {
+    if (newExercise) {
+      if (selectedFiles.length > 0) {
+        for (const file of selectedFiles) {
+          await uploadExercisePdf(newExercise.id, file, formData.course_id);
+        }
+      }
       resetForm();
       setIsAddDialogOpen(false);
     }
@@ -97,7 +118,7 @@ const Exercises = () => {
     // Handle multiple file uploads if files are selected
     if (selectedFiles.length > 0 && success) {
       for (const file of selectedFiles) {
-        await uploadExercisePdf(formData.id, file);
+        await uploadExercisePdf(formData.id, file, formData.course_id);
       }
     }
     
@@ -154,7 +175,7 @@ const Exercises = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t("nav.exercises")}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage and view exercises linked to courses
+            {language === "ar" ? "إدارة وعرض التمارين المرتبطة بالدروس" : "Manage and view exercises linked to courses"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -190,7 +211,7 @@ const Exercises = () => {
               <DialogHeader>
                 <DialogTitle>{t("exercise.add")}</DialogTitle>
                 <DialogDescription>
-                  Create a new exercise and link it to a course
+                  {language === "ar" ? "إنشاء تمرين جديد وربطه بدرس" : "Create a new exercise and link it to a course"}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4">
@@ -322,7 +343,7 @@ const Exercises = () => {
                   
                   <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
                     <Clock className="h-4 w-4" />
-                    <span>Due: {format(parseISO(exercise.due_date), "PPP")}</span>
+                    <span>{language === "ar" ? "تاريخ التسليم: " : "Due: "}{formatDueDate(exercise.due_date)}</span>
                   </div>
                   
                   {/* PDF Information */}
@@ -402,7 +423,7 @@ const Exercises = () => {
                               </Badge>
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
-                                <span>Due: {format(parseISO(exercise.due_date), "PPP")}</span>
+                                <span>{language === "ar" ? "تاريخ التسليم: " : "Due: "}{formatDueDate(exercise.due_date)}</span>
                               </div>
                             </div>
                           </div>
@@ -477,16 +498,20 @@ const Exercises = () => {
             <div className="p-4 bg-primary/10 rounded-full mb-4">
               <FileText className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">No exercises found</h3>
+            <h3 className="text-xl font-semibold mb-2">{language === "ar" ? "لم يتم العثور على تمارين" : "No exercises found"}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
-              {isProfessor 
-                ? "No exercises have been created yet. Add your first exercise to get started."
-                : "No exercises are currently available."}
+              {language === "ar"
+                ? isProfessor
+                  ? "لم يتم إنشاء أي تمارين بعد. أضف أول تمرين للبدء."
+                  : "لا توجد تمارين متاحة حاليًا."
+                : isProfessor 
+                  ? "No exercises have been created yet. Add your first exercise to get started."
+                  : "No exercises are currently available."}
             </p>
             {isProfessor && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Your First Exercise
+                {language === "ar" ? "أضف أول تمرين" : "Add Your First Exercise"}
               </Button>
             )}
           </CardContent>
@@ -499,7 +524,7 @@ const Exercises = () => {
           <DialogHeader>
             <DialogTitle>{t("exercise.edit")}</DialogTitle>
             <DialogDescription>
-              Update exercise details and materials
+              {language === "ar" ? "تحديث تفاصيل التمرين والمواد" : "Update exercise details and materials"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">

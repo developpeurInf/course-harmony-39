@@ -19,9 +19,11 @@ interface AuthContextType {
   user: UserProfile | null;
   session: Session | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, role?: UserRole) => Promise<boolean>;
   loginStudent: (username: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string, role: UserRole) => Promise<boolean>;
+  verifyOtp: (email: string, token: string) => Promise<boolean>;
+  resendOtp: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
@@ -49,11 +51,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
         
         if (session?.user) {
-          const { data: profile } = await supabase
+          let { data: profile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .maybeSingle();
+
+          const metadataRole = session.user.user_metadata?.role as UserRole | undefined;
+          
+          if (!profile && mounted) {
+            const defaultRole = metadataRole || "professor";
+            const defaultName = session.user.user_metadata?.name || session.user.email?.split('@')[0] || "User";
+            await supabase.from('profiles').insert({
+              id: session.user.id,
+              name: defaultName,
+              email: session.user.email,
+              role: defaultRole
+            });
+            const { data: createdProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            profile = createdProfile;
+          } else if (profile && metadataRole === 'professor' && profile.role !== 'professor') {
+            await supabase.from('profiles').update({ role: 'professor' }).eq('id', session.user.id);
+            profile.role = 'professor';
+          }
           
           if (mounted && profile) {
             setUser({
@@ -86,11 +110,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           setTimeout(async () => {
-            const { data: profile } = await supabase
+            let { data: profile } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
               .maybeSingle();
+
+            const metadataRole = session.user.user_metadata?.role as UserRole | undefined;
+
+            if (!profile && mounted) {
+              const defaultRole = metadataRole || "professor";
+              const defaultName = session.user.user_metadata?.name || session.user.email?.split('@')[0] || "User";
+              await supabase.from('profiles').insert({
+                id: session.user.id,
+                name: defaultName,
+                email: session.user.email,
+                role: defaultRole
+              });
+              const { data: createdProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+              profile = createdProfile;
+            } else if (profile && metadataRole === 'professor' && profile.role !== 'professor') {
+              await supabase.from('profiles').update({ role: 'professor' }).eq('id', session.user.id);
+              profile.role = 'professor';
+            }
             
             if (profile && mounted) {
               setUser({
@@ -122,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (email: string, password: string, name: string, role: UserRole): Promise<boolean> => {
     try {
       const redirectUrl = `${window.location.origin}/`;
+      const assignedRole = role || "professor";
       
       const { error } = await supabase.auth.signUp({
         email,
@@ -130,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           emailRedirectTo: redirectUrl,
           data: {
             name,
-            role
+            role: assignedRole
           }
         }
       });
@@ -144,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      toast.success("Registration successful! Please check your email for verification.");
+      toast.success("Registration successful! A verification code has been sent to your email.");
       return true;
     } catch (error) {
       toast.error("Registration failed");
@@ -152,9 +199,117 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const verifyOtp = async (email: string, tokenOrUrl: string): Promise<boolean> => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const cleanInput = tokenOrUrl.trim();
+      let verifyParams: any;
+
+      // Check if user entered/pasted a URL or token_hash
+      const tokenMatch = cleanInput.match(/[?&]token=([^&]+)/) || cleanInput.match(/[?&]token_hash=([^&]+)/);
+      if (tokenMatch) {
+        verifyParams = {
+          token_hash: tokenMatch[1],
+          type: 'signup'
+        };
+      } else if (cleanInput.length > 10) {
+        verifyParams = {
+          token_hash: cleanInput,
+          type: 'signup'
+        };
+      } else {
+        verifyParams = {
+          email: email.trim(),
+          token: cleanInput,
+          type: 'signup'
+        };
+      }
+
+      let { data, error } = await supabase.auth.verifyOtp(verifyParams);
+
+      // Fallback if 'signup' type fails
+      if (error && verifyParams.type === 'signup') {
+        const retryResult = await supabase.auth.verifyOtp({
+          ...verifyParams,
+          type: 'email'
+        });
+        if (!retryResult.error) {
+          data = retryResult.data;
+          error = null;
+        }
+      }
+
+      if (error) {
+        toast.error(error.message || "Invalid or expired verification code");
+        return false;
+      }
+
+      if (data?.session && data.user) {
+        setSession(data.session);
+
+        let { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          if (profile.role !== 'professor') {
+            await supabase.from('profiles').update({ role: 'professor' }).eq('id', data.user.id);
+            profile.role = 'professor';
+          }
+        } else {
+          const newProfile = {
+            id: data.user.id,
+            name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'Professor',
+            email: data.user.email!,
+            role: 'professor' as UserRole
+          };
+          await supabase.from('profiles').insert(newProfile);
+          profile = newProfile as any;
+        }
+
+        setUser({
+          id: data.user.id,
+          name: profile?.name || data.user.user_metadata?.name || 'Professor',
+          email: data.user.email!,
+          role: 'professor',
+          avatar_url: profile?.avatar_url,
+          room_id: profile?.room_id
+        });
+        setIsLoggedIn(true);
+      }
+
+      toast.success("Email verified successfully! Welcome to Course Harmony.");
+      return true;
+    } catch (error: any) {
+      toast.error(error?.message || "Verification failed");
+      return false;
+    }
+  };
+
+  const resendOtp = async (email: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim()
+      });
+
+      if (error) {
+        toast.error(error.message || "Failed to resend code");
+        return false;
+      }
+
+      toast.success("Verification code resent! Please check your inbox.");
+      return true;
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to resend code");
+      return false;
+    }
+  };
+
+  const login = async (email: string, password: string, role?: UserRole): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
@@ -162,10 +317,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
           toast.error("Invalid email or password");
+        } else if (error.message.includes('Email not confirmed')) {
+          toast.error("Email not confirmed. Please enter the verification code.");
         } else {
           toast.error(error.message);
         }
         return false;
+      }
+
+      // If logging in as professor, ensure profile has role 'professor'
+      if (data?.user && (role === "professor" || data.user.user_metadata?.role === "professor")) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profile && profile.role !== 'professor') {
+          await supabase.from('profiles').update({ role: 'professor' }).eq('id', data.user.id);
+          await supabase.auth.updateUser({ data: { role: 'professor' } });
+          profile.role = 'professor';
+        }
       }
 
       return true;
@@ -426,6 +598,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login, 
       loginStudent,
       register,
+      verifyOtp,
+      resendOtp,
       logout, 
       resetPassword,
       updateProfile,

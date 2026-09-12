@@ -47,8 +47,10 @@ import QuizResults from "@/components/QuizResults";
 import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Exams = () => {
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const { roomId } = useParams();
   const { 
@@ -69,7 +71,7 @@ const Exams = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -285,11 +287,11 @@ const Exams = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Exams</h1>
+          <h1 className="text-3xl font-bold">{language === "ar" ? "الامتحانات" : "Exams"}</h1>
           <p className="text-muted-foreground mt-1">
             {isProfessor 
-              ? "Manage exams and tests for your courses" 
-              : "View your upcoming and past exams"}
+              ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : "Manage exams and tests for your courses") 
+              : (language === "ar" ? "عرض امتحاناتك القادمة والماضية" : "View your upcoming and past exams")}
           </p>
         </div>
         
@@ -304,22 +306,22 @@ const Exams = () => {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Exam
+                  {language === "ar" ? "إضافة امتحان" : "Add Exam"}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Schedule New Exam</DialogTitle>
+                  <DialogTitle>{language === "ar" ? "جدولة امتحان جديد" : "Schedule New Exam"}</DialogTitle>
                   <DialogDescription>
-                    Create a new exam for one of your courses.
+                    {language === "ar" ? "إنشاء امتحان جديد لأحد دروسك." : "Create a new exam for one of your courses."}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="course">Course</Label>
+                    <Label htmlFor="course">{language === "ar" ? "الدرس" : "Course"}</Label>
                     <Select value={courseId} onValueChange={setCourseId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a course" />
+                        <SelectValue placeholder={language === "ar" ? "اختر درسًا" : "Select a course"} />
                       </SelectTrigger>
                       <SelectContent>
                         {courses.map(course => (
@@ -331,19 +333,19 @@ const Exams = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="title">Exam Title</Label>
+                    <Label htmlFor="title">{language === "ar" ? "عنوان الامتحان" : "Exam Title"}</Label>
                     <Input
                       id="title"
-                      placeholder="e.g., Midterm Exam"
+                      placeholder={language === "ar" ? "مثال: الامتحان الفصلي" : "e.g., Midterm Exam"}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">{language === "ar" ? "الوصف" : "Description"}</Label>
                     <Textarea
                       id="description"
-                      placeholder="Enter exam description and topics covered"
+                      placeholder={language === "ar" ? "أدخل وصف الامتحان والمحاور المقررة" : "Enter exam description and topics covered"}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
@@ -351,7 +353,7 @@ const Exams = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="examDate">Exam Date</Label>
+                      <Label htmlFor="examDate">{language === "ar" ? "تاريخ الامتحان" : "Exam Date"}</Label>
                       <Input
                         id="examDate"
                         type="date"
@@ -360,7 +362,7 @@ const Exams = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="examTime">Start Time</Label>
+                      <Label htmlFor="examTime">{language === "ar" ? "وقت البداية" : "Start Time"}</Label>
                       <Input
                         id="examTime"
                         type="time"
@@ -370,19 +372,19 @@ const Exams = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="examType">Type</Label>
+                    <Label htmlFor="examType">{language === "ar" ? "النوع" : "Type"}</Label>
                     <Select value={examType} onValueChange={(value: "exam" | "quiz") => setExamType(value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="exam">Regular Exam</SelectItem>
-                        <SelectItem value="quiz">Quiz</SelectItem>
+                        <SelectItem value="exam">{language === "ar" ? "امتحان عادي" : "Regular Exam"}</SelectItem>
+                        <SelectItem value="quiz">{language === "ar" ? "اختبار قصير" : "Quiz"}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="duration">Duration (minutes)</Label>
+                    <Label htmlFor="duration">{language === "ar" ? "المدة (بالدقائق)" : "Duration (minutes)"}</Label>
                     <Input
                       id="duration"
                       type="number"
@@ -398,18 +400,18 @@ const Exams = () => {
                       checked={isVisible}
                       onCheckedChange={setIsVisible}
                     />
-                    <Label htmlFor="visibility">Visible to students</Label>
+                    <Label htmlFor="visibility">{language === "ar" ? "مرئي للتلاميذ" : "Visible to students"}</Label>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    Cancel
+                    {language === "ar" ? "إلغاء" : "Cancel"}
                   </Button>
                   <Button 
                     onClick={handleAddExam}
                     disabled={!title || !courseId || !examDate || !examTime}
                   >
-                    {examType === 'quiz' ? 'Create Quiz' : 'Schedule Exam'}
+                    {examType === 'quiz' ? (language === 'ar' ? 'إنشاء اختبار' : 'Create Quiz') : (language === 'ar' ? 'جدولة الامتحان' : 'Schedule Exam')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -453,7 +455,7 @@ const Exams = () => {
               <SelectValue placeholder="Filter by course" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Courses</SelectItem>
+              <SelectItem value="all">{language === "ar" ? "جميع الدروس" : "All Courses"}</SelectItem>
               {availableCourses.map(course => (
                 <SelectItem key={course.id} value={course.id}>
                   {course.title}
@@ -463,8 +465,9 @@ const Exams = () => {
           </Select>
         </div>
         <p className="text-sm text-muted-foreground">
-          Showing {displayedExams.length} {displayedExams.length === 1 ? "exam" : "exams"}
-          {selectedCourseFilter !== "all" && " for " + getCourseName(selectedCourseFilter)}
+          {language === "ar" 
+            ? `عرض ${displayedExams.length} من الامتحانات${selectedCourseFilter !== "all" ? " لـ " + getCourseName(selectedCourseFilter) : ""}`
+            : `Showing ${displayedExams.length} ${displayedExams.length === 1 ? "exam" : "exams"}${selectedCourseFilter !== "all" ? " for " + getCourseName(selectedCourseFilter) : ""}`}
         </p>
       </div>
 
@@ -478,15 +481,15 @@ const Exams = () => {
                     <CardTitle>{exam.title}</CardTitle>
                     <div className="flex flex-col items-end gap-1">
                       <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'}>
-                        {exam.type === 'quiz' ? 'Quiz' : 'Exam'}
+                        {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : 'Exam')}
                       </Badge>
                       {!exam.is_visible && (
-                        <Badge variant="outline">Hidden</Badge>
+                        <Badge variant="outline">{language === "ar" ? "مخفي" : "Hidden"}</Badge>
                       )}
                       {isPastExam(exam.exam_date) ? (
-                        <Badge variant="secondary">Past</Badge>
+                        <Badge variant="secondary">{language === "ar" ? "منتهي" : "Past"}</Badge>
                       ) : (
-                        <Badge>Upcoming</Badge>
+                        <Badge>{language === "ar" ? "قادم" : "Upcoming"}</Badge>
                       )}
                     </div>
                   </div>
@@ -579,13 +582,13 @@ const Exams = () => {
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="p-4 text-left font-medium">Exam</th>
-                  <th className="p-4 text-left font-medium">Course</th>
-                  <th className="p-4 text-left font-medium">Date & Time</th>
-                  <th className="p-4 text-left font-medium">Duration</th>
-                  <th className="p-4 text-left font-medium">Type</th>
-                  <th className="p-4 text-left font-medium">Status</th>
-                  {isProfessor && <th className="p-4 text-left font-medium">Actions</th>}
+                  <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحان" : "Exam"}</th>
+                  <th className="p-4 text-left font-medium">{language === "ar" ? "الدرس" : "Course"}</th>
+                  <th className="p-4 text-left font-medium">{language === "ar" ? "التاريخ والوقت" : "Date & Time"}</th>
+                  <th className="p-4 text-left font-medium">{language === "ar" ? "المدة" : "Duration"}</th>
+                  <th className="p-4 text-left font-medium">{language === "ar" ? "النوع" : "Type"}</th>
+                  <th className="p-4 text-left font-medium">{language === "ar" ? "الحالة" : "Status"}</th>
+                  {isProfessor && <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : "Actions"}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -617,18 +620,18 @@ const Exams = () => {
                     </td>
                     <td className="p-4">
                       <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'}>
-                        {exam.type === 'quiz' ? 'Quiz' : 'Exam'}
+                        {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : 'Exam')}
                       </Badge>
                     </td>
                     <td className="p-4">
                       <div className="flex flex-col gap-1">
                         {isPastExam(exam.exam_date) ? (
-                          <Badge variant="outline" className="w-fit">Past</Badge>
+                          <Badge variant="outline" className="w-fit">{language === "ar" ? "منتهي" : "Past"}</Badge>
                         ) : (
-                          <Badge variant="default" className="w-fit">Upcoming</Badge>
+                          <Badge variant="default" className="w-fit">{language === "ar" ? "قادم" : "Upcoming"}</Badge>
                         )}
                         {!exam.is_visible && (
-                          <Badge variant="outline" className="w-fit">Hidden</Badge>
+                          <Badge variant="outline" className="w-fit">{language === "ar" ? "مخفي" : "Hidden"}</Badge>
                         )}
                       </div>
                     </td>
@@ -671,22 +674,34 @@ const Exams = () => {
       ) : (
         <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
           <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-medium">No exams found</h3>
+          <h3 className="text-xl font-medium">{language === "ar" ? "لم يتم العثور على امتحانات" : "No exams found"}</h3>
           <p className="text-muted-foreground text-center max-w-md mt-2">
-            {isProfessor 
-              ? selectedCourseFilter !== "all" 
-                ? `You haven't scheduled any exams for ${getCourseName(selectedCourseFilter)} yet.`
-                : "You haven't scheduled any exams yet. Add your first exam to get started."
-              : selectedCourseFilter !== "all"
-                ? `No exams are currently scheduled for ${getCourseName(selectedCourseFilter)}.`
-                : "You don't have any exams scheduled yet."}
+            {language === "ar"
+              ? isProfessor 
+                ? selectedCourseFilter !== "all" 
+                  ? `لم تقم بجدولة أي امتحانات لـ ${getCourseName(selectedCourseFilter)} بعد.`
+                  : "لم تقم بجدولة أي امتحانات بعد. أضف امتحانك الأول للبدء."
+                : selectedCourseFilter !== "all"
+                  ? `لا توجد امتحانات مجدولة حاليًا لـ ${getCourseName(selectedCourseFilter)}.`
+                  : "لا توجد امتحانات مجدولة لك بعد."
+              : isProfessor 
+                ? selectedCourseFilter !== "all" 
+                  ? `You haven't scheduled any exams for ${getCourseName(selectedCourseFilter)} yet.`
+                  : "You haven't scheduled any exams yet. Add your first exam to get started."
+                : selectedCourseFilter !== "all"
+                  ? `No exams are currently scheduled for ${getCourseName(selectedCourseFilter)}.`
+                  : "You don't have any exams scheduled yet."}
           </p>
           {isProfessor && (
             <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              {selectedCourseFilter !== "all" 
-                ? `Schedule Exam for ${getCourseName(selectedCourseFilter)}`
-                : "Schedule Your First Exam"}
+              {language === "ar"
+                ? selectedCourseFilter !== "all" 
+                  ? `جدولة امتحان لـ ${getCourseName(selectedCourseFilter)}`
+                  : "جدولة أول امتحان"
+                : selectedCourseFilter !== "all" 
+                  ? `Schedule Exam for ${getCourseName(selectedCourseFilter)}`
+                  : "Schedule Your First Exam"}
             </Button>
           )}
         </div>
@@ -696,17 +711,17 @@ const Exams = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Exam</DialogTitle>
+            <DialogTitle>{language === "ar" ? "تعديل الامتحان" : "Edit Exam"}</DialogTitle>
             <DialogDescription>
-              Update the exam details and schedule.
+              {language === "ar" ? "تحديث تفاصيل الامتحان والجدول الزمني." : "Update the exam details and schedule."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-course">Course</Label>
+              <Label htmlFor="edit-course">{language === "ar" ? "الدرس" : "Course"}</Label>
               <Select value={courseId} onValueChange={setCourseId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a course" />
+                  <SelectValue placeholder={language === "ar" ? "اختر درسًا" : "Select a course"} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map(course => (
@@ -718,19 +733,19 @@ const Exams = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-title">Exam Title</Label>
+              <Label htmlFor="edit-title">{language === "ar" ? "عنوان الامتحان" : "Exam Title"}</Label>
               <Input
                 id="edit-title"
-                placeholder="Exam title"
+                placeholder={language === "ar" ? "عنوان الامتحان" : "Exam title"}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : "Description"}</Label>
               <Textarea
                 id="edit-description"
-                placeholder="Exam description"
+                placeholder={language === "ar" ? "وصف الامتحان" : "Exam description"}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
@@ -738,7 +753,7 @@ const Exams = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-examDate">Exam Date</Label>
+                <Label htmlFor="edit-examDate">{language === "ar" ? "تاريخ الامتحان" : "Exam Date"}</Label>
                 <Input
                   id="edit-examDate"
                   type="date"
@@ -747,7 +762,7 @@ const Exams = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-examTime">Start Time</Label>
+                <Label htmlFor="edit-examTime">{language === "ar" ? "وقت البداية" : "Start Time"}</Label>
                 <Input
                   id="edit-examTime"
                   type="time"
@@ -757,7 +772,7 @@ const Exams = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-duration">Duration (minutes)</Label>
+              <Label htmlFor="edit-duration">{language === "ar" ? "المدة (بالدقائق)" : "Duration (minutes)"}</Label>
               <Input
                 id="edit-duration"
                 type="number"
@@ -773,18 +788,18 @@ const Exams = () => {
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
               />
-              <Label htmlFor="edit-visibility">Visible to students</Label>
+              <Label htmlFor="edit-visibility">{language === "ar" ? "مرئي للتلاميذ" : "Visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
+              {language === "ar" ? "إلغاء" : "Cancel"}
             </Button>
             <Button 
               onClick={handleEditExam}
               disabled={!title || !courseId || !examDate || !examTime}
             >
-              Save Changes
+              {language === "ar" ? "حفظ التغييرات" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -794,17 +809,17 @@ const Exams = () => {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Exam</DialogTitle>
+            <DialogTitle>{language === "ar" ? "حذف الامتحان" : "Delete Exam"}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {currentExam?.title}? This action cannot be undone.
+              {language === "ar" ? `هل أنت متأكد من رغبتك في حذف ${currentExam?.title}؟ لا يمكن التراجع عن هذا الإجراء.` : `Are you sure you want to delete ${currentExam?.title}? This action cannot be undone.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
+              {language === "ar" ? "إلغاء" : "Cancel"}
             </Button>
             <Button variant="destructive" onClick={handleDeleteExam}>
-              Delete Exam
+              {language === "ar" ? "حذف الامتحان" : "Delete Exam"}
             </Button>
           </DialogFooter>
         </DialogContent>

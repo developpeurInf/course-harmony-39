@@ -87,27 +87,27 @@ const Settings = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Moon className="h-5 w-5" />
-            Theme
+            {t("Theme")}
           </CardTitle>
           <CardDescription>
-            Choose your preferred theme appearance
+            {t("Choose your preferred theme appearance")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label htmlFor="theme">Theme</Label>
+              <Label htmlFor="theme">{t("Theme")}</Label>
               <Select
                 value={theme}
                 onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
               >
                 <SelectTrigger id="theme">
-                  <SelectValue placeholder="Select theme" />
+                  <SelectValue placeholder={t("Select theme")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="system">System</SelectItem>
+                  <SelectItem value="light">{t("Light")}</SelectItem>
+                  <SelectItem value="dark">{t("Dark")}</SelectItem>
+                  <SelectItem value="system">{t("System")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -155,18 +155,18 @@ const Settings = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Key className="h-5 w-5" />
-            Password & Security
+            {t("Password & Security")}
           </CardTitle>
           <CardDescription>
             {user?.role === 'student' 
-              ? "Change your temporary password or request a password reset from your professor"
-              : "Manage your account password"
+              ? t("Change your temporary password or request a password reset from your professor")
+              : t("Manage your account password")
             }
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button onClick={() => setPasswordDialogOpen(true)}>
-            Change Password
+            {t("Change Password")}
           </Button>
           
           {user?.role === 'student' && (
@@ -178,11 +178,11 @@ const Settings = () => {
                 className="w-full"
               >
                 <AlertCircle className="h-4 w-4 mr-2" />
-                {isRequestingReset ? "Requesting..." : "Request Password Reset from Professor"}
+                {isRequestingReset ? t("Requesting...") : t("Request Password Reset from Professor")}
               </Button>
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  <strong>Note:</strong> Click the button above to send a reset request to your professor. They will provide you with a new temporary password.
+                  <strong>{language === "ar" ? "ملاحظة: " : "Note: "}</strong>{t("Note: Click the button above to send a reset request to your professor. They will provide you with a new temporary password.")}
                 </p>
               </div>
             </div>

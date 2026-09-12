@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client'
+import './lib/toast-interceptor'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './contexts/AuthContext'

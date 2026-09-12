@@ -123,25 +123,25 @@ interface CourseContextType {
   toggleRoomVisibility: (roomId: string) => Promise<boolean>;
   
   // Course operations
-  addCourse: (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">) => Promise<boolean>;
+  addCourse: (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">) => Promise<Course | null>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<boolean>;
   deleteCourse: (courseId: string) => Promise<boolean>;
   toggleCourseVisibility: (courseId: string) => Promise<boolean>;
   uploadCoursePdf: (courseId: string, file: File) => Promise<string | null>;
   
   // Exercise operations
-  addExercise: (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">) => Promise<boolean>;
+  addExercise: (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">) => Promise<Exercise | null>;
   updateExercise: (exerciseId: string, updates: Partial<Exercise>) => Promise<boolean>;
   deleteExercise: (exerciseId: string) => Promise<boolean>;
   toggleExerciseVisibility: (exerciseId: string) => Promise<boolean>;
-  uploadExercisePdf: (exerciseId: string, file: File) => Promise<string | null>;
+  uploadExercisePdf: (exerciseId: string, file: File, courseId?: string) => Promise<string | null>;
   
   // Exam operations
   addExam: (exam: Omit<Exam, "id" | "created_at" | "updated_at">) => Promise<boolean>;
   updateExam: (examId: string, updates: Partial<Exam>) => Promise<boolean>;
   deleteExam: (examId: string) => Promise<boolean>;
   toggleExamVisibility: (examId: string) => Promise<boolean>;
-  uploadExamPdf: (examId: string, file: File) => Promise<string | null>;
+  uploadExamPdf: (examId: string, file: File, courseId?: string) => Promise<string | null>;
   
   // Quiz operations
   addQuizQuestion: (question: Omit<QuizQuestion, "id" | "created_at" | "updated_at">) => Promise<QuizQuestion | null>;
@@ -193,7 +193,9 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const refreshData = useCallback(async (roomId?: string) => {
     if (!user) return;
     
-    setLoading(true);
+    if (courses.length === 0 && rooms.length === 0 && exercises.length === 0 && exams.length === 0) {
+      setLoading(true);
+    }
     try {
       // Fetch rooms first - always get all rooms for the professor
       let roomsQuery = supabase.from('rooms').select('*').order('created_at', { ascending: false });
@@ -207,10 +209,6 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       let examsQuery = supabase.from('exams').select('*').order('created_at', { ascending: false });
       
       if (roomId) {
-        // Clear previous data when filtering by room to prevent stale data
-        setCourses([]);
-        setExercises([]);
-        setExams([]);
         
         // Filter courses by room
         coursesQuery = coursesQuery.eq('room_id', roomId);
@@ -237,6 +235,57 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
           `)
           .eq('courses.room_id', roomId)
           .order('created_at', { ascending: false });
+      } else {
+        // Global view: isolate data by professor or student class
+        if (user.role === 'professor') {
+          coursesQuery = coursesQuery.eq('professor_id', user.id);
+          exercisesQuery = supabase
+            .from('exercises')
+            .select(`
+              *,
+              courses!inner (
+                professor_id
+              )
+            `)
+            .eq('courses.professor_id', user.id)
+            .order('created_at', { ascending: false });
+          examsQuery = supabase
+            .from('exams')
+            .select(`
+              *,
+              courses!inner (
+                professor_id
+              )
+            `)
+            .eq('courses.professor_id', user.id)
+            .order('created_at', { ascending: false });
+        } else if (user.role === 'student' && user.room_id) {
+          coursesQuery = coursesQuery.eq('room_id', user.room_id).eq('is_visible', true);
+          exercisesQuery = supabase
+            .from('exercises')
+            .select(`
+              *,
+              courses!inner (
+                room_id,
+                is_visible
+              )
+            `)
+            .eq('courses.room_id', user.room_id)
+            .eq('is_visible', true)
+            .order('created_at', { ascending: false });
+          examsQuery = supabase
+            .from('exams')
+            .select(`
+              *,
+              courses!inner (
+                room_id,
+                is_visible
+              )
+            `)
+            .eq('courses.room_id', user.room_id)
+            .eq('is_visible', true)
+            .order('created_at', { ascending: false });
+        }
       }
       
       // Fetch all data in parallel
@@ -389,10 +438,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Course operations
-  const addCourse = async (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">): Promise<boolean> => {
+  const addCourse = async (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">): Promise<Course | null> => {
     if (!user || user.role !== "professor") {
       toast.error("Only professors can add courses");
-      return false;
+      return null;
     }
 
     try {
@@ -406,23 +455,23 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        toast.error("Failed to add course");
-        return false;
+        toast.error("Failed to add course: " + error.message);
+        return null;
       }
 
       // Refresh data to ensure consistency
       await refreshData(course.room_id);
       toast.success("Course added successfully");
       
-      // Notify enrolled students (though a new course won't have students yet)
+      // Notify enrolled students
       setTimeout(async () => {
         await notifyStudentsAboutUpdate(data.id, course.title, 'course');
       }, 1000);
       
-      return true;
+      return data;
     } catch (error) {
       toast.error("Failed to add course");
-      return false;
+      return null;
     }
   };
 
@@ -588,20 +637,22 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const uploadCoursePdf = async (courseId: string, file: File): Promise<string | null> => {
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `course_${courseId}_${Date.now()}.${fileExt}`;
+      const fileName = `course_${Date.now()}.${fileExt}`;
+      const filePath = `courses/${courseId}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
-        .upload(fileName, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
-        toast.error("Failed to upload PDF");
+        console.error("Course PDF upload error:", uploadError);
+        toast.error("Failed to upload PDF: " + uploadError.message);
         return null;
       }
 
       const { data } = supabase.storage
         .from('course-materials')
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
 
       const publicUrl = data.publicUrl;
 
@@ -617,7 +668,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Exercise operations
-  const addExercise = async (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">): Promise<boolean> => {
+  const addExercise = async (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">): Promise<Exercise | null> => {
     try {
       const { data, error } = await supabase
         .from('exercises')
@@ -626,8 +677,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        toast.error("Failed to add exercise");
-        return false;
+        toast.error("Failed to add exercise: " + error.message);
+        return null;
       }
 
       // Refresh data to ensure consistency
@@ -639,10 +690,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         await notifyStudentsAboutUpdate(exercise.course_id, exercise.title, 'exercise');
       }, 1000);
       
-      return true;
+      return data;
     } catch (error) {
       toast.error("Failed to add exercise");
-      return false;
+      return null;
     }
   };
 
@@ -697,29 +748,45 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return await updateExercise(exerciseId, { is_visible: !exercise.is_visible });
   };
 
-  const uploadExercisePdf = async (exerciseId: string, file: File): Promise<string | null> => {
+  const uploadExercisePdf = async (exerciseId: string, file: File, courseId?: string): Promise<string | null> => {
     try {
+      let targetCourseId = courseId;
+      if (!targetCourseId) {
+        const ex = exercises.find(e => e.id === exerciseId);
+        targetCourseId = ex?.course_id;
+      }
+      if (!targetCourseId) {
+        const { data: exData } = await supabase.from('exercises').select('course_id').eq('id', exerciseId).single();
+        targetCourseId = exData?.course_id;
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `exercise_${exerciseId}_${Date.now()}.${fileExt}`;
+      const filePath = targetCourseId ? `courses/${targetCourseId}/${fileName}` : fileName;
       
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
-        .upload(fileName, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
-        toast.error("Failed to upload PDF");
+        console.error("Exercise PDF upload error:", uploadError);
+        toast.error("Failed to upload PDF: " + uploadError.message);
         return null;
       }
 
       const { data } = supabase.storage
         .from('course-materials')
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
 
       const publicUrl = data.publicUrl;
 
       // Update exercise with PDF URL
-      await updateExercise(exerciseId, { pdf_url: publicUrl });
+      await supabase
+        .from('exercises')
+        .update({ pdf_url: publicUrl })
+        .eq('id', exerciseId);
 
+      await refreshData();
       toast.success("PDF uploaded successfully");
       return publicUrl;
     } catch (error) {
@@ -809,29 +876,45 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return await updateExam(examId, { is_visible: !exam.is_visible });
   };
 
-  const uploadExamPdf = async (examId: string, file: File): Promise<string | null> => {
+  const uploadExamPdf = async (examId: string, file: File, courseId?: string): Promise<string | null> => {
     try {
+      let targetCourseId = courseId;
+      if (!targetCourseId) {
+        const ex = exams.find(e => e.id === examId);
+        targetCourseId = ex?.course_id;
+      }
+      if (!targetCourseId) {
+        const { data: exData } = await supabase.from('exams').select('course_id').eq('id', examId).single();
+        targetCourseId = exData?.course_id;
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `exam_${examId}_${Date.now()}.${fileExt}`;
+      const filePath = targetCourseId ? `courses/${targetCourseId}/${fileName}` : fileName;
       
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
-        .upload(fileName, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
-        toast.error("Failed to upload PDF");
+        console.error("Exam PDF upload error:", uploadError);
+        toast.error("Failed to upload PDF: " + uploadError.message);
         return null;
       }
 
       const { data } = supabase.storage
         .from('course-materials')
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
 
       const publicUrl = data.publicUrl;
 
       // Update exam with PDF URL
-      await updateExam(examId, { pdf_url: publicUrl });
+      await supabase
+        .from('exams')
+        .update({ pdf_url: publicUrl })
+        .eq('id', examId);
 
+      await refreshData();
       toast.success("PDF uploaded successfully");
       return publicUrl;
     } catch (error) {

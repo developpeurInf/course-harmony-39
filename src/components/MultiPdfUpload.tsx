@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Upload, FileText, X, Plus, Eye, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface ExistingFile {
   id: string;
@@ -31,6 +32,7 @@ const MultiPdfUpload = ({
   onRemoveExisting
 }: MultiPdfUploadProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const { language } = useLanguage();
 
   const validateAndAddFiles = (newFiles: FileList | File[]) => {
     const filesToAdd: File[] = [];
@@ -190,15 +192,17 @@ const MultiPdfUpload = ({
       >
         <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
         <p className="text-sm text-muted-foreground mb-2">
-          Drag and drop PDF files here, or click to select
+          {language === "ar" ? "اسحب وأفلت ملفات PDF هنا، أو انقر للاختيار" : "Drag and drop PDF files here, or click to select"}
         </p>
         <p className="text-xs text-muted-foreground mb-3">
-          Maximum {maxFiles} files, up to {maxSizeMB}MB each ({selectedFiles.length + existingFiles.length}/{maxFiles})
+          {language === "ar"
+            ? `الحد الأقصى ${maxFiles} ملفات، حتى ${maxSizeMB} ميغابايت لكل ملف (${selectedFiles.length + existingFiles.length}/${maxFiles})`
+            : `Maximum ${maxFiles} files, up to ${maxSizeMB}MB each (${selectedFiles.length + existingFiles.length}/${maxFiles})`}
         </p>
         <Button variant="outline" size="sm" asChild>
           <label className="cursor-pointer">
             <Plus className="h-4 w-4 mr-2" />
-            Select PDF Files
+            {language === "ar" ? "اختر ملفات PDF" : "Select PDF Files"}
             <input
               type="file"
               multiple

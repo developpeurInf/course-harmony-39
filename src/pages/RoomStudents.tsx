@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
 import { EditStudentDialog } from "@/components/EditStudentDialog";
 import { StudentInfoDialog } from "@/components/StudentInfoDialog";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Student {
   id: string;
@@ -30,13 +31,14 @@ interface Student {
 }
 
 const RoomStudents = () => {
+  const { t, language } = useLanguage();
   const { roomId } = useParams();
   const { user } = useAuth();
   const { refreshData } = useCourses();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('list');
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [infoStudent, setInfoStudent] = useState<Student | null>(null);
@@ -51,7 +53,7 @@ const RoomStudents = () => {
   const loadStudents = async () => {
     if (!roomId) return;
     
-    setLoading(true);
+    if (students.length === 0) setLoading(true);
     try {
       // Get students specifically for this room
       const { data: roomStudents, error: roomStudentsError } = await supabase
@@ -143,13 +145,13 @@ const RoomStudents = () => {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Students</h1>
+          <h1 className="text-3xl font-bold">{t("nav.students")}</h1>
           <p className="text-muted-foreground">
-            Manage students in this class
+            {language === "ar" ? "إدارة التلاميذ في هذا القسم" : t("Manage students in this class")}
           </p>
         </div>
         <Badge variant="secondary">
-          {students.length} student{students.length !== 1 ? 's' : ''}
+          {students.length} {language === "ar" ? "تلاميذ" : `student${students.length !== 1 ? 's' : ''}`}
         </Badge>
       </div>
 
@@ -170,7 +172,7 @@ const RoomStudents = () => {
         <div className="flex items-center space-x-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search students..."
+            placeholder={language === "ar" ? "البحث عن التلاميذ..." : t("Search students...")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
@@ -197,16 +199,18 @@ const RoomStudents = () => {
       {/* Students List */}
       {loading ? (
         <div className="text-center py-8">
-          <p className="text-muted-foreground">Loading students...</p>
+          <p className="text-muted-foreground">{language === "ar" ? "جاري تحميل التلاميذ..." : t("Loading students...")}</p>
         </div>
       ) : filteredStudents.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Students Found</h3>
+              <h3 className="text-lg font-semibold mb-2">{language === "ar" ? "لم يتم العثور على تلاميذ" : t("No Students Found")}</h3>
               <p className="text-muted-foreground mb-4">
-                {searchTerm ? "No students match your search." : "Import students using Excel to get started."}
+                {searchTerm 
+                  ? (language === "ar" ? "لا توجد نتائج مطابقة لبحثك." : t("No students match your search."))
+                  : (language === "ar" ? "قم باستيراد التلاميذ عبر ملف Excel للبدء." : t("Import students using Excel to get started."))}
               </p>
             </div>
           </CardContent>
@@ -234,7 +238,7 @@ const RoomStudents = () => {
               <CardContent className="pt-0">
                 <div className="flex items-center justify-between">
                   <Badge variant="outline" className="text-xs">
-                    {student.role}
+                    {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
                   </Badge>
                   <div className="flex space-x-1">
                     <Button 
@@ -259,19 +263,20 @@ const RoomStudents = () => {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Remove Student</AlertDialogTitle>
+                          <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : "Remove Student"}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to remove {student.name} from this class? 
-                            This will permanently delete their account and all associated data.
+                            {language === "ar" 
+                              ? `هل أنت متأكد من رغبتك في حذف ${student.name} من هذا القسم؟ سيتم حذف حسابه وجميع بياناته بشكل نهائي.`
+                              : `Are you sure you want to remove ${student.name} from this class? This will permanently delete their account and all associated data.`}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel>{language === "ar" ? "إلغاء" : "Cancel"}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleRemoveStudent(student.id)}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
-                            Remove
+                            {language === "ar" ? "حذف" : "Remove"}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -279,7 +284,7 @@ const RoomStudents = () => {
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Joined {new Date(student.created_at).toLocaleDateString()}
+                  {language === "ar" ? "انضم في " : "Joined "} {new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}
                 </div>
               </CardContent>
             </Card>
@@ -290,12 +295,12 @@ const RoomStudents = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Student</TableHead>
-                <TableHead>Username</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{language === "ar" ? "التلميذ" : "Student"}</TableHead>
+                <TableHead>{language === "ar" ? "اسم المستخدم" : "Username"}</TableHead>
+                <TableHead>{language === "ar" ? "البريد الإلكتروني" : "Email"}</TableHead>
+                <TableHead>{language === "ar" ? "الصفة" : "Role"}</TableHead>
+                <TableHead>{language === "ar" ? "تاريخ الانضمام" : "Joined"}</TableHead>
+                <TableHead className="text-right">{language === "ar" ? "الإجراءات" : "Actions"}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -318,10 +323,10 @@ const RoomStudents = () => {
                   <TableCell>{student.email || '-'}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
-                      {student.role}
+                      {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
                     </Badge>
                   </TableCell>
-                  <TableCell>{new Date(student.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-1">
                       <Button 
@@ -346,19 +351,20 @@ const RoomStudents = () => {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Remove Student</AlertDialogTitle>
+                            <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : "Remove Student"}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to remove {student.name} from this class? 
-                              This will permanently delete their account and all associated data.
+                              {language === "ar" 
+                                ? `هل أنت متأكد من رغبتك في حذف ${student.name} من هذا القسم؟ سيتم حذف حسابه وجميع بياناته بشكل نهائي.`
+                                : `Are you sure you want to remove ${student.name} from this class? This will permanently delete their account and all associated data.`}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : "Cancel"}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleRemoveStudent(student.id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              Remove
+                              {language === "ar" ? "حذف" : "Remove"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

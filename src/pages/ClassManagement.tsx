@@ -13,6 +13,7 @@ import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, Aler
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ViewToggle from "@/components/ViewToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Room {
   id: string;
@@ -31,12 +32,14 @@ interface Room {
 
 const ClassManagement = () => {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { rooms, addRoom, updateRoom, deleteRoom } = useCourses();
   const [loading, setLoading] = useState(false);
+  const [loadingCounts, setLoadingCounts] = useState(true);
   const [roomsWithCounts, setRoomsWithCounts] = useState<Room[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -49,7 +52,7 @@ const ClassManagement = () => {
 
   const fetchRoomsWithCounts = async () => {
     if (!user) return;
-    
+    if (roomsWithCounts.length === 0) setLoadingCounts(true);
     try {
       const roomsWithCounts = await Promise.all(
         rooms.map(async (room) => {
@@ -59,11 +62,19 @@ const ClassManagement = () => {
             .select('*', { count: 'exact', head: true })
             .eq('room_id', room.id);
 
-          // Get students count (enrolled students in this room)
-          const { count: studentsCount } = await supabase
+          // Get students count: direct room assignment (imported via Excel) + enrolled students
+          const { count: directStudentsCount } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('room_id', room.id)
+            .eq('role', 'student');
+
+          const { count: enrolledStudentsCount } = await supabase
             .from('enrollments')
             .select('*', { count: 'exact', head: true })
             .eq('room_id', room.id);
+
+          const studentsCount = (directStudentsCount || 0) + (enrolledStudentsCount || 0);
 
           // Get exercises count
           const { data: courses } = await supabase
@@ -106,6 +117,8 @@ const ClassManagement = () => {
       setRoomsWithCounts(roomsWithCounts);
     } catch (error) {
       console.error('Error fetching room counts:', error);
+    } finally {
+      setLoadingCounts(false);
     }
   };
 
@@ -246,7 +259,7 @@ const ClassManagement = () => {
   if (user?.role !== 'professor') {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">Access denied. Only professors can manage classes.</p>
+        <p className="text-muted-foreground">{language === "ar" ? "الوصول مرفوض. إدارة الأقسام متاحة للأساتذة فقط." : "Access denied. Only professors can manage classes."}</p>
       </div>
     );
   }
@@ -255,9 +268,9 @@ const ClassManagement = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Class Management</h1>
+          <h1 className="text-3xl font-bold">{t("Class Management")}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your classes and their associated content
+            {t("Manage your classes and their associated content")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -269,34 +282,34 @@ const ClassManagement = () => {
           <DialogTrigger asChild>
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
-              Create New Class
+              {t("Create New Class")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Class</DialogTitle>
+              <DialogTitle>{t("Create New Class")}</DialogTitle>
               <DialogDescription>
-                Set up a new class to organize your courses and students
+                {t("Set up a new class to organize your courses and students")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Class Name *</Label>
+                <Label htmlFor="name">{t("Class Name *")}</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter class name..."
+                  placeholder={t("Enter class name...")}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t("form.description")}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Enter class description..."
+                  placeholder={t("Enter class description...")}
                   rows={3}
                 />
               </div>
@@ -306,16 +319,16 @@ const ClassManagement = () => {
                   checked={formData.is_visible}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_visible: checked }))}
                 />
-                <Label htmlFor="visibility">Make class visible to students</Label>
+                <Label htmlFor="visibility">{t("Make class visible to students")}</Label>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
+                {t("app.cancel")}
               </Button>
               <Button onClick={handleCreateRoom} disabled={loading}>
                 <Building className="mr-2 h-4 w-4" />
-                Create Class
+                {t("Create Class")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -323,19 +336,26 @@ const ClassManagement = () => {
         </div>
       </div>
 
-      {viewMode === "table" ? (
+      {loadingCounts ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-sm">{language === "ar" ? "جاري التحميل..." : "Loading..."}</p>
+          </div>
+        </div>
+      ) : viewMode === "table" ? (
         <div className="border rounded-lg">
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <th className="p-4 text-left font-medium">Class Name</th>
-                <th className="p-4 text-left font-medium">Description</th>
-                <th className="p-4 text-left font-medium">Courses</th>
-                <th className="p-4 text-left font-medium">Students</th>
-                <th className="p-4 text-left font-medium">Exercises</th>
-                <th className="p-4 text-left font-medium">Exams</th>
-                <th className="p-4 text-left font-medium">Visibility</th>
-                <th className="p-4 text-left font-medium">Actions</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "اسم القسم" : "Class Name"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الوصف" : "Description"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الدروس" : "Courses"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "التلاميذ" : "Students"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "التمارين" : "Exercises"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحانات" : "Exams"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الرؤية" : "Visibility"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : "Actions"}</th>
               </tr>
             </thead>
             <tbody>
@@ -348,7 +368,7 @@ const ClassManagement = () => {
                     </div>
                   </td>
                   <td className="p-4 text-muted-foreground">
-                    {room.description || "No description"}
+                    {room.description || (language === "ar" ? "لا يوجد وصف" : "No description")}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-1">
@@ -430,16 +450,16 @@ const ClassManagement = () => {
               ))}
             </tbody>
           </table>
-          {roomsWithCounts.length === 0 && (
+          {roomsWithCounts.length === 0 && !loadingCounts && (
             <div className="p-8 text-center">
               <Building className="h-12 w-12 text-muted-foreground mb-4 mx-auto" />
-              <p className="text-lg font-medium mb-2">No classes created yet</p>
+              <p className="text-lg font-medium mb-2">{language === "ar" ? "لم يتم إنشاء أي قسم بعد" : "No classes created yet"}</p>
               <p className="text-muted-foreground text-center mb-4">
-                Create your first class to start organizing courses and students
+                {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : "Create your first class to start organizing courses and students"}
               </p>
               <Button onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create Your First Class
+                {language === "ar" ? "إنشاء أول قسم" : "Create Your First Class"}
               </Button>
             </div>
           )}
@@ -456,7 +476,7 @@ const ClassManagement = () => {
                     {room.name}
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    {room.description || "No description"}
+                    {room.description || (language === "ar" ? "لا يوجد وصف" : "No description")}
                   </CardDescription>
                 </div>
                 <div className="flex gap-1">
@@ -508,26 +528,26 @@ const ClassManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm">{room._count?.courses} Courses</span>
+                  <span className="text-sm">{room._count?.courses} {language === "ar" ? "دروس" : "Courses"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">{room._count?.students} Students</span>
+                  <span className="text-sm">{room._count?.students} {language === "ar" ? "تلاميذ" : "Students"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm">{room._count?.exercises} Exercises</span>
+                  <span className="text-sm">{room._count?.exercises} {language === "ar" ? "تمارين" : "Exercises"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm">{room._count?.exams} Exams</span>
+                  <span className="text-sm">{room._count?.exams} {language === "ar" ? "امتحانات" : "Exams"}</span>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Visibility:</span>
+                  <span className="text-muted-foreground">{t("Visibility:")}</span>
                   <span className={room.is_visible ? "text-green-600" : "text-orange-600"}>
-                    {room.is_visible ? "Visible" : "Hidden"}
+                    {room.is_visible ? t("Visible") : t("Hidden")}
                   </span>
                 </div>
               </div>
@@ -537,17 +557,17 @@ const ClassManagement = () => {
     </div>
       )}
 
-    {viewMode === "grid" && roomsWithCounts.length === 0 && (
+    {viewMode === "grid" && roomsWithCounts.length === 0 && !loadingCounts && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8">
             <Building className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">No classes created yet</p>
+            <p className="text-lg font-medium mb-2">{language === "ar" ? "لم يتم إنشاء أي قسم بعد" : "No classes created yet"}</p>
             <p className="text-muted-foreground text-center mb-4">
-              Create your first class to start organizing courses and students
+              {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : "Create your first class to start organizing courses and students"}
             </p>
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
-              Create Your First Class
+              {language === "ar" ? "إنشاء أول قسم" : "Create Your First Class"}
             </Button>
         </CardContent>
       </Card>
@@ -559,29 +579,29 @@ const ClassManagement = () => {
       <Dialog open={!!editingRoom} onOpenChange={() => setEditingRoom(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Class</DialogTitle>
+            <DialogTitle>{language === "ar" ? "تعديل القسم" : "Edit Class"}</DialogTitle>
             <DialogDescription>
-              Update the class information
+              {language === "ar" ? "تحديث معلومات القسم" : "Update the class information"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Class Name *</Label>
+              <Label htmlFor="edit-name">{language === "ar" ? "اسم القسم *" : "Class Name *"}</Label>
               <Input
                 id="edit-name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Enter class name..."
+                placeholder={language === "ar" ? "أدخل اسم القسم..." : "Enter class name..."}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : "Description"}</Label>
               <Textarea
                 id="edit-description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter class description..."
+                placeholder={language === "ar" ? "أدخل وصف القسم..." : "Enter class description..."}
                 rows={3}
               />
             </div>
@@ -591,16 +611,16 @@ const ClassManagement = () => {
                 checked={formData.is_visible}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_visible: checked }))}
               />
-              <Label htmlFor="edit-visibility">Make class visible to students</Label>
+              <Label htmlFor="edit-visibility">{language === "ar" ? "جعل القسم مرئيًا للتلاميذ" : "Make class visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingRoom(null)}>
-              Cancel
+              {language === "ar" ? "إلغاء" : "Cancel"}
             </Button>
             <Button onClick={handleEditRoom} disabled={loading}>
               <Edit className="mr-2 h-4 w-4" />
-              Update Class
+              {language === "ar" ? "تحديث القسم" : "Update Class"}
             </Button>
           </DialogFooter>
         </DialogContent>

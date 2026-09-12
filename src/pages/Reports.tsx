@@ -34,6 +34,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+const MONTHS_AR: Record<string, string> = {
+  "Jan": "يناير", "Feb": "فبراير", "Mar": "مارس", "Apr": "أبريل",
+  "May": "مايو", "Jun": "يونيو", "Jul": "يوليو", "Aug": "أغسطس",
+  "Sep": "سبتمبر", "Oct": "أكتوبر", "Nov": "نوفمبر", "Dec": "ديسمبر"
+};
 
 interface Room {
   id: string;
@@ -70,6 +77,7 @@ interface ActivityData {
 
 const Reports = () => {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string>("");
   const [studentReports, setStudentReports] = useState<StudentReport[]>([]);
@@ -130,7 +138,7 @@ const Reports = () => {
   const loadReports = async () => {
     if (!selectedRoom) return;
 
-    setLoading(true);
+    if (studentReports.length === 0 && courseReports.length === 0) setLoading(true);
     try {
       await Promise.all([
         loadStudentReports(),
@@ -334,8 +342,14 @@ const Reports = () => {
         roomSubmissions = submissions.filter(s => roomExamIds.includes(s.exam_id)).length;
       }
 
+      const monthEng = date.toLocaleDateString('en-US', { month: 'short' });
+      const dayNum = date.getDate();
+      const dateLabel = language === 'ar'
+        ? `${MONTHS_AR[monthEng] || monthEng} ${dayNum}`
+        : `${monthEng} ${dayNum}`;
+
       data.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        date: dateLabel,
         students_active: activeStudents.size,
         exercises_submitted: 0, // Would need exercise submission tracking
         exams_taken: roomSubmissions
@@ -450,7 +464,7 @@ const Reports = () => {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
-              Reports are only available for professors.
+              {typeof t !== "undefined" ? t("Reports are only available for professors.") : "التقارير متاحة للأساتذة فقط."}
             </p>
           </CardContent>
         </Card>
@@ -469,15 +483,15 @@ const Reports = () => {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+          <h1 className="text-3xl font-bold">{t("Reports & Analytics")}</h1>
           <p className="text-muted-foreground">
-            Comprehensive insights into student performance and engagement
+            {t("Comprehensive insights into student performance and engagement")}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedRoom} onValueChange={setSelectedRoom}>
             <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select room" />
+              <SelectValue placeholder={t("Select room")} />
             </SelectTrigger>
             <SelectContent>
               {rooms.map((room) => (
@@ -489,7 +503,7 @@ const Reports = () => {
           </Select>
           <Button onClick={exportReport} variant="outline">
             <Download className="h-4 w-4 mr-2" />
-            Export
+            {t("Export")}
           </Button>
         </div>
       </div>
@@ -498,17 +512,17 @@ const Reports = () => {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
-              Select a room to view reports
+              {t("Select a room to view reports")}
             </p>
           </CardContent>
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="students">Students</TabsTrigger>
-            <TabsTrigger value="courses">Courses</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="overview">{t("Overview")}</TabsTrigger>
+            <TabsTrigger value="students">{t("nav.students")}</TabsTrigger>
+            <TabsTrigger value="courses">{t("nav.courses")}</TabsTrigger>
+            <TabsTrigger value="activity">{t("Activity")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -516,45 +530,45 @@ const Reports = () => {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Total Students")}</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{overviewData.totalStudents}</div>
-                  <p className="text-xs text-muted-foreground">Across all rooms</p>
+                  <p className="text-xs text-muted-foreground">{t("Across all rooms")}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Total Courses")}</CardTitle>
                   <BookOpen className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{overviewData.totalCourses}</div>
-                  <p className="text-xs text-muted-foreground">Active courses</p>
+                  <p className="text-xs text-muted-foreground">{t("Active courses")}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Average Score")}</CardTitle>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{overviewData.averageScore}%</div>
-                  <p className="text-xs text-muted-foreground">Overall average</p>
+                  <p className="text-xs text-muted-foreground">{t("Overall average")}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Exams</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t("Total Exams")}</CardTitle>
                   <GraduationCap className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{overviewData.totalExams}</div>
-                  <p className="text-xs text-muted-foreground">Across all courses</p>
+                  <p className="text-xs text-muted-foreground">{t("Across all courses")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -563,8 +577,8 @@ const Reports = () => {
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Performance Distribution</CardTitle>
-                  <CardDescription>Student performance by score ranges</CardDescription>
+                  <CardTitle>{t("Performance Distribution")}</CardTitle>
+                  <CardDescription>{t("Student performance by score ranges")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -590,8 +604,8 @@ const Reports = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Weekly Activity</CardTitle>
-                  <CardDescription>Student engagement over the last 7 days</CardDescription>
+                  <CardTitle>{t("Weekly Activity")}</CardTitle>
+                  <CardDescription>{t("Student engagement over the last 7 days")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -612,9 +626,9 @@ const Reports = () => {
           <TabsContent value="students" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Student Performance Report</CardTitle>
+                <CardTitle>{t("Student Performance Report")}</CardTitle>
                 <CardDescription>
-                  Detailed performance metrics for all students
+                  {t("Detailed performance metrics for all students")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -682,9 +696,9 @@ const Reports = () => {
           <TabsContent value="courses" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Course Analytics</CardTitle>
+                <CardTitle>{t("Course Analytics")}</CardTitle>
                 <CardDescription>
-                  Performance and engagement metrics by course
+                  {t("Performance and engagement metrics by course")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -699,7 +713,7 @@ const Reports = () => {
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="font-semibold text-lg">{course.title}</h4>
                           <Badge variant="outline">
-                            {course.students_enrolled} student{course.students_enrolled !== 1 ? 's' : ''}
+                            {course.students_enrolled} {t("nav.students").toLowerCase()}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-6">
@@ -730,9 +744,9 @@ const Reports = () => {
           <TabsContent value="activity" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Activity Timeline</CardTitle>
+                <CardTitle>{t("Activity Timeline")}</CardTitle>
                 <CardDescription>
-                  Daily activity and engagement metrics
+                  {t("Daily activity and engagement metrics")}
                 </CardDescription>
               </CardHeader>
               <CardContent>

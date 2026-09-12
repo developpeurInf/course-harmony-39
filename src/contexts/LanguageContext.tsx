@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { translateToArabic } from "@/lib/arabic-translations";
 
 type Language = "en" | "fr" | "ar";
 
@@ -17,7 +18,7 @@ const translations: Translations = {
   "app.name": {
     en: "Course Harmony",
     fr: "Harmonie des Cours",
-    ar: "تناغم الدورات"
+    ar: "تناغم الدروس"
   },
   "app.language": {
     en: "Language",
@@ -74,7 +75,7 @@ const translations: Translations = {
   "nav.courses": {
     en: "Courses",
     fr: "Cours",
-    ar: "الدورات"
+    ar: "الدروس"
   },
   "nav.exercises": {
     en: "Exercises",
@@ -89,12 +90,12 @@ const translations: Translations = {
   "nav.students": {
     en: "Students",
     fr: "Étudiants",
-    ar: "الطلاب"
+    ar: "التلاميذ"
   },
   "nav.studentsActivities": {
     en: "Students Activities",
     fr: "Activités des étudiants",
-    ar: "أنشطة الطلاب"
+    ar: "أنشطة التلاميذ"
   },
   "nav.reports": {
     en: "Reports",
@@ -104,7 +105,7 @@ const translations: Translations = {
   "nav.manageClasses": {
     en: "Manage Classes",
     fr: "Gérer les classes",
-    ar: "إدارة الفصول"
+    ar: "إدارة الأقسام"
   },
   "nav.professor": {
     en: "Professor",
@@ -114,7 +115,7 @@ const translations: Translations = {
   "nav.student": {
     en: "Student",
     fr: "Étudiant",
-    ar: "طالب"
+    ar: "تلميذ"
   },
   "nav.profile": {
     en: "Profile",
@@ -132,6 +133,11 @@ const translations: Translations = {
     ar: "تسجيل الدخول"
   },
   "nav.logout": {
+    en: "Logout",
+    fr: "Déconnexion",
+    ar: "تسجيل الخروج"
+  },
+  "auth.logout": {
     en: "Logout",
     fr: "Déconnexion",
     ar: "تسجيل الخروج"
@@ -215,17 +221,17 @@ const translations: Translations = {
   "course.add": {
     en: "Add Course",
     fr: "Ajouter un cours",
-    ar: "إضافة دورة"
+    ar: "إضافة درس"
   },
   "course.edit": {
     en: "Edit Course",
     fr: "Modifier le cours",
-    ar: "تعديل الدورة"
+    ar: "تعديل الدرس"
   },
   "course.delete": {
     en: "Delete Course",
     fr: "Supprimer le cours",
-    ar: "حذف الدورة"
+    ar: "حذف الدرس"
   },
   
   // Exercises
@@ -288,22 +294,22 @@ const translations: Translations = {
   "dashboard.professor.subtitle": {
     en: "Manage your courses, exercises, and exams",
     fr: "Gérez vos cours, exercices et examens",
-    ar: "إدارة دوراتك وتمارينك وامتحاناتك"
+    ar: "إدارة دروسك وتمارينك وامتحاناتك"
   },
   "dashboard.student.subtitle": {
     en: "View your courses, assignments, and exams",
     fr: "Consultez vos cours, devoirs et examens",
-    ar: "عرض دوراتك ومهامك وامتحاناتك"
+    ar: "عرض دروسك ومهامك وامتحاناتك"
   },
   "dashboard.courses.professor": {
     en: "Total courses you manage",
     fr: "Total des cours que vous gérez",
-    ar: "إجمالي الدورات التي تديرها"
+    ar: "إجمالي الدروس التي تديرها"
   },
   "dashboard.courses.student": {
     en: "Courses you're enrolled in",
     fr: "Cours auxquels vous êtes inscrit",
-    ar: "الدورات المسجل بها"
+    ar: "الدروس المسجل بها"
   },
   "dashboard.exercises.professor": {
     en: "Total assigned exercises",
@@ -328,7 +334,7 @@ const translations: Translations = {
   "dashboard.students.total": {
     en: "Total enrolled students",
     fr: "Total des étudiants inscrits",
-    ar: "إجمالي الطلاب المسجلين"
+    ar: "إجمالي التلاميذ المسجلين"
   },
   "dashboard.deadlines": {
     en: "Upcoming Deadlines",
@@ -363,27 +369,27 @@ const translations: Translations = {
   "dashboard.your.courses": {
     en: "Your Courses",
     fr: "Vos cours",
-    ar: "دوراتك"
+    ar: "دروسك"
   },
   "dashboard.your.courses.professor": {
     en: "Courses you are teaching",
     fr: "Cours que vous enseignez",
-    ar: "الدورات التي تدرسها"
+    ar: "الدروس التي تدرسها"
   },
   "dashboard.your.courses.student": {
     en: "Courses you are enrolled in",
     fr: "Cours auxquels vous êtes inscrit",
-    ar: "الدورات المسجل بها"
+    ar: "الدروس المسجل بها"
   },
   "dashboard.no.courses.student": {
     en: "You are not enrolled in any courses yet",
     fr: "Vous n'êtes inscrit à aucun cours pour le moment",
-    ar: "لم تسجل في أي دورات بعد"
+    ar: "لم تسجل في أي دروس بعد"
   },
   "dashboard.no.courses.professor": {
     en: "You haven't created any courses yet",
     fr: "Vous n'avez encore créé aucun cours",
-    ar: "لم تنشئ أي دورات بعد"
+    ar: "لم تنشئ أي دروس بعد"
   },
   "dashboard.due": {
     en: "Due",
@@ -398,7 +404,7 @@ const translations: Translations = {
   "dashboard.students.count": {
     en: "students",
     fr: "étudiants",
-    ar: "طلاب"
+    ar: "تلاميذ"
   },
   
   // Profile
@@ -425,7 +431,7 @@ const translations: Translations = {
   "profile.student": {
     en: "Student",
     fr: "Étudiant",
-    ar: "طالب"
+    ar: "تلميذ"
   },
   "profile.statistics": {
     en: "Account Statistics",
@@ -450,17 +456,17 @@ const translations: Translations = {
   "profile.activity.desc": {
     en: "Summary of your courses and academic activity",
     fr: "Résumé de vos cours et activité académique",
-    ar: "ملخص دوراتك ونشاطك الأكاديمي"
+    ar: "ملخص دروسك ونشاطك الأكاديمي"
   },
   "profile.courses.teach": {
     en: "Courses You Teach",
     fr: "Cours que vous enseignez",
-    ar: "الدورات التي تدرسها"
+    ar: "الدروس التي تدرسها"
   },
   "profile.courses.enrolled": {
     en: "Your Enrolled Courses",
     fr: "Vos cours inscrits",
-    ar: "دوراتك المسجلة"
+    ar: "دروسك المسجلة"
   },
   "profile.recent.activity": {
     en: "Recent Activity",
@@ -470,7 +476,7 @@ const translations: Translations = {
   "profile.no.courses": {
     en: "No courses found",
     fr: "Aucun cours trouvé",
-    ar: "لم يتم العثور على دورات"
+    ar: "لم يتم العثور على دروس"
   },
   "profile.no.activity": {
     en: "No recent activity",
@@ -490,7 +496,7 @@ const translations: Translations = {
   "profile.unknown.course": {
     en: "Unknown Course",
     fr: "Cours inconnu",
-    ar: "دورة غير معروفة"
+    ar: "درس غير معروفة"
   },
   "profile.exercise": {
     en: "Exercise",
@@ -507,7 +513,7 @@ const translations: Translations = {
   "index.subtitle": {
     en: "A complete platform for professors to manage courses, exercises, and exams",
     fr: "Une plateforme complète pour que les professeurs gèrent les cours, exercices et examens",
-    ar: "منصة شاملة للأساتذة لإدارة الدورات والتمارين والامتحانات"
+    ar: "منصة شاملة للأساتذة لإدارة الدروس والتمارين والامتحانات"
   },
   "index.get.started": {
     en: "Get Started",
@@ -527,17 +533,17 @@ const translations: Translations = {
   "index.professors.desc": {
     en: "Create and manage courses, set up exercises and exams, and track student progress.",
     fr: "Créez et gérez des cours, configurez des exercices et des examens, et suivez les progrès des étudiants.",
-    ar: "إنشاء وإدارة الدورات، وإعداد التمارين والامتحانات، وتتبع تقدم الطلاب."
+    ar: "إنشاء وإدارة الدروس، وإعداد التمارين والامتحانات، وتتبع تقدم التلاميذ."
   },
   "index.for.students": {
     en: "For Students",
     fr: "Pour les étudiants",
-    ar: "للطلاب"
+    ar: "للتلاميذ"
   },
   "index.students.desc": {
     en: "Access course materials, complete exercises, and stay prepared for upcoming exams.",
     fr: "Accédez aux supports de cours, complétez les exercices et restez préparé pour les examens à venir.",
-    ar: "الوصول إلى مواد الدورة، وإكمال التمارين، والاستعداد للامتحانات القادمة."
+    ar: "الوصول إلى مواد الدرس، وإكمال التمارين، والاستعداد للامتحانات القادمة."
   },
   "index.login.account": {
     en: "Log In to Your Account",
@@ -547,12 +553,12 @@ const translations: Translations = {
   "index.course.management": {
     en: "Course Management",
     fr: "Gestion des cours",
-    ar: "إدارة الدورات"
+    ar: "إدارة الدروس"
   },
   "index.course.management.desc": {
     en: "Organize and control visibility of course materials for your students.",
     fr: "Organisez et contrôlez la visibilité des supports de cours pour vos étudiants.",
-    ar: "تنظيم والتحكم في رؤية مواد الدورة لطلابك."
+    ar: "تنظيم والتحكم في رؤية مواد الدرس لتلاميذك."
   },
   "index.exercise.tracking": {
     en: "Exercise Tracking",
@@ -584,7 +590,7 @@ const translations: Translations = {
   "login.title": {
     en: "Course Harmony",
     fr: "Harmonie des Cours",
-    ar: "تناغم الدورات"
+    ar: "تناغم الدروس"
   },
   "login.subtitle": {
     en: "Login to access your academic portal",
@@ -623,12 +629,12 @@ const translations: Translations = {
   "student.edit": {
     en: "Edit Student",
     fr: "Modifier l'étudiant",
-    ar: "تعديل الطالب"
+    ar: "تعديل التلميذ"
   },
   "student.edit.desc": {
     en: "Update the student's information below.",
     fr: "Mettez à jour les informations de l'étudiant ci-dessous.",
-    ar: "قم بتحديث معلومات الطالب أدناه."
+    ar: "قم بتحديث معلومات التلميذ أدناه."
   },
   "student.name": {
     en: "Full Name",
@@ -648,7 +654,7 @@ const translations: Translations = {
   "student.update": {
     en: "Update Student",
     fr: "Mettre à jour l'étudiant",
-    ar: "تحديث الطالب"
+    ar: "تحديث التلميذ"
   },
   "student.updating": {
     en: "Updating...",
@@ -663,12 +669,12 @@ const translations: Translations = {
   "student.updated": {
     en: "Student updated successfully",
     fr: "Étudiant mis à jour avec succès",
-    ar: "تم تحديث الطالب بنجاح"
+    ar: "تم تحديث التلميذ بنجاح"
   },
   "student.update.failed": {
     en: "Failed to update student",
     fr: "Échec de la mise à jour de l'étudiant",
-    ar: "فشل تحديث الطالب"
+    ar: "فشل تحديث التلميذ"
   },
   "student.placeholder.name": {
     en: "Enter full name",
@@ -784,42 +790,42 @@ const translations: Translations = {
   "students.management": {
     en: "Student Management",
     fr: "Gestion des étudiants",
-    ar: "إدارة الطلاب"
+    ar: "إدارة التلاميذ"
   },
   "students.manage.desc": {
     en: "Manage students enrolled in your courses",
     fr: "Gérer les étudiants inscrits à vos cours",
-    ar: "إدارة الطلاب المسجلين في دوراتك"
+    ar: "إدارة التلاميذ المسجلين في دروسك"
   },
   "students.add": {
     en: "Add Student",
     fr: "Ajouter un étudiant",
-    ar: "إضافة طالب"
+    ar: "إضافة تلميذ"
   },
   "students.search": {
     en: "Search students by name or email...",
     fr: "Rechercher des étudiants par nom ou e-mail...",
-    ar: "البحث عن الطلاب بالاسم أو البريد الإلكتروني..."
+    ar: "البحث عن التلاميذ بالاسم أو البريد الإلكتروني..."
   },
   "students.filter.course": {
     en: "Filter by course",
     fr: "Filtrer par cours",
-    ar: "تصفية حسب الدورة"
+    ar: "تصفية حسب الدرس"
   },
   "students.all.courses": {
     en: "All Courses",
     fr: "Tous les cours",
-    ar: "جميع الدورات"
+    ar: "جميع الدروس"
   },
   "students.enrolled.courses": {
     en: "Enrolled Courses:",
     fr: "Cours inscrits :",
-    ar: "الدورات المسجلة:"
+    ar: "الدروس المسجلة:"
   },
   "students.enroll.in.course": {
     en: "Enroll in Course",
     fr: "Inscrire au cours",
-    ar: "التسجيل في الدورة"
+    ar: "التسجيل في الدرس"
   },
   "students.enroll": {
     en: "Enroll",
@@ -829,17 +835,17 @@ const translations: Translations = {
   "students.enroll.title": {
     en: "Enroll Student in Course",
     fr: "Inscrire l'étudiant au cours",
-    ar: "تسجيل الطالب في الدورة"
+    ar: "تسجيل التلميذ في الدرس"
   },
   "students.enroll.desc": {
     en: "Select a course to enroll",
     fr: "Sélectionnez un cours pour inscrire",
-    ar: "اختر دورة للتسجيل"
+    ar: "اختر درس للتسجيل"
   },
   "students.select.course": {
     en: "Select a course",
     fr: "Sélectionner un cours",
-    ar: "اختر دورة"
+    ar: "اختر درس"
   },
   "students.already.enrolled": {
     en: "Already enrolled",
@@ -849,37 +855,37 @@ const translations: Translations = {
   "students.course": {
     en: "Course",
     fr: "Cours",
-    ar: "الدورة"
+    ar: "الدرس"
   },
   "students.courses": {
     en: "courses",
     fr: "cours",
-    ar: "دورات"
+    ar: "دروس"
   },
   "students.loading": {
     en: "Loading students...",
     fr: "Chargement des étudiants...",
-    ar: "جاري تحميل الطلاب..."
+    ar: "جاري تحميل التلاميذ..."
   },
   "students.no.found": {
     en: "No Students Found",
     fr: "Aucun étudiant trouvé",
-    ar: "لم يتم العثور على طلاب"
+    ar: "لم يتم العثور على تلاميذ"
   },
   "students.no.match": {
     en: "No students match your current filters.",
     fr: "Aucun étudiant ne correspond à vos filtres actuels.",
-    ar: "لا يوجد طلاب يطابقون المرشحات الحالية."
+    ar: "لا يوجد تلاميذ يطابقون المرشحات الحالية."
   },
   "students.no.enrolled": {
     en: "No students are enrolled in your courses yet.",
     fr: "Aucun étudiant n'est encore inscrit à vos cours.",
-    ar: "لا يوجد طلاب مسجلون في دوراتك حتى الآن."
+    ar: "لا يوجد تلاميذ مسجلون في دروسك حتى الآن."
   },
   "students.more.courses": {
     en: "more courses",
     fr: "cours supplémentaires",
-    ar: "دورات إضافية"
+    ar: "دروس إضافية"
   },
   "students.more": {
     en: "more",
@@ -891,22 +897,22 @@ const translations: Translations = {
   "activities.title": {
     en: "Students Activities",
     fr: "Activités des étudiants",
-    ar: "أنشطة الطلاب"
+    ar: "أنشطة التلاميذ"
   },
   "activities.desc": {
     en: "Monitor student activities, sessions, and online status",
     fr: "Surveiller les activités, les sessions et le statut en ligne des étudiants",
-    ar: "مراقبة أنشطة الطلاب والجلسات والحالة عبر الإنترنت"
+    ar: "مراقبة أنشطة التلاميذ والجلسات والحالة عبر الإنترنت"
   },
   "activities.student.activities": {
     en: "Student Activities",
     fr: "Activités des étudiants",
-    ar: "أنشطة الطلاب"
+    ar: "أنشطة التلاميذ"
   },
   "activities.monitor": {
     en: "Monitor and track student engagement and activity",
     fr: "Surveiller et suivre l'engagement et l'activité des étudiants",
-    ar: "مراقبة وتتبع مشاركة الطلاب ونشاطهم"
+    ar: "مراقبة وتتبع مشاركة التلاميذ ونشاطهم"
   },
   "activities.export": {
     en: "Export Activities",
@@ -916,7 +922,7 @@ const translations: Translations = {
   "activities.total.students": {
     en: "Total Students",
     fr: "Total étudiants",
-    ar: "إجمالي الطلاب"
+    ar: "إجمالي التلاميذ"
   },
   "activities.online.now": {
     en: "Online Now",
@@ -941,22 +947,22 @@ const translations: Translations = {
   "activities.search.placeholder": {
     en: "Search students or activities...",
     fr: "Rechercher des étudiants ou des activités...",
-    ar: "البحث عن الطلاب أو الأنشطة..."
+    ar: "البحث عن التلاميذ أو الأنشطة..."
   },
   "activities.student.filter": {
     en: "Student",
     fr: "Étudiant",
-    ar: "طالب"
+    ar: "تلميذ"
   },
   "activities.all.students": {
     en: "All Students",
     fr: "Tous les étudiants",
-    ar: "جميع الطلاب"
+    ar: "جميع التلاميذ"
   },
   "activities.select.student": {
     en: "Select student",
     fr: "Sélectionner un étudiant",
-    ar: "اختر طالباً"
+    ar: "اختر تلميذاً"
   },
   "activities.date.range": {
     en: "Date Range",
@@ -991,12 +997,12 @@ const translations: Translations = {
   "activities.online.students": {
     en: "Online Students",
     fr: "Étudiants en ligne",
-    ar: "الطلاب المتصلون"
+    ar: "التلاميذ المتصلون"
   },
   "activities.no.online": {
     en: "No students are currently online",
     fr: "Aucun étudiant n'est actuellement en ligne",
-    ar: "لا يوجد طلاب متصلون حالياً"
+    ar: "لا يوجد تلاميذ متصلون حالياً"
   },
   "activities.active.for": {
     en: "Active for",
@@ -1016,7 +1022,7 @@ const translations: Translations = {
   "activities.tracking.desc": {
     en: "The activity tracking system is set up. Student activities will appear here once students start using the platform.",
     fr: "Le système de suivi des activités est configuré. Les activités des étudiants apparaîtront ici une fois qu'ils commenceront à utiliser la plateforme.",
-    ar: "تم إعداد نظام تتبع النشاط. ستظهر أنشطة الطلاب هنا بمجرد أن يبدأوا في استخدام المنصة."
+    ar: "تم إعداد نظام تتبع النشاط. ستظهر أنشطة التلاميذ هنا بمجرد أن يبدأوا في استخدام المنصة."
   },
   "activities.no.activities": {
     en: "No activities found",
@@ -1063,7 +1069,7 @@ const translations: Translations = {
   "dashboard.get.started": {
     en: "Get started by creating your first room. Rooms help you organize your courses, students, and academic content.",
     fr: "Commencez par créer votre première salle. Les salles vous aident à organiser vos cours, étudiants et contenu académique.",
-    ar: "ابدأ بإنشاء غرفتك الأولى. تساعدك الغرف في تنظيم دوراتك وطلابك والمحتوى الأكاديمي."
+    ar: "ابدأ بإنشاء غرفتك الأولى. تساعدك الغرف في تنظيم دروسك وتلاميذك والمحتوى الأكاديمي."
   },
   "dashboard.create.first.room": {
     en: "Create Your First Room",
@@ -1083,12 +1089,23 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Get saved language or default to French
-  const [language, setLanguage] = useState<Language>(() => {
+  const [language, setLanguageState] = useState<Language>(() => {
     const savedLanguage = localStorage.getItem("maataoui-language");
-    return (savedLanguage as Language) || "fr";
+    return (savedLanguage as Language) || "ar";
   });
 
-  // Save language to localStorage when it changes
+  const setLanguage = (newLang: Language) => {
+    const oldLang = language;
+    localStorage.setItem("maataoui-language", newLang);
+    setLanguageState(newLang);
+    if (oldLang === "ar" && newLang !== "ar") {
+      setTimeout(() => {
+        window.location.reload();
+      }, 50);
+    }
+  };
+
+  // Save language to localStorage and handle RTL and Arabic translation
   useEffect(() => {
     localStorage.setItem("maataoui-language", language);
     
@@ -1098,6 +1115,72 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     // Add a class to the body for RTL styling
     if (language === "ar") {
       document.body.classList.add("rtl");
+
+      const translateNode = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const val = node.nodeValue;
+          if (val && val.trim()) {
+            const trimmed = val.trim();
+            const translated = translateToArabic(trimmed);
+            if (translated && translated !== trimmed) {
+              node.nodeValue = val.replace(trimmed, translated);
+            }
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (["SCRIPT", "STYLE", "CODE", "PRE"].includes(el.tagName)) return;
+          
+          if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+            if (el.placeholder) {
+              const transPh = translateToArabic(el.placeholder);
+              if (transPh && transPh !== el.placeholder) {
+                el.placeholder = transPh;
+              }
+            }
+          }
+          if (el.title) {
+            const transTitle = translateToArabic(el.title);
+            if (transTitle && transTitle !== el.title) {
+              el.title = transTitle;
+            }
+          }
+          for (let i = 0; i < el.childNodes.length; i++) {
+            translateNode(el.childNodes[i]);
+          }
+        }
+      };
+
+      // Scan initial DOM
+      translateNode(document.body);
+
+      // Mutation observer to dynamically translate new elements & texts
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === "childList") {
+            mutation.addedNodes.forEach((node) => translateNode(node));
+          } else if (mutation.type === "characterData") {
+            const node = mutation.target;
+            const val = node.nodeValue;
+            if (val && val.trim()) {
+              const trimmed = val.trim();
+              const translated = translateToArabic(trimmed);
+              if (translated && translated !== trimmed) {
+                node.nodeValue = val.replace(trimmed, translated);
+              }
+            }
+          }
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      return () => {
+        observer.disconnect();
+      };
     } else {
       document.body.classList.remove("rtl");
     }
@@ -1105,11 +1188,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   // Translation function
   const t = (key: string): string => {
-    if (!translations[key]) {
-      console.warn(`Translation missing for key: ${key}`);
-      return key;
+    if (translations[key]) {
+      return translations[key][language];
     }
-    return translations[key][language];
+    if (language === "ar") {
+      const ar = translateToArabic(key);
+      if (ar && ar !== key) return ar;
+    }
+    return key;
   };
 
   // Get text direction based on language

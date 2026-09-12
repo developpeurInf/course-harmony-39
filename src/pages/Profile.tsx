@@ -96,9 +96,9 @@ const Profile = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold">Profile</h1>
+        <h1 className="text-3xl font-bold">{t("nav.profile")}</h1>
         <p className="text-muted-foreground mt-1">
-          Manage your account settings and preferences
+          {t("Manage your account settings and preferences")}
         </p>
       </div>
 
@@ -109,21 +109,21 @@ const Profile = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Personal Information
+                {t("Personal Information")}
               </CardTitle>
               <CardDescription>
-                Update your personal details and account information
+                {t("Update your personal details and account information")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{t("Full Name")}</Label>
                 {isEditing ? (
                   <Input
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your full name"
+                    placeholder={t("Enter your full name")}
                   />
                 ) : (
                   <div className="p-2 bg-muted rounded-md">{user.name}</div>
@@ -131,29 +131,29 @@ const Profile = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{t("Email Address")}</Label>
                 <div className="p-2 bg-muted rounded-md">{user.email}</div>
                 <p className="text-sm text-muted-foreground">
-                  Email cannot be changed. Contact support if you need to update it.
+                  {t("Email cannot be changed. Contact support if you need to update it.")}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="role">{t("Role")}</Label>
                 {isEditing ? (
                   <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="student">Student</SelectItem>
-                      <SelectItem value="professor">Professor</SelectItem>
+                      <SelectItem value="student">{t("Student")}</SelectItem>
+                      <SelectItem value="professor">{t("Professor")}</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
                   <div className="p-2 bg-muted rounded-md flex items-center gap-2">
                     <Badge variant={user.role === "professor" ? "default" : "secondary"}>
-                      {user.role === "professor" ? "Professor" : "Student"}
+                      {user.role === "professor" ? t("Professor") : t("Student")}
                     </Badge>
                   </div>
                 )}
@@ -163,15 +163,15 @@ const Profile = () => {
                 {isEditing ? (
                   <>
                     <Button onClick={handleSave} disabled={loading}>
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? t("Saving...") : t("Save Changes")}
                     </Button>
                     <Button variant="outline" onClick={handleCancel}>
-                      Cancel
+                      {t("Cancel")}
                     </Button>
                   </>
                 ) : (
                   <Button onClick={() => setIsEditing(true)}>
-                    Edit Profile
+                    {t("Edit Profile")}
                   </Button>
                 )}
               </div>
@@ -186,10 +186,10 @@ const Profile = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Camera className="h-5 w-5" />
-                Profile Picture
+                {t("Profile Picture")}
               </CardTitle>
               <CardDescription>
-                Upload a profile picture to personalize your account
+                {t("Upload a profile picture to personalize your account")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -206,7 +206,7 @@ const Profile = () => {
                     <Button variant="outline" size="sm" asChild>
                       <span>
                         <Camera className="h-4 w-4 mr-2" />
-                        Change Photo
+                        {t("Change Photo")}
                       </span>
                     </Button>
                   </Label>
@@ -218,7 +218,7 @@ const Profile = () => {
                     onChange={handleAvatarUpload}
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    JPG, PNG or GIF. Max 5MB.
+                    {t("JPG, PNG or GIF. Max 5MB.")}
                   </p>
                 </div>
               </div>
@@ -230,19 +230,19 @@ const Profile = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Security
+                {t("Security")}
               </CardTitle>
               <CardDescription>
-                Manage your account security settings
+                {t("Manage your account security settings")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-sm font-medium">Password</h4>
+                    <h4 className="text-sm font-medium">{t("Password")}</h4>
                     <p className="text-xs text-muted-foreground">
-                      Reset your password via email
+                      {t("Reset your password via email")}
                     </p>
                   </div>
                   <Button 
@@ -252,16 +252,16 @@ const Profile = () => {
                     disabled={resetLoading}
                   >
                     <KeyRound className="h-4 w-4 mr-2" />
-                    {resetLoading ? "Sending..." : "Reset"}
+                    {resetLoading ? t("Sending...") : t("Reset")}
                   </Button>
                 </div>
                 
                 {/* Future: 2FA section */}
                 <div className="flex items-center justify-between opacity-50">
                   <div>
-                    <h4 className="text-sm font-medium">Two-Factor Authentication</h4>
+                    <h4 className="text-sm font-medium">{t("Two-Factor Authentication")}</h4>
                     <p className="text-xs text-muted-foreground">
-                      Coming soon: Add an extra layer of security
+                      {t("Coming soon: Add an extra layer of security")}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" disabled>
