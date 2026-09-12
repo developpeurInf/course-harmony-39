@@ -12,10 +12,55 @@
     <meta property="og:type" content="website" />
 
     <!-- Icône (PWA iOS/Android base) -->
-    <!-- Early compatibility polyfills -->
+    <!-- Early compatibility polyfills & error inspector -->
     <script>
+      // 1. Error Inspector (displays errors directly on screen if any script fails)
+      window.addEventListener('error', function(e) {
+        var box = document.getElementById('debug-error-box');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'debug-error-box';
+          box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:#ffffff;padding:16px;z-index:9999999;font-size:13px;font-family:monospace;white-space:pre-wrap;word-break:break-all;max-height:50vh;overflow:auto;box-shadow:0 4px 6px rgba(0,0,0,0.3);';
+          document.body ? document.body.appendChild(box) : document.documentElement.appendChild(box);
+        }
+        box.innerHTML += '<b>[Error]</b> ' + (e.message || e) + '<br/>File: ' + (e.filename || 'unknown') + ':' + (e.lineno || '?') + '<br/><br/>';
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var box = document.getElementById('debug-error-box');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'debug-error-box';
+          box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:#ffffff;padding:16px;z-index:9999999;font-size:13px;font-family:monospace;white-space:pre-wrap;word-break:break-all;max-height:50vh;overflow:auto;box-shadow:0 4px 6px rgba(0,0,0,0.3);';
+          document.body ? document.body.appendChild(box) : document.documentElement.appendChild(box);
+        }
+        var reason = e.reason ? (e.reason.stack || e.reason.message || e.reason) : e;
+        box.innerHTML += '<b>[Promise Rejection]</b> ' + reason + '<br/><br/>';
+      });
+
+      // 2. globalThis
       if (typeof globalThis === 'undefined') {
         window.globalThis = window;
+      }
+
+      // 3. Safari Private Browsing mode safe storage
+      try {
+        var _k = '__sb_test__';
+        window.localStorage.setItem(_k, _k);
+        window.localStorage.removeItem(_k);
+      } catch (err) {
+        var _memoryStorage = {};
+        var _safeStorage = {
+          getItem: function(key) { return _memoryStorage[key] || null; },
+          setItem: function(key, val) { _memoryStorage[key] = String(val); },
+          removeItem: function(key) { delete _memoryStorage[key]; },
+          clear: function() { _memoryStorage = {}; },
+          key: function(i) { return Object.keys(_memoryStorage)[i] || null; },
+          get length() { return Object.keys(_memoryStorage).length; }
+        };
+        try {
+          Object.defineProperty(window, 'localStorage', { value: _safeStorage, writable: true, configurable: true });
+          Object.defineProperty(window, 'sessionStorage', { value: _safeStorage, writable: true, configurable: true });
+        } catch (e2) {}
       }
     </script>
   </head>

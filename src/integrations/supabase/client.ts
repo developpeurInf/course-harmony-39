@@ -8,9 +8,28 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+const getSafeStorage = () => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const test = '__sb_test__';
+      window.localStorage.setItem(test, test);
+      window.localStorage.removeItem(test);
+      return window.localStorage;
+    }
+  } catch (e) {
+    // Safari Private Browsing mode throws on localStorage
+  }
+  const memStorage: Record<string, string> = {};
+  return {
+    getItem: (key: string) => memStorage[key] || null,
+    setItem: (key: string, value: string) => { memStorage[key] = value; },
+    removeItem: (key: string) => { delete memStorage[key]; }
+  };
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: getSafeStorage(),
     persistSession: true,
     autoRefreshToken: true,
   }
