@@ -27,6 +27,25 @@ if (typeof window !== 'undefined') {
       ) as `${string}-${string}-${string}-${string}-${string}`;
     };
   }
+
+  // 5. MediaQueryList addEventListener/removeEventListener for Safari 12/13
+  try {
+    if (window.matchMedia) {
+      const proto = (window.MediaQueryList && window.MediaQueryList.prototype) || Object.getPrototypeOf(window.matchMedia('all'));
+      if (proto && !proto.addEventListener) {
+        proto.addEventListener = function (type: string, listener: any) {
+          if (type === 'change') {
+            this.addListener(listener);
+          }
+        };
+        proto.removeEventListener = function (type: string, listener: any) {
+          if (type === 'change') {
+            this.removeListener(listener);
+          }
+        };
+      }
+    }
+  } catch (e) {}
 }
 
 // 5. Object.fromEntries

@@ -62,6 +62,25 @@
           Object.defineProperty(window, 'sessionStorage', { value: _safeStorage, writable: true, configurable: true });
         } catch (e2) {}
       }
+
+      // 4. MediaQueryList addEventListener polyfill for Safari 12/13
+      try {
+        if (window.matchMedia) {
+          var _proto = (window.MediaQueryList && window.MediaQueryList.prototype) || Object.getPrototypeOf(window.matchMedia('all'));
+          if (_proto && !_proto.addEventListener) {
+            _proto.addEventListener = function(type, listener) {
+              if (type === 'change' && this.addListener) {
+                this.addListener(listener);
+              }
+            };
+            _proto.removeEventListener = function(type, listener) {
+              if (type === 'change' && this.removeListener) {
+                this.removeListener(listener);
+              }
+            };
+          }
+        }
+      } catch (e3) {}
     </script>
   </head>
 
