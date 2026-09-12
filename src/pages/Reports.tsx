@@ -1,3 +1,4 @@
+import { downloadExcelFile } from '@/lib/download';
 import * as XLSX from 'xlsx';
 import { iosCompatibleDownload } from "@/lib/download";
 import { useState, useEffect } from "react";
@@ -433,7 +434,7 @@ const Reports = () => {
     }
   };
 
-  const exportReport = () => {
+  const exportReport = async () => {
     try {
       const reportData = studentReports.map(student => ({
         'Nom de l\'élève': student.name,
@@ -447,9 +448,9 @@ const Reports = () => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Rapports");
       const filename = `rapport_eleves_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(wb, filename);
 
-      toast.success(language === "ar" ? "تم تحميل التقرير بصيغة Excel بنجاح" : "Report exported as Excel file successfully");
+      await downloadExcelFile(wb, filename);
+      toast.success(language === "ar" ? "تم تحميل التقرير بصيغة Excel بنجاح" : "Report exported successfully");
     } catch (error) {
       console.error('Export error:', error);
       toast.error("Failed to export report");

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, Download, FileSpreadsheet, Users } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx';
-import { iosCompatibleXlsxDownload } from '@/lib/download';
+import { downloadExcelFile } from '@/lib/download';
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,15 +128,20 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
   };
 
   // Download a template Excel file
-  const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      { 'الاسم': 'أحمد', 'النسب': 'العلوي' },
-      { 'الاسم': 'فاطمة', 'النسب': 'الزهراء' },
-      { 'الاسم': 'يوسف', 'النسب': 'المرابط' }
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Students");
-    XLSX.writeFile(wb, "Modele_Eleves.xlsx");
+  const handleDownloadTemplate = async () => {
+    try {
+      const ws = XLSX.utils.json_to_sheet([
+        { 'الاسم': 'أحمد', 'النسب': 'العلوي' },
+        { 'الاسم': 'فاطمة', 'النسب': 'الزهراء' },
+        { 'الاسم': 'يوسف', 'النسب': 'المرابط' }
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Students");
+      await downloadExcelFile(wb, "Modele_Eleves.xlsx");
+    } catch (e: any) {
+      console.error('Template download error:', e);
+      toast.error(language === "ar" ? "فشل تحميل نموذج Excel" : "Failed to download template");
+    }
   };
 
   const handleImportStudents = async () => {

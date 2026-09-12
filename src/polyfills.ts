@@ -109,3 +109,13 @@ if (typeof Blob !== 'undefined') {
     };
   }
 }
+
+// 9. HTMLAnchorElement download property polyfill so SheetJS and other libs do not throw on iOS 12
+if (typeof HTMLAnchorElement !== 'undefined' && !('download' in HTMLAnchorElement.prototype)) {
+  Object.defineProperty(HTMLAnchorElement.prototype, 'download', {
+    value: '',
+    writable: true,
+    enumerable: true,
+    configurable: true
+  });
+}

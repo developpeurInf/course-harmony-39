@@ -107,6 +107,16 @@
           };
         }
       }
+    
+      // 6. Anchor download property polyfill for iOS 12 Safari
+      if (typeof HTMLAnchorElement !== 'undefined' && !('download' in HTMLAnchorElement.prototype)) {
+        Object.defineProperty(HTMLAnchorElement.prototype, 'download', {
+          value: '',
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
+      }
     </script>
   </head>
 
