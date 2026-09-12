@@ -1,6 +1,12 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/download/*"
+  to = "/.netlify/functions/download/:splat"
+  status = 200
 
 [[redirects]]
   from = "/*"
@@ -16,4 +22,3 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
-

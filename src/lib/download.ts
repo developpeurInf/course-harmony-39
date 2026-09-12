@@ -1,62 +1,67 @@
 import * as XLSX from 'xlsx';
-import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Universal Excel (.xlsx) file download helper.
  * 
- * Works seamlessly on iPad (iOS 12+), iPhone, Android, PC, and Mac:
- * 1. Generates the binary workbook.
- * 2. Uploads the spreadsheet to Supabase Storage temporarily and gets a real HTTPS URL
- *    with '?download=filename.xlsx' which sends Content-Disposition: attachment; filename=...
- * 3. Triggers download via real URL. Safari on iPad treats this as a real file download
- *    (saving as a real .xlsx file without opening raw 'blob:' pages!).
- * 4. Falls back to standard XLSX.writeFile if offline or storage upload fails.
+ * On iOS Safari:
+ * Submits the file via a hidden form to /api/download/:filename
+ * which returns Content-Disposition: attachment; filename="liste_eleves.xlsx".
+ * Because the URL ends with the real filename and the server sets the header,
+ * iOS Safari downloads the file with its REAL name (e.g. liste_eleves.xlsx)
+ * and NEVER names it "Unknown" or opens raw blob tabs!
+ * 
+ * On PC / Android / Mac:
+ * Uses standard client-side XLSX.writeFile which triggers immediate download.
  */
 export async function downloadExcelFile(workbook: any, filename: string): Promise<void> {
-  const wbout: ArrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([wbout], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
+  const cleanFilename = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+  
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // Try real server-backed download via Supabase storage
-  try {
-    const cleanFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `temp-exports/${Date.now()}_${cleanFilename}`;
-    const { error: uploadError } = await supabase.storage
-      .from('course-materials')
-      .upload(storagePath, blob, {
-        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        upsert: true
-      });
+  if (isIOS) {
+    try {
+      const base64Data: string = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+      
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/api/download/${encodeURIComponent(cleanFilename)}`;
+      form.style.display = 'none';
 
-    if (!uploadError) {
-      const { data } = supabase.storage
-        .from('course-materials')
-        .getPublicUrl(storagePath, { download: filename });
+      const inputData = document.createElement('input');
+      inputData.type = 'hidden';
+      inputData.name = 'data';
+      inputData.value = base64Data;
+      form.appendChild(inputData);
 
-      if (data?.publicUrl) {
-        const link = document.createElement('a');
-        link.href = data.publicUrl;
-        link.download = filename;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
-      }
+      const inputName = document.createElement('input');
+      inputName.type = 'hidden';
+      inputName.name = 'filename';
+      inputName.value = cleanFilename;
+      form.appendChild(inputName);
+
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(() => document.body.removeChild(form), 2000);
+      return;
+    } catch (err) {
+      console.error('iOS form download error, falling back:', err);
     }
-  } catch (err) {
-    console.warn('Supabase storage export fallback:', err);
   }
 
-  // Fallback: direct anchor download
+  // Standard download for PC, Android, and fallback
   try {
-    XLSX.writeFile(workbook, filename);
+    XLSX.writeFile(workbook, cleanFilename);
   } catch (e) {
+    console.error('XLSX.writeFile error:', e);
+    const wbout: ArrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = filename;
+    link.download = cleanFilename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
