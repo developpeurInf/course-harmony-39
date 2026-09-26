@@ -331,11 +331,11 @@ const AuthForm = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {userType === "student" && isLogin ? (
                 <div className="space-y-2">
-                  <Label htmlFor="username">{t("Username")}</Label>
+                  <Label htmlFor="username">{t("Code Massar")}</Label>
                   <Input
                     id="username"
                     type="text"
-                    placeholder={t("Enter your username")}
+                    placeholder={t("Enter your Code Massar")}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     required

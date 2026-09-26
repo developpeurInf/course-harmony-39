@@ -296,7 +296,7 @@ const RoomStudents = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>{language === "ar" ? "التلميذ" : "Student"}</TableHead>
-                <TableHead>{language === "ar" ? "اسم المستخدم" : "Username"}</TableHead>
+                <TableHead>{language === "ar" ? "رمز مسار" : language === "fr" ? "Code Massar" : "Code Massar"}</TableHead>
                 <TableHead>{language === "ar" ? "البريد الإلكتروني" : "Email"}</TableHead>
                 <TableHead>{language === "ar" ? "الصفة" : "Role"}</TableHead>
                 <TableHead>{language === "ar" ? "تاريخ الانضمام" : "Joined"}</TableHead>

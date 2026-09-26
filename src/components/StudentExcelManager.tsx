@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface StudentData {
   prenom: string;
   nom: string;
+  codeMassar?: string;
   username?: string;
   temporaryPassword?: string;
 }
@@ -131,9 +132,9 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
   const handleDownloadTemplate = async () => {
     try {
       const ws = XLSX.utils.json_to_sheet([
-        { 'الاسم': 'أحمد', 'النسب': 'العلوي' },
-        { 'الاسم': 'فاطمة', 'النسب': 'الزهراء' },
-        { 'الاسم': 'يوسف', 'النسب': 'المرابط' }
+        { 'الاسم': 'أحمد', 'النسب': 'العلوي', 'Code Massar': 'M130012345' },
+        { 'الاسم': 'فاطمة', 'النسب': 'الزهراء', 'Code Massar': 'M130012346' },
+        { 'الاسم': 'يوسف', 'النسب': 'المرابط', 'Code Massar': 'M130012347' }
       ]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Students");
@@ -203,6 +204,12 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           }
         }
 
+        // Parse Code Massar column
+        const codeMassar = getRowVal(row, [
+          'Code Massar', 'code massar', 'CodeMassar', 'Massar', 'massar',
+          'رمز مسار', 'رمز المسار', 'كود مسار', 'مسار'
+        ]);
+
         // Positional fallback: if still empty, take first two non-numeric string values
         if (!prenom || !nom) {
           const textValues = Object.values(row)
@@ -220,13 +227,18 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           continue;
         }
 
-        // Generate clean unique username
-        const baseUsername = generateUsername(prenom.trim(), nom.trim());
-        let username = baseUsername;
-        let counter = 1;
-        while (usedUsernames.has(username)) {
-          username = `${baseUsername}${counter}`;
-          counter++;
+        // Use Code Massar as username if available, otherwise generate from name
+        let username: string;
+        if (codeMassar && codeMassar.trim()) {
+          username = codeMassar.trim();
+        } else {
+          const baseUsername = generateUsername(prenom.trim(), nom.trim());
+          username = baseUsername;
+          let counter = 1;
+          while (usedUsernames.has(username)) {
+            username = `${baseUsername}${counter}`;
+            counter++;
+          }
         }
         usedUsernames.add(username);
 
@@ -235,6 +247,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         studentsToCreate.push({
           prenom: prenom.trim(),
           nom: nom.trim(),
+          codeMassar: codeMassar ? codeMassar.trim() : undefined,
           username,
           temporaryPassword
         });
@@ -315,7 +328,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     try {
       const { data: students, error } = await supabase
         .from('profiles')
-        .select('name, username, email, temporary_password')
+        .select('name, username, massar_code, email, temporary_password')
         .eq('role', 'student')
         .eq('room_id', roomId);
 
@@ -327,6 +340,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const formattedStudents: StudentData[] = students.map(student => ({
         prenom: student.name.split(' ')[0] || '',
         nom: student.name.split(' ').slice(1).join(' ') || '',
+        codeMassar: (student as any).massar_code || student.username || '',
         username: student.username || '',
         temporaryPassword: student.temporary_password || ''
       }));
@@ -358,7 +372,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const worksheetData = allStudentsForDownload.map(student => ({
         'Prénom': student.prenom,
         'Nom': student.nom,
-        'Username': student.username,
+        'Code Massar': student.codeMassar || student.username,
         'Temporary Password': student.temporaryPassword
       }));
 
@@ -413,8 +427,8 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                 <DialogTitle>{language === "ar" ? "استيراد التلاميذ من Excel" : "Import Students from Excel"}</DialogTitle>
                 <DialogDescription>
                   {language === "ar" 
-                    ? "قم برفع ملف Excel يحتوي على عمودي الاسم والنسب (أو Prénom/Nom أو First name/Last name) لإنشاء حسابات التلاميذ." 
-                    : "Upload an Excel file with First Name and Last Name columns (supports Arabic, French, and English headers)."}
+                    ? "قم برفع ملف Excel يحتوي على أعمدة الاسم والنسب ورمز مسار (Code Massar) لإنشاء حسابات التلاميذ." 
+                    : "Upload an Excel file with Prénom, Nom and Code Massar columns (Arabic, French and English headers supported)."}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -471,6 +485,12 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                         <span className="font-mono bg-background px-2 py-0.5 rounded border">First name</span>
                         <span>+</span>
                         <span className="font-mono bg-background px-2 py-0.5 rounded border">Last name</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t pt-2 mt-1">
+                      <span className="font-semibold text-foreground text-primary">{language === "ar" ? "رمز مسار (مُعرِّف):" : "Identifier:"}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/30">Code Massar</span>
                       </div>
                     </div>
                   </div>

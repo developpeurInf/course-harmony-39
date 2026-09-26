@@ -647,9 +647,9 @@ const translations: Translations = {
     ar: "الاسم الكامل"
   },
   "student.username": {
-    en: "Username",
-    fr: "Nom d'utilisateur",
-    ar: "اسم المستخدم"
+    en: "Code Massar",
+    fr: "Code Massar",
+    ar: "رمز مسار"
   },
   "student.email": {
     en: "Email",
@@ -687,9 +687,9 @@ const translations: Translations = {
     ar: "أدخل الاسم الكامل"
   },
   "student.placeholder.username": {
-    en: "Enter username",
-    fr: "Entrer le nom d'utilisateur",
-    ar: "أدخل اسم المستخدم"
+    en: "Enter Code Massar",
+    fr: "Entrer le Code Massar",
+    ar: "أدخل رمز مسار"
   },
   "student.placeholder.email": {
     en: "Enter email",

@@ -104,7 +104,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
       key: "lastName"
     },
     {
-      label: "Username",
+      label: "Code Massar",
       value: student.username || 'Not set',
       icon: AtSign,
       key: "username"
