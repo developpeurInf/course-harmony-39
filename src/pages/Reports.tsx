@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { downloadExcelFile } from '@/lib/download';
 import * as XLSX from 'xlsx';
 import { iosCompatibleDownload } from "@/lib/download";
@@ -33,7 +34,8 @@ import {
   Calendar, 
   Download,
   Filter,
-  BarChart3
+  BarChart3,
+  FileSpreadsheet
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -506,6 +508,33 @@ const Reports = () => {
           </Button>
         </div>
       </div>
+
+      {/* Banner Évaluation Diagnostique (Maroc) */}
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-slate-900 border border-indigo-200 dark:border-indigo-900 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white dark:bg-indigo-900/60 border border-indigo-100 dark:border-indigo-800 rounded-xl flex items-center justify-center p-2 shadow-sm shrink-0">
+            <img src="/assets/header_logo.png" alt="Royaume du Maroc" className="max-h-full object-contain" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Évaluation Diagnostique & Rapport Officiel (Édition Maroc)
+              </h3>
+              <Badge className="bg-indigo-600 text-white text-[10px]">Article 08</Badge>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+              Générez votre rapport officiel d'évaluation diagnostique conforme aux 4 tranches ministérielles avec export PDF et import Excel Massar.
+            </p>
+          </div>
+        </div>
+        <Link to="/diagnostic">
+          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-2 shrink-0">
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Ouvrir DiagEval Pro</span>
+          </Button>
+        </Link>
+      </div>
+
 
       {!selectedRoom ? (
         <Card>

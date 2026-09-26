@@ -26,6 +26,7 @@ import Profile from "@/pages/Profile";
 import RoomExams from "@/pages/RoomExams";
 import Settings from "@/pages/Settings";
 import Reports from "@/pages/Reports";
+import DiagnosticEvaluation from "@/pages/DiagnosticEvaluation";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => {
                       <Route path="/rooms/:roomId/exercises" element={<RoomExercises />} />
                       <Route path="/rooms/:roomId/exams" element={<RoomExams />} />
                       <Route path="/reports" element={<Reports />} />
+                      <Route path="/diagnostic" element={<DiagnosticEvaluation />} />
                       <Route path="/settings" element={<Settings />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />

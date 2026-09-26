@@ -102,6 +102,11 @@ const translations: Translations = {
     fr: "Rapports",
     ar: "التقارير"
   },
+  "nav.diagnostic": {
+    en: "Diagnostic Evaluation",
+    fr: "Éval. Diagnostique",
+    ar: "التقويم التشخيصي"
+  },
   "nav.manageClasses": {
     en: "Manage Classes",
     fr: "Gérer les classes",

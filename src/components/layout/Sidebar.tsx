@@ -16,7 +16,8 @@ import {
   ChevronRight,
   FolderOpen,
   BarChart3,
-  Activity
+  Activity,
+  FileSpreadsheet
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -160,6 +161,11 @@ const Sidebar = () => {
               <NavLink to="/reports" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 <BarChart3 size={20} />
                 <span>{t("nav.reports")}</span>
+              </NavLink>
+              
+              <NavLink to="/diagnostic" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                <FileSpreadsheet size={20} className="text-indigo-500" />
+                <span>{t("nav.diagnostic") || "Éval. Diagnostique"}</span>
               </NavLink>
               
               <NavLink to="/class-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
