@@ -131,6 +131,11 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
 
   // CHARGEMENT DYNAMIQUE DEPUIS SUPABASE (ROOMS DU PROFESSEUR CONNECTÉ)
+  const activeClassIdRef = useRef(activeClassId);
+  const selectedSingleClassIdRef = useRef(selectedSingleClassId);
+  useEffect(() => { activeClassIdRef.current = activeClassId; }, [activeClassId]);
+  useEffect(() => { selectedSingleClassIdRef.current = selectedSingleClassId; }, [selectedSingleClassId]);
+
   const loadDynamicDataFromSupabase = useCallback(async (force = false) => {
     setLoadingRealData(true);
     try {
@@ -145,10 +150,10 @@ export const DiagnosticEvaluation: React.FC = () => {
           classes: realClasses
         }));
         setDataSource("supabase");
-        if (!activeClassId || !realClasses.some(c => c.id === activeClassId)) {
+        if (!activeClassIdRef.current || !realClasses.some(c => c.id === activeClassIdRef.current)) {
           setActiveClassId(realClasses[0].id);
         }
-        if (!selectedSingleClassId || !realClasses.some(c => c.id === selectedSingleClassId)) {
+        if (!selectedSingleClassIdRef.current || !realClasses.some(c => c.id === selectedSingleClassIdRef.current)) {
           setSelectedSingleClassId(realClasses[0].id);
         }
         setSelectedClassIds(realClasses.map(c => c.id));
@@ -167,7 +172,7 @@ export const DiagnosticEvaluation: React.FC = () => {
     } finally {
       setLoadingRealData(false);
     }
-  }, [user?.id, rooms, activeClassId, selectedSingleClassId, t]);
+  }, [user?.id, rooms, t]);
 
   useEffect(() => {
     loadDynamicDataFromSupabase();
