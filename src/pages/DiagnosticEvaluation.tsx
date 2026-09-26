@@ -161,7 +161,15 @@ export const DiagnosticEvaluation: React.FC = () => {
           toast.success(`${realClasses.length} ${t.selectedClassesCount}`);
         }
       } else {
-        setDataSource("sample");
+        // Aucune classe trouvée dans Supabase : afficher liste vide
+        setAppData(prev => ({
+          ...prev,
+          classes: []
+        }));
+        setDataSource("supabase");
+        setActiveClassId("");
+        setSelectedSingleClassId("");
+        setSelectedClassIds([]);
         if (force) {
           toast.info(t.noClassesMessage);
         }

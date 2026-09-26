@@ -1116,6 +1116,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     
     // Set the dir attribute on the document for RTL support
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    document.documentElement.lang = language;
+    document.documentElement.setAttribute("translate", "no");
+    document.documentElement.classList.add("notranslate");
     
     // Add a class to the body for RTL styling
     if (language === "ar") {
