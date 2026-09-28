@@ -20,6 +20,7 @@ import {
   Settings
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Sidebar from "./Sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -70,10 +71,13 @@ const TopNav = () => {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
-              <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground rounded-full shadow-sm ring-2 ring-background">
-                {user?.name?.charAt(0) || "U"}
-              </div>
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 overflow-hidden ring-2 ring-primary/20 hover:ring-primary/50 transition-all">
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={user?.avatar_url} alt={user?.name || "Profile"} className="object-cover" />
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs">
+                  {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || user?.name?.charAt(0) || "U"}
+                </AvatarFallback>
+              </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

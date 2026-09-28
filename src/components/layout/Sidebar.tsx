@@ -63,12 +63,12 @@ const Sidebar = () => {
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
-      <div className="p-6">
+    <div className="flex flex-col h-full max-h-full overflow-hidden bg-slate-100 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
+      <div className="p-6 flex-shrink-0">
         <h2 className="text-xl font-bold text-primary">{t("app.name")}</h2>
       </div>
       
-      <nav className="flex-1 px-4 space-y-2 py-2">
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 space-y-2 py-2">
         <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Home size={20} />
           <span>{t("nav.dashboard")}</span>
@@ -187,7 +187,7 @@ const Sidebar = () => {
         </div>
       </nav>
       
-      <div className="p-4 border-t">
+      <div className="p-4 border-t flex-shrink-0">
         <div className="px-3 py-2 text-sm text-muted-foreground">
           {user?.role === "professor" ? t("nav.professor") : t("nav.student")}
         </div>

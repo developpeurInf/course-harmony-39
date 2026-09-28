@@ -71,7 +71,7 @@ const MainLayout = () => {
 
   return (
     <div className="flex h-screen h-[100dvh] bg-background overflow-hidden">
-      <aside className="hidden md:flex md:w-64 bg-slate-100 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm">
+      <aside className="hidden md:flex md:w-64 h-full max-h-screen overflow-hidden bg-slate-100 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm flex-shrink-0">
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
