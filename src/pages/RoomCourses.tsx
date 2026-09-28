@@ -62,6 +62,7 @@ const RoomCourses = () => {
   const [description, setDescription] = useState("");
   const [isVisible, setIsVisible] = useState(true);
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<Record<string, CourseMaterial[]>>({});
   const [existingFiles, setExistingFiles] = useState<CourseMaterial[]>([]);
@@ -249,13 +250,18 @@ const RoomCourses = () => {
     }
   };
   
-  // Handle delete
-  const handleDeleteCourse = async (courseId: string) => {
-    const success = await deleteCourse(courseId);
+  // Handle delete - open confirmation dialog
+  const handleDeleteCourse = (course: Course) => {
+    setCourseToDelete(course);
+  };
+
+  const confirmDeleteCourse = async () => {
+    if (!courseToDelete) return;
+    const success = await deleteCourse(courseToDelete.id);
     if (success) {
-      // Refresh data to update the view
       refreshData(roomId);
     }
+    setCourseToDelete(null);
   };
   
   // Open edit dialog
@@ -472,7 +478,7 @@ const RoomCourses = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteCourse(course.id)}
+                      onClick={() => handleDeleteCourse(course)}
                       className="text-destructive hover:text-destructive"
                     >
                       <Trash className="h-4 w-4" />
@@ -557,7 +563,7 @@ const RoomCourses = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDeleteCourse(course.id)}
+                        onClick={() => handleDeleteCourse(course)}
                         className="flex-1 md:flex-none text-destructive hover:text-destructive"
                       >
                         <Trash className="h-4 w-4" />
@@ -645,6 +651,32 @@ const RoomCourses = () => {
               {language === "ar" ? "إلغاء" : "Cancel"}
             </Button>
             <Button onClick={handleEditCourse}>{language === "ar" ? "تحديث الدرس" : "Update Course"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Course Confirmation Dialog */}
+      <Dialog open={!!courseToDelete} onOpenChange={(open) => { if (!open) setCourseToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ar"
+                ? `هل أنت متأكد من رغبتك في حذف "${courseToDelete?.title}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                : language === "fr"
+                ? `Êtes-vous sûr de vouloir supprimer "${courseToDelete?.title}" ? Cette action est irréversible.`
+                : `Are you sure you want to delete "${courseToDelete?.title}"? This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCourseToDelete(null)}>
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteCourse}>
+              {language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

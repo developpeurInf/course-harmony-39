@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Rooms = () => {
   const { user } = useAuth();
@@ -52,6 +53,7 @@ const Rooms = () => {
   } = useCourses();
   
   const navigate = useNavigate();
+  const { language } = useLanguage();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isManageCoursesDialogOpen, setIsManageCoursesDialogOpen] = useState(false);
@@ -495,17 +497,23 @@ const Rooms = () => {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Room</DialogTitle>
+            <DialogTitle>
+              {language === "ar" ? "حذف الفصل" : language === "fr" ? "Supprimer la salle" : "Delete Room"}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {currentRoom?.name}? This will permanently delete the room and ALL associated courses, exercises, exams, quiz questions, student submissions, and enrollments. This action cannot be undone.
+              {language === "ar"
+                ? `هل أنت متأكد من رغبتك في حذف "${currentRoom?.name}"؟ سيتم حذف الفصل وجميع الدروس والتمارين والامتحانات والتسجيلات المرتبطة به بشكل نهائي. لا يمكن التراجع عن هذا الإجراء.`
+                : language === "fr"
+                ? `Êtes-vous sûr de vouloir supprimer "${currentRoom?.name}" ? Cela supprimera définitivement la salle et TOUS les cours, exercices, examens, questions de quiz, soumissions et inscriptions associés. Cette action est irréversible.`
+                : `Are you sure you want to delete ${currentRoom?.name}? This will permanently delete the room and ALL associated courses, exercises, exams, quiz questions, student submissions, and enrollments. This action cannot be undone.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button variant="destructive" onClick={handleDeleteRoom}>
-              Delete Room
+              {language === "ar" ? "حذف الفصل" : language === "fr" ? "Supprimer la salle" : "Delete Room"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -936,17 +936,21 @@ const Courses = () => {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{language === "ar" ? "حذف الدرس" : "Delete Course"}</DialogTitle>
+            <DialogTitle>{language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}</DialogTitle>
             <DialogDescription>
-              {language === "ar" ? `هل أنت متأكد من رغبتك في حذف ${currentCourse?.title}؟ لا يمكن التراجع عن هذا الإجراء وسيتم حذف جميع التمارين والامتحانات المرتبطة به.` : `Are you sure you want to delete ${currentCourse?.title}? This action cannot be undone and will also delete all associated exercises and exams.`}
+              {language === "ar"
+                ? `هل أنت متأكد من رغبتك في حذف ${currentCourse?.title}؟ لا يمكن التراجع عن هذا الإجراء وسيتم حذف جميع التمارين والامتحانات المرتبطة به.`
+                : language === "fr"
+                ? `Êtes-vous sûr de vouloir supprimer "${currentCourse?.title}" ? Cette action est irréversible et supprimera tous les exercices et examens associés.`
+                : `Are you sure you want to delete ${currentCourse?.title}? This action cannot be undone and will also delete all associated exercises and exams.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              {language === "ar" ? "إلغاء" : "Cancel"}
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button variant="destructive" onClick={handleDeleteCourse}>
-              {language === "ar" ? "حذف الدرس" : "Delete Course"}
+              {language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}
             </Button>
           </DialogFooter>
         </DialogContent>

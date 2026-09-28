@@ -118,6 +118,13 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [newClassDate, setNewClassDate] = useState("06-10-2024");
   const [editingClass, setEditingClass] = useState<DiagnosticClass | null>(null);
 
+  // Delete confirmation dialogs
+  const [classToDelete, setClassToDelete] = useState<DiagnosticClass | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<{id: string | number; name: string} | null>(null);
+  const [observationToDelete, setObservationToDelete] = useState<number | null>(null);
+  const [propositionToDelete, setPropositionToDelete] = useState<number | null>(null);
+  const [exerciseToDeleteDiag, setExerciseToDeleteDiag] = useState<number | null>(null);
+
   const [importTargetClass, setImportTargetClass] = useState<DiagnosticClass | null>(null);
   const [importingFile, setImportingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -336,8 +343,13 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   const handleDeleteClass = async (id: string) => {
-    if (!confirm(t.deleteClassBtn + " ?")) return;
+    const cls = appData.classes.find(c => c.id === id);
+    if (cls) setClassToDelete(cls);
+  };
 
+  const confirmDeleteClass = async () => {
+    if (!classToDelete) return;
+    const id = classToDelete.id;
     updateAppData(prev => {
       const filtered = prev.classes.filter(c => c.id !== id);
       return { ...prev, classes: filtered };
@@ -346,6 +358,7 @@ export const DiagnosticEvaluation: React.FC = () => {
     if (activeClassId === id) {
       setActiveClassId(appData.classes.find(c => c.id !== id)?.id || "");
     }
+    setClassToDelete(null);
     toast.success(t.deleteClassBtn);
   };
 
@@ -556,13 +569,17 @@ export const DiagnosticEvaluation: React.FC = () => {
     toast.success(t.addStudentBtn);
   };
 
-  const handleDeleteStudent = (studentId: string | number) => {
-    if (!currentClass) return;
+  const handleDeleteStudent = (studentId: string | number, studentName: string) => {
+    setStudentToDelete({ id: studentId, name: studentName });
+  };
+
+  const confirmDeleteStudent = () => {
+    if (!studentToDelete || !currentClass) return;
     updateAppData(prev => ({
       ...prev,
       classes: prev.classes.map(c => {
         if (c.id === currentClass.id) {
-          const filtered = c.students.filter(s => s.id !== studentId);
+          const filtered = c.students.filter(s => s.id !== studentToDelete.id);
           return {
             ...c,
             students: filtered.map((s, idx) => ({ ...s, num: idx + 1 }))
@@ -571,7 +588,8 @@ export const DiagnosticEvaluation: React.FC = () => {
         return c;
       })
     }));
-    toast.success("Élève retiré.");
+    setStudentToDelete(null);
+    toast.success(lang === "ar" ? "تم حذف التلميذ." : lang === "fr" ? "Élève retiré." : "Student removed.");
   };
 
   // --- ACTIONS OBSERVATIONS & PROPOSITIONS ---
@@ -594,13 +612,19 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   const handleDeleteObservation = (index: number) => {
+    setObservationToDelete(index);
+  };
+
+  const confirmDeleteObservation = () => {
+    if (observationToDelete === null) return;
     updateAppData(prev => ({
       ...prev,
       config: {
         ...prev.config,
-        observations: prev.config.observations.filter((_, i) => i !== index)
+        observations: prev.config.observations.filter((_, i) => i !== observationToDelete)
       }
     }));
+    setObservationToDelete(null);
   };
 
   const handleAddProposition = () => {
@@ -622,13 +646,19 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   const handleDeleteProposition = (index: number) => {
+    setPropositionToDelete(index);
+  };
+
+  const confirmDeleteProposition = () => {
+    if (propositionToDelete === null) return;
     updateAppData(prev => ({
       ...prev,
       config: {
         ...prev.config,
-        propositions: prev.config.propositions.filter((_, i) => i !== index)
+        propositions: prev.config.propositions.filter((_, i) => i !== propositionToDelete)
       }
     }));
+    setPropositionToDelete(null);
   };
 
   const handleAddExercise = () => {
@@ -659,13 +689,19 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   const handleDeleteExercise = (index: number) => {
+    setExerciseToDeleteDiag(index);
+  };
+
+  const confirmDeleteExerciseDiag = () => {
+    if (exerciseToDeleteDiag === null) return;
     updateAppData(prev => ({
       ...prev,
       config: {
         ...prev.config,
-        exercices: prev.config.exercices.filter((_, i) => i !== index)
+        exercices: prev.config.exercices.filter((_, i) => i !== exerciseToDeleteDiag)
       }
     }));
+    setExerciseToDeleteDiag(null);
   };
 
   // Données graphiques basées sur classesForReport
@@ -1296,7 +1332,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDeleteStudent(student.id)}
+                                onClick={() => handleDeleteStudent(student.id, student.name)}
                                 className="h-7 w-7 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -2011,6 +2047,136 @@ export const DiagnosticEvaluation: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setIsAddStudentOpen(false)}>Annuler</Button>
             <Button size="sm" onClick={handleAddStudent} className="bg-indigo-600 text-white">{t.addStudentBtn}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Class Confirmation Dialog */}
+      <Dialog open={!!classToDelete} onOpenChange={(open) => { if (!open) setClassToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar" ? "حذف الفصل" : lang === "fr" ? "Supprimer la classe" : "Delete Class"}
+            </DialogTitle>
+            <DialogDescription>
+              {lang === "ar"
+                ? `هل أنت متأكد من رغبتك في حذف "${classToDelete?.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                : lang === "fr"
+                ? `Êtes-vous sûr de vouloir supprimer "${classToDelete?.name}" ? Cette action est irréversible.`
+                : `Are you sure you want to delete "${classToDelete?.name}"? This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClassToDelete(null)}>
+              {lang === "ar" ? "إلغاء" : lang === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteClass}>
+              {lang === "ar" ? "حذف" : lang === "fr" ? "Supprimer" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Student Confirmation Dialog */}
+      <Dialog open={!!studentToDelete} onOpenChange={(open) => { if (!open) setStudentToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar" ? "حذف التلميذ" : lang === "fr" ? "Retirer l'élève" : "Remove Student"}
+            </DialogTitle>
+            <DialogDescription>
+              {lang === "ar"
+                ? `هل أنت متأكد من رغبتك في حذف "${studentToDelete?.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                : lang === "fr"
+                ? `Êtes-vous sûr de vouloir retirer "${studentToDelete?.name}" ? Cette action est irréversible.`
+                : `Are you sure you want to remove "${studentToDelete?.name}"? This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStudentToDelete(null)}>
+              {lang === "ar" ? "إلغاء" : lang === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteStudent}>
+              {lang === "ar" ? "حذف" : lang === "fr" ? "Retirer" : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Observation Confirmation Dialog */}
+      <Dialog open={observationToDelete !== null} onOpenChange={(open) => { if (!open) setObservationToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar" ? "حذف الملاحظة" : lang === "fr" ? "Supprimer l'observation" : "Delete Observation"}
+            </DialogTitle>
+            <DialogDescription>
+              {lang === "ar"
+                ? "هل أنت متأكد من رغبتك في حذف هذه الملاحظة؟ لا يمكن التراجع عن هذا الإجراء."
+                : lang === "fr"
+                ? "Êtes-vous sûr de vouloir supprimer cette observation ? Cette action est irréversible."
+                : "Are you sure you want to delete this observation? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setObservationToDelete(null)}>
+              {lang === "ar" ? "إلغاء" : lang === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteObservation}>
+              {lang === "ar" ? "حذف" : lang === "fr" ? "Supprimer" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Proposition Confirmation Dialog */}
+      <Dialog open={propositionToDelete !== null} onOpenChange={(open) => { if (!open) setPropositionToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar" ? "حذف المقترح" : lang === "fr" ? "Supprimer la proposition" : "Delete Proposition"}
+            </DialogTitle>
+            <DialogDescription>
+              {lang === "ar"
+                ? "هل أنت متأكد من رغبتك في حذف هذا المقترح؟ لا يمكن التراجع عن هذا الإجراء."
+                : lang === "fr"
+                ? "Êtes-vous sûr de vouloir supprimer cette proposition ? Cette action est irréversible."
+                : "Are you sure you want to delete this proposition? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPropositionToDelete(null)}>
+              {lang === "ar" ? "إلغاء" : lang === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteProposition}>
+              {lang === "ar" ? "حذف" : lang === "fr" ? "Supprimer" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Exercise (Diagnostic) Confirmation Dialog */}
+      <Dialog open={exerciseToDeleteDiag !== null} onOpenChange={(open) => { if (!open) setExerciseToDeleteDiag(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar" ? "حذف التمرين" : lang === "fr" ? "Supprimer l'exercice" : "Delete Exercise"}
+            </DialogTitle>
+            <DialogDescription>
+              {lang === "ar"
+                ? "هل أنت متأكد من رغبتك في حذف هذا التمرين؟ لا يمكن التراجع عن هذا الإجراء."
+                : lang === "fr"
+                ? "Êtes-vous sûr de vouloir supprimer cet exercice ? Cette action est irréversible."
+                : "Are you sure you want to delete this exercise? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExerciseToDeleteDiag(null)}>
+              {lang === "ar" ? "إلغاء" : lang === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteExerciseDiag}>
+              {lang === "ar" ? "حذف" : lang === "fr" ? "Supprimer" : "Delete"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

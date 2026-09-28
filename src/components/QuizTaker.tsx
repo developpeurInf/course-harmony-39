@@ -332,9 +332,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           </div>
         </div>
 
-        <div className="text-base font-semibold leading-relaxed text-foreground">
-          {currentQuestion.question}
-        </div>
+        <div 
+          className="text-base font-semibold leading-relaxed text-foreground prose max-w-none dark:prose-invert [&_img]:max-h-[320px] [&_img]:object-contain [&_img]:rounded-xl [&_img]:mx-auto [&_img]:my-3"
+          dangerouslySetInnerHTML={{ __html: currentQuestion.question }}
+        />
 
         {/* Multiple Choice Options */}
         {currentQuestion.question_type === 'multiple_choice' && (

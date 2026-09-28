@@ -12,8 +12,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import QuizSettings, { QuizSettings as QuizSettingsType } from "@/components/QuizSettings";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RichTextEditor from "@/components/RichTextEditor";
 
 interface QuizBuilderProps {
   examId: string;
@@ -29,6 +30,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const [options, setOptions] = useState<QuizOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<QuizQuestion | null>(null);
 
   const [currentQuestion, setCurrentQuestion] = useState<{
     question: string;
@@ -469,9 +471,10 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 </span>
                               </div>
 
-                              <p className="text-xs font-semibold text-foreground mb-1.5">
-                                {q.question.replace(/<[^>]+>/g, '') || q.question}
-                              </p>
+                              <div 
+                                className="text-xs font-semibold text-foreground mb-1.5 prose prose-xs max-w-none dark:prose-invert line-clamp-3 [&_p]:m-0 [&_img]:max-h-20 [&_img]:rounded [&_img]:inline-block" 
+                                dangerouslySetInnerHTML={{ __html: q.question }}
+                              />
 
                               {/* Options preview for QCM */}
                               {q.question_type === 'multiple_choice' && qOpts.length > 0 && (
@@ -521,7 +524,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 size="icon"
                                 variant="ghost"
                                 className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                onClick={() => handleDeleteQuestion(q.id)}
+                                onClick={() => setQuestionToDelete(q)}
                                 title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -601,17 +604,16 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">
-                    {language === "ar" ? "نص السؤال *" : language === "fr" ? "Texte de la question *" : "Question Text *"}
+                    {language === "ar" ? "نص السؤال (يدعم التنسيق الغني والصور) *" : language === "fr" ? "Texte de la question (texte enrichi, gras, souligné, images...) *" : "Question Text (rich text, bold, underline, images...) *"}
                   </Label>
-                  <Input
+                  <RichTextEditor
+                    content={currentQuestion.question}
+                    onChange={(val) => setCurrentQuestion(prev => ({ ...prev, question: val }))}
                     placeholder={
-                      language === "ar" ? "أدخل نص السؤال هنا..."
-                      : language === "fr" ? "Entrez le texte de la question ici..."
-                      : "Enter question text here..."
+                      language === "ar" ? "أدخل نص السؤال هنا مع الصور والتنسيقات..."
+                      : language === "fr" ? "Entrez le texte de la question ici avec images et mise en page..."
+                      : "Enter question text here with images and rich formatting..."
                     }
-                    value={currentQuestion.question}
-                    onChange={(e) => setCurrentQuestion(prev => ({ ...prev, question: e.target.value }))}
-                    className="h-10 text-sm font-medium"
                   />
                 </div>
 
@@ -767,6 +769,40 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
           </Button>
         </div>
       </DialogContent>
+
+      {/* Delete Question Confirmation Dialog */}
+      <Dialog open={!!questionToDelete} onOpenChange={(open) => { if (!open) setQuestionToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === "ar" ? "حذف السؤال" : language === "fr" ? "Supprimer la question" : "Delete Question"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ar" 
+                ? "هل أنت متأكد من رغبتك في حذف هذا السؤال وجميع خياراته؟ لا يمكن التراجع عن هذا الإجراء." 
+                : language === "fr" 
+                ? "Êtes-vous sûr de vouloir supprimer cette question et toutes ses options ? Cette action est irréversible." 
+                : "Are you sure you want to delete this question and all its options? This action cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setQuestionToDelete(null)}>
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={async () => {
+                if (questionToDelete) {
+                  await handleDeleteQuestion(questionToDelete.id);
+                  setQuestionToDelete(null);
+                }
+              }}
+            >
+              {language === "ar" ? "حذف السؤال" : language === "fr" ? "Supprimer la question" : "Delete Question"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };

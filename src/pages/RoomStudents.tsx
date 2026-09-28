@@ -271,12 +271,12 @@ const RoomStudents = () => {
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>{language === "ar" ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+                          <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleRemoveStudent(student.id)}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
-                            {language === "ar" ? "حذف" : "Remove"}
+                            {language === "ar" ? "حذف" : language === "fr" ? "Retirer" : "Remove"}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -351,20 +351,22 @@ const RoomStudents = () => {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : "Remove Student"}</AlertDialogTitle>
+                            <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : language === "fr" ? "Retirer l'élève" : "Remove Student"}</AlertDialogTitle>
                             <AlertDialogDescription>
                               {language === "ar" 
                                 ? `هل أنت متأكد من رغبتك في حذف ${student.name} من هذا القسم؟ سيتم حذف حسابه وجميع بياناته بشكل نهائي.`
+                                : language === "fr"
+                                ? `Êtes-vous sûr de vouloir retirer ${student.name} de cette classe ? Cela supprimera définitivement son compte et toutes ses données associées.`
                                 : `Are you sure you want to remove ${student.name} from this class? This will permanently delete their account and all associated data.`}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleRemoveStudent(student.id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              {language === "ar" ? "حذف" : "Remove"}
+                              {language === "ar" ? "حذف" : language === "fr" ? "Retirer" : "Remove"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

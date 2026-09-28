@@ -28,6 +28,7 @@ const Exercises = () => {
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
   const [formData, setFormData] = useState({
     id: "",
     course_id: "",
@@ -141,9 +142,14 @@ const Exercises = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleDeleteExercise = (id: string) => {
-    if (confirm(t("exercise.delete") + "?")) {
-      deleteExercise(id);
+  const handleDeleteExercise = (exercise: Exercise) => {
+    setExerciseToDelete(exercise);
+  };
+
+  const confirmDeleteExercise = () => {
+    if (exerciseToDelete) {
+      deleteExercise(exerciseToDelete.id);
+      setExerciseToDelete(null);
     }
   };
 
@@ -393,7 +399,7 @@ const Exercises = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteExercise(exercise.id)}
+                      onClick={() => handleDeleteExercise(exercise)}
                       className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -487,7 +493,7 @@ const Exercises = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDeleteExercise(exercise.id)}
+                        onClick={() => handleDeleteExercise(exercise)}
                         className="flex-1 md:flex-none text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -617,6 +623,32 @@ const Exercises = () => {
               {t("app.cancel")}
             </Button>
             <Button onClick={handleEditExercise}>{t("form.update")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Exercise Confirmation Dialog */}
+      <Dialog open={!!exerciseToDelete} onOpenChange={(open) => { if (!open) setExerciseToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === "ar" ? "حذف التمرين" : language === "fr" ? "Supprimer l'exercice" : "Delete Exercise"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ar"
+                ? `هل أنت متأكد من رغبتك في حذف "${exerciseToDelete?.title}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                : language === "fr"
+                ? `Êtes-vous sûr de vouloir supprimer "${exerciseToDelete?.title}" ? Cette action est irréversible.`
+                : `Are you sure you want to delete "${exerciseToDelete?.title}"? This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExerciseToDelete(null)}>
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteExercise}>
+              {language === "ar" ? "حذف التمرين" : language === "fr" ? "Supprimer l'exercice" : "Delete Exercise"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
