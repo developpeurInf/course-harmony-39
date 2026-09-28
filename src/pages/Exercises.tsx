@@ -519,12 +519,12 @@ const Exercises = () => {
                   : "لا توجد تمارين متاحة حاليًا."
                 : isProfessor 
                   ? (language === "fr" ? "Aucun exercice n'a encore été créé. Ajoutez votre premier exercice pour commencer." : "No exercises have been created yet. Add your first exercise to get started.")
-                  : "No exercises are currently available."}
+                  : (language === "fr" ? "Aucun exercice n'est disponible pour le moment." : "No exercises are currently available.")}
             </p>
             {isProfessor && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
                 <Plus className="h-4 w-4 mr-2" />
-                {language === "ar" ? "أضف أول تمرين" : "Add Your First Exercise"}
+                {language === "ar" ? "أضف أول تمرين" : language === "fr" ? "Ajouter votre premier exercice" : "Add Your First Exercise"}
               </Button>
             )}
           </CardContent>
@@ -537,7 +537,7 @@ const Exercises = () => {
           <DialogHeader>
             <DialogTitle>{t("exercise.edit")}</DialogTitle>
             <DialogDescription>
-              {language === "ar" ? "تحديث تفاصيل التمرين والمواد" : "Update exercise details and materials"}
+              {language === "ar" ? "تحديث تفاصيل التمرين والمواد" : language === "fr" ? "Mettre à jour les détails de l'exercice et les supports" : "Update exercise details and materials"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">

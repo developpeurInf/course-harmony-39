@@ -429,16 +429,26 @@ const Rooms = () => {
       ) : (
         <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
           <Building className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-medium">No rooms found</h3>
+          <h3 className="text-xl font-medium">
+            {language === "ar" ? "لم يتم العثور على أقسام" : language === "fr" ? "Aucune classe trouvée" : "No rooms found"}
+          </h3>
           <p className="text-muted-foreground text-center max-w-md mt-2">
             {isProfessor 
-              ? "You haven't created any rooms yet. Add your first room to get started."
-              : "There are no rooms available at the moment."}
+              ? (language === "ar" 
+                  ? "لم تقم بإنشاء أي أقسام بعد. أضف أول قسم للبدء." 
+                  : language === "fr" 
+                  ? "Vous n'avez pas encore créé de classe. Ajoutez votre première classe pour commencer." 
+                  : "You haven't created any rooms yet. Add your first room to get started.")
+              : (language === "ar" 
+                  ? "لا توجد أقسام متاحة حاليًا." 
+                  : language === "fr" 
+                  ? "Aucune classe n'est disponible pour le moment." 
+                  : "There are no rooms available at the moment.")}
           </p>
           {isProfessor && (
             <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Your First Room
+              {language === "ar" ? "إضافة أول قسم" : language === "fr" ? "Ajouter votre première classe" : "Add Your First Room"}
             </Button>
           )}
         </div>
@@ -448,26 +458,28 @@ const Rooms = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Room</DialogTitle>
+            <DialogTitle>
+              {language === "ar" ? "تعديل القسم" : language === "fr" ? "Modifier la classe" : "Edit Room"}
+            </DialogTitle>
             <DialogDescription>
-              Update the room details and visibility.
+              {language === "ar" ? "تحديث معلومات القسم ورؤيته للتلاميذ." : language === "fr" ? "Mettre à jour les informations de la classe et sa visibilité." : "Update the room details and visibility."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Room Name</Label>
+              <Label htmlFor="edit-name">{language === "ar" ? "اسم القسم" : language === "fr" ? "Nom de la classe" : "Room Name"}</Label>
               <Input
                 id="edit-name"
-                placeholder="Room name"
+                placeholder={language === "ar" ? "مثال: 1BACSEF-2" : language === "fr" ? "ex., 1BACSEF-2" : "Room name"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</Label>
               <Textarea
                 id="edit-description"
-                placeholder="Room description"
+                placeholder={language === "ar" ? "وصف القسم..." : language === "fr" ? "Description de la classe..." : "Room description"}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
@@ -479,15 +491,15 @@ const Rooms = () => {
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
               />
-              <Label htmlFor="edit-visibility">Visible to students</Label>
+              <Label htmlFor="edit-visibility">{language === "ar" ? "مرئي للتلاميذ" : language === "fr" ? "Visible pour les élèves" : "Visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button onClick={handleEditRoom} disabled={!name}>
-              Save Changes
+              {language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Enregistrer" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

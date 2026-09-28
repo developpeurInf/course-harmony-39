@@ -835,10 +835,18 @@ const Courses = () => {
                 : selectedRoomFilter !== "all"
                   ? `أنت غير مسجل في أي دروس في ${getRoomName(selectedRoomFilter)}.`
                   : "لم تسجل في أي دروس بعد. تواصل مع أستاذك للتسجيل."
+              : language === "fr"
+              ? isProfessor
+                ? selectedRoomFilter !== "all"
+                  ? `Il n'y a pas encore de cours dans ${getRoomName(selectedRoomFilter)}.`
+                  : "Vous n'avez pas encore créé de cours. Ajoutez votre premier cours pour commencer."
+                : selectedRoomFilter !== "all"
+                  ? `Vous n'êtes inscrit à aucun cours dans ${getRoomName(selectedRoomFilter)}.`
+                  : "Vous n'êtes inscrit à aucun cours pour le moment. Contactez votre professeur."
               : isProfessor 
                 ? selectedRoomFilter !== "all"
                   ? `There are no courses in ${getRoomName(selectedRoomFilter)} yet.`
-                  : (language === "fr" ? "Vous n'avez pas encore créé de cours. Ajoutez votre premier cours pour commencer." : "You haven't created any courses yet. Add your first course to get started.")
+                  : "You haven't created any courses yet. Add your first course to get started."
                 : selectedRoomFilter !== "all"
                   ? `You are not enrolled in any courses in ${getRoomName(selectedRoomFilter)}.`
                   : "You are not enrolled in any courses yet. Contact your professor for enrollment."}
@@ -850,9 +858,13 @@ const Courses = () => {
                 ? selectedRoomFilter !== "all"
                   ? `إضافة درس إلى ${getRoomName(selectedRoomFilter)}`
                   : "إضافة أول درس"
+                : language === "fr"
+                ? selectedRoomFilter !== "all"
+                  ? `Ajouter un cours à ${getRoomName(selectedRoomFilter)}`
+                  : "Ajouter votre premier cours"
                 : selectedRoomFilter !== "all" 
                   ? `Add Course to ${getRoomName(selectedRoomFilter)}`
-                  : (language === "fr" ? "Ajouter votre premier cours" : "Add Your First Course")}
+                  : "Add Your First Course"}
             </Button>
           )}
         </div>

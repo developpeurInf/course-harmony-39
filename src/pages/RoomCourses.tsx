@@ -584,8 +584,16 @@ const RoomCourses = () => {
             <h3 className="text-xl font-semibold mb-2">{language === "ar" ? "لم يتم العثور على دروس" : language === "fr" ? "Aucun cours trouvé" : "No courses found"}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
               {isProfessor 
-                ? (language === "ar" ? `لا توجد دروس في ${currentRoom.name} بعد. أضف درسك الأول للبدء.` : `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`)
-                : (language === "ar" ? `أنت غير مسجل في أي دروس في ${currentRoom.name}.` : `You are not enrolled in any courses in ${currentRoom.name}.`)}
+                ? (language === "ar" 
+                    ? `لا توجد دروس في ${currentRoom.name} بعد. أضف درسك الأول للبدء.` 
+                    : language === "fr" 
+                    ? `Il n'y a pas encore de cours dans ${currentRoom.name}. Ajoutez votre premier cours pour commencer.` 
+                    : `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`)
+                : (language === "ar" 
+                    ? `أنت غير مسجل في أي دروس في ${currentRoom.name}.` 
+                    : language === "fr" 
+                    ? `Vous n'êtes inscrit à aucun cours dans ${currentRoom.name}.` 
+                    : `You are not enrolled in any courses in ${currentRoom.name}.`)}
             </p>
             {isProfessor && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
@@ -601,28 +609,28 @@ const RoomCourses = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{language === "ar" ? "تعديل الدرس" : "Edit Course"}</DialogTitle>
+            <DialogTitle>{language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit Course"}</DialogTitle>
             <DialogDescription>
-              {language === "ar" ? "تحديث تفاصيل الدرس ورؤيته للتلاميذ." : "Update the course details and visibility."}
+              {language === "ar" ? "تحديث تفاصيل الدرس ورؤيته للتلاميذ." : language === "fr" ? "Mettre à jour les détails du cours et sa visibilité." : "Update the course details and visibility."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-title">{language === "ar" ? "عنوان الدرس *" : "Course Title *"}</Label>
+              <Label htmlFor="edit-title">{language === "ar" ? "عنوان الدرس *" : language === "fr" ? "Titre du cours *" : "Course Title *"}</Label>
               <Input
                 id="edit-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : "e.g., Introduction to Computer Science"}
+                placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : language === "fr" ? "ex., Mathématiques Appliquées" : "e.g., Introduction to Computer Science"}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">{language === "ar" ? "وصف الدرس" : "Course Description"}</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "وصف الدرس" : language === "fr" ? "Description du cours" : "Course Description"}</Label>
               <Textarea
                 id="edit-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder={language === "ar" ? "قدم وصفاً مفصلاً للمحتوى وأهداف الدرس..." : "Provide a detailed description of the course content, objectives, and what students will learn..."}
+                placeholder={language === "ar" ? "قدم وصفاً مفصلاً للمحتوى وأهداف الدرس..." : language === "fr" ? "Fournissez une description détaillée du contenu du cours et des objectifs..." : "Provide a detailed description of the course content, objectives, and what students will learn..."}
                 rows={4}
               />
             </div>
@@ -643,14 +651,14 @@ const RoomCourses = () => {
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
               />
-              <Label htmlFor="edit-visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : "Make course visible to students"}</Label>
+              <Label htmlFor="edit-visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : language === "fr" ? "Rendre le cours visible pour les élèves" : "Make course visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetForm}>
-              {language === "ar" ? "إلغاء" : "Cancel"}
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button onClick={handleEditCourse}>{language === "ar" ? "تحديث الدرس" : "Update Course"}</Button>
+            <Button onClick={handleEditCourse}>{language === "ar" ? "تحديث الدرس" : language === "fr" ? "Mettre à jour" : "Update Course"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
