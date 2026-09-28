@@ -137,7 +137,7 @@ interface CourseContextType {
   uploadExercisePdf: (exerciseId: string, file: File, courseId?: string) => Promise<string | null>;
   
   // Exam operations
-  addExam: (exam: Omit<Exam, "id" | "created_at" | "updated_at">) => Promise<boolean>;
+  addExam: (exam: Omit<Exam, "id" | "created_at" | "updated_at">) => Promise<Exam | null>;
   updateExam: (examId: string, updates: Partial<Exam>) => Promise<boolean>;
   deleteExam: (examId: string) => Promise<boolean>;
   toggleExamVisibility: (examId: string) => Promise<boolean>;
@@ -796,7 +796,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Exam operations
-  const addExam = async (exam: Omit<Exam, "id" | "created_at" | "updated_at">): Promise<boolean> => {
+  const addExam = async (exam: Omit<Exam, "id" | "created_at" | "updated_at">): Promise<Exam | null> => {
     try {
       const { data, error } = await supabase
         .from('exams')
@@ -806,7 +806,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         toast.error("Failed to add exam");
-        return false;
+        return null;
       }
 
       // Refresh data to ensure consistency
@@ -818,10 +818,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         await notifyStudentsAboutUpdate(exam.course_id, exam.title, 'exam');
       }, 1000);
       
-      return true;
+      return data as Exam;
     } catch (error) {
       toast.error("Failed to add exam");
-      return false;
+      return null;
     }
   };
 

@@ -163,7 +163,7 @@ const Exams = () => {
 
   // Add new exam
   const handleAddExam = async () => {
-    const success = await addExam({
+    const newExam = await addExam({
       title,
       description,
       course_id: courseId,
@@ -173,9 +173,12 @@ const Exams = () => {
       type: examType
     });
     
-    if (success) {
+    if (newExam) {
       setIsAddDialogOpen(false);
       resetForm();
+      if (examType === "quiz") {
+        setShowQuizBuilder(newExam.id);
+      }
     }
   };
 
@@ -514,16 +517,25 @@ const Exams = () => {
                   <div className="flex justify-between w-full">
                     {isProfessor ? (
                       <>
-                         <div className="flex gap-2">
+                         <div className="flex gap-2 items-center">
                            {exam.type === 'quiz' && (
-                             <QuizBuilder examId={exam.id} onClose={() => {}} />
+                             <Button 
+                               variant="outline" 
+                               size="sm"
+                               className="h-8 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                               onClick={() => setShowQuizBuilder(exam.id)}
+                             >
+                               <Edit2 className="h-3.5 w-3.5" />
+                               <span>{language === "ar" ? "محرر الأسئلة" : language === "fr" ? "Modifier le Quiz" : "Quiz Builder"}</span>
+                             </Button>
                            )}
                            {exam.type === 'quiz' && (
                              <Button 
                                variant="ghost" 
                                size="icon"
+                               className="h-8 w-8 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
                                onClick={() => setShowQuizResults(exam.id)}
-                               title="View quiz results"
+                               title={language === "ar" ? "عرض النتائج" : language === "fr" ? "Voir les résultats" : "View Results"}
                              >
                                <Trophy className="h-4 w-4" />
                              </Button>
