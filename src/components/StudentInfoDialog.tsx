@@ -8,6 +8,7 @@ import { Copy, User, Mail, Key, AtSign, Calendar, Shield, Check } from "lucide-r
 import { toast } from "sonner";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Student {
   id: string;
@@ -33,21 +34,20 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
 }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showAvatarDialog, setShowAvatarDialog] = useState(false);
+  const { t, language } = useLanguage();
+
+  const notSet = language === "ar" ? "غير محدد" : language === "fr" ? "Non défini" : "Not set";
+  const notAvailable = language === "ar" ? "غير متاح" : language === "fr" ? "Non disponible" : "Not available";
 
   // Get avatar URL - use public URL from Supabase storage
   const getAvatarUrl = () => {
     if (!student?.avatar_url) return undefined;
-    
-    // If it's already a full URL, return it
     if (student.avatar_url.startsWith('http')) {
       return student.avatar_url;
     }
-    
-    // Otherwise, construct the public URL
     const { data } = supabase.storage
       .from('avatars')
       .getPublicUrl(student.avatar_url);
-    
     return data.publicUrl;
   };
 
@@ -56,12 +56,13 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
         setCopiedField(fieldName);
-        toast.success(`${fieldName} copied to clipboard`);
-        
-        // Reset the copied state after 2 seconds
+        toast.success(
+          language === "ar" ? `تم نسخ ${fieldName} إلى الحافظة`
+          : language === "fr" ? `${fieldName} copié dans le presse-papier`
+          : `${fieldName} copied to clipboard`
+        );
         setTimeout(() => setCopiedField(null), 2000);
       } else {
-        // Fallback for browsers that don't support clipboard API
         const textArea = document.createElement('textarea');
         textArea.value = text;
         textArea.style.position = 'fixed';
@@ -70,21 +71,24 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        
         try {
           document.execCommand('copy');
           setCopiedField(fieldName);
-          toast.success(`${fieldName} copied to clipboard`);
+          toast.success(
+            language === "ar" ? `تم نسخ ${fieldName} إلى الحافظة`
+            : language === "fr" ? `${fieldName} copié dans le presse-papier`
+            : `${fieldName} copied to clipboard`
+          );
           setTimeout(() => setCopiedField(null), 2000);
         } catch (err) {
-          toast.error("Failed to copy to clipboard");
+          toast.error(t("Failed to copy to clipboard"));
         } finally {
           document.body.removeChild(textArea);
         }
       }
     } catch (error) {
       console.error('Failed to copy:', error);
-      toast.error("Failed to copy to clipboard");
+      toast.error(t("Failed to copy to clipboard"));
     }
   };
 
@@ -92,44 +96,46 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
 
   const infoFields = [
     {
-      label: "First Name",
+      label: language === "ar" ? "الاسم الأول" : language === "fr" ? "Prénom" : "First Name",
       value: student.name.split(' ')[0] || '',
       icon: User,
       key: "firstName"
     },
     {
-      label: "Last Name", 
+      label: language === "ar" ? "الاسم العائلي" : language === "fr" ? "Nom de famille" : "Last Name",
       value: student.name.split(' ').slice(1).join(' ') || '',
       icon: User,
       key: "lastName"
     },
     {
-      label: "Code Massar",
-      value: student.username || 'Not set',
+      label: language === "ar" ? "رمز مسار" : "Code Massar",
+      value: student.username || notSet,
       icon: AtSign,
       key: "username"
     },
     {
-      label: "Email",
-      value: student.email || 'Not set',
+      label: language === "ar" ? "البريد الإلكتروني" : language === "fr" ? "Email" : "Email",
+      value: student.email || notSet,
       icon: Mail,
       key: "email"
     },
     {
-      label: "Temporary Password",
-      value: student.temporary_password || 'Not available',
+      label: language === "ar" ? "كلمة المرور المؤقتة" : language === "fr" ? "Mot de passe temporaire" : "Temporary Password",
+      value: student.temporary_password || notAvailable,
       icon: Key,
       key: "password"
     },
     {
-      label: "Role",
+      label: language === "ar" ? "الدور" : language === "fr" ? "Rôle" : "Role",
       value: student.role,
       icon: Shield,
       key: "role"
     },
     {
-      label: "Joined Date",
-      value: new Date(student.created_at).toLocaleDateString(),
+      label: language === "ar" ? "تاريخ الانضمام" : language === "fr" ? "Date d'inscription" : "Joined Date",
+      value: new Date(student.created_at).toLocaleDateString(
+        language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US"
+      ),
       icon: Calendar,
       key: "joinedDate"
     }
@@ -153,12 +159,16 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
             <div>
               <div className="text-xl">{student.name}</div>
               <div className="text-sm text-muted-foreground font-normal">
-                Student Information
+                {language === "ar" ? "معلومات التلميذ" : language === "fr" ? "Informations de l'élève" : "Student Information"}
               </div>
             </div>
           </DialogTitle>
           <DialogDescription>
-            View and copy student details including login credentials and personal information.
+            {language === "ar"
+              ? "عرض ونسخ بيانات التلميذ بما فيها بيانات تسجيل الدخول."
+              : language === "fr"
+              ? "Voir et copier les informations de l'élève, y compris les identifiants."
+              : "View and copy student details including login credentials and personal information."}
           </DialogDescription>
         </DialogHeader>
         
@@ -182,7 +192,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
                         <Badge variant="outline" className="text-xs">
                           {field.value}
                         </Badge>
-                      ) : field.key === 'password' && field.value !== 'Not available' ? (
+                      ) : field.key === 'password' && field.value !== notAvailable ? (
                         <code className="bg-muted px-2 py-1 rounded text-sm font-mono">
                           {field.value}
                         </code>
@@ -193,7 +203,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
                   </div>
                 </div>
                 
-                {field.value !== 'Not set' && field.value !== 'Not available' && (
+                {field.value !== notSet && field.value !== notAvailable && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -214,7 +224,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
 
         <div className="flex justify-end mt-6">
           <Button variant="outline" onClick={onClose}>
-            Close
+            {language === "ar" ? "إغلاق" : language === "fr" ? "Fermer" : "Close"}
           </Button>
         </div>
       </DialogContent>
@@ -223,7 +233,9 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
     <AlertDialog open={showAvatarDialog} onOpenChange={setShowAvatarDialog}>
       <AlertDialogContent className="max-w-3xl">
         <AlertDialogHeader>
-          <AlertDialogTitle>{student.name}'s Profile Picture</AlertDialogTitle>
+          <AlertDialogTitle>
+            {language === "ar" ? `صورة الملف الشخصي لـ ${student.name}` : language === "fr" ? `Photo de profil de ${student.name}` : `${student.name}'s Profile Picture`}
+          </AlertDialogTitle>
         </AlertDialogHeader>
         <div className="flex items-center justify-center p-4">
           <img 

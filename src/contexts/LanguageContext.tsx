@@ -61,6 +61,179 @@ const translations: Translations = {
     ar: "عرض"
   },
   
+  // Settings page
+  "settings.theme.title": {
+    en: "Theme",
+    fr: "Thème",
+    ar: "المظهر"
+  },
+  "settings.theme.description": {
+    en: "Choose your preferred theme appearance",
+    fr: "Choisissez l'apparence de thème préférée",
+    ar: "اختر مظهر السمة المفضل لديك"
+  },
+  "settings.theme.select": {
+    en: "Select theme",
+    fr: "Sélectionner le thème",
+    ar: "اختر المظهر"
+  },
+  "settings.theme.light": {
+    en: "Light",
+    fr: "Clair",
+    ar: "فاتح"
+  },
+  "settings.theme.dark": {
+    en: "Dark",
+    fr: "Sombre",
+    ar: "داكن"
+  },
+  "settings.theme.system": {
+    en: "System",
+    fr: "Système",
+    ar: "النظام"
+  },
+  "settings.language.description": {
+    en: "Choose your preferred language",
+    fr: "Choisissez votre langue préférée",
+    ar: "اختر لغتك المفضلة"
+  },
+  "settings.password.title": {
+    en: "Password & Security",
+    fr: "Mot de passe et sécurité",
+    ar: "كلمة المرور والأمان"
+  },
+  "settings.password.description": {
+    en: "Manage your account password",
+    fr: "Gérer le mot de passe de votre compte",
+    ar: "إدارة كلمة مرور حسابك"
+  },
+  "settings.password.student.description": {
+    en: "Change your temporary password or request a reset from your professor",
+    fr: "Changez votre mot de passe temporaire ou demandez une réinitialisation à votre professeur",
+    ar: "غيّر كلمة مرورك المؤقتة أو اطلب إعادة تعيينها من أستاذك"
+  },
+  "settings.password.change": {
+    en: "Change Password",
+    fr: "Changer le mot de passe",
+    ar: "تغيير كلمة المرور"
+  },
+  "settings.password.request.reset": {
+    en: "Request Password Reset from Professor",
+    fr: "Demander une réinitialisation du mot de passe au professeur",
+    ar: "طلب إعادة تعيين كلمة المرور من الأستاذ"
+  },
+  "settings.password.requesting": {
+    en: "Requesting...",
+    fr: "Demande en cours...",
+    ar: "جاري الطلب..."
+  },
+  "settings.password.note": {
+    en: "Note: Click the button above to send a reset request to your professor. They will provide you with a new temporary password.",
+    fr: "Note : Cliquez sur le bouton ci-dessus pour envoyer une demande de réinitialisation à votre professeur. Il vous fournira un nouveau mot de passe temporaire.",
+    ar: "ملاحظة: انقر فوق الزر أعلاه لإرسال طلب إعادة التعيين إلى أستاذك. سيزودك بكلمة مرور مؤقتة جديدة."
+  },
+  "settings.notifications.title": {
+    en: "Notifications",
+    fr: "Notifications",
+    ar: "الإشعارات"
+  },
+  "settings.notifications.description": {
+    en: "Manage your notification preferences",
+    fr: "Gérer vos préférences de notification",
+    ar: "إدارة تفضيلات الإشعارات الخاصة بك"
+  },
+  "settings.notifications.push": {
+    en: "Push Notifications",
+    fr: "Notifications push",
+    ar: "إشعارات الدفع"
+  },
+  "settings.notifications.push.desc": {
+    en: "Receive notifications about updates and activity.",
+    fr: "Recevez des notifications concernant les mises à jour et l'activité.",
+    ar: "تلقي إشعارات حول التحديثات والنشاط."
+  },
+  "settings.notifications.email": {
+    en: "Email Updates",
+    fr: "Mises à jour par email",
+    ar: "تحديثات البريد الإلكتروني"
+  },
+  "settings.notifications.email.desc": {
+    en: "Receive email notifications about your account.",
+    fr: "Recevez des notifications par email concernant votre compte.",
+    ar: "تلقي إشعارات البريد الإلكتروني حول حسابك."
+  },
+  // Password Reset Manager (professor)
+  "pwdReset.title": {
+    en: "Password Reset Requests",
+    fr: "Demandes de réinitialisation de mot de passe",
+    ar: "طلبات إعادة تعيين كلمة المرور"
+  },
+  "pwdReset.description": {
+    en: "Manage student password reset requests",
+    fr: "Gérer les demandes de réinitialisation de mot de passe des élèves",
+    ar: "إدارة طلبات إعادة تعيين كلمة المرور للتلاميذ"
+  },
+  "pwdReset.loading": {
+    en: "Loading requests...",
+    fr: "Chargement des demandes...",
+    ar: "جاري تحميل الطلبات..."
+  },
+  "pwdReset.none": {
+    en: "No pending password reset requests",
+    fr: "Aucune demande de réinitialisation en attente",
+    ar: "لا توجد طلبات إعادة تعيين معلقة"
+  },
+  "pwdReset.resetBtn": {
+    en: "Reset Password",
+    fr: "Réinitialiser le mot de passe",
+    ar: "إعادة تعيين كلمة المرور"
+  },
+  "pwdReset.dialog.title": {
+    en: "Reset Password",
+    fr: "Réinitialiser le mot de passe",
+    ar: "إعادة تعيين كلمة المرور"
+  },
+  "pwdReset.dialog.desc": {
+    en: "Reset password for",
+    fr: "Réinitialiser le mot de passe de",
+    ar: "إعادة تعيين كلمة مرور"
+  },
+  "pwdReset.newPassword": {
+    en: "New Temporary Password",
+    fr: "Nouveau mot de passe temporaire",
+    ar: "كلمة المرور المؤقتة الجديدة"
+  },
+  "pwdReset.placeholder": {
+    en: "Enter new temporary password",
+    fr: "Entrez le nouveau mot de passe temporaire",
+    ar: "أدخل كلمة المرور المؤقتة الجديدة"
+  },
+  "pwdReset.generate": {
+    en: "Generate",
+    fr: "Générer",
+    ar: "توليد"
+  },
+  "pwdReset.resetting": {
+    en: "Resetting...",
+    fr: "Réinitialisation...",
+    ar: "جاري إعادة التعيين..."
+  },
+  "pwdReset.success": {
+    en: "Student password reset successfully",
+    fr: "Mot de passe de l'élève réinitialisé avec succès",
+    ar: "تم إعادة تعيين كلمة مرور التلميذ بنجاح"
+  },
+  "pwdReset.error": {
+    en: "Failed to reset student password",
+    fr: "Échec de la réinitialisation du mot de passe",
+    ar: "فشل في إعادة تعيين كلمة المرور"
+  },
+  "pwdReset.requestedAt": {
+    en: "Requested",
+    fr: "Demandé le",
+    ar: "طُلب في"
+  },
+
   // Navigation
   "nav.dashboard": {
     en: "Dashboard",

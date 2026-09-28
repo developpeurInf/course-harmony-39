@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Check, Clock, User } from "lucide-react";
+import { AlertCircle, Clock, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -30,6 +31,7 @@ interface PasswordResetManagerProps {
 
 export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const { createNotification } = useNotifications();
   const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +48,7 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
   const loadPasswordResetRequests = async () => {
     setLoading(true);
     try {
-      // First get password reset requests
-      const { data: requests, error: requestsError } = await supabase
+      const { data: reqs, error: requestsError } = await supabase
         .from('password_reset_requests')
         .select('*')
         .eq(roomId ? 'room_id' : 'professor_id', roomId || user?.id)
@@ -56,17 +57,16 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
 
       if (requestsError) {
         console.error('Error loading password reset requests:', requestsError);
-        toast.error("Failed to load password reset requests");
+        toast.error(t("pwdReset.error"));
         return;
       }
 
-      if (!requests || requests.length === 0) {
+      if (!reqs || reqs.length === 0) {
         setRequests([]);
         return;
       }
 
-      // Get student profiles separately
-      const studentIds = requests.map(r => r.student_id);
+      const studentIds = reqs.map(r => r.student_id);
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, username')
@@ -74,23 +74,22 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
 
       if (profilesError) {
         console.error('Error loading profiles:', profilesError);
-        toast.error("Failed to load student profiles");
         return;
       }
 
-      const formattedRequests = requests.map(request => {
-        const profile = profiles?.find(p => p.id === request.student_id);
+      const formatted = reqs.map(req => {
+        const profile = profiles?.find(p => p.id === req.student_id);
         return {
-          ...request,
-          student_name: profile?.name || 'Unknown Student',
+          ...req,
+          student_name: profile?.name || (language === "ar" ? "تلميذ غير معروف" : language === "fr" ? "Élève inconnu" : "Unknown Student"),
           student_username: profile?.username
         };
       });
 
-      setRequests(formattedRequests);
+      setRequests(formatted);
     } catch (error) {
       console.error('Error loading password reset requests:', error);
-      toast.error("Failed to load password reset requests");
+      toast.error(t("pwdReset.error"));
     } finally {
       setLoading(false);
     }
@@ -98,53 +97,48 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
 
   const handleResetPassword = async () => {
     if (!selectedRequest || !newPassword.trim()) return;
-
     setIsResetting(true);
     try {
-      // Update the student's temporary password
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ temporary_password: newPassword.trim() })
         .eq('id', selectedRequest.student_id);
 
       if (updateError) {
-        console.error('Error updating student password:', updateError);
-        toast.error("Failed to reset student password");
+        toast.error(t("pwdReset.error"));
         return;
       }
 
-      // Update the password reset request status
       const { error: requestError } = await supabase
         .from('password_reset_requests')
-        .update({
-          status: 'resolved',
-          resolved_at: new Date().toISOString(),
-          resolved_by: user?.id
-        })
+        .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: user?.id })
         .eq('id', selectedRequest.id);
 
       if (requestError) {
-        console.error('Error updating request status:', requestError);
-        toast.error("Failed to update request status");
+        toast.error(t("pwdReset.error"));
         return;
       }
 
-      // Send notification to student  
       await createNotification({
-        title: "Password Reset Complete",
-        message: `Your password has been reset by your professor. Your new temporary password is: ${newPassword.trim()}`,
+        title: language === "ar" ? "تم إعادة تعيين كلمة المرور"
+          : language === "fr" ? "Réinitialisation du mot de passe effectuée"
+          : "Password Reset Complete",
+        message: language === "ar"
+          ? `تم إعادة تعيين كلمة مرورك من قِبل أستاذك. كلمة المرور المؤقتة الجديدة: ${newPassword.trim()}`
+          : language === "fr"
+          ? `Votre mot de passe a été réinitialisé par votre professeur. Nouveau mot de passe temporaire : ${newPassword.trim()}`
+          : `Your password has been reset by your professor. Your new temporary password is: ${newPassword.trim()}`,
         type: 'info',
         read: false
       });
 
-      toast.success("Student password reset successfully");
+      toast.success(t("pwdReset.success"));
       setSelectedRequest(null);
       setNewPassword("");
       loadPasswordResetRequests();
-
     } catch (error) {
       console.error('Error resetting password:', error);
-      toast.error("Failed to reset student password");
+      toast.error(t("pwdReset.error"));
     } finally {
       setIsResetting(false);
     }
@@ -159,9 +153,7 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
     setNewPassword(result);
   };
 
-  if (user?.role !== 'professor') {
-    return null;
-  }
+  if (user?.role !== 'professor') return null;
 
   return (
     <>
@@ -169,22 +161,18 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5" />
-            Password Reset Requests
+            {t("pwdReset.title")}
             {requests.length > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {requests.length}
-              </Badge>
+              <Badge variant="destructive" className="ml-2">{requests.length}</Badge>
             )}
           </CardTitle>
-          <CardDescription>
-            Manage student password reset requests
-          </CardDescription>
+          <CardDescription>{t("pwdReset.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-muted-foreground text-center py-4">Loading requests...</p>
+            <p className="text-muted-foreground text-center py-4">{t("pwdReset.loading")}</p>
           ) : requests.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">No pending password reset requests</p>
+            <p className="text-muted-foreground text-center py-4">{t("pwdReset.none")}</p>
           ) : (
             <div className="space-y-3">
               {requests.map((request) => (
@@ -202,14 +190,12 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
                     <div className="flex items-center gap-2">
                       <div className="text-right text-sm text-muted-foreground">
                         <Clock className="h-3 w-3 inline mr-1" />
-                        {new Date(request.requested_at).toLocaleDateString()}
+                        {new Date(request.requested_at).toLocaleDateString(
+                          language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US"
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => setSelectedRequest(request)}
-                        variant="outline"
-                      >
-                        Reset Password
+                      <Button size="sm" onClick={() => setSelectedRequest(request)} variant="outline">
+                        {t("pwdReset.resetBtn")}
                       </Button>
                     </div>
                   </div>
@@ -223,45 +209,33 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
       <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
+            <DialogTitle>{t("pwdReset.dialog.title")}</DialogTitle>
             <DialogDescription>
-              Reset password for {selectedRequest?.student_name}
+              {t("pwdReset.dialog.desc")} {selectedRequest?.student_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="new-password">New Temporary Password</Label>
-              <div className="flex gap-2">
+              <Label htmlFor="new-password">{t("pwdReset.newPassword")}</Label>
+              <div className="flex gap-2 mt-1">
                 <Input
                   id="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new temporary password"
+                  placeholder={t("pwdReset.placeholder")}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={generateTempPassword}
-                  size="sm"
-                >
-                  Generate
+                <Button type="button" variant="outline" onClick={generateTempPassword} size="sm">
+                  {t("pwdReset.generate")}
                 </Button>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setSelectedRequest(null)}
-              disabled={isResetting}
-            >
-              Cancel
+            <Button variant="outline" onClick={() => setSelectedRequest(null)} disabled={isResetting}>
+              {t("app.cancel")}
             </Button>
-            <Button
-              onClick={handleResetPassword}
-              disabled={!newPassword.trim() || isResetting}
-            >
-              {isResetting ? "Resetting..." : "Reset Password"}
+            <Button onClick={handleResetPassword} disabled={!newPassword.trim() || isResetting}>
+              {isResetting ? t("pwdReset.resetting") : t("pwdReset.resetBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>

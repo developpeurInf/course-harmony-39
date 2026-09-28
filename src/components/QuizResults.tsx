@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Trophy, User, Clock, Target } from "lucide-react";
 import { useCourses } from "@/contexts/CourseContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
@@ -29,6 +30,7 @@ interface QuizResultsProps {
 const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
   const { user } = useAuth();
   const { exams } = useCourses();
+  const { language } = useLanguage();
   const [submissions, setSubmissions] = useState<QuizSubmission[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -194,7 +196,9 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
       {/* Individual Results */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">
-          {isProfessor ? "Student Results" : "Your Result"}
+          {isProfessor
+            ? (language === "ar" ? "نتائج التلاميذ" : language === "fr" ? "Résultats des élèves" : "Student Results")
+            : (language === "ar" ? "نتيجتك" : language === "fr" ? "Votre résultat" : "Your Result")}
         </h3>
         
         {submissions.map((submission, index) => {
@@ -220,7 +224,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                         <div>
                           <div className="font-medium">{submission.student_name}</div>
                           <div className="text-sm text-muted-foreground">
-                            Submitted {format(new Date(submission.submitted_at), "MMM d, yyyy 'at' h:mm a")}
+                            {language === "ar" ? `تم التسليم: ${format(new Date(submission.submitted_at), "d MMM yyyy")}` : language === "fr" ? `Soumis le ${format(new Date(submission.submitted_at), "d MMM yyyy")}` : `Submitted ${format(new Date(submission.submitted_at), "MMM d, yyyy 'at' h:mm a")}`}
                           </div>
                         </div>
                       </>
@@ -228,7 +232,9 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                     {!isProfessor && (
                       <div className="flex items-center gap-2">
                         <Trophy className="h-5 w-5 text-yellow-500" />
-                        <span className="font-medium">Your Result</span>
+                        <span className="font-medium">
+                          {language === "ar" ? "نتيجتك" : language === "fr" ? "Votre résultat" : "Your Result"}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -248,21 +254,30 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        <span>Time: {submission.time_taken_minutes} minutes</span>
+                        <span>
+                          {language === "ar"
+                            ? `الوقت: ${submission.time_taken_minutes} دقيقة`
+                            : language === "fr"
+                            ? `Temps: ${submission.time_taken_minutes} min`
+                            : `Time: ${submission.time_taken_minutes} minutes`}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Target className="h-4 w-4" />
-                        <span>Score: {percentage}%</span>
+                        <span>
+                          {language === "ar" ? `النقطة: ${percentage}%` : language === "fr" ? `Score: ${percentage}%` : `Score: ${percentage}%`}
+                        </span>
                       </div>
                     </div>
                     
                     <Badge 
                       variant={percentage >= 70 ? "default" : percentage >= 60 ? "secondary" : "destructive"}
                     >
-                      {percentage >= 90 ? "Excellent" : 
-                       percentage >= 80 ? "Good" : 
-                       percentage >= 70 ? "Fair" : 
-                       percentage >= 60 ? "Pass" : "Fail"}
+                      {language === "ar"
+                        ? (percentage >= 90 ? "ممتاز" : percentage >= 80 ? "جيد جداً" : percentage >= 70 ? "جيد" : percentage >= 60 ? "مقبول" : "راسب")
+                        : language === "fr"
+                        ? (percentage >= 90 ? "Excellent" : percentage >= 80 ? "Bien" : percentage >= 70 ? "Assez bien" : percentage >= 60 ? "Passable" : "Insuffisant")
+                        : (percentage >= 90 ? "Excellent" : percentage >= 80 ? "Good" : percentage >= 70 ? "Fair" : percentage >= 60 ? "Pass" : "Fail")}
                     </Badge>
                   </div>
                 </div>

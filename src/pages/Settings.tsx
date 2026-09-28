@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Globe, Moon, Key, Mail, AlertCircle } from "lucide-react";
+import { Globe, Moon, Key, AlertCircle } from "lucide-react";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 import { PasswordResetManager } from "@/components/PasswordResetManager";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,55 +24,56 @@ const Settings = () => {
   const { user } = useAuth();
 
   const handleSaveSettings = () => {
-    toast.success(t("app.save") + " " + t("nav.settings"));
+    toast.success(t("app.save") + " — " + t("nav.settings"));
   };
 
   const handleRequestPasswordReset = async () => {
     if (!user || user.role !== 'student') return;
-
     setIsRequestingReset(true);
     try {
-      // Get professor from enrollments
       const { data: enrollments, error: enrollError } = await supabase
         .from('enrollments')
-        .select(`
-          courses!inner (
-            professor_id,
-            room_id
-          )
-        `)
+        .select('courses!inner(professor_id, room_id)')
         .eq('student_id', user.id)
         .limit(1);
 
       if (enrollError || !enrollments?.length) {
-        toast.error("Unable to find your professor. Please contact support.");
+        toast.error(
+          language === "ar" ? "تعذّر العثور على أستاذك. يرجى التواصل مع الدعم."
+          : language === "fr" ? "Impossible de trouver votre professeur. Contactez le support."
+          : "Unable to find your professor. Please contact support."
+        );
         return;
       }
 
       const professorId = enrollments[0].courses.professor_id;
       const roomId = enrollments[0].courses.room_id;
 
-      // Create password reset request
       const { error: insertError } = await supabase
         .from('password_reset_requests')
-        .insert({
-          student_id: user.id,
-          professor_id: professorId,
-          room_id: roomId,
-          status: 'pending'
-        });
+        .insert({ student_id: user.id, professor_id: professorId, room_id: roomId, status: 'pending' });
 
       if (insertError) {
-        console.error('Error creating password reset request:', insertError);
-        toast.error("Failed to request password reset");
+        toast.error(
+          language === "ar" ? "فشل في إرسال طلب إعادة التعيين"
+          : language === "fr" ? "Échec de la demande de réinitialisation"
+          : "Failed to request password reset"
+        );
         return;
       }
 
-      toast.success("Password reset request sent to your professor");
-
+      toast.success(
+        language === "ar" ? "تم إرسال طلب إعادة تعيين كلمة المرور إلى أستاذك"
+        : language === "fr" ? "Demande de réinitialisation envoyée à votre professeur"
+        : "Password reset request sent to your professor"
+      );
     } catch (error) {
       console.error('Error requesting password reset:', error);
-      toast.error("Failed to request password reset");
+      toast.error(
+        language === "ar" ? "فشل في إرسال طلب إعادة التعيين"
+        : language === "fr" ? "Échec de la demande de réinitialisation"
+        : "Failed to request password reset"
+      );
     } finally {
       setIsRequestingReset(false);
     }
@@ -81,61 +82,49 @@ const Settings = () => {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <h1 className="text-2xl font-bold">{t("nav.settings")}</h1>
-      
-      {/* Theme Settings */}
+
+      {/* Theme */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Moon className="h-5 w-5" />
-            {t("Theme")}
+            {t("settings.theme.title")}
           </CardTitle>
-          <CardDescription>
-            {t("Choose your preferred theme appearance")}
-          </CardDescription>
+          <CardDescription>{t("settings.theme.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label htmlFor="theme">{t("Theme")}</Label>
-              <Select
-                value={theme}
-                onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
-              >
+              <Label htmlFor="theme">{t("settings.theme.title")}</Label>
+              <Select value={theme} onValueChange={(v) => setTheme(v as "light" | "dark" | "system")}>
                 <SelectTrigger id="theme">
-                  <SelectValue placeholder={t("Select theme")} />
+                  <SelectValue placeholder={t("settings.theme.select")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light">{t("Light")}</SelectItem>
-                  <SelectItem value="dark">{t("Dark")}</SelectItem>
-                  <SelectItem value="system">{t("System")}</SelectItem>
+                  <SelectItem value="light">{t("settings.theme.light")}</SelectItem>
+                  <SelectItem value="dark">{t("settings.theme.dark")}</SelectItem>
+                  <SelectItem value="system">{t("settings.theme.system")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         </CardContent>
       </Card>
-      
-      {/* Language Settings */}
+
+      {/* Language */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
             {t("app.language")}
           </CardTitle>
-          <CardDescription>
-            {language === "en" && "Choose your preferred language"}
-            {language === "fr" && "Choisissez votre langue préférée"}
-            {language === "ar" && "اختر لغتك المفضلة"}
-          </CardDescription>
+          <CardDescription>{t("settings.language.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
             <div className="space-y-2">
               <Label htmlFor="language">{t("app.language")}</Label>
-              <Select
-                value={language}
-                onValueChange={(value) => setLanguage(value as "en" | "fr" | "ar")}
-              >
+              <Select value={language} onValueChange={(v) => setLanguage(v as "en" | "fr" | "ar")}>
                 <SelectTrigger id="language">
                   <SelectValue placeholder={t("app.language")} />
                 </SelectTrigger>
@@ -149,111 +138,82 @@ const Settings = () => {
           </div>
         </CardContent>
       </Card>
-      
-      {/* Password Settings */}
+
+      {/* Password & Security */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Key className="h-5 w-5" />
-            {t("Password & Security")}
+            {t("settings.password.title")}
           </CardTitle>
           <CardDescription>
-            {user?.role === 'student' 
-              ? t("Change your temporary password or request a password reset from your professor")
-              : t("Manage your account password")
-            }
+            {user?.role === 'student'
+              ? t("settings.password.student.description")
+              : t("settings.password.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button onClick={() => setPasswordDialogOpen(true)}>
-            {t("Change Password")}
+            {t("settings.password.change")}
           </Button>
-          
+
           {user?.role === 'student' && (
             <div className="space-y-3">
-              <Button 
+              <Button
                 variant="outline"
                 onClick={handleRequestPasswordReset}
                 disabled={isRequestingReset}
                 className="w-full"
               >
                 <AlertCircle className="h-4 w-4 mr-2" />
-                {isRequestingReset ? t("Requesting...") : t("Request Password Reset from Professor")}
+                {isRequestingReset
+                  ? t("settings.password.requesting")
+                  : t("settings.password.request.reset")}
               </Button>
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  <strong>{language === "ar" ? "ملاحظة: " : "Note: "}</strong>{t("Note: Click the button above to send a reset request to your professor. They will provide you with a new temporary password.")}
+                  <strong>
+                    {language === "ar" ? "ملاحظة: " : language === "fr" ? "Note : " : "Note: "}
+                  </strong>
+                  {t("settings.password.note")}
                 </p>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
-      
-      {/* Notification Settings */}
+
+      {/* Notifications */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("nav.settings")}</CardTitle>
-          <CardDescription>
-            {language === "en" && "Manage your notification preferences"}
-            {language === "fr" && "Gérer vos préférences de notification"}
-            {language === "ar" && "إدارة تفضيلات الإشعارات الخاصة بك"}
-          </CardDescription>
+          <CardTitle>{t("settings.notifications.title")}</CardTitle>
+          <CardDescription>{t("settings.notifications.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="notifications">
-                {language === "en" && "Push Notifications"}
-                {language === "fr" && "Notifications Push"}
-                {language === "ar" && "إشعارات الدفع"}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {language === "en" && "Receive notifications about updates and activity."}
-                {language === "fr" && "Recevez des notifications concernant les mises à jour et l'activité."}
-                {language === "ar" && "تلقي إشعارات حول التحديثات والنشاط."}
-              </p>
+              <Label htmlFor="notifications">{t("settings.notifications.push")}</Label>
+              <p className="text-sm text-muted-foreground">{t("settings.notifications.push.desc")}</p>
             </div>
-            <Switch
-              id="notifications"
-              checked={notifications}
-              onCheckedChange={setNotifications}
-            />
+            <Switch id="notifications" checked={notifications} onCheckedChange={setNotifications} />
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="email-updates">
-                {language === "en" && "Email Updates"}
-                {language === "fr" && "Mises à jour par email"}
-                {language === "ar" && "تحديثات البريد الإلكتروني"}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {language === "en" && "Receive email notifications about your account."}
-                {language === "fr" && "Recevez des notifications par email concernant votre compte."}
-                {language === "ar" && "تلقي إشعارات البريد الإلكتروني حول حسابك."}
-              </p>
+              <Label htmlFor="email-updates">{t("settings.notifications.email")}</Label>
+              <p className="text-sm text-muted-foreground">{t("settings.notifications.email.desc")}</p>
             </div>
-            <Switch
-              id="email-updates"
-              checked={emailUpdates}
-              onCheckedChange={setEmailUpdates}
-            />
+            <Switch id="email-updates" checked={emailUpdates} onCheckedChange={setEmailUpdates} />
           </div>
         </CardContent>
         <CardFooter>
           <Button onClick={handleSaveSettings}>{t("app.save")}</Button>
         </CardFooter>
       </Card>
-      
-      {/* Password Reset Manager for Professors */}
-      {user?.role === 'professor' && (
-        <PasswordResetManager />
-      )}
 
-      <ChangePasswordDialog 
-        open={passwordDialogOpen} 
-        onOpenChange={setPasswordDialogOpen}
-      />
+      {/* Password Reset Manager - Professor only */}
+      {user?.role === 'professor' && <PasswordResetManager />}
+
+      <ChangePasswordDialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen} />
     </div>
   );
 };
