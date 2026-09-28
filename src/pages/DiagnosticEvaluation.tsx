@@ -124,6 +124,7 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [observationToDelete, setObservationToDelete] = useState<number | null>(null);
   const [propositionToDelete, setPropositionToDelete] = useState<number | null>(null);
   const [exerciseToDeleteDiag, setExerciseToDeleteDiag] = useState<number | null>(null);
+  const [isResetDefaultsOpen, setIsResetDefaultsOpen] = useState(false);
 
   const [importTargetClass, setImportTargetClass] = useState<DiagnosticClass | null>(null);
   const [importingFile, setImportingFile] = useState(false);
@@ -1844,13 +1845,7 @@ export const DiagnosticEvaluation: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (confirm(t.resetDefaultsBtn + " ?")) {
-                  const def = resetDiagnosticDataToDefaults();
-                  setAppData(prev => ({ ...prev, config: def.config }));
-                  toast.success(t.resetDefaultsBtn);
-                }
-              }}
+              onClick={() => setIsResetDefaultsOpen(true)}
               className="text-xs gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -2176,6 +2171,40 @@ export const DiagnosticEvaluation: React.FC = () => {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteExerciseDiag}>
               {lang === "ar" ? "حذف" : lang === "fr" ? "Supprimer" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Defaults Confirmation Dialog */}
+      <Dialog open={isResetDefaultsOpen} onOpenChange={setIsResetDefaultsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === "ar" ? "استعادة الإعدادات الافتراضية" : lang === "fr" ? "Rétablir la configuration par défaut" : "Reset Default Settings"}
+            </DialogTitle>
+            <DialogDescription>
+              {lang === "ar"
+                ? "هل أنت متأكد من رغبتك في استعادة الإعدادات الافتراضية؟ سيتم إعادة تعيين الملاحظات والمقترحات والتمارين."
+                : lang === "fr"
+                ? "Êtes-vous sûr de vouloir rétablir les paramètres par défaut ? Les observations, propositions et exercices seront réinitialisés."
+                : "Are you sure you want to restore default settings? All observations, propositions, and exercises will be reset."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetDefaultsOpen(false)}>
+              {lang === "ar" ? "إلغاء" : lang === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const def = resetDiagnosticDataToDefaults();
+                setAppData(prev => ({ ...prev, config: def.config }));
+                setIsResetDefaultsOpen(false);
+                toast.success(t.resetDefaultsBtn);
+              }}
+            >
+              {lang === "ar" ? "استعادة" : lang === "fr" ? "Rétablir" : "Reset"}
             </Button>
           </DialogFooter>
         </DialogContent>
