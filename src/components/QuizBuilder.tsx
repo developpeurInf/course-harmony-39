@@ -330,11 +330,29 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
   const totalPoints = questions.reduce((sum, q) => sum + (q.points || 1), 0);
 
+  const handleSaveAllAndClose = async () => {
+    // If there's an unsaved question in progress, inform or auto-save if filled
+    if (currentQuestion.question.trim()) {
+      if (editingQuestionId) {
+        await handleUpdateQuestion();
+      } else if (currentQuestion.question_type !== 'multiple_choice' || currentOptions.some(o => o.is_correct && o.option_text.trim())) {
+        await handleAddQuestion();
+      }
+    }
+
+    toast.success(
+      language === "ar" ? "تم حفظ جميع التغييرات بنجاح"
+      : language === "fr" ? "Modifications sauvegardées avec succès"
+      : "Modifications saved successfully"
+    );
+    onClose();
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw] overflow-hidden flex flex-col p-0 gap-0 border rounded-2xl shadow-2xl bg-card">
+      <DialogContent className="max-w-5xl max-h-[92vh] w-[95vw] overflow-hidden flex flex-col p-0 gap-0 border rounded-2xl shadow-2xl bg-card">
         {/* Header */}
-        <div className="p-5 border-b bg-muted/20 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b bg-muted/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
               <Sparkles className="h-5 w-5" />
@@ -356,16 +374,16 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="px-3 py-1 text-xs font-bold text-primary bg-primary/10">
+            <Badge variant="secondary" className="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10">
               {language === "ar" ? `المجموع: ${totalPoints} نقطة` : language === "fr" ? `Total : ${totalPoints} pts` : `Total: ${totalPoints} pts`}
             </Badge>
           </div>
         </div>
 
         {/* Body with Tabs */}
-        <div className="flex-1 overflow-hidden flex flex-col p-5">
+        <div className="flex-1 overflow-hidden flex flex-col p-4 sm:p-5">
           <Tabs defaultValue="questions" className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b mb-4">
+            <div className="flex items-center justify-between pb-3 border-b mb-3">
               <TabsList className="grid grid-cols-2 w-72">
                 <TabsTrigger value="questions" className="text-xs font-semibold flex items-center gap-1.5">
                   <ListOrdered className="h-3.5 w-3.5" />
@@ -389,7 +407,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
             </div>
 
             {/* Questions Tab: 2-Column Split View */}
-            <TabsContent value="questions" className="flex-1 overflow-hidden m-0 grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <TabsContent value="questions" className="flex-1 overflow-hidden m-0 grid grid-cols-1 lg:grid-cols-12 gap-4">
               {/* Left Column: Questions List */}
               <div className="lg:col-span-5 flex flex-col overflow-hidden border rounded-xl bg-muted/10">
                 <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
@@ -439,36 +457,52 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 border-primary/40 text-primary">
                                   Q{idx + 1}
                                 </Badge>
-                                <Badge variant="secondary" className="text-[10px] py-0 h-4">
+                                <Badge variant="secondary" className="text-[10px] py-0 h-4 font-semibold">
                                   {q.question_type === 'multiple_choice'
-                                    ? (language === 'ar' ? 'QCM' : 'QCM')
+                                    ? 'QCM'
                                     : q.question_type === 'true_false'
                                     ? (language === 'ar' ? 'ص/خ' : 'V/F')
-                                    : (language === 'ar' ? 'إجابة' : 'Directe')}
+                                    : (language === 'ar' ? 'مباشرة' : 'Directe')}
                                 </Badge>
                                 <span className="text-[10px] font-semibold text-muted-foreground">
-                                  {q.points} {language === "ar" ? "نقطة" : "pt"}
+                                  {q.points} {language === "ar" ? "نقطة" : q.points > 1 ? "pts" : "pt"}
                                 </span>
                               </div>
 
-                              <p className="text-xs font-medium text-foreground line-clamp-2">
+                              <p className="text-xs font-semibold text-foreground mb-1.5">
                                 {q.question.replace(/<[^>]+>/g, '') || q.question}
                               </p>
 
-                              {/* Options preview */}
+                              {/* Options preview for QCM */}
                               {q.question_type === 'multiple_choice' && qOpts.length > 0 && (
-                                <div className="mt-2 space-y-1 pl-1">
+                                <div className="mt-2 space-y-1 pl-1 bg-muted/20 p-2 rounded-lg border border-muted/30">
                                   {qOpts.map((opt, oIdx) => (
-                                    <div key={opt.id} className="text-[11px] flex items-center gap-1 text-muted-foreground">
-                                      <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${opt.is_correct ? 'bg-emerald-100 text-emerald-800 font-black' : 'bg-muted'}`}>
+                                    <div key={opt.id} className="text-[11px] flex items-center gap-1.5">
+                                      <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                        opt.is_correct ? 'bg-emerald-600 text-white font-black' : 'bg-muted text-muted-foreground'
+                                      }`}>
                                         {String.fromCharCode(65 + oIdx)}
                                       </span>
-                                      <span className={`truncate ${opt.is_correct ? 'text-emerald-700 font-semibold' : ''}`}>
+                                      <span className={`truncate flex-1 ${opt.is_correct ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-muted-foreground'}`}>
                                         {opt.option_text}
                                       </span>
                                       {opt.is_correct && <Check className="w-3 h-3 text-emerald-600 shrink-0 ml-auto" />}
                                     </div>
                                   ))}
+                                </div>
+                              )}
+
+                              {/* True/False preview */}
+                              {q.question_type === 'true_false' && (
+                                <div className="mt-1.5 text-[11px] text-muted-foreground flex items-center gap-2">
+                                  {qOpts.find(o => o.is_correct)?.option_text && (
+                                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      {qOpts.find(o => o.is_correct)?.option_text === 'True' 
+                                        ? (language === 'ar' ? 'صحيح' : 'Vrai') 
+                                        : (language === 'ar' ? 'خطأ' : 'Faux')}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -479,6 +513,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 variant="ghost"
                                 className="h-6 w-6 text-muted-foreground hover:text-foreground"
                                 onClick={() => handleEditQuestion(q)}
+                                title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
                               >
                                 <Edit2 className="h-3 w-3" />
                               </Button>
@@ -487,6 +522,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 variant="ghost"
                                 className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
                                 onClick={() => handleDeleteQuestion(q.id)}
+                                title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -537,13 +573,13 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="multiple_choice" className="text-xs">
-                          {language === "ar" ? "اختيار من متعدد (QCM)" : language === "fr" ? "Choix multiple (QCM)" : "Multiple Choice"}
+                          {language === "ar" ? "اختيار من متعدد (QCM)" : language === "fr" ? "Choix multiple (QCM)" : "Multiple Choice (QCM)"}
                         </SelectItem>
                         <SelectItem value="true_false" className="text-xs">
-                          {language === "ar" ? "صحيح / خطأ" : language === "fr" ? "Vrai / Faux" : "True / False"}
+                          {language === "ar" ? "صحيح / خطأ (V/F)" : language === "fr" ? "Vrai / Faux (V/F)" : "True / False (V/F)"}
                         </SelectItem>
                         <SelectItem value="short_answer" className="text-xs">
-                          {language === "ar" ? "إجابة مباشرة" : language === "fr" ? "Réponse courte" : "Short Answer"}
+                          {language === "ar" ? "إجابة مباشرة" : language === "fr" ? "Réponse directe" : "Short Answer"}
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -584,7 +620,11 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                   <div className="space-y-2.5 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold">
-                        {language === "ar" ? "خيارات الإجابة (حدد الإجابة الصحيحة)" : language === "fr" ? "Options de réponse (Cochez la bonne réponse)" : "Answer Options (Check the correct answer)"}
+                        {language === "ar" 
+                          ? "خيارات الإجابة (حدد الإجابة الصحيحة)" 
+                          : language === "fr" 
+                          ? "Options de réponse (Cochez la bonne réponse)" 
+                          : "Answer Options (Check the correct answer)"}
                       </Label>
                     </div>
 
@@ -669,7 +709,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                   </div>
                 )}
 
-                {/* Action Buttons */}
+                {/* Action Buttons inside Question Editor */}
                 <div className="flex items-center justify-between pt-3 border-t mt-auto">
                   <Button
                     type="button"
@@ -678,7 +718,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     onClick={resetForm}
                     className="text-xs"
                   >
-                    {language === "ar" ? "مسح النموذج" : language === "fr" ? "Effacer" : "Clear"}
+                    {language === "ar" ? "مسح النموذج" : language === "fr" ? "Effacer" : "Clear Form"}
                   </Button>
 
                   <Button
@@ -688,7 +728,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     onClick={editingQuestionId ? handleUpdateQuestion : handleAddQuestion}
                     className="text-xs gap-1.5 bg-primary hover:bg-primary/90 font-semibold px-4"
                   >
-                    <Save className="h-3.5 w-3.5" />
+                    <Plus className="h-3.5 w-3.5" />
                     {saving
                       ? (language === "ar" ? "جاري الحفظ..." : language === "fr" ? "Enregistrement..." : "Saving...")
                       : editingQuestionId
@@ -704,6 +744,27 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               <QuizSettings onSettingsChange={setQuizSettings} />
             </TabsContent>
           </Tabs>
+        </div>
+
+        {/* Dialog Bottom Footer Bar */}
+        <div className="p-3 sm:p-4 border-t bg-muted/30 flex items-center justify-between gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="text-xs font-medium"
+          >
+            {language === "ar" ? "إلغاء التعديلات" : language === "fr" ? "Annuler les modifications" : "Cancel modifications"}
+          </Button>
+
+          <Button
+            type="button"
+            onClick={handleSaveAllAndClose}
+            className="text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {language === "ar" ? "حفظ التعديلات" : language === "fr" ? "Sauvegarder les modifications" : "Save modifications"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
