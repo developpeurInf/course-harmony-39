@@ -1040,7 +1040,7 @@ export const DiagnosticEvaluation: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
             {appData.classes.map((cls) => {
               const stat = calculateClassStats(cls);
 
@@ -1080,8 +1080,8 @@ export const DiagnosticEvaluation: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-1.5 pt-2">
-                      <div className="grid grid-cols-2 gap-1.5">
+                    <div className="flex flex-col gap-2 pt-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <Button
                           variant="default"
                           size="sm"
@@ -1089,10 +1089,10 @@ export const DiagnosticEvaluation: React.FC = () => {
                             setActiveClassId(cls.id);
                             setCurrentTab("notes");
                           }}
-                          className="w-full text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                          className="w-full h-9 px-2 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>{t.enterNotesBtn}</span>
+                          <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{t.enterNotesBtn}</span>
                         </Button>
 
                         <Button
@@ -1102,32 +1102,32 @@ export const DiagnosticEvaluation: React.FC = () => {
                             setImportTargetClass(cls);
                             fileInputRef.current?.click();
                           }}
-                          className="w-full text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400"
+                          className="w-full h-9 px-2 text-xs font-semibold gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/40 shadow-xs"
                         >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>{t.importExcelBtn}</span>
+                          <Upload className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{t.importExcelBtn}</span>
                         </Button>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1.5 text-slate-400 text-xs">
+                      <div className="flex items-center justify-between pt-1 text-slate-400 text-xs">
                         <button
                           onClick={() => handleDownloadExcelForClass(cls)}
-                          className="text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
-                          title="Télécharger la liste au format Excel"
+                          className="text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 hover:underline"
+                          title={lang === "ar" ? "تحميل اللائحة بصيغة Excel" : "Télécharger la liste au format Excel"}
                         >
-                          <Download className="w-3 h-3" />
-                          <span>{t.downloadClassTemplateBtn}</span>
+                          <Download className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{t.downloadClassTemplateBtn}</span>
                         </button>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <button
                             onClick={() => setEditingClass(cls)}
-                            className="hover:text-slate-600 dark:hover:text-slate-200 underline"
+                            className="hover:text-slate-600 dark:hover:text-slate-200 underline text-xs"
                           >
                             {t.editClassBtn}
                           </button>
                           <button
                             onClick={() => handleDeleteClass(cls.id)}
-                            className="text-rose-500 hover:text-rose-700"
+                            className="text-rose-500 hover:text-rose-700 p-0.5"
                             title={t.deleteClassBtn}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
