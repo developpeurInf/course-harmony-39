@@ -188,7 +188,7 @@ const Dashboard = () => {
               className="mt-4"
             >
               <Building className="mr-2 h-4 w-4" />
-              {t("dashboard.create.first.room")}
+              {language === "ar" ? "إنشاء قسمك الأول" : t("dashboard.create.first.room")}
             </Button>
           </CardContent>
         </Card>

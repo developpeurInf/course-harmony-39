@@ -15,7 +15,7 @@ import { toast } from "sonner";
 const CreateRoom = () => {
   const { user } = useAuth();
   const { addRoom } = useCourses();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -23,95 +23,115 @@ const CreateRoom = () => {
     description: "",
     is_visible: true
   });
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name.trim()) {
-      toast.error("Room name is required");
+      toast.error(language === "ar" ? "اسم القسم مطلوب" : t("Class name is required"));
       return;
     }
 
+    setLoading(true);
     try {
       await addRoom({
-        name: formData.name,
-        description: formData.description || null,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || null,
         is_visible: formData.is_visible
       });
       
-      toast.success("Room created successfully!");
-      navigate('/dashboard');
+      toast.success(language === "ar" ? "تم إنشاء القسم بنجاح!" : t("Class created successfully!"));
+      navigate('/class-management');
     } catch (error) {
-      toast.error("Failed to create room");
-      console.error("Error creating room:", error);
+      toast.error(language === "ar" ? "فشل في إنشاء القسم" : t("Failed to create class"));
+      console.error("Error creating class:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/class-management')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Create New Room</h1>
+          <h1 className="text-3xl font-bold">
+            {language === "ar" ? "إنشاء قسم جديد" : t("Create New Class")}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Set up a new room to organize your courses and students
+            {language === "ar" 
+              ? "إعداد قسم جديد لتنظيم دروسك وتلاميذك" 
+              : t("Set up a new class to organize your courses and students")}
           </p>
         </div>
       </div>
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Building className="h-5 w-5 text-primary" />
-            <CardTitle>Room Details</CardTitle>
+            <CardTitle>
+              {language === "ar" ? "تفاصيل القسم" : t("Class Details")}
+            </CardTitle>
           </div>
           <CardDescription>
-            Enter the information for your new room
+            {language === "ar" 
+              ? "أدخل معلومات قسمك الجديد" 
+              : t("Enter the information for your new class")}
           </CardDescription>
         </CardHeader>
         
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Room Name *</Label>
+              <Label htmlFor="name">
+                {language === "ar" ? "اسم القسم *" : t("Class Name *")}
+              </Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Enter room name..."
+                placeholder={language === "ar" ? "أدخل اسم القسم..." : t("Enter class name...")}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">
+                {language === "ar" ? "الوصف" : t("form.description")}
+              </Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter room description..."
+                placeholder={language === "ar" ? "أدخل وصف القسم..." : t("Enter class description...")}
                 rows={3}
               />
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
               <Switch
                 id="visibility"
                 checked={formData.is_visible}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_visible: checked }))}
               />
-              <Label htmlFor="visibility">Make room visible to students</Label>
+              <Label htmlFor="visibility">
+                {language === "ar" ? "إتاحة القسم لظهور التلاميذ" : t("Make class visible to students")}
+              </Label>
             </div>
 
             <div className="flex gap-2 pt-4">
-              <Button type="submit" className="flex-1">
+              <Button type="submit" className="flex-1" disabled={loading}>
                 <Building className="mr-2 h-4 w-4" />
-                Create Room
+                {loading 
+                  ? (language === "ar" ? "جاري الإنشاء..." : "Creating...")
+                  : (language === "ar" ? "إنشاء قسم" : t("Create Class"))}
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/dashboard')}>
-                Cancel
+              <Button type="button" variant="outline" onClick={() => navigate('/class-management')}>
+                {language === "ar" ? "إلغاء" : t("app.cancel")}
               </Button>
             </div>
           </form>

@@ -68,9 +68,9 @@ const translations: Translations = {
     ar: "لوحة التحكم"
   },
   "nav.rooms": {
-    en: "Rooms",
-    fr: "Salles",
-    ar: "الغرف"
+    en: "Classes",
+    fr: "Classes",
+    ar: "الأقسام"
   },
   "nav.courses": {
     en: "Courses",
@@ -1077,9 +1077,9 @@ const translations: Translations = {
     ar: "ابدأ بإنشاء غرفتك الأولى. تساعدك الغرف في تنظيم دروسك وتلاميذك والمحتوى الأكاديمي."
   },
   "dashboard.create.first.room": {
-    en: "Create Your First Room",
-    fr: "Créer votre première salle",
-    ar: "إنشاء غرفتك الأولى"
+    en: "Create Your First Class",
+    fr: "Créer votre première classe",
+    ar: "إنشاء قسمك الأول"
   }
 };
 
