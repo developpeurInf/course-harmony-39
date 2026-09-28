@@ -1499,14 +1499,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   });
 
   const setLanguage = (newLang: Language) => {
-    const oldLang = language;
+    if (newLang === language) return;
     localStorage.setItem("maataoui-language", newLang);
     setLanguageState(newLang);
-    if (oldLang === "ar" && newLang !== "ar") {
-      setTimeout(() => {
-        window.location.reload();
-      }, 50);
-    }
+    setTimeout(() => {
+      window.location.reload();
+    }, 50);
   };
 
   // Save language to localStorage and handle RTL and Arabic translation
@@ -1526,7 +1524,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       document.body.classList.remove("rtl");
     }
 
-    if (language === "ar" || language === "fr") {
+    if (language === "ar") {
       const translator = language === "ar" ? translateToArabic : translateToFrench;
 
       const translateNode = (node: Node) => {
@@ -1600,7 +1598,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Translation function
   const t = (key: string): string => {
     if (translations[key]) {
-      return translations[key][language] || translations[key]["fr"] || key;
+      if (language === "en") {
+        return translations[key].en || key;
+      }
+      if (language === "fr") {
+        return translations[key].fr || translateToFrench(key);
+      }
+      if (language === "ar") {
+        return translations[key].ar || translateToArabic(key);
+      }
     }
     if (language === "ar") {
       const ar = translateToArabic(key);
