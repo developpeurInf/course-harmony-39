@@ -312,7 +312,7 @@ const RoomCourses = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t("nav.courses")}</h1>
           <p className="text-muted-foreground mt-1">
-            {language === "ar" ? `إدارة وعرض الدروس في ${currentRoom.name}` : `Manage and view courses in ${currentRoom.name}`}
+            {language === "ar" ? `إدارة وعرض الدروس في ${currentRoom.name}` : language === "fr" ? `Gérer et consulter les cours dans ${currentRoom.name}` : `Manage and view courses in ${currentRoom.name}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -348,12 +348,12 @@ const RoomCourses = () => {
                 <DialogHeader>
                   <DialogTitle>{t("Add New Course")}</DialogTitle>
                   <DialogDescription>
-                    {language === "ar" ? `إنشاء درس جديد في ${currentRoom.name}.` : `Create a new course in ${currentRoom.name}.`}
+                    {language === "ar" ? `إنشاء درس جديد في ${currentRoom.name}.` : language === "fr" ? `Créer un nouveau cours dans ${currentRoom.name}.` : `Create a new course in ${currentRoom.name}.`}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="title">{language === "ar" ? "عنوان الدرس *" : "Course Title *"}</Label>
+                    <Label htmlFor="title">{language === "ar" ? "عنوان الدرس *" : language === "fr" ? "Titre du cours *" : "Course Title *"}</Label>
                     <Input
                       id="title"
                       value={title}
@@ -362,7 +362,7 @@ const RoomCourses = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">{language === "ar" ? "وصف الدرس" : "Course Description"}</Label>
+                    <Label htmlFor="description">{language === "ar" ? "وصف الدرس" : language === "fr" ? "Description du cours" : "Course Description"}</Label>
                     <Textarea
                       id="description"
                       value={description}
@@ -372,7 +372,7 @@ const RoomCourses = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : "Course Materials (PDFs)"}</Label>
+                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
                     <MultiPdfUpload
                       selectedFiles={selectedFiles}
                       onFilesChange={setSelectedFiles}
@@ -575,7 +575,7 @@ const RoomCourses = () => {
             <div className="p-4 bg-primary/10 rounded-full mb-4">
               <BookOpen className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">{t("No courses found")}</h3>
+            <h3 className="text-xl font-semibold mb-2">{language === "ar" ? "لم يتم العثور على دروس" : language === "fr" ? "Aucun cours trouvé" : "No courses found"}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
               {isProfessor 
                 ? (language === "ar" ? `لا توجد دروس في ${currentRoom.name} بعد. أضف درسك الأول للبدء.` : `There are no courses in ${currentRoom.name} yet. Add your first course to get started.`)
@@ -584,7 +584,7 @@ const RoomCourses = () => {
             {isProfessor && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
                 <Plus className="h-4 w-4 mr-2" />
-                {t("Add Your First Course")}
+                {language === "ar" ? "إضافة أول درس" : language === "fr" ? "Ajouter votre premier cours" : "Add Your First Course"}
               </Button>
             )}
           </CardContent>
@@ -621,7 +621,7 @@ const RoomCourses = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : "Course Materials (PDFs)"}</Label>
+              <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
               <MultiPdfUpload
                 selectedFiles={selectedFiles}
                 onFilesChange={setSelectedFiles}

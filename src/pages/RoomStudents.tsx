@@ -147,11 +147,11 @@ const RoomStudents = () => {
         <div>
           <h1 className="text-3xl font-bold">{t("nav.students")}</h1>
           <p className="text-muted-foreground">
-            {language === "ar" ? "إدارة التلاميذ في هذا القسم" : t("Manage students in this class")}
+            {language === "ar" ? "إدارة التلاميذ في هذا القسم" : language === "fr" ? "Gérer les élèves de cette classe" : "Manage students in this class"}
           </p>
         </div>
         <Badge variant="secondary">
-          {students.length} {language === "ar" ? "تلاميذ" : `student${students.length !== 1 ? 's' : ''}`}
+          {students.length} {language === "ar" ? "تلاميذ" : language === "fr" ? `élève${students.length > 1 ? "s" : ""}` : `student${students.length !== 1 ? "s" : ""}`}
         </Badge>
       </div>
 
@@ -172,7 +172,7 @@ const RoomStudents = () => {
         <div className="flex items-center space-x-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder={language === "ar" ? "البحث عن التلاميذ..." : t("Search students...")}
+            placeholder={language === "ar" ? "البحث عن التلاميذ..." : language === "fr" ? "Rechercher des élèves..." : "Search students..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
@@ -199,18 +199,18 @@ const RoomStudents = () => {
       {/* Students List */}
       {loading ? (
         <div className="text-center py-8">
-          <p className="text-muted-foreground">{language === "ar" ? "جاري تحميل التلاميذ..." : t("Loading students...")}</p>
+          <p className="text-muted-foreground">{language === "ar" ? "جاري تحميل التلاميذ..." : language === "fr" ? "Chargement des élèves..." : "Loading students..."}</p>
         </div>
       ) : filteredStudents.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">{language === "ar" ? "لم يتم العثور على تلاميذ" : t("No Students Found")}</h3>
+              <h3 className="text-lg font-semibold mb-2">{language === "ar" ? "لم يتم العثور على تلاميذ" : language === "fr" ? "Aucun élève trouvé" : "No Students Found"}</h3>
               <p className="text-muted-foreground mb-4">
                 {searchTerm 
-                  ? (language === "ar" ? "لا توجد نتائج مطابقة لبحثك." : t("No students match your search."))
-                  : (language === "ar" ? "قم باستيراد التلاميذ عبر ملف Excel للبدء." : t("Import students using Excel to get started."))}
+                  ? (language === "ar" ? "لا توجد نتائج مطابقة لبحثك." : language === "fr" ? "Aucun élève ne correspond à votre recherche." : "No students match your search.")
+                  : (language === "ar" ? "قم باستيراد التلاميذ عبر ملف Excel للبدء." : language === "fr" ? "Importez des élèves via un fichier Excel pour commencer." : "Import students using Excel to get started.")}
               </p>
             </div>
           </CardContent>

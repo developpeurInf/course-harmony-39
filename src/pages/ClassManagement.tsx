@@ -348,14 +348,14 @@ const ClassManagement = () => {
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "اسم القسم" : "Class Name"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الوصف" : "Description"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الدروس" : "Courses"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "التلاميذ" : "Students"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "التمارين" : "Exercises"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحانات" : "Exams"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الرؤية" : "Visibility"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : "Actions"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "اسم القسم" : language === "fr" ? "Nom de la classe" : "Class Name"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الدروس" : language === "fr" ? "Cours" : "Courses"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الرؤية" : language === "fr" ? "Visibilité" : "Visibility"}</th>
+                <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
               </tr>
             </thead>
             <tbody>
@@ -368,7 +368,7 @@ const ClassManagement = () => {
                     </div>
                   </td>
                   <td className="p-4 text-muted-foreground">
-                    {room.description || (language === "ar" ? "لا يوجد وصف" : "No description")}
+                    {room.description || (language === "ar" ? "لا يوجد وصف" : language === "fr" ? "Aucune description" : "No description")}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-1">
@@ -398,7 +398,7 @@ const ClassManagement = () => {
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       room.is_visible ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
                     }`}>
-                      {room.is_visible ? "Visible" : "Hidden"}
+                      {room.is_visible ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
                     </span>
                   </td>
                   <td className="p-4">
@@ -420,7 +420,7 @@ const ClassManagement = () => {
                           <AlertDialogHeader>
                             <AlertDialogTitle className="flex items-center gap-2">
                               <AlertTriangle className="h-5 w-5 text-destructive" />
-                              Delete Class
+                              {language === "ar" ? "حذف القسم" : language === "fr" ? "Supprimer la classe" : "Delete Class"}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
                               This will permanently delete the class "{room.name}" and ALL related content including:
@@ -439,7 +439,7 @@ const ClassManagement = () => {
                               onClick={() => handleDeleteRoom(room.id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              Delete Everything
+                              {language === "ar" ? "حذف كل شيء" : language === "fr" ? "Tout supprimer" : "Delete Everything"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -476,7 +476,7 @@ const ClassManagement = () => {
                     {room.name}
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    {room.description || (language === "ar" ? "لا يوجد وصف" : "No description")}
+                    {room.description || (language === "ar" ? "لا يوجد وصف" : language === "fr" ? "Aucune description" : "No description")}
                   </CardDescription>
                 </div>
                 <div className="flex gap-1">
@@ -497,7 +497,7 @@ const ClassManagement = () => {
                       <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
                           <AlertTriangle className="h-5 w-5 text-destructive" />
-                          Delete Class
+                          {language === "ar" ? "حذف القسم" : language === "fr" ? "Supprimer la classe" : "Delete Class"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                           This will permanently delete the class "{room.name}" and ALL related content including:
@@ -516,7 +516,7 @@ const ClassManagement = () => {
                           onClick={() => handleDeleteRoom(room.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          Delete Everything
+                          {language === "ar" ? "حذف كل شيء" : language === "fr" ? "Tout supprimer" : "Delete Everything"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -528,19 +528,19 @@ const ClassManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm">{room._count?.courses} {language === "ar" ? "دروس" : "Courses"}</span>
+                  <span className="text-sm">{room._count?.courses} {language === "ar" ? "دروس" : language === "fr" ? "Cours" : "Courses"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">{room._count?.students} {language === "ar" ? "تلاميذ" : "Students"}</span>
+                  <span className="text-sm">{room._count?.students} {language === "ar" ? "تلاميذ" : language === "fr" ? "Élèves" : "Students"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm">{room._count?.exercises} {language === "ar" ? "تمارين" : "Exercises"}</span>
+                  <span className="text-sm">{room._count?.exercises} {language === "ar" ? "تمارين" : language === "fr" ? "Exercices" : "Exercises"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm">{room._count?.exams} {language === "ar" ? "امتحانات" : "Exams"}</span>
+                  <span className="text-sm">{room._count?.exams} {language === "ar" ? "امتحانات" : language === "fr" ? "Examens" : "Exams"}</span>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t">

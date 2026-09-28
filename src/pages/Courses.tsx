@@ -824,7 +824,7 @@ const Courses = () => {
         <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
           <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-medium">
-            {language === "ar" ? "لم يتم العثور على دروس" : "No courses found"}
+            {language === "ar" ? "لم يتم العثور على دروس" : language === "fr" ? "Aucun cours trouvé" : "No courses found"}
           </h3>
           <p className="text-muted-foreground text-center max-w-md mt-2">
             {language === "ar"
@@ -838,7 +838,7 @@ const Courses = () => {
               : isProfessor 
                 ? selectedRoomFilter !== "all"
                   ? `There are no courses in ${getRoomName(selectedRoomFilter)} yet.`
-                  : "You haven't created any courses yet. Add your first course to get started."
+                  : (language === "fr" ? "Vous n'avez pas encore créé de cours. Ajoutez votre premier cours pour commencer." : "You haven't created any courses yet. Add your first course to get started.")
                 : selectedRoomFilter !== "all"
                   ? `You are not enrolled in any courses in ${getRoomName(selectedRoomFilter)}.`
                   : "You are not enrolled in any courses yet. Contact your professor for enrollment."}
@@ -852,7 +852,7 @@ const Courses = () => {
                   : "إضافة أول درس"
                 : selectedRoomFilter !== "all" 
                   ? `Add Course to ${getRoomName(selectedRoomFilter)}`
-                  : "Add Your First Course"}
+                  : (language === "fr" ? "Ajouter votre premier cours" : "Add Your First Course")}
             </Button>
           )}
         </div>

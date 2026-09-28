@@ -547,10 +547,10 @@ const Reports = () => {
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">{t("Overview")}</TabsTrigger>
-            <TabsTrigger value="students">{t("nav.students")}</TabsTrigger>
-            <TabsTrigger value="courses">{t("nav.courses")}</TabsTrigger>
-            <TabsTrigger value="activity">{t("Activity")}</TabsTrigger>
+            <TabsTrigger value="overview">{language === "ar" ? "نظرة عامة" : language === "fr" ? "Vue d'ensemble" : "Overview"}</TabsTrigger>
+            <TabsTrigger value="students">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</TabsTrigger>
+            <TabsTrigger value="courses">{language === "ar" ? "الدروس" : language === "fr" ? "Cours" : "Courses"}</TabsTrigger>
+            <TabsTrigger value="activity">{language === "ar" ? "النشاط" : language === "fr" ? "Activité" : "Activity"}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">

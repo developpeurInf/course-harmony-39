@@ -218,7 +218,7 @@ const Exercises = () => {
               <DialogHeader>
                 <DialogTitle>{t("exercise.add")}</DialogTitle>
                 <DialogDescription>
-                  {language === "ar" ? "إنشاء تمرين جديد وربطه بدرس" : "Create a new exercise and link it to a course"}
+                  {language === "ar" ? "إنشاء تمرين جديد وربطه بدرس" : language === "fr" ? "Créer un nouvel exercice et le lier à un cours" : "Create a new exercise and link it to a course"}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4">
@@ -505,14 +505,14 @@ const Exercises = () => {
             <div className="p-4 bg-primary/10 rounded-full mb-4">
               <FileText className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">{language === "ar" ? "لم يتم العثور على تمارين" : "No exercises found"}</h3>
+            <h3 className="text-xl font-semibold mb-2">{language === "ar" ? "لم يتم العثور على تمارين" : language === "fr" ? "Aucun exercice trouvé" : "No exercises found"}</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
               {language === "ar"
                 ? isProfessor
                   ? "لم يتم إنشاء أي تمارين بعد. أضف أول تمرين للبدء."
                   : "لا توجد تمارين متاحة حاليًا."
                 : isProfessor 
-                  ? "No exercises have been created yet. Add your first exercise to get started."
+                  ? (language === "fr" ? "Aucun exercice n'a encore été créé. Ajoutez votre premier exercice pour commencer." : "No exercises have been created yet. Add your first exercise to get started.")
                   : "No exercises are currently available."}
             </p>
             {isProfessor && (

@@ -287,11 +287,11 @@ const Exams = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">{language === "ar" ? "الامتحانات" : "Exams"}</h1>
+          <h1 className="text-3xl font-bold">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</h1>
           <p className="text-muted-foreground mt-1">
             {isProfessor 
-              ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : "Manage exams and tests for your courses") 
-              : (language === "ar" ? "عرض امتحاناتك القادمة والماضية" : "View your upcoming and past exams")}
+              ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : language === "fr" ? "Gérer les examens et évaluations de vos cours" : "Manage exams and tests for your courses") 
+              : (language === "ar" ? "عرض امتحاناتك القادمة والماضية" : language === "fr" ? "Consulter vos examens à venir et passés" : "View your upcoming and past exams")}
           </p>
         </div>
         
@@ -306,7 +306,7 @@ const Exams = () => {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  {language === "ar" ? "إضافة امتحان" : "Add Exam"}
+                  {language === "ar" ? "إضافة امتحان" : language === "fr" ? "Ajouter un examen" : "Add Exam"}
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -455,7 +455,7 @@ const Exams = () => {
               <SelectValue placeholder="Filter by course" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{language === "ar" ? "جميع الدروس" : "All Courses"}</SelectItem>
+              <SelectItem value="all">{language === "ar" ? "جميع الدروس" : language === "fr" ? "Tous les cours" : "All Courses"}</SelectItem>
               {availableCourses.map(course => (
                 <SelectItem key={course.id} value={course.id}>
                   {course.title}
@@ -674,7 +674,7 @@ const Exams = () => {
       ) : (
         <div className="flex flex-col items-center justify-center py-12 border rounded-lg bg-muted/30">
           <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-medium">{language === "ar" ? "لم يتم العثور على امتحانات" : "No exams found"}</h3>
+          <h3 className="text-xl font-medium">{language === "ar" ? "لم يتم العثور على امتحانات" : language === "fr" ? "Aucun examen trouvé" : "No exams found"}</h3>
           <p className="text-muted-foreground text-center max-w-md mt-2">
             {language === "ar"
               ? isProfessor 
@@ -687,7 +687,7 @@ const Exams = () => {
               : isProfessor 
                 ? selectedCourseFilter !== "all" 
                   ? `You haven't scheduled any exams for ${getCourseName(selectedCourseFilter)} yet.`
-                  : "You haven't scheduled any exams yet. Add your first exam to get started."
+                  : (language === "fr" ? "Vous n'avez pas encore planifié d'examens. Ajoutez votre premier examen pour commencer." : "You haven't scheduled any exams yet. Add your first exam to get started.")
                 : selectedCourseFilter !== "all"
                   ? `No exams are currently scheduled for ${getCourseName(selectedCourseFilter)}.`
                   : "You don't have any exams scheduled yet."}
@@ -701,7 +701,7 @@ const Exams = () => {
                   : "جدولة أول امتحان"
                 : selectedCourseFilter !== "all" 
                   ? `Schedule Exam for ${getCourseName(selectedCourseFilter)}`
-                  : "Schedule Your First Exam"}
+                  : (language === "fr" ? "Planifier votre premier examen" : "Schedule Your First Exam")}
             </Button>
           )}
         </div>

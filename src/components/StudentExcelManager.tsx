@@ -401,10 +401,10 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Users className="h-5 w-5" />
-          {language === "ar" ? "إدارة التلاميذ" : "Student Management"}
+          {language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gestion des élèves" : "Student Management"}
         </CardTitle>
         <CardDescription>
-          {language === "ar" ? "استيراد التلاميذ عبر ملف Excel وإدارة بيانات الدخول" : "Import students from Excel and manage student credentials"}
+          {language === "ar" ? "استيراد التلاميذ عبر ملف Excel وإدارة بيانات الدخول" : language === "fr" ? "Importer des élèves via Excel et gérer les identifiants" : "Import students from Excel and manage student credentials"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -419,12 +419,12 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
             <DialogTrigger asChild>
               <Button>
                 <Upload className="h-4 w-4 mr-2" />
-                {language === "ar" ? "استيراد من Excel" : "Import from Excel"}
+                {language === "ar" ? "استيراد من Excel" : language === "fr" ? "Importer depuis Excel" : "Import from Excel"}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>{language === "ar" ? "استيراد التلاميذ من Excel" : "Import Students from Excel"}</DialogTitle>
+                <DialogTitle>{language === "ar" ? "استيراد التلاميذ من Excel" : language === "fr" ? "Importer des élèves depuis Excel" : "Import Students from Excel"}</DialogTitle>
                 <DialogDescription>
                   {language === "ar" 
                     ? "قم برفع ملف Excel يحتوي على أعمدة الاسم والنسب ورمز مسار (Code Massar) لإنشاء حسابات التلاميذ." 
@@ -433,7 +433,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="excel-file">{language === "ar" ? "ملف Excel" : "Excel File"}</Label>
+                  <Label htmlFor="excel-file">{language === "ar" ? "ملف Excel" : language === "fr" ? "Fichier Excel" : "Excel File"}</Label>
                   <input
                     ref={fileInputRef}
                     id="excel-file"
@@ -450,12 +450,12 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                       className="flex items-center gap-2 shrink-0"
                     >
                       <Upload className="h-4 w-4" />
-                      {language === "ar" ? "اختيار ملف" : "Choose File"}
+                      {language === "ar" ? "اختيار ملف" : language === "fr" ? "Choisir un fichier" : "Choose File"}
                     </Button>
                     <span className="text-sm text-muted-foreground truncate max-w-full sm:max-w-[260px]">
                       {selectedFile 
                         ? selectedFile.name 
-                        : (language === "ar" ? "لم يتم اختيار أي ملف" : "No file chosen")}
+                        : (language === "ar" ? "لم يتم اختيار أي ملف" : language === "fr" ? "Aucun fichier choisi" : "No file chosen")}
                     </span>
                   </div>
                 </div>
@@ -501,7 +501,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                   variant="outline" 
                   onClick={() => setIsImportDialogOpen(false)}
                 >
-                  {language === "ar" ? "إلغاء" : "Cancel"}
+                  {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                 </Button>
                 <Button 
                   onClick={handleImportStudents}

@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { translateToArabic } from "@/lib/arabic-translations";
+import { translateToFrench } from "@/lib/french-translations";
 
 type Language = "en" | "fr" | "ar";
 
@@ -61,6 +62,231 @@ const translations: Translations = {
     ar: "عرض"
   },
   
+
+  // Profile translations
+  "Personal Information": {
+    en: "Personal Information",
+    fr: "Informations personnelles",
+    ar: "المعلومات الشخصية"
+  },
+  "Update your personal details and account information": {
+    en: "Update your personal details and account information",
+    fr: "Mettez à jour vos informations personnelles et votre compte",
+    ar: "تحديث بياناتك الشخصية ومعلومات حسابك"
+  },
+  "Full Name": {
+    en: "Full Name",
+    fr: "Nom complet",
+    ar: "الاسم الكامل"
+  },
+  "Enter your full name": {
+    en: "Enter your full name",
+    fr: "Entrez votre nom complet",
+    ar: "أدخل اسمك الكامل"
+  },
+  "Email Address": {
+    en: "Email Address",
+    fr: "Adresse email",
+    ar: "البريد الإلكتروني"
+  },
+  "Email cannot be changed. Contact support if you need to update it.": {
+    en: "Email cannot be changed. Contact support if you need to update it.",
+    fr: "L'adresse email ne peut pas être modifiée. Contactez le support si nécessaire.",
+    ar: "لا يمكن تغيير البريد الإلكتروني. اتصل بالدعم إذا كنت بحاجة إلى تحديثه."
+  },
+  "Role": {
+    en: "Role",
+    fr: "Rôle",
+    ar: "الدور"
+  },
+  "Student": {
+    en: "Student",
+    fr: "Élève",
+    ar: "تلميذ"
+  },
+  "Professor": {
+    en: "Professor",
+    fr: "Professeur",
+    ar: "أستاذ"
+  },
+  "Edit Profile": {
+    en: "Edit Profile",
+    fr: "Modifier le profil",
+    ar: "تعديل الملف الشخصي"
+  },
+  "Save Changes": {
+    en: "Save Changes",
+    fr: "Enregistrer les modifications",
+    ar: "حفظ التغييرات"
+  },
+  "Saving...": {
+    en: "Saving...",
+    fr: "Enregistrement...",
+    ar: "جاري الحفظ..."
+  },
+  "Profile Picture": {
+    en: "Profile Picture",
+    fr: "Photo de profil",
+    ar: "صورة الملف الشخصي"
+  },
+  "Upload a profile picture to personalize your account": {
+    en: "Upload a profile picture to personalize your account",
+    fr: "Téléversez une photo de profil pour personnaliser votre compte",
+    ar: "قم برفع صورة للملف الشخصي لإضفاء طابع شخصي على حسابك"
+  },
+  "Change Photo": {
+    en: "Change Photo",
+    fr: "Changer la photo",
+    ar: "تغيير الصورة"
+  },
+  "JPG, PNG or GIF. Max 5MB.": {
+    en: "JPG, PNG or GIF. Max 5MB.",
+    fr: "JPG, PNG ou GIF. Max 5 Mo.",
+    ar: "JPG أو PNG أو GIF. الحد الأقصى 5 ميجابايت."
+  },
+  "Security": {
+    en: "Security",
+    fr: "Sécurité",
+    ar: "الأمان"
+  },
+  "Manage your account security settings": {
+    en: "Manage your account security settings",
+    fr: "Gérer les paramètres de sécurité de votre compte",
+    ar: "إدارة إعدادات أمان حسابك"
+  },
+  "Password": {
+    en: "Password",
+    fr: "Mot de passe",
+    ar: "كلمة المرور"
+  },
+  "Reset your password via email": {
+    en: "Reset your password via email",
+    fr: "Réinitialisez votre mot de passe par email",
+    ar: "إعادة تعيين كلمة المرور عبر البريد الإلكتروني"
+  },
+  "Reset": {
+    en: "Reset",
+    fr: "Réinitialiser",
+    ar: "إعادة تعيين"
+  },
+  "Two-Factor Authentication": {
+    en: "Two-Factor Authentication",
+    fr: "Authentification à deux facteurs",
+    ar: "المصادقة الثنائية"
+  },
+  "Coming soon: Add an extra layer of security to your account.": {
+    en: "Coming soon: Add an extra layer of security to your account.",
+    fr: "Bientôt disponible : ajoutez une couche de sécurité supplémentaire à votre compte.",
+    ar: "قريباً: أضف طبقة أمان إضافية إلى حسابك."
+  },
+  "Manage your account settings and preferences": {
+    en: "Manage your account settings and preferences",
+    fr: "Gérer les paramètres et préférences de votre compte",
+    ar: "إدارة إعدادات وتفضيلات حسابك"
+  },
+
+  // Reports
+  "Reports & Analytics": {
+    en: "Reports & Analytics",
+    fr: "Rapports & Analyses",
+    ar: "التقارير والتحليلات"
+  },
+  "Comprehensive insights into student performance and engagement": {
+    en: "Comprehensive insights into student performance and engagement",
+    fr: "Aperçu complet des performances et de l'engagement des élèves",
+    ar: "رؤى شاملة حول أداء التلاميذ وتفاعلهم"
+  },
+  "Export": {
+    en: "Export",
+    fr: "Exporter",
+    ar: "تصدير"
+  },
+  "Overview": {
+    en: "Overview",
+    fr: "Vue d'ensemble",
+    ar: "نظرة عامة"
+  },
+  "Activity": {
+    en: "Activity",
+    fr: "Activité",
+    ar: "النشاط"
+  },
+  "Total Students": {
+    en: "Total Students",
+    fr: "Total des élèves",
+    ar: "إجمالي التلاميذ"
+  },
+  "Total Courses": {
+    en: "Total Courses",
+    fr: "Total des cours",
+    ar: "إجمالي الدروس"
+  },
+  "Total Exams": {
+    en: "Total Exams",
+    fr: "Total des examens",
+    ar: "إجمالي الامتحانات"
+  },
+  "Average Score": {
+    en: "Average Score",
+    fr: "Score moyen",
+    ar: "متوسط النقاط"
+  },
+  "Across all rooms": {
+    en: "Across all classes",
+    fr: "Dans toutes les classes",
+    ar: "في جميع الأقسام"
+  },
+  "Across all classes": {
+    en: "Across all classes",
+    fr: "Dans toutes les classes",
+    ar: "في جميع الأقسام"
+  },
+  "Active courses": {
+    en: "Active courses",
+    fr: "Cours actifs",
+    ar: "الدروس النشطة"
+  },
+  "Overall average": {
+    en: "Overall average",
+    fr: "Moyenne générale",
+    ar: "المعدل العام"
+  },
+  "Across all courses": {
+    en: "Across all courses",
+    fr: "Dans tous les cours",
+    ar: "في جميع الدروس"
+  },
+  "Performance Distribution": {
+    en: "Performance Distribution",
+    fr: "Distribution des performances",
+    ar: "توزيع الأداء"
+  },
+  "Student performance by score ranges": {
+    en: "Student performance by score ranges",
+    fr: "Performance des élèves par tranches de notes",
+    ar: "أداء التلاميذ حسب فئات الدرجات"
+  },
+  "Weekly Activity": {
+    en: "Weekly Activity",
+    fr: "Activité hebdomadaire",
+    ar: "النشاط الأسبوعي"
+  },
+  "Student engagement over the last 7 days": {
+    en: "Student engagement over the last 7 days",
+    fr: "Engagement des élèves sur les 7 derniers jours",
+    ar: "تفاعل التلاميذ خلال الأيام السبعة الماضية"
+  },
+  "Select room": {
+    en: "Select a class",
+    fr: "Sélectionner une classe",
+    ar: "اختر القسم"
+  },
+  "Select a room to view reports": {
+    en: "Select a class to view reports",
+    fr: "Sélectionnez une classe pour afficher les rapports",
+    ar: "اختر قسماً لعرض التقارير"
+  },
+
   // Settings page
   "settings.theme.title": {
     en: "Theme",
@@ -1296,13 +1522,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     // Add a class to the body for RTL styling
     if (language === "ar") {
       document.body.classList.add("rtl");
+    } else {
+      document.body.classList.remove("rtl");
+    }
+
+    if (language === "ar" || language === "fr") {
+      const translator = language === "ar" ? translateToArabic : translateToFrench;
 
       const translateNode = (node: Node) => {
         if (node.nodeType === Node.TEXT_NODE) {
           const val = node.nodeValue;
           if (val && val.trim()) {
             const trimmed = val.trim();
-            const translated = translateToArabic(trimmed);
+            const translated = translator(trimmed);
             if (translated && translated !== trimmed) {
               node.nodeValue = val.replace(trimmed, translated);
             }
@@ -1313,14 +1545,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           
           if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
             if (el.placeholder) {
-              const transPh = translateToArabic(el.placeholder);
+              const transPh = translator(el.placeholder);
               if (transPh && transPh !== el.placeholder) {
                 el.placeholder = transPh;
               }
             }
           }
           if (el.title) {
-            const transTitle = translateToArabic(el.title);
+            const transTitle = translator(el.title);
             if (transTitle && transTitle !== el.title) {
               el.title = transTitle;
             }
@@ -1344,7 +1576,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             const val = node.nodeValue;
             if (val && val.trim()) {
               const trimmed = val.trim();
-              const translated = translateToArabic(trimmed);
+              const translated = translator(trimmed);
               if (translated && translated !== trimmed) {
                 node.nodeValue = val.replace(trimmed, translated);
               }
@@ -1362,19 +1594,21 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       return () => {
         observer.disconnect();
       };
-    } else {
-      document.body.classList.remove("rtl");
     }
   }, [language]);
 
   // Translation function
   const t = (key: string): string => {
     if (translations[key]) {
-      return translations[key][language];
+      return translations[key][language] || translations[key]["fr"] || key;
     }
     if (language === "ar") {
       const ar = translateToArabic(key);
       if (ar && ar !== key) return ar;
+    }
+    if (language === "fr") {
+      const fr = translateToFrench(key);
+      if (fr && fr !== key) return fr;
     }
     return key;
   };
