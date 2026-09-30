@@ -355,39 +355,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginStudent = async (username: string, password: string): Promise<boolean> => {
     try {
+      const cleanUsername = username.trim();
       // Find user by username
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('email, temporary_password')
-        .eq('username', username)
+        .select('id, email, temporary_password')
+        .eq('username', cleanUsername)
         .eq('role', 'student')
         .maybeSingle();
 
-      if (profileError || !profile) {
+      if (profileError || !profile || !profile.email) {
         toast.error("Invalid username or password");
         return false;
       }
 
-      // Check temporary password
-      if (profile.temporary_password !== password) {
-        toast.error("Invalid username or password");
-        return false;
-      }
-
-      // Login with email (since Supabase auth uses email)
+      // Login directly with Supabase Auth using the student's email and password
       const { error } = await supabase.auth.signInWithPassword({
         email: profile.email,
         password: password
       });
 
       if (error) {
-        toast.error("Login failed. Please contact your professor.");
+        toast.error("Invalid username or password");
         return false;
       }
 
-      // If temporary_password is still set, this is a first/temporary-password login
-      if (profile.temporary_password) {
+      // If temporary_password is still active and matches what was entered, prompt first-login choice
+      if (profile.temporary_password && profile.temporary_password === password) {
         setIsFirstLogin(true);
+      } else {
+        setIsFirstLogin(false);
       }
 
       return true;
@@ -404,16 +401,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Update Supabase auth password
       const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
       if (authError) {
-        toast.error("Failed to update password");
+        toast.error("Failed to update password: " + authError.message);
         return false;
       }
-      // Clear temporary_password in profile to mark as no longer first login
+      // Clear temporary_password in profile so it's no longer marked as temporary
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ temporary_password: null })
         .eq('id', user.id);
       if (profileError) {
-        console.error('Failed to clear temporary password:', profileError);
+        console.error('Failed to clear temporary password in profile:', profileError);
       }
       setIsFirstLogin(false);
       toast.success("Password changed successfully!");
@@ -427,21 +424,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Professor resets a student's password directly
   const resetStudentPassword = async (studentId: string, newPassword: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      const { data: profile, error: getError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', studentId)
+        .single();
+
+      if (getError || !profile) {
+        toast.error("Student profile not found");
+        return false;
+      }
+
+      // 1. Update temporary_password in profiles
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ temporary_password: newPassword })
         .eq('id', studentId);
-      if (error) {
+
+      if (updateError) {
         toast.error("Failed to reset student password");
         return false;
       }
-      // Also update Supabase auth password via admin function if available
-      const { error: fnError } = await supabase.functions.invoke('reset-student-password', {
-        body: { studentId, newPassword }
-      });
-      if (fnError) {
-        console.warn('Admin password reset not available, only temporary_password updated:', fnError);
+
+      // 2. Synchronize Supabase Auth password via create-student function
+      if (profile.username && profile.room_id) {
+        const nameParts = (profile.name || 'Student').split(' ');
+        const prenom = nameParts[0] || 'Student';
+        const nom = nameParts.slice(1).join(' ') || '';
+        await supabase.functions.invoke('create-student', {
+          body: {
+            students: [{
+              prenom,
+              nom,
+              username: profile.username,
+              temporaryPassword: newPassword
+            }],
+            roomId: profile.room_id
+          }
+        });
       }
+
       toast.success("Student password reset successfully!");
       return true;
     } catch (error) {
