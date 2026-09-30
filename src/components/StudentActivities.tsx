@@ -254,7 +254,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const loadAllActiveSessions = async () => {
     // clean stale sessions silently
-    await supabase.rpc("close_stale_sessions").catch(() => null);
+    try { await supabase.rpc("close_stale_sessions"); } catch { /* ignore */ }
 
     const { data, error } = await supabase
       .from("student_sessions")
