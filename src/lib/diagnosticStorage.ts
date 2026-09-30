@@ -33,14 +33,14 @@ const STORAGE_KEY = "diageval_pro_data_v1";
 
 export const DEFAULT_DIAGNOSTIC_DATA: DiagnosticAppData = {
   config: {
-    academie: "الأكاديمية الجهوية سوس ماسة",
-    direction: "المديرية الإقليمية تارودانت",
-    lycee: "ثانوية النهضة التأهيلية-أولاد تايمة",
+    academie: "الأكاديمية الجهوية الرباط-سلا- القنيطرة",
+    direction: "المديرية الإقليمية القنيطرة",
+    lycee: "الثانوية التأهيلية محمد بنيس",
     niveau_titre: "2BAC-PC/SVT",
     nom_enseignant: "Jaouad Maataoui",
     matiere: "Mathématique",
     niveau: "2BPCF / 2BSVT",
-    annee_scolaire: "2024 / 2025",
+    annee_scolaire: "2026 / 2027",
     periode_diagnostic: "01 au 09 octobre 2026",
     classes_concernees: "2Bac-PCF-1, 2Bac-PCF-2, 2Bac-SVT-1 et 2Bac-SVT-2",
     classes_section_1: "2Bac PC ET SVT",

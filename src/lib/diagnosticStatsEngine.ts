@@ -180,7 +180,7 @@ export function computeAllStats(classesList: DiagnosticClass[]): GlobalDiagnosti
     } else {
       classes_plan.push({
         nom: stat.nom,
-        date: cls.date || "06-10-2024",
+        date: cls.date || "06-10-2026",
         nb_presents_texte: String(stat.present_count),
       });
     }
