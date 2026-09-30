@@ -25,10 +25,11 @@ interface EditStudentDialogProps {
 }
 
 export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }: EditStudentDialogProps) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
       setName(student.name);
       setUsername(student.username || "");
       setEmail(student.email);
+      setNewPassword("");
     }
   }, [student]);
 
@@ -47,15 +49,21 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
 
     setIsUpdating(true);
     try {
-      console.log('Updating student:', student.id, { name: name.trim(), username: username.trim() || null, email: email.trim() || null });
+      const updatePayload: Record<string, any> = {
+        name: name.trim(),
+        username: username.trim() || null,
+        email: email.trim() || null,
+      };
+
+      if (newPassword.trim()) {
+        updatePayload.temporary_password = newPassword.trim();
+      }
+
+      console.log('Updating student:', student.id, updatePayload);
       
       const { data, error } = await supabase
         .from('profiles')
-        .update({
-          name: name.trim(),
-          username: username.trim() || null,
-          email: email.trim() || null,
-        })
+        .update(updatePayload)
         .eq('id', student.id)
         .select();
 
@@ -120,6 +128,18 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t("student.placeholder.email")}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-new-password">
+              {language === "ar" ? "تغيير كلمة المرور (اختياري)" : language === "fr" ? "Changer le mot de passe (optionnel)" : "Change Password (optional)"}
+            </Label>
+            <Input
+              id="edit-new-password"
+              type="text"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder={language === "ar" ? "أدخل كلمة مرور جديدة لتعيينها" : language === "fr" ? "Nouveau mot de passe temporaire" : "New temporary password"}
             />
           </div>
         </div>

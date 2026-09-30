@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, Plus, Search, Grid, List, Edit, Info } from "lucide-react";
+import { Users, UserX, Plus, Search, Grid, List, Edit, Info, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
@@ -33,7 +33,7 @@ interface Student {
 const RoomStudents = () => {
   const { t, language } = useLanguage();
   const { roomId } = useParams();
-  const { user } = useAuth();
+  const { user, resetStudentPassword } = useAuth();
   const { refreshData } = useCourses();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -43,6 +43,9 @@ const RoomStudents = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [infoStudent, setInfoStudent] = useState<Student | null>(null);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
+  const [resetPasswordStudent, setResetPasswordStudent] = useState<Student | null>(null);
+  const [newTempPassword, setNewTempPassword] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (user && roomId) {
@@ -124,6 +127,24 @@ const RoomStudents = () => {
   const handleInfoClose = () => {
     setIsInfoDialogOpen(false);
     setInfoStudent(null);
+  };
+
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+    setNewTempPassword(result);
+  };
+
+  const handleResetStudentPassword = async () => {
+    if (!resetPasswordStudent || !newTempPassword.trim()) return;
+    setIsResetting(true);
+    const success = await resetStudentPassword(resetPasswordStudent.id, newTempPassword.trim());
+    setIsResetting(false);
+    if (success) {
+      setResetPasswordStudent(null);
+      setNewTempPassword("");
+    }
   };
 
   const filteredStudents = students.filter(student =>
@@ -255,6 +276,14 @@ const RoomStudents = () => {
                     >
                       <Edit className="h-3 w-3" />
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title={language === "ar" ? "إعادة تعيين كلمة المرور" : language === "fr" ? "Réinitialiser le mot de passe" : "Reset Password"}
+                      onClick={() => { setResetPasswordStudent(student); setNewTempPassword(""); }}
+                    >
+                      <KeyRound className="h-3 w-3" />
+                    </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="outline" size="sm">
@@ -343,6 +372,14 @@ const RoomStudents = () => {
                       >
                         <Edit className="h-3 w-3" />
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        title={language === "ar" ? "إعادة تعيين كلمة المرور" : language === "fr" ? "Réinitialiser le mot de passe" : "Reset Password"}
+                        onClick={() => { setResetPasswordStudent(student); setNewTempPassword(""); }}
+                      >
+                        <KeyRound className="h-3 w-3" />
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="outline" size="sm">
@@ -394,6 +431,52 @@ const RoomStudents = () => {
         isOpen={isInfoDialogOpen}
         onClose={handleInfoClose}
       />
+
+      {/* Professor Reset Student Password Dialog */}
+      <Dialog open={!!resetPasswordStudent} onOpenChange={() => setResetPasswordStudent(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === "ar" ? "إعادة تعيين كلمة مرور التلميذ" : language === "fr" ? "Réinitialiser le mot de passe de l'élève" : "Reset Student Password"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ar"
+                ? `تعيين كلمة مرور مؤقتة جديدة لـ ${resetPasswordStudent?.name}`
+                : language === "fr"
+                ? `Définir un nouveau mot de passe temporaire pour ${resetPasswordStudent?.name}`
+                : `Set a new temporary password for ${resetPasswordStudent?.name}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="student-new-password">
+                {language === "ar" ? "كلمة المرور المؤقتة الجديدة" : language === "fr" ? "Nouveau mot de passe temporaire" : "New Temporary Password"}
+              </Label>
+              <div className="flex gap-2 mt-1.5">
+                <Input
+                  id="student-new-password"
+                  value={newTempPassword}
+                  onChange={(e) => setNewTempPassword(e.target.value)}
+                  placeholder={language === "ar" ? "أدخل أو أنشئ كلمة المرور" : language === "fr" ? "Entrez ou générez le mot de passe" : "Enter or generate password"}
+                />
+                <Button type="button" variant="outline" onClick={generatePassword} size="sm">
+                  {language === "ar" ? "توليد تلقائي" : language === "fr" ? "Générer" : "Generate"}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetPasswordStudent(null)} disabled={isResetting}>
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
+            </Button>
+            <Button onClick={handleResetStudentPassword} disabled={!newTempPassword.trim() || isResetting}>
+              {isResetting
+                ? (language === "ar" ? "جاري التعيين..." : language === "fr" ? "Réinitialisation..." : "Resetting...")
+                : (language === "ar" ? "تأكيد وتعيين" : language === "fr" ? "Confirmer et définir" : "Confirm & Set")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

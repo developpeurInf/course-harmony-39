@@ -19,8 +19,11 @@ interface AuthContextType {
   user: UserProfile | null;
   session: Session | null;
   loading: boolean;
+  isFirstLogin: boolean;
+  setIsFirstLogin: (v: boolean) => void;
   login: (email: string, password: string, role?: UserRole) => Promise<boolean>;
   loginStudent: (username: string, password: string) => Promise<boolean>;
+  changeStudentPassword: (newPassword: string) => Promise<boolean>;
   register: (email: string, password: string, name: string, role: UserRole) => Promise<boolean>;
   verifyOtp: (email: string, token: string) => Promise<boolean>;
   resendOtp: (email: string) => Promise<boolean>;
@@ -31,6 +34,7 @@ interface AuthContextType {
   deleteAvatar: () => Promise<boolean>;
   getStudents: (roomId?: string) => Promise<UserProfile[]>;
   addStudent: (email: string, password: string, name: string) => Promise<boolean>;
+  resetStudentPassword: (studentId: string, newPassword: string) => Promise<boolean>;
   isLoggedIn: boolean;
 }
 
@@ -41,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -380,9 +385,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
+      // If temporary_password is still set, this is a first/temporary-password login
+      if (profile.temporary_password) {
+        setIsFirstLogin(true);
+      }
+
       return true;
     } catch (error) {
       toast.error("Login failed");
+      return false;
+    }
+  };
+
+  // Student changes their own password
+  const changeStudentPassword = async (newPassword: string): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      // Update Supabase auth password
+      const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
+      if (authError) {
+        toast.error("Failed to update password");
+        return false;
+      }
+      // Clear temporary_password in profile to mark as no longer first login
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ temporary_password: null })
+        .eq('id', user.id);
+      if (profileError) {
+        console.error('Failed to clear temporary password:', profileError);
+      }
+      setIsFirstLogin(false);
+      toast.success("Password changed successfully!");
+      return true;
+    } catch (error) {
+      toast.error("Failed to change password");
+      return false;
+    }
+  };
+
+  // Professor resets a student's password directly
+  const resetStudentPassword = async (studentId: string, newPassword: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ temporary_password: newPassword })
+        .eq('id', studentId);
+      if (error) {
+        toast.error("Failed to reset student password");
+        return false;
+      }
+      // Also update Supabase auth password via admin function if available
+      const { error: fnError } = await supabase.functions.invoke('reset-student-password', {
+        body: { studentId, newPassword }
+      });
+      if (fnError) {
+        console.warn('Admin password reset not available, only temporary_password updated:', fnError);
+      }
+      toast.success("Student password reset successfully!");
+      return true;
+    } catch (error) {
+      toast.error("Failed to reset student password");
       return false;
     }
   };
@@ -619,9 +682,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{ 
       user, 
       session,
-      loading, 
+      loading,
+      isFirstLogin,
+      setIsFirstLogin,
       login, 
       loginStudent,
+      changeStudentPassword,
       register,
       verifyOtp,
       resendOtp,
@@ -632,6 +698,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       deleteAvatar,
       getStudents,
       addStudent,
+      resetStudentPassword,
       isLoggedIn
     }}>
       {children}
