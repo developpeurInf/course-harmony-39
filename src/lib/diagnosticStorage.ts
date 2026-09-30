@@ -81,6 +81,38 @@ export const DEFAULT_DIAGNOSTIC_DATA: DiagnosticAppData = {
   classes: []
 };
 
+// Old default values — used to detect and migrate stale localStorage
+const OLD_DEFAULTS = {
+  academie: "الأكاديمية الجهوية سوس ماسة",
+  direction: "المديرية الإقليمية تارودانت",
+  lycee: "ثانوية النهضة التأهيلية-أولاد تايمة",
+  annee_scolaire_list: ["2024 / 2025", "2025 / 2026"],
+};
+
+function migrateData(data: DiagnosticAppData): DiagnosticAppData {
+  const cfg = data.config;
+  const isOldAcademie = cfg.academie === OLD_DEFAULTS.academie;
+  const isOldDirection = cfg.direction === OLD_DEFAULTS.direction;
+  const isOldLycee = cfg.lycee === OLD_DEFAULTS.lycee;
+  const isOldAnnee = OLD_DEFAULTS.annee_scolaire_list.includes(cfg.annee_scolaire);
+
+  if (isOldAcademie || isOldDirection || isOldLycee || isOldAnnee) {
+    const migrated: DiagnosticAppData = {
+      ...data,
+      config: {
+        ...cfg,
+        academie: isOldAcademie ? DEFAULT_DIAGNOSTIC_DATA.config.academie : cfg.academie,
+        direction: isOldDirection ? DEFAULT_DIAGNOSTIC_DATA.config.direction : cfg.direction,
+        lycee: isOldLycee ? DEFAULT_DIAGNOSTIC_DATA.config.lycee : cfg.lycee,
+        annee_scolaire: isOldAnnee ? DEFAULT_DIAGNOSTIC_DATA.config.annee_scolaire : cfg.annee_scolaire,
+      },
+    };
+    saveDiagnosticData(migrated);
+    return migrated;
+  }
+  return data;
+}
+
 export function loadDiagnosticData(): DiagnosticAppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -93,7 +125,7 @@ export function loadDiagnosticData(): DiagnosticAppData {
       saveDiagnosticData(DEFAULT_DIAGNOSTIC_DATA);
       return JSON.parse(JSON.stringify(DEFAULT_DIAGNOSTIC_DATA));
     }
-    return parsed;
+    return migrateData(parsed);
   } catch (e) {
     console.error("Erreur lors du chargement des données diagnostiques:", e);
     return JSON.parse(JSON.stringify(DEFAULT_DIAGNOSTIC_DATA));
