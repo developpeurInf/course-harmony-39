@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,6 +130,15 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const dateFnsLocale = language === "fr" ? fr : language === "ar" ? ar : enUS;
 
+  // ── Stable refs — realtime callbacks capture these to avoid stale closures ──
+  const loadAllActiveSessionsRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const loadSessionsRef          = useRef<() => Promise<void>>(() => Promise.resolve());
+  // Keep refs pointing to the latest function version on every render
+  useEffect(() => {
+    loadAllActiveSessionsRef.current = loadAllActiveSessions;
+    loadSessionsRef.current          = loadSessions;
+  });
+
   // ── initial load + filter changes ──────────────────────────────
   useEffect(() => {
     if (user && roomId) {
@@ -137,24 +146,31 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     }
   }, [user, roomId, selectedStudent, dateRange]);
 
-  // ── realtime: sessions table ───────────────────────────────────
+  // ── realtime subscriptions ─────────────────────────────────────
   useEffect(() => {
     if (!user || !roomId) return;
 
-    const channel = supabase
+    // Sessions INSERT → new student connected
+    const sessChannel = supabase
       .channel("student-sessions-realtime-v2")
       .on("postgres_changes", {
-        event: "*",
+        event: "INSERT",
         schema: "public",
         table: "student_sessions",
         filter: `room_id=eq.${roomId}`,
       }, () => {
-        loadSessions();
-        loadAllActiveSessions();
+        loadAllActiveSessionsRef.current();
+        loadSessionsRef.current();
       })
       .subscribe();
 
-    // Also realtime on activities for instant feed update
+    // Activities INSERT:
+    //   - login  → refresh online count
+    //   - logout → IMMEDIATELY refresh online count (real-time disconnect)
+    //     Why: Supabase realtime UPDATE events require REPLICA IDENTITY FULL to
+    //     include non-PK columns in WAL. By default only PK is logged, so the
+    //     session UPDATE (is_active→false) may not trigger the realtime filter.
+    //     The logout activity INSERT is always reliable as a disconnect signal.
     const actChannel = supabase
       .channel("student-activities-realtime-v2")
       .on("postgres_changes", {
@@ -164,17 +180,28 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
         filter: `room_id=eq.${roomId}`,
       }, (payload) => {
         const newAct = payload.new as StudentActivity;
+
+        // Instantly prepend to activity feed
         setActivities((prev) => [newAct, ...prev].slice(0, 200));
+
+        // On login/logout: re-query active sessions after a short delay
+        // (500ms lets the session row UPDATE commit before we read it)
+        if (newAct.activity_type === "login" || newAct.activity_type === "logout") {
+          setTimeout(() => {
+            loadAllActiveSessionsRef.current();
+            loadSessionsRef.current();
+          }, 500);
+        }
       })
       .subscribe();
 
+    // Periodic fallback every 30s
     const interval = setInterval(() => {
-      loadSessions();
-      loadAllActiveSessions();
+      loadAllActiveSessionsRef.current();
     }, 30_000);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(sessChannel);
       supabase.removeChannel(actChannel);
       clearInterval(interval);
     };
