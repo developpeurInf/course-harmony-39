@@ -443,11 +443,13 @@ const Courses = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">{language === "ar" ? "الدروس" : "Courses"}</h1>
+          <h1 className="text-3xl font-bold">
+            {language === "ar" ? "الدروس" : language === "fr" ? "Cours" : "Courses"}
+          </h1>
           <p className="text-muted-foreground mt-1">
             {isProfessor 
-              ? (language === "ar" ? "إدارة دروسك وتسجيلات التلاميذ" : "Manage your courses and student enrollments") 
-              : (language === "ar" ? "عرض الدروس المسجل بها" : "View courses you're enrolled in")}
+              ? (language === "ar" ? "إدارة دروسك وتسجيلات التلاميذ" : language === "fr" ? "Gérer vos cours et les inscriptions des élèves" : "Manage your courses and student enrollments") 
+              : (language === "ar" ? "عرض الدروس المسجل بها" : language === "fr" ? "Consultez les cours auxquels vous êtes inscrit" : "View courses you're enrolled in")}
           </p>
         </div>
         
@@ -462,22 +464,26 @@ const Courses = () => {
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  {language === "ar" ? "إضافة درس" : "Add Course"}
+                  {language === "ar" ? "إضافة درس" : language === "fr" ? "Ajouter un cours" : "Add Course"}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{language === "ar" ? "إضافة درس جديد" : "Add New Course"}</DialogTitle>
+                  <DialogTitle>{language === "ar" ? "إضافة درس جديد" : language === "fr" ? "Ajouter un nouveau cours" : "Add New Course"}</DialogTitle>
                   <DialogDescription>
-                    {language === "ar" ? "إنشاء درس جديد وإتاحته للتلاميذ." : "Create a new course and make it available to students."}
+                    {language === "ar" 
+                      ? "إنشاء درس جديد وإتاحته للتلاميذ." 
+                      : language === "fr" 
+                      ? "Créer un nouveau cours et le rendre disponible pour les élèves." 
+                      : "Create a new course and make it available to students."}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="room">{language === "ar" ? "القسم (اختياري)" : "Room (Optional)"}</Label>
+                    <Label htmlFor="room">{language === "ar" ? "القسم (اختياري)" : language === "fr" ? "Classe (optionnel)" : "Room (Optional)"}</Label>
                     <Select value={roomId} onValueChange={setRoomId}>
                       <SelectTrigger>
-                        <SelectValue placeholder={language === "ar" ? "اختر قسمًا (اختياري)" : "Select a room (optional)"} />
+                        <SelectValue placeholder={language === "ar" ? "اختر قسمًا (اختياري)" : language === "fr" ? "Sélectionner une classe (optionnel)" : "Select a room (optional)"} />
                       </SelectTrigger>
                       <SelectContent>
                         {rooms.map(room => (
@@ -489,26 +495,26 @@ const Courses = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="title">{language === "ar" ? "عنوان الدرس" : "Course Title"}</Label>
+                    <Label htmlFor="title">{language === "ar" ? "عنوان الدرس" : language === "fr" ? "Titre du cours" : "Course Title"}</Label>
                     <Input
                       id="title"
-                      placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : "e.g., Introduction to Computer Science"}
+                      placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : language === "fr" ? "ex., Notions de logique" : "e.g., Introduction to Computer Science"}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">{language === "ar" ? "الوصف" : "Description"}</Label>
+                    <Label htmlFor="description">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</Label>
                     <Textarea
                       id="description"
-                      placeholder={language === "ar" ? "أدخل وصف الدرس" : "Enter course description"}
+                      placeholder={language === "ar" ? "أدخل وصف الدرس" : language === "fr" ? "Entrez la description du cours" : "Enter course description"}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : "Course Materials (PDFs)"}</Label>
+                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
                     <MultiPdfUpload
                       onFilesChange={setSelectedPdfFiles}
                       selectedFiles={selectedPdfFiles}
@@ -522,15 +528,15 @@ const Courses = () => {
                       checked={isVisible}
                       onCheckedChange={setIsVisible}
                     />
-                    <Label htmlFor="visibility">{language === "ar" ? "مرئي للتلاميذ" : "Visible to students"}</Label>
+                    <Label htmlFor="visibility">{language === "ar" ? "مرئي للتلاميذ" : language === "fr" ? "Visible pour les élèves" : "Visible to students"}</Label>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    {language === "ar" ? "إلغاء" : "Cancel"}
+                    {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                   </Button>
                   <Button onClick={handleAddCourse} disabled={!title}>
-                    {language === "ar" ? "إنشاء الدرس" : "Create Course"}
+                    {language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -545,10 +551,10 @@ const Courses = () => {
           <div className="w-full sm:w-64">
             <Select value={selectedRoomFilter} onValueChange={handleRoomFilterChange}>
               <SelectTrigger>
-                <SelectValue placeholder={language === "ar" ? "تصفية حسب القسم" : "Filter by room"} />
+                <SelectValue placeholder={language === "ar" ? "تصفية حسب القسم" : language === "fr" ? "Filtrer par classe" : "Filter by room"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === "ar" ? "جميع الأقسام" : "All Rooms"}</SelectItem>
+                <SelectItem value="all">{language === "ar" ? "جميع الأقسام" : language === "fr" ? "Toutes les classes" : "All Rooms"}</SelectItem>
                 {rooms.map(room => (
                   <SelectItem key={room.id} value={room.id}>
                     {room.name}
@@ -560,6 +566,8 @@ const Courses = () => {
           <p className="text-sm text-muted-foreground">
             {language === "ar"
               ? `عرض ${displayedCourses.length} من الدروس${selectedRoomFilter !== "all" ? " في " + getRoomName(selectedRoomFilter) : ""}`
+              : language === "fr"
+              ? `Affichage de ${displayedCourses.length} ${displayedCourses.length > 1 ? "cours" : "cours"}${selectedRoomFilter !== "all" ? " dans " + getRoomName(selectedRoomFilter) : ""}`
               : `Showing ${displayedCourses.length} ${displayedCourses.length === 1 ? "course" : "courses"}${selectedRoomFilter !== "all" ? " in " + getRoomName(selectedRoomFilter) : ""}`}
           </p>
         </div>
@@ -571,6 +579,8 @@ const Courses = () => {
           <p className="text-sm text-muted-foreground">
             {language === "ar"
               ? `أنت مسجل في ${displayedCourses.length} ${displayedCourses.length === 1 ? "درس" : "دروس"}`
+              : language === "fr"
+              ? `Vous êtes inscrit à ${displayedCourses.length} ${displayedCourses.length > 1 ? "cours" : "cours"}`
               : `You are enrolled in ${displayedCourses.length} ${displayedCourses.length === 1 ? "course" : "courses"}`}
           </p>
         </div>
@@ -589,7 +599,7 @@ const Courses = () => {
                     <div className="flex justify-between items-start">
                       <CardTitle>{course.title}</CardTitle>
                       {!course.is_visible && (
-                        <Badge variant="outline">{language === "ar" ? "مخفي" : "Hidden"}</Badge>
+                        <Badge variant="outline">{language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}</Badge>
                       )}
                     </div>
                     <CardDescription className="mt-2">
@@ -601,14 +611,14 @@ const Courses = () => {
                       <div className="flex justify-between items-center text-sm">
                         <div className="flex items-center text-muted-foreground">
                           <Users className="h-4 w-4 mr-1" />
-                          <span>{enrollmentCount} {language === "ar" ? "تلاميذ" : "students"}</span>
+                          <span>{enrollmentCount} {language === "ar" ? "تلاميذ" : language === "fr" ? (enrollmentCount > 1 ? "élèves" : "élève") : (enrollmentCount === 1 ? "student" : "students")}</span>
                         </div>
                       </div>
                       
                       {course.room_id && (
                         <div className="flex items-center text-sm text-muted-foreground">
                           <Building className="h-4 w-4 mr-1" />
-                          <span>{language === "ar" ? "القسم: " : "Room: "}{getRoomName(course.room_id)}</span>
+                          <span>{language === "ar" ? "القسم: " : language === "fr" ? "Classe : " : "Room: "}{getRoomName(course.room_id)}</span>
                         </div>
                       )}
                       
@@ -620,7 +630,7 @@ const Courses = () => {
                           onClick={() => navigateToExercises(course.id)}
                         >
                           <FileText className="h-3.5 w-3.5 mr-1" />
-                          {stats.exerciseCount} {language === "ar" ? "تمارين" : (stats.exerciseCount === 1 ? "Exercise" : "Exercises")}
+                          {stats.exerciseCount} {language === "ar" ? "تمارين" : language === "fr" ? (stats.exerciseCount > 1 ? "Exercices" : "Exercice") : (stats.exerciseCount === 1 ? "Exercise" : "Exercises")}
                         </Button>
                         <Button 
                           variant="outline" 
@@ -629,7 +639,7 @@ const Courses = () => {
                           onClick={() => navigateToExams(course.id)}
                         >
                           <Calendar className="h-3.5 w-3.5 mr-1" />
-                          {stats.examCount} {language === "ar" ? "امتحانات" : (stats.examCount === 1 ? "Exam" : "Exams")}
+                          {stats.examCount} {language === "ar" ? "امتحانات" : language === "fr" ? (stats.examCount > 1 ? "Examens" : "Examen") : (stats.examCount === 1 ? "Exam" : "Exams")}
                         </Button>
                         {(course.pdf_url || (courseMaterials[course.id] && courseMaterials[course.id].length > 0)) && (
                           courseMaterials[course.id] && courseMaterials[course.id].length > 0 ? (
@@ -645,7 +655,7 @@ const Courses = () => {
                               onClick={() => handleViewPdf(course.pdf_url!)}
                             >
                               <File className="h-3.5 w-3.5 mr-1" />
-                              {language === "ar" ? "المواد" : "Materials"}
+                              {language === "ar" ? "المواد" : language === "fr" ? "Supports" : "Materials"}
                             </Button>
                           ) : null
                         )}
@@ -659,7 +669,9 @@ const Courses = () => {
                           variant="ghost" 
                           size="icon"
                           onClick={() => handleToggleVisibility(course.id)}
-                          title={course.is_visible ? "Hide from students" : "Make visible to students"}
+                          title={course.is_visible 
+                            ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer pour les élèves" : "Hide from students") 
+                            : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
                         >
                           {course.is_visible ? (
                             <EyeOff className="h-4 w-4" />
@@ -672,7 +684,7 @@ const Courses = () => {
                             variant="ghost" 
                             size="icon"
                             onClick={() => openEnrollDialog(course)}
-                            title="Manage students"
+                            title={language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gérer les élèves" : "Manage students"}
                           >
                             <Users className="h-4 w-4" />
                           </Button>
@@ -680,7 +692,7 @@ const Courses = () => {
                             variant="ghost" 
                             size="icon"
                             onClick={() => openEditDialog(course)}
-                            title="Edit course"
+                            title={language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit course"}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -688,7 +700,7 @@ const Courses = () => {
                             variant="ghost" 
                             size="icon"
                             onClick={() => openDeleteDialog(course)}
-                            title="Delete course"
+                            title={language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete course"}
                           >
                             <Trash className="h-4 w-4" />
                           </Button>
@@ -895,17 +907,17 @@ const Courses = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{language === "ar" ? "تعديل الدرس" : "Edit Course"}</DialogTitle>
+            <DialogTitle>{language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit Course"}</DialogTitle>
             <DialogDescription>
-              {language === "ar" ? "تحديث تفاصيل الدرس والرؤية." : "Update the course details and visibility."}
+              {language === "ar" ? "تحديث تفاصيل الدرس والرؤية." : language === "fr" ? "Mettre à jour les détails du cours et sa visibilité." : "Update the course details and visibility."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-room">{language === "ar" ? "القسم (اختياري)" : "Room (Optional)"}</Label>
+              <Label htmlFor="edit-room">{language === "ar" ? "القسم (اختياري)" : language === "fr" ? "Classe (optionnel)" : "Room (Optional)"}</Label>
               <Select value={roomId} onValueChange={setRoomId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a room (optional)" />
+                  <SelectValue placeholder={language === "ar" ? "اختر قسمًا (اختياري)" : language === "fr" ? "Sélectionner une classe (optionnel)" : "Select a room (optional)"} />
                 </SelectTrigger>
                 <SelectContent>
                   {rooms.map(room => (
@@ -917,26 +929,26 @@ const Courses = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-title">{language === "ar" ? "عنوان الدرس" : "Course Title"}</Label>
+              <Label htmlFor="edit-title">{language === "ar" ? "عنوان الدرس" : language === "fr" ? "Titre du cours" : "Course Title"}</Label>
               <Input
                 id="edit-title"
-                placeholder={language === "ar" ? "عنوان الدرس" : "Course title"}
+                placeholder={language === "ar" ? "عنوان الدرس" : language === "fr" ? "Titre du cours" : "Course title"}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : "Description"}</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</Label>
               <Textarea
                 id="edit-description"
-                placeholder={language === "ar" ? "وصف الدرس" : "Course description"}
+                placeholder={language === "ar" ? "وصف الدرس" : language === "fr" ? "Description du cours" : "Course description"}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
               />
             </div>
             <div className="space-y-2">
-              <Label>Course Materials (PDFs)</Label>
+              <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
               <MultiPdfUpload
                 onFilesChange={setSelectedPdfFiles}
                 selectedFiles={selectedPdfFiles}
@@ -951,15 +963,15 @@ const Courses = () => {
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
               />
-              <Label htmlFor="edit-visibility">{language === "ar" ? "مرئي للتلاميذ" : "Visible to students"}</Label>
+              <Label htmlFor="edit-visibility">{language === "ar" ? "مرئي للتلاميذ" : language === "fr" ? "Visible pour les élèves" : "Visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              {language === "ar" ? "إلغاء" : "Cancel"}
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button onClick={handleEditCourse}>
-              {language === "ar" ? "حفظ التغييرات" : "Save Changes"}
+              {language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Enregistrer les modifications" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -993,19 +1005,23 @@ const Courses = () => {
       <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{language === "ar" ? "إدارة التلاميذ" : "Manage Students"}</DialogTitle>
+            <DialogTitle>{language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gérer les élèves" : "Manage Students"}</DialogTitle>
             <DialogDescription>
-              {language === "ar" ? `تسجيل أو إلغاء تسجيل التلاميذ في ${currentCourse?.title}.` : `Enroll or unenroll students for ${currentCourse?.title}.`}
+              {language === "ar" 
+                ? `تسجيل أو إلغاء تسجيل التلاميذ في ${currentCourse?.title}.` 
+                : language === "fr" 
+                ? `Inscrire ou désinscrire des élèves pour "${currentCourse?.title}".` 
+                : `Enroll or unenroll students for ${currentCourse?.title}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {/* Add student */}
             <div className="space-y-2">
-              <Label>{language === "ar" ? "إضافة تلميذ" : "Add student"}</Label>
+              <Label>{language === "ar" ? "إضافة تلميذ" : language === "fr" ? "Ajouter un élève" : "Add student"}</Label>
               <div className="flex space-x-2">
                 <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={language === "ar" ? "اختر تلميذًا" : "Select a student"} />
+                    <SelectValue placeholder={language === "ar" ? "اختر تلميذًا" : language === "fr" ? "Sélectionner un élève" : "Select a student"} />
                   </SelectTrigger>
                   <SelectContent>
                     {students.filter(student => 
@@ -1029,11 +1045,11 @@ const Courses = () => {
             
             {/* Enrolled students */}
             <div className="space-y-2">
-              <Label>{language === "ar" ? "التلاميذ المسجلون" : "Enrolled students"}</Label>
+              <Label>{language === "ar" ? "التلاميذ المسجلون" : language === "fr" ? "Élèves inscrits" : "Enrolled students"}</Label>
               <div className="border rounded-md overflow-hidden">
                 {enrolledStudents.length === 0 ? (
                   <div className="p-3 text-center text-muted-foreground">
-                    {language === "ar" ? "لم يتم تسجيل أي تلميذ بعد" : "No students enrolled yet"}
+                    {language === "ar" ? "لم يتم تسجيل أي تلميذ بعد" : language === "fr" ? "Aucun élève inscrit pour le moment" : "No students enrolled yet"}
                   </div>
                 ) : (
                   <ul className="divide-y">
@@ -1056,7 +1072,7 @@ const Courses = () => {
           </div>
           <DialogFooter>
             <Button onClick={() => setIsEnrollDialogOpen(false)}>
-              {language === "ar" ? "تم" : "Done"}
+              {language === "ar" ? "تم" : language === "fr" ? "Terminer" : "Done"}
             </Button>
           </DialogFooter>
         </DialogContent>

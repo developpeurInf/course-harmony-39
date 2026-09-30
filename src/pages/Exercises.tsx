@@ -186,9 +186,15 @@ const Exercises = () => {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("nav.exercises")}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            {language === "ar" ? "إدارة وعرض التمارين المرتبطة بالدروس" : "Manage and view exercises linked to courses"}
+            {language === "ar" 
+              ? "إدارة وعرض التمارين المرتبطة بالدروس" 
+              : language === "fr" 
+              ? "Gérer et consulter les exercices associés aux cours" 
+              : "Manage and view exercises linked to courses"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -340,7 +346,9 @@ const Exercises = () => {
                           {findCourseName(exercise.course_id)}
                         </Badge>
                         <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
-                          {exercise.is_visible ? "Visible" : "Hidden"}
+                          {exercise.is_visible 
+                            ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") 
+                            : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
                         </Badge>
                       </div>
                     </div>
@@ -356,7 +364,7 @@ const Exercises = () => {
                   
                   <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
                     <Clock className="h-4 w-4" />
-                    <span>{language === "ar" ? "تاريخ التسليم: " : "Due: "}{formatDueDate(exercise.due_date)}</span>
+                    <span>{language === "ar" ? "تاريخ التسليم: " : language === "fr" ? "Date limite : " : "Due: "}{formatDueDate(exercise.due_date)}</span>
                   </div>
                   
                   {/* PDF Information */}
@@ -380,12 +388,12 @@ const Exercises = () => {
                       {exercise.is_visible ? (
                         <>
                           <EyeOff className="h-4 w-4 mr-1" />
-                          Hide
+                          {language === "ar" ? "إخفاء" : language === "fr" ? "Masquer" : "Hide"}
                         </>
                       ) : (
                         <>
                           <Eye className="h-4 w-4 mr-1" />
-                          Show
+                          {language === "ar" ? "إظهار" : language === "fr" ? "Afficher" : "Show"}
                         </>
                       )}
                     </Button>
@@ -432,11 +440,13 @@ const Exercises = () => {
                                 {findCourseName(exercise.course_id)}
                               </Badge>
                               <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
-                                {exercise.is_visible ? "Visible" : "Hidden"}
+                                {exercise.is_visible 
+                                  ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") 
+                                  : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
                               </Badge>
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
-                                <span>{language === "ar" ? "تاريخ التسليم: " : "Due: "}{formatDueDate(exercise.due_date)}</span>
+                                <span>{language === "ar" ? "تاريخ التسليم: " : language === "fr" ? "Date limite : " : "Due: "}{formatDueDate(exercise.due_date)}</span>
                               </div>
                             </div>
                           </div>
@@ -473,12 +483,12 @@ const Exercises = () => {
                         {exercise.is_visible ? (
                           <>
                             <EyeOff className="h-4 w-4 md:mr-0 mr-1" />
-                            <span className="md:hidden">Hide</span>
+                            <span className="md:hidden">{language === "ar" ? "إخفاء" : language === "fr" ? "Masquer" : "Hide"}</span>
                           </>
                         ) : (
                           <>
                             <Eye className="h-4 w-4 md:mr-0 mr-1" />
-                            <span className="md:hidden">Show</span>
+                            <span className="md:hidden">{language === "ar" ? "إظهار" : language === "fr" ? "Afficher" : "Show"}</span>
                           </>
                         )}
                       </Button>
