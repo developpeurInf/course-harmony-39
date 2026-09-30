@@ -153,7 +153,7 @@ const AuthForm = () => {
               variant="default"
             >
               <GraduationCap className="h-5 w-5" />
-              {t("I'm a Professor")}
+              {t("Professor")}
             </Button>
             <Button 
               onClick={() => {
@@ -163,7 +163,7 @@ const AuthForm = () => {
               className="w-full h-12"
               variant="outline"
             >
-              {t("I'm a Student")}
+              {t("Student")}
             </Button>
           </CardContent>
         </Card>
