@@ -318,10 +318,15 @@ const Reports = () => {
     try {
       const data: ActivityData[] = [];
       const today = new Date();
+      const currentDayIndex = today.getDay(); // 0 = Sunday
 
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
+      // Start of current week on Sunday
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - currentDayIndex);
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
 
         const startOfDay = new Date(date);
         startOfDay.setHours(0, 0, 0, 0);
@@ -348,11 +353,12 @@ const Reports = () => {
           .gte('submitted_at', startOfDay.toISOString())
           .lte('submitted_at', endOfDay.toISOString());
 
-        const monthEng = date.toLocaleDateString('en-US', { month: 'short' });
+        const dayShort = date.toLocaleDateString(
+          language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US",
+          { weekday: "short" }
+        );
         const dayNum = date.getDate();
-        const dateLabel = language === 'ar'
-          ? `${MONTHS_AR[monthEng] || monthEng} ${dayNum}`
-          : `${dayNum} ${monthEng}`;
+        const dateLabel = `${dayShort} ${dayNum}`;
 
         data.push({
           date: dateLabel,

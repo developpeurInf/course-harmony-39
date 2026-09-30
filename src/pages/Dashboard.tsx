@@ -258,12 +258,18 @@ const Dashboard = () => {
           setRecentSubmissions([]);
         }
 
-        // 3. Weekly activity points (last 7 days)
+        // 3. Weekly activity points (Starting on Sunday -> Dimanche)
         const activityList: ActivityPoint[] = [];
         const today = new Date();
-        for (let i = 6; i >= 0; i--) {
-          const day = new Date(today);
-          day.setDate(day.getDate() - i);
+        const currentDayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        
+        // Start of current week on Sunday
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - currentDayIndex);
+
+        for (let i = 0; i < 7; i++) {
+          const day = new Date(startOfWeek);
+          day.setDate(startOfWeek.getDate() + i);
           const start = new Date(day);
           start.setHours(0, 0, 0, 0);
           const end = new Date(day);
