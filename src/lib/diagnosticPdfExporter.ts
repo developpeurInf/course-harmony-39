@@ -56,16 +56,17 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
         logging: false,
         backgroundColor: "#ffffff",
         scrollX: 0,
-        scrollY: 0
+        scrollY: 0,
+        windowWidth: 794 // 210mm à 96 DPI
       },
       jsPDF: {
         unit: "mm",
         format: "a4",
-        orientation: "portrait"
+        orientation: "portrait",
+        compress: true
       },
       pagebreak: {
-        mode: ["avoid-all", "css", "legacy"],
-        before: ".diag-page-break-before"
+        mode: ["css", "legacy"]
       }
     };
 

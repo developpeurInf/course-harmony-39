@@ -293,7 +293,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
     ? (validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length).toFixed(2)
     : "0.00";
 
-  // Donut chart geometry (agrandi et net)
+  // Donut chart geometry (compact et net)
   const generatePieSlices = () => {
     const data = [
       { pct: pctT1, count: totalT1, color: "#dc2626", label: tranches.t1 },
@@ -382,10 +382,13 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
             min-height: 297mm !important;
             max-height: 297mm !important;
             page-break-after: always !important;
+            break-after: page !important;
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .diag-a4-page:last-child {
             page-break-after: auto !important;
+            break-after: auto !important;
           }
         }
 
@@ -400,14 +403,17 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           margin: 0 !important;
           box-shadow: none !important;
           width: 210mm !important;
-          height: 297mm !important;
-          min-height: 297mm !important;
-          max-height: 297mm !important;
+          height: 296.5mm !important;
+          min-height: 296.5mm !important;
+          max-height: 296.5mm !important;
           page-break-after: always !important;
+          break-after: page !important;
           page-break-inside: avoid !important;
+          break-inside: avoid !important;
         }
         .pdf-export-mode .diag-a4-page:last-child {
           page-break-after: auto !important;
+          break-after: auto !important;
         }
 
         .diag-a4-page {
@@ -415,7 +421,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           min-height: 297mm;
           height: 297mm;
           max-height: 297mm;
-          padding: 11mm 16mm 11mm 16mm;
+          padding: 10mm 15mm 10mm 15mm;
           margin: 0 auto 30px auto;
           position: relative;
           background: #ffffff;
@@ -424,119 +430,123 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           color: #000000;
           overflow: hidden;
           box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
         }
 
-        /* PAGE 1 TYPOGRAPHIE & ESPACEMENTS HARMONIEUX (AUCUN GRAND VIDE) */
+        /* PAGE 1 TYPOGRAPHIE & ESPACEMENTS HARMONIEUX */
         .diag-header-box {
-          border: 2px solid #000000;
-          padding: 5px 12px;
+          border: 1.5px solid #000000;
+          padding: 4px 10px;
           text-align: center;
-          margin-bottom: 9px;
+          margin-bottom: 7px;
           background: #ffffff;
         }
         .diag-header-logo {
-          height: 52px;
+          height: 46px;
           display: block;
-          margin: 0 auto 3px auto;
+          margin: 0 auto 2px auto;
           object-fit: contain;
         }
         .diag-header-sub-text {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: 11pt;
+          font-size: 10pt;
           font-weight: bold;
           font-family: 'Times New Roman', 'Amiri', serif;
           direction: rtl;
-          padding-top: 2px;
+          padding-top: 1px;
         }
         .diag-dash-sep {
           letter-spacing: 2px;
-          padding: 0 6px;
+          padding: 0 4px;
         }
 
         .diag-report-title {
           text-align: center;
-          font-size: 15pt;
+          font-size: 14pt;
           font-weight: bold;
           font-style: italic;
           font-family: 'Times New Roman', 'Amiri', serif;
           text-decoration: underline;
-          margin: 6px 0 8px 0;
+          margin: 4px 0 6px 0;
+          line-height: 1.25;
         }
 
         .diag-teacher-box {
-          border-top: 3px double #7030a0;
-          border-bottom: 3px double #7030a0;
-          padding: 4px 10px;
+          border-top: 2.5px double #7030a0;
+          border-bottom: 2.5px double #7030a0;
+          padding: 3px 8px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 9px;
+          margin-bottom: 7px;
           font-family: 'Times New Roman', 'Amiri', cursive, serif;
           font-style: italic;
-          font-size: 11.5pt;
+          font-size: 10.5pt;
         }
 
         .diag-intro-text {
           text-align: justify;
           text-justify: inter-word;
-          text-indent: 26pt;
-          font-size: 10.2pt;
-          line-height: 1.36;
-          margin-bottom: 7px;
+          text-indent: 20pt;
+          font-size: 9.5pt;
+          line-height: 1.34;
+          margin-bottom: 6px;
         }
 
         .diag-heading-blue-dark {
           font-family: 'Bodoni MT', 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 12.5pt;
+          font-size: 11.5pt;
           color: #002060;
-          margin: 6px 0 3px 0;
+          margin: 5px 0 2px 0;
         }
         .diag-heading-blue-light {
           font-family: 'Bodoni MT', 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 12pt;
+          font-size: 11pt;
           color: #0070c1;
-          margin: 6px 0 3px 0;
+          margin: 5px 0 2px 0;
         }
         .diag-sub-heading-blue {
           font-family: 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 10.8pt;
+          font-size: 10.2pt;
           color: #0070c0;
-          margin: 5px 0 3px 0;
+          margin: 4px 0 2px 0;
         }
 
         .diag-obj-list {
           list-style: none;
-          padding-left: 12px;
-          padding-right: 12px;
-          margin: 3px 0 6px 0;
+          padding-left: 8px;
+          padding-right: 8px;
+          margin: 2px 0 5px 0;
         }
         .diag-obj-list li {
-          font-size: 10.2pt;
-          line-height: 1.32;
-          margin-bottom: 2px;
+          font-size: 9.3pt;
+          line-height: 1.28;
+          margin-bottom: 1.5px;
         }
         .diag-obj-list li::before {
           content: "✓ ";
           font-weight: bold;
-          margin-right: 4px;
-          margin-left: 4px;
+          margin-right: 3px;
+          margin-left: 3px;
         }
 
         .diag-custom-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 6px;
+          margin-bottom: 5px;
           background: #ffffff;
         }
         .diag-custom-table th, .diag-custom-table td {
           border: 1px solid #000000;
-          padding: 3.5px 6px;
-          font-size: 10pt;
+          padding: 3px 5px;
+          font-size: 9.2pt;
         }
         .diag-custom-table th {
           text-align: center;
@@ -548,153 +558,155 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         .diag-stats-table {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 4px;
+          margin-top: 3px;
+          margin-bottom: 6px;
           background: #ffffff;
         }
         .diag-stats-table th, .diag-stats-table td {
           border: 1px solid #000000;
-          padding: 3.5px 4px;
+          padding: 3px 4px;
           text-align: center;
-          font-size: 10pt;
+          font-size: 9.2pt;
         }
         .diag-stats-table th.arabic-header {
           font-family: 'Times New Roman', 'Amiri', serif;
-          font-size: 10.2pt;
+          font-size: 9.5pt;
           font-weight: bold;
-          line-height: 1.22;
+          line-height: 1.2;
         }
         .diag-purple-stat {
           color: #7030a0 !important;
           font-weight: bold;
         }
 
-        /* PAGE 2 : TITRES SIMPLES & PROPRES */
+        /* PAGE 2 : TITRES & SECTIONS */
         .diag-section-title-red {
           font-family: 'Times New Roman', 'Amiri', serif;
-          font-size: 13.5pt;
+          font-size: 12pt;
           font-weight: bold;
           color: #b91c1c;
           text-decoration: underline;
-          margin: 4px 0 6px 0;
+          margin: 5px 0 4px 0;
         }
         .diag-section-title-green {
           font-family: 'Times New Roman', 'Amiri', serif;
-          font-size: 12.5pt;
+          font-size: 11.5pt;
           font-weight: bold;
           color: #047857;
           text-decoration: underline;
-          margin: 8px 0 4px 0;
+          margin: 6px 0 3px 0;
         }
 
-        /* CARTOUCHES KPI AGRANDIES (PAGE SIMPLE SANS BOX NOIRE) */
+        /* CARTOUCHES KPI */
         .diag-kpi-grid-large {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 8px;
-          margin-bottom: 10px;
+          gap: 6px;
+          margin-bottom: 6px;
         }
         .diag-kpi-card-large {
           border: 1px solid #cbd5e1;
           background: #ffffff !important;
-          padding: 8px 6px;
+          padding: 5px 4px;
           text-align: center;
           border-radius: 4px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
         .diag-kpi-card-label {
-          font-size: 8.5pt;
+          font-size: 8pt;
           color: #334155;
           display: block;
           line-height: 1.15;
           font-weight: 600;
-          margin-bottom: 4px;
+          margin-bottom: 2px;
         }
         .diag-kpi-card-value {
-          font-size: 15pt;
+          font-size: 13pt;
           font-weight: bold;
           color: #0f172a;
+          line-height: 1.1;
         }
 
-        /* BLOCS GRAPHIQUES SUPERPOSÉS L'UN AU-DESSUS DE L'AUTRE (PAGE SIMPLE & AGRANDIE) */
+        /* BLOCS GRAPHIQUES COMPACTS */
         .diag-simple-graph-block {
           background: #ffffff !important;
-          padding: 4px 0;
-          margin-bottom: 8px;
+          padding: 2px 0;
+          margin-bottom: 5px;
         }
         .diag-graph-header-row {
-          font-size: 10.5pt;
+          font-size: 9.5pt;
           font-weight: bold;
           color: #0f172a;
-          margin-bottom: 3px;
+          margin-bottom: 2px;
           display: flex;
           justify-content: space-between;
           align-items: center;
         }
         .diag-graph-desc-text {
-          font-size: 9pt;
-          line-height: 1.32;
+          font-size: 8.5pt;
+          line-height: 1.25;
           text-align: justify;
           color: #1e293b;
-          margin-bottom: 6px;
+          margin-bottom: 4px;
         }
         .diag-legend-row-large {
           display: flex;
           justify-content: center;
           flex-wrap: wrap;
-          gap: 16px;
-          font-size: 8.5pt;
+          gap: 12px;
+          font-size: 8pt;
           font-weight: bold;
-          padding: 5px 0 2px 0;
-          margin-top: 4px;
+          padding: 2px 0 1px 0;
+          margin-top: 2px;
         }
         .diag-color-dot-large {
-          width: 10px;
-          height: 10px;
+          width: 8px;
+          height: 8px;
           border-radius: 50%;
           display: inline-block;
-          margin-right: 4px;
-          margin-left: 4px;
+          margin-right: 3px;
+          margin-left: 3px;
           vertical-align: middle;
         }
 
         .diag-bullet-list {
           list-style: none;
-          padding-left: 14px;
-          padding-right: 14px;
-          margin: 3px 0 6px 0;
+          padding-left: 10px;
+          padding-right: 10px;
+          margin: 2px 0 4px 0;
         }
         .diag-bullet-list li {
-          font-size: 9.2pt;
-          line-height: 1.28;
-          margin-bottom: 2.5px;
+          font-size: 8.8pt;
+          line-height: 1.25;
+          margin-bottom: 2px;
           position: relative;
-          padding-left: 16px;
-          padding-right: 16px;
+          padding-left: 14px;
+          padding-right: 14px;
           text-align: justify;
         }
         .diag-bullet-list li::before {
           content: "➢";
           position: absolute;
           ${isRtl ? "right: 0;" : "left: 0;"}
-          font-size: 10pt;
+          font-size: 9pt;
         }
 
         .diag-signature-section {
-          margin-top: 10px;
+          margin-top: 6px;
           width: 100%;
           display: flex;
           justify-content: flex-end;
-          padding-right: 30px;
-          padding-left: 30px;
+          padding-right: 20px;
+          padding-left: 20px;
         }
         .diag-signature-box {
           text-align: center;
-          font-size: 10.5pt;
+          font-size: 9.5pt;
         }
         .diag-signature-title {
           font-weight: bold;
           text-decoration: underline;
-          margin-bottom: 3px;
+          margin-bottom: 2px;
         }
         .diag-signature-name {
           font-weight: bold;
@@ -702,7 +714,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         }
       `}</style>
 
-      {/* ==================== PAGE 1 (SANS GRAPHES, HARMONIEUSEMENT ÉQUILIBRÉE) ==================== */}
+      {/* ==================== PAGE 1 : CADRE RÉGLEMENTAIRE, OBJECTIFS, INFORMATIONS GÉNÉRALES & CONTENU DU TEST ==================== */}
       <div className="diag-a4-page">
         {/* En-tête officiel Royaume du Maroc */}
         <div className="diag-header-box">
@@ -775,7 +787,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         <div className="diag-heading-blue-light">
           {t.reportSection1Title} ({selectedClassesNames.length > 0 ? selectedClassesNames.join(", ") : config.classes_section_1}) :
         </div>
-        <div style={{ fontSize: "10pt", marginBottom: "4px" }}>
+        <div style={{ fontSize: "9.3pt", marginBottom: "3px" }}>
           {t.reportSection1Intro}
         </div>
 
@@ -813,7 +825,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         <div className="diag-sub-heading-blue">
           {t.reportCompositionPrefix} {displayedNumExercises} {lang === "ar" ? "تمارين" : lang === "en" ? "exercises" : "exercices"}
         </div>
-        <table className="diag-custom-table" style={{ marginTop: "3px" }}>
+        <table className="diag-custom-table" style={{ marginTop: "2px" }}>
           <tbody>
             {displayedExercises.map((ex, idx) => (
               <tr key={idx}>
@@ -823,9 +835,12 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
             ))}
           </tbody>
         </table>
+      </div>
 
+      {/* ==================== PAGE 2 : ANALYSE DÉTAILLÉE DES RÉSULTATS, KPIS, OBSERVATIONS, PROPOSITIONS & SIGNATURE ==================== */}
+      <div className="diag-a4-page">
         {/* Section II : Tableau des résultats avec noms des tranches traduits selon la langue */}
-        <div className="diag-heading-blue-light" style={{ marginTop: "6px" }}>
+        <div className="diag-heading-blue-light" style={{ marginTop: "0", marginBottom: "3px" }}>
           {t.reportSection2Title}
         </div>
         <table className="diag-stats-table">
@@ -835,19 +850,19 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               <th rowSpan={2} style={{ width: "17%" }}>{t.indicatorCol}</th>
               <th className="arabic-header" style={{ width: "15%", color: "#dc2626" }}>
                 {tranches.t1}<br />
-                <span style={{ fontSize: "9.5pt" }}>{tranches.r1}</span>
+                <span style={{ fontSize: "8.8pt" }}>{tranches.r1}</span>
               </th>
               <th className="arabic-header" style={{ width: "15%", color: "#d97706" }}>
                 {tranches.t2}<br />
-                <span style={{ fontSize: "9.5pt" }}>{tranches.r2}</span>
+                <span style={{ fontSize: "8.8pt" }}>{tranches.r2}</span>
               </th>
               <th className="arabic-header" style={{ width: "15%", color: "#2563eb" }}>
                 {tranches.t3}<br />
-                <span style={{ fontSize: "9.5pt" }}>{tranches.r3}</span>
+                <span style={{ fontSize: "8.8pt" }}>{tranches.r3}</span>
               </th>
               <th className="arabic-header" style={{ width: "15%", color: "#059669" }}>
                 {tranches.t4}<br />
-                <span style={{ fontSize: "9.5pt" }}>{tranches.r4}</span>
+                <span style={{ fontSize: "8.8pt" }}>{tranches.r4}</span>
               </th>
             </tr>
           </thead>
@@ -873,16 +888,13 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
             ))}
           </tbody>
         </table>
-      </div>
 
-      {/* ==================== PAGE 2 (PAGE SIMPLE, GRAPHS & CARDS AGRANDIS, SANS BOX NOIRE) ==================== */}
-      <div className="diag-a4-page diag-page-break-before">
         {/* 1. TITRE RÉSULTATS ET ANALYSE STATISTIQUE */}
         <div className="diag-section-title-red">
           {lang === "ar" ? "النتائج والتحليل الإحصائي :" : lang === "en" ? "Results & Statistical Analysis:" : "Résultats et analyse statistique :"}
         </div>
 
-        <div className="diag-intro-text" style={{ marginBottom: "8px" }}>
+        <div className="diag-intro-text" style={{ marginBottom: "6px" }}>
           {lang === "ar" ? (
             `بعد اجتياز المتعلمين لهذا الرائز التشخيصي، يُسجل أن النتائج المحصل عليها جاءت `
           ) : lang === "en" ? (
@@ -900,7 +912,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           )}
         </div>
 
-        {/* 4 CARTOUCHES KPI AGRANDIES (SANS BOX NOIRE) */}
+        {/* 4 CARTOUCHES KPI */}
         <div className="diag-kpi-grid-large">
           <div className="diag-kpi-card-large">
             <span className="diag-kpi-card-label">{t.statsKpiTotalPresents}</span>
@@ -922,40 +934,36 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
         {includeGraphs && analysisCommentary && (
           <>
-            {/* GRAPHE 1 : Mخطط الأعمدة الأربعة (AGRANDI ET LISIBLE, SANS CADRE NOIR) */}
+            {/* GRAPHE 1 : Colonnes des 4 tranches */}
             <div className="diag-simple-graph-block">
               <div className="diag-graph-header-row">
                 <span>{t.chartColumnsTitle}</span>
-                <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>
+                <span style={{ fontSize: "8pt", color: "#64748b", fontWeight: "normal" }}>
                   {stats.total_presents} {lang === "ar" ? "تلميذاً" : "élèves"}
                 </span>
               </div>
 
-              {/* Analyse spécifique au-dessus du graphe 1 */}
               <div className="diag-graph-desc-text">
                 <strong>{lang === "ar" ? "تحليل الفئات الأربع : " : lang === "en" ? "Tier Breakdown: " : "Analyse des tranches : "}</strong>
                 {analysisCommentary.tierBreakdown}
               </div>
 
-              {/* Graphe à colonnes agrandi */}
-              <svg viewBox="0 0 500 100" style={{ width: "100%", height: "92px", overflow: "visible" }}>
-                {/* Lignes de repère */}
-                <line x1="20" y1="12" x2="480" y2="12" stroke="#e2e8f0" strokeDasharray="3 3" />
-                <line x1="20" y1="42" x2="480" y2="42" stroke="#e2e8f0" strokeDasharray="3 3" />
-                <line x1="20" y1="72" x2="480" y2="72" stroke="#94a3b8" strokeWidth="1.2" />
+              <svg viewBox="0 0 500 80" style={{ width: "100%", height: "70px", overflow: "visible" }}>
+                <line x1="20" y1="10" x2="480" y2="10" stroke="#e2e8f0" strokeDasharray="3 3" />
+                <line x1="20" y1="35" x2="480" y2="35" stroke="#e2e8f0" strokeDasharray="3 3" />
+                <line x1="20" y1="58" x2="480" y2="58" stroke="#94a3b8" strokeWidth="1.2" />
 
-                {/* 4 Colonnes */}
                 {/* Tranche 1 */}
                 {(() => {
-                  const h = Math.max(5, Math.round((pctT1 / 100) * 58));
-                  const y = 72 - h;
+                  const h = Math.max(4, Math.round((pctT1 / 100) * 46));
+                  const y = 58 - h;
                   return (
                     <g>
-                      <rect x="45" y={y} width="68" height={h} fill="#dc2626" rx="3" />
-                      <text x="79" y={y - 3} textAnchor="middle" fontSize="10.5" fontWeight="bold" fill="#dc2626">
+                      <rect x="45" y={y} width="68" height={h} fill="#dc2626" rx="2" />
+                      <text x="79" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#dc2626">
                         {pctT1}% ({totalT1})
                       </text>
-                      <text x="79" y="87" textAnchor="middle" fontSize="9.5" fill="#334155" fontWeight="bold">
+                      <text x="79" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
                         {tranches.r1}
                       </text>
                     </g>
@@ -964,15 +972,15 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
                 {/* Tranche 2 */}
                 {(() => {
-                  const h = Math.max(5, Math.round((pctT2 / 100) * 58));
-                  const y = 72 - h;
+                  const h = Math.max(4, Math.round((pctT2 / 100) * 46));
+                  const y = 58 - h;
                   return (
                     <g>
-                      <rect x="160" y={y} width="68" height={h} fill="#d97706" rx="3" />
-                      <text x="194" y={y - 3} textAnchor="middle" fontSize="10.5" fontWeight="bold" fill="#d97706">
+                      <rect x="160" y={y} width="68" height={h} fill="#d97706" rx="2" />
+                      <text x="194" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#d97706">
                         {pctT2}% ({totalT2})
                       </text>
-                      <text x="194" y="87" textAnchor="middle" fontSize="9.5" fill="#334155" fontWeight="bold">
+                      <text x="194" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
                         {tranches.r2}
                       </text>
                     </g>
@@ -981,15 +989,15 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
                 {/* Tranche 3 */}
                 {(() => {
-                  const h = Math.max(5, Math.round((pctT3 / 100) * 58));
-                  const y = 72 - h;
+                  const h = Math.max(4, Math.round((pctT3 / 100) * 46));
+                  const y = 58 - h;
                   return (
                     <g>
-                      <rect x="275" y={y} width="68" height={h} fill="#2563eb" rx="3" />
-                      <text x="309" y={y - 3} textAnchor="middle" fontSize="10.5" fontWeight="bold" fill="#2563eb">
+                      <rect x="275" y={y} width="68" height={h} fill="#2563eb" rx="2" />
+                      <text x="309" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#2563eb">
                         {pctT3}% ({totalT3})
                       </text>
-                      <text x="309" y="87" textAnchor="middle" fontSize="9.5" fill="#334155" fontWeight="bold">
+                      <text x="309" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
                         {tranches.r3}
                       </text>
                     </g>
@@ -998,15 +1006,15 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
                 {/* Tranche 4 */}
                 {(() => {
-                  const h = Math.max(5, Math.round((pctT4 / 100) * 58));
-                  const y = 72 - h;
+                  const h = Math.max(4, Math.round((pctT4 / 100) * 46));
+                  const y = 58 - h;
                   return (
                     <g>
-                      <rect x="390" y={y} width="68" height={h} fill="#059669" rx="3" />
-                      <text x="424" y={y - 3} textAnchor="middle" fontSize="10.5" fontWeight="bold" fill="#059669">
+                      <rect x="390" y={y} width="68" height={h} fill="#059669" rx="2" />
+                      <text x="424" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#059669">
                         {pctT4}% ({totalT4})
                       </text>
-                      <text x="424" y="87" textAnchor="middle" fontSize="9.5" fill="#334155" fontWeight="bold">
+                      <text x="424" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
                         {tranches.r4}
                       </text>
                     </g>
@@ -1014,7 +1022,6 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                 })()}
               </svg>
 
-              {/* Sommaire des couleurs pour le graphe 1 (selon la langue) */}
               <div className="diag-legend-row-large">
                 <span className="text-red-700">
                   <span className="diag-color-dot-large bg-red-600"></span>
@@ -1035,37 +1042,34 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               </div>
             </div>
 
-            {/* GRAPHE 2 : Mخطط الدائري (AGRANDI ET LISIBLE, SANS CADRE NOIR) */}
+            {/* GRAPHE 2 : Donut */}
             <div className="diag-simple-graph-block">
               <div className="diag-graph-header-row">
                 <span>{t.chartPieTitle}</span>
-                <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>
+                <span style={{ fontSize: "8pt", color: "#64748b", fontWeight: "normal" }}>
                   {stats.total_presents} {lang === "ar" ? "تلميذاً مقيماً" : "élèves"}
                 </span>
               </div>
 
-              {/* Analyse globale au-dessus du graphe 2 */}
               <div className="diag-graph-desc-text">
                 <strong>{lang === "ar" ? "قراءة شمولية : " : lang === "en" ? "Executive Summary: " : "Synthèse globale : "}</strong>
                 {analysisCommentary.executiveSummary}
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "28px", padding: "4px 0" }}>
-                {/* Donut SVG agrandi */}
-                <svg viewBox="0 0 100 100" style={{ width: "88px", height: "88px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "20px", padding: "2px 0" }}>
+                <svg viewBox="0 0 100 100" style={{ width: "70px", height: "70px" }}>
                   {pieSlices.map((slice, i) => (
                     <path key={i} d={slice.path} fill={slice.color} stroke="#ffffff" strokeWidth="1.5" />
                   ))}
-                  <text x="50" y="52" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#0f172a">
+                  <text x="50" y="52" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#0f172a">
                     {stats.total_presents}
                   </text>
-                  <text x="50" y="62" textAnchor="middle" fontSize="6.5" fill="#64748b">
+                  <text x="50" y="62" textAnchor="middle" fontSize="6" fill="#64748b">
                     {lang === "ar" ? "تلميذاً" : "élèves"}
                   </text>
                 </svg>
 
-                {/* Sommaire des couleurs pour le graphe 2 (selon la langue) */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", fontSize: "8.5pt" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", fontSize: "8pt" }}>
                   <span className="text-red-700">
                     <span className="diag-color-dot-large bg-red-600"></span>
                     {tranches.t1} : <strong>{pctT1}%</strong>
@@ -1093,9 +1097,8 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           {lang === "ar" ? "الملاحظات البيداغوجية المرصودة :" : lang === "en" ? "Pedagogical Observations:" : "Observations pédagogiques constatées :"}
         </div>
 
-        {/* Orientation pédagogique comme introduction des remarques */}
         {includeGraphs && analysisCommentary && (
-          <div className="diag-intro-text" style={{ fontSize: "8.8pt", lineHeight: 1.28, marginBottom: "4px" }}>
+          <div className="diag-intro-text" style={{ fontSize: "8.5pt", lineHeight: 1.25, marginBottom: "3px" }}>
             <strong>{lang === "ar" ? "التوجيه البيداغوجي : " : lang === "en" ? "Pedagogical Roadmap: " : "Orientation pédagogique : "}</strong>
             {analysisCommentary.pedagogicalRoadmap}
           </div>
@@ -1109,10 +1112,10 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         </ul>
 
         {/* 3. SECTION III : PROPOSITIONS DE SOUTIEN & REMÉDIATION */}
-        <div className="diag-heading-blue-light" style={{ marginTop: "6px", marginBottom: "2px" }}>
+        <div className="diag-heading-blue-light" style={{ marginTop: "4px", marginBottom: "2px" }}>
           {t.reportSection3Title}
         </div>
-        <div style={{ fontSize: "9pt", marginBottom: "3px" }}>
+        <div style={{ fontSize: "8.8pt", marginBottom: "2px" }}>
           {t.reportSection3Intro}
         </div>
 
