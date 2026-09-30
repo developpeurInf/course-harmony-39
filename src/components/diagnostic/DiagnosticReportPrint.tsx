@@ -627,46 +627,29 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           line-height: 1.1;
         }
 
-        /* BLOCS GRAPHIQUES COMPACTS */
-        .diag-simple-graph-block {
-          background: #ffffff !important;
-          padding: 2px 0;
+        /* GRAPHIQUES EN LIGNE CÔTE À CÔTE */
+        .diag-graphs-grid-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+          padding: 5px 8px;
           margin-bottom: 5px;
         }
-        .diag-graph-header-row {
-          font-size: 9.5pt;
+        .diag-graph-card {
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        .diag-graph-title {
+          font-size: 8.5pt;
           font-weight: bold;
           color: #0f172a;
           margin-bottom: 2px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .diag-graph-desc-text {
-          font-size: 8.5pt;
-          line-height: 1.25;
-          text-align: justify;
-          color: #1e293b;
-          margin-bottom: 4px;
-        }
-        .diag-legend-row-large {
-          display: flex;
-          justify-content: center;
-          flex-wrap: wrap;
-          gap: 12px;
-          font-size: 8pt;
-          font-weight: bold;
-          padding: 2px 0 1px 0;
-          margin-top: 2px;
-        }
-        .diag-color-dot-large {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          display: inline-block;
-          margin-right: 3px;
-          margin-left: 3px;
-          vertical-align: middle;
+          border-bottom: 1px solid #e2e8f0;
+          padding-bottom: 2px;
         }
 
         .diag-bullet-list {
@@ -932,132 +915,80 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           </div>
         </div>
 
-        {includeGraphs && analysisCommentary && (
-          <>
+        {includeGraphs && (
+          <div className="diag-graphs-grid-row">
             {/* GRAPHE 1 : Colonnes des 4 tranches */}
-            <div className="diag-simple-graph-block">
-              <div className="diag-graph-header-row">
-                <span>{t.chartColumnsTitle}</span>
-                <span style={{ fontSize: "8pt", color: "#64748b", fontWeight: "normal" }}>
-                  {stats.total_presents} {lang === "ar" ? "تلميذاً" : "élèves"}
-                </span>
+            <div className="diag-graph-card">
+              <div className="diag-graph-title">
+                {t.chartColumnsTitle} ({stats.total_presents} {lang === "ar" ? "تلميذاً" : "élèves"})
               </div>
 
-              <div className="diag-graph-desc-text">
-                <strong>{lang === "ar" ? "تحليل الفئات الأربع : " : lang === "en" ? "Tier Breakdown: " : "Analyse des tranches : "}</strong>
-                {analysisCommentary.tierBreakdown}
-              </div>
-
-              <svg viewBox="0 0 500 80" style={{ width: "100%", height: "70px", overflow: "visible" }}>
-                <line x1="20" y1="10" x2="480" y2="10" stroke="#e2e8f0" strokeDasharray="3 3" />
-                <line x1="20" y1="35" x2="480" y2="35" stroke="#e2e8f0" strokeDasharray="3 3" />
-                <line x1="20" y1="58" x2="480" y2="58" stroke="#94a3b8" strokeWidth="1.2" />
+              <svg viewBox="0 0 240 70" style={{ width: "100%", height: "62px", overflow: "visible" }}>
+                <line x1="10" y1="10" x2="230" y2="10" stroke="#e2e8f0" strokeDasharray="2 2" />
+                <line x1="10" y1="30" x2="230" y2="30" stroke="#e2e8f0" strokeDasharray="2 2" />
+                <line x1="10" y1="52" x2="230" y2="52" stroke="#94a3b8" strokeWidth="1" />
 
                 {/* Tranche 1 */}
                 {(() => {
-                  const h = Math.max(4, Math.round((pctT1 / 100) * 46));
-                  const y = 58 - h;
+                  const h = Math.max(4, Math.round((pctT1 / 100) * 42));
+                  const y = 52 - h;
                   return (
                     <g>
-                      <rect x="45" y={y} width="68" height={h} fill="#dc2626" rx="2" />
-                      <text x="79" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#dc2626">
-                        {pctT1}% ({totalT1})
-                      </text>
-                      <text x="79" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
-                        {tranches.r1}
-                      </text>
+                      <rect x="20" y={y} width="36" height={h} fill="#dc2626" rx="2" />
+                      <text x="38" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#dc2626">{pctT1}%</text>
+                      <text x="38" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r1}</text>
                     </g>
                   );
                 })()}
 
                 {/* Tranche 2 */}
                 {(() => {
-                  const h = Math.max(4, Math.round((pctT2 / 100) * 46));
-                  const y = 58 - h;
+                  const h = Math.max(4, Math.round((pctT2 / 100) * 42));
+                  const y = 52 - h;
                   return (
                     <g>
-                      <rect x="160" y={y} width="68" height={h} fill="#d97706" rx="2" />
-                      <text x="194" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#d97706">
-                        {pctT2}% ({totalT2})
-                      </text>
-                      <text x="194" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
-                        {tranches.r2}
-                      </text>
+                      <rect x="75" y={y} width="36" height={h} fill="#d97706" rx="2" />
+                      <text x="93" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#d97706">{pctT2}%</text>
+                      <text x="93" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r2}</text>
                     </g>
                   );
                 })()}
 
                 {/* Tranche 3 */}
                 {(() => {
-                  const h = Math.max(4, Math.round((pctT3 / 100) * 46));
-                  const y = 58 - h;
+                  const h = Math.max(4, Math.round((pctT3 / 100) * 42));
+                  const y = 52 - h;
                   return (
                     <g>
-                      <rect x="275" y={y} width="68" height={h} fill="#2563eb" rx="2" />
-                      <text x="309" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#2563eb">
-                        {pctT3}% ({totalT3})
-                      </text>
-                      <text x="309" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
-                        {tranches.r3}
-                      </text>
+                      <rect x="130" y={y} width="36" height={h} fill="#2563eb" rx="2" />
+                      <text x="148" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#2563eb">{pctT3}%</text>
+                      <text x="148" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r3}</text>
                     </g>
                   );
                 })()}
 
                 {/* Tranche 4 */}
                 {(() => {
-                  const h = Math.max(4, Math.round((pctT4 / 100) * 46));
-                  const y = 58 - h;
+                  const h = Math.max(4, Math.round((pctT4 / 100) * 42));
+                  const y = 52 - h;
                   return (
                     <g>
-                      <rect x="390" y={y} width="68" height={h} fill="#059669" rx="2" />
-                      <text x="424" y={y - 2} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#059669">
-                        {pctT4}% ({totalT4})
-                      </text>
-                      <text x="424" y="70" textAnchor="middle" fontSize="8.5" fill="#334155" fontWeight="bold">
-                        {tranches.r4}
-                      </text>
+                      <rect x="185" y={y} width="36" height={h} fill="#059669" rx="2" />
+                      <text x="203" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669">{pctT4}%</text>
+                      <text x="203" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r4}</text>
                     </g>
                   );
                 })()}
               </svg>
-
-              <div className="diag-legend-row-large">
-                <span className="text-red-700">
-                  <span className="diag-color-dot-large bg-red-600"></span>
-                  {tranches.t1} {tranches.r1} : {pctT1}% ({totalT1})
-                </span>
-                <span className="text-amber-700">
-                  <span className="diag-color-dot-large bg-amber-500"></span>
-                  {tranches.t2} {tranches.r2} : {pctT2}% ({totalT2})
-                </span>
-                <span className="text-blue-700">
-                  <span className="diag-color-dot-large bg-blue-600"></span>
-                  {tranches.t3} {tranches.r3} : {pctT3}% ({totalT3})
-                </span>
-                <span className="text-emerald-700">
-                  <span className="diag-color-dot-large bg-emerald-600"></span>
-                  {tranches.t4} {tranches.r4} : {pctT4}% ({totalT4})
-                </span>
-              </div>
             </div>
 
             {/* GRAPHE 2 : Donut */}
-            <div className="diag-simple-graph-block">
-              <div className="diag-graph-header-row">
-                <span>{t.chartPieTitle}</span>
-                <span style={{ fontSize: "8pt", color: "#64748b", fontWeight: "normal" }}>
-                  {stats.total_presents} {lang === "ar" ? "تلميذاً مقيماً" : "élèves"}
-                </span>
+            <div className="diag-graph-card">
+              <div className="diag-graph-title">
+                {t.chartPieTitle}
               </div>
-
-              <div className="diag-graph-desc-text">
-                <strong>{lang === "ar" ? "قراءة شمولية : " : lang === "en" ? "Executive Summary: " : "Synthèse globale : "}</strong>
-                {analysisCommentary.executiveSummary}
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "20px", padding: "2px 0" }}>
-                <svg viewBox="0 0 100 100" style={{ width: "70px", height: "70px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "2px 0" }}>
+                <svg viewBox="0 0 100 100" style={{ width: "58px", height: "58px" }}>
                   {pieSlices.map((slice, i) => (
                     <path key={i} d={slice.path} fill={slice.color} stroke="#ffffff" strokeWidth="1.5" />
                   ))}
@@ -1069,27 +1000,15 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                   </text>
                 </svg>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", fontSize: "8pt" }}>
-                  <span className="text-red-700">
-                    <span className="diag-color-dot-large bg-red-600"></span>
-                    {tranches.t1} : <strong>{pctT1}%</strong>
-                  </span>
-                  <span className="text-amber-700">
-                    <span className="diag-color-dot-large bg-amber-500"></span>
-                    {tranches.t2} : <strong>{pctT2}%</strong>
-                  </span>
-                  <span className="text-blue-700">
-                    <span className="diag-color-dot-large bg-blue-600"></span>
-                    {tranches.t3} : <strong>{pctT3}%</strong>
-                  </span>
-                  <span className="text-emerald-700">
-                    <span className="diag-color-dot-large bg-emerald-600"></span>
-                    {tranches.t4} : <strong>{pctT4}%</strong>
-                  </span>
+                <div style={{ fontSize: "7.5pt", display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <span className="text-red-700">● {tranches.t1} : <strong>{pctT1}%</strong></span>
+                  <span className="text-amber-700">● {tranches.t2} : <strong>{pctT2}%</strong></span>
+                  <span className="text-blue-700">● {tranches.t3} : <strong>{pctT3}%</strong></span>
+                  <span className="text-emerald-700">● {tranches.t4} : <strong>{pctT4}%</strong></span>
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* 2. SECTION SÉPARÉE : OBSERVATIONS PÉDAGOGIQUES */}
