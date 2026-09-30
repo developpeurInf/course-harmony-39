@@ -348,22 +348,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           margin: 0;
         }
         @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #diagnostic-official-report, #diagnostic-official-report * {
-            visibility: visible !important;
-          }
-          #diagnostic-official-report {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-          }
-          nav, header, aside, .no-print, button {
+          nav, header, aside, .no-print, [data-no-print], button {
             display: none !important;
           }
           body, html {

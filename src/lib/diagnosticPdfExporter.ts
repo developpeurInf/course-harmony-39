@@ -40,6 +40,13 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
 
   const cleanFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
+  // Sauvegarder la position de défilement actuelle
+  const prevScrollX = window.scrollX || window.pageXOffset || 0;
+  const prevScrollY = window.scrollY || window.pageYOffset || 0;
+
+  // Remonter en haut de page pour que html2canvas capture exactement les coordonnées (0, 0)
+  window.scrollTo(0, 0);
+
   // Activer le mode export strict : supprime les paddings d'aperçu web, marges et ombres
   element.classList.add("pdf-export-mode");
 
@@ -55,9 +62,7 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: 794 // 210mm à 96 DPI
+        letterRendering: true
       },
       jsPDF: {
         unit: "mm",
@@ -73,7 +78,7 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
     await html2pdf().set(opt).from(element).save();
     return true;
   } catch (err) {
-    console.warn("Échec chargement html2pdf, déclenchement impression directe avec titre adapté:", err);
+    console.warn("Échec génération html2pdf, déclenchement impression directe:", err);
     const prevTitle = document.title;
     document.title = cleanFilename.replace(".pdf", "");
     window.print();
@@ -82,7 +87,8 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
     }, 1500);
     return true;
   } finally {
-    // Restaurer le mode aperçu interactif
+    // Restaurer le mode aperçu et la position de défilement
     element.classList.remove("pdf-export-mode");
+    window.scrollTo(prevScrollX, prevScrollY);
   }
 }
