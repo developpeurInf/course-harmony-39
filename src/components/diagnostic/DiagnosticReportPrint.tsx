@@ -449,71 +449,74 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           padding: 0 4px;
         }
 
+        /* TITRE DU RAPPORT SANS CHEVAUCHEMENT */
         .diag-report-title {
           text-align: center;
-          font-size: 14pt;
+          font-size: 13pt;
           font-weight: bold;
           font-style: italic;
-          font-family: 'Times New Roman', 'Amiri', serif;
           text-decoration: underline;
-          margin: 4px 0 6px 0;
-          line-height: 1.25;
+          text-underline-offset: 4px;
+          text-decoration-thickness: 1.2px;
+          margin: 6px 0 9px 0;
+          line-height: 1.45;
+          padding: 0 8px;
         }
 
         .diag-teacher-box {
           border-top: 2.5px double #7030a0;
           border-bottom: 2.5px double #7030a0;
-          padding: 3px 8px;
+          padding: 4px 10px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 7px;
+          margin-bottom: 9px;
           font-family: 'Times New Roman', 'Amiri', cursive, serif;
           font-style: italic;
-          font-size: 10.5pt;
+          font-size: 10.8pt;
         }
 
         .diag-intro-text {
           text-align: justify;
           text-justify: inter-word;
           text-indent: 20pt;
-          font-size: 9.5pt;
-          line-height: 1.34;
-          margin-bottom: 6px;
+          font-size: 9.8pt;
+          line-height: 1.4;
+          margin-bottom: 8px;
         }
 
         .diag-heading-blue-dark {
           font-family: 'Bodoni MT', 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 11.5pt;
+          font-size: 11.8pt;
           color: #002060;
-          margin: 5px 0 2px 0;
+          margin: 7px 0 3px 0;
         }
         .diag-heading-blue-light {
           font-family: 'Bodoni MT', 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 11pt;
+          font-size: 11.2pt;
           color: #0070c1;
-          margin: 5px 0 2px 0;
+          margin: 7px 0 3px 0;
         }
         .diag-sub-heading-blue {
           font-family: 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 10.2pt;
+          font-size: 10.5pt;
           color: #0070c0;
-          margin: 4px 0 2px 0;
+          margin: 7px 0 3px 0;
         }
 
         .diag-obj-list {
           list-style: none;
-          padding-left: 8px;
-          padding-right: 8px;
-          margin: 2px 0 5px 0;
+          padding-left: 10px;
+          padding-right: 10px;
+          margin: 3px 0 8px 0;
         }
         .diag-obj-list li {
-          font-size: 9.3pt;
-          line-height: 1.28;
-          margin-bottom: 1.5px;
+          font-size: 9.6pt;
+          line-height: 1.35;
+          margin-bottom: 2px;
         }
         .diag-obj-list li::before {
           content: "✓ ";
@@ -525,19 +528,30 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         .diag-custom-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 5px;
+          margin-bottom: 7px;
           background: #ffffff;
         }
         .diag-custom-table th, .diag-custom-table td {
           border: 1px solid #000000;
-          padding: 3px 5px;
-          font-size: 9.2pt;
+          padding: 4.5px 7px;
+          font-size: 9.6pt;
         }
         .diag-custom-table th {
           text-align: center;
           font-weight: bold;
           font-style: italic;
           background: #ffffff;
+        }
+
+        .diag-modalities-box {
+          border: 1px dashed #cbd5e1;
+          background: #f8fafc;
+          border-radius: 4px;
+          padding: 6px 10px;
+          font-size: 9.2pt;
+          color: #334155;
+          line-height: 1.35;
+          margin-top: 10px;
         }
 
         .diag-stats-table {
@@ -793,16 +807,26 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         <div className="diag-sub-heading-blue">
           {t.reportCompositionPrefix} {displayedNumExercises} {lang === "ar" ? "تمارين" : lang === "en" ? "exercises" : "exercices"}
         </div>
-        <table className="diag-custom-table" style={{ marginTop: "2px" }}>
+        <table className="diag-custom-table" style={{ marginTop: "3px" }}>
           <tbody>
             {displayedExercises.map((ex, idx) => (
               <tr key={idx}>
-                <td style={{ width: "22%", fontWeight: "bold" }}>{ex.titre}</td>
+                <td style={{ width: "22%", fontWeight: "bold", background: "#fafafa" }}>{ex.titre}</td>
                 <td style={{ width: "78%", fontWeight: "bold" }}>{ex.description}</td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {/* Note de cadrage méthodologique en bas de page 1 */}
+        <div className="diag-modalities-box">
+          <strong>{lang === "ar" ? "المحددات البيداغوجية : " : lang === "en" ? "Pedagogical Framework: " : "Modalités pédagogiques : "}</strong>
+          {lang === "ar"
+            ? "تقويم تشخيصي كتابي فردي منجز وفق التوجيهات التربوية الرسمية، يروم رصد المكتسبات القبلية وتوجيه حصص الدعم."
+            : lang === "en"
+            ? "Individual written assessment aligned with official curriculum guidelines, aimed at assessing foundational competencies."
+            : "Épreuve individuelle écrite conforme aux orientations pédagogiques officielles, visant à évaluer les prérequis fondamentaux et orienter le plan de soutien."}
+        </div>
       </div>
 
       {/* ==================== PAGE 2 : ANALYSE DÉTAILLÉE DES RÉSULTATS, KPIS, OBSERVATIONS, PROPOSITIONS & SIGNATURE ==================== */}
