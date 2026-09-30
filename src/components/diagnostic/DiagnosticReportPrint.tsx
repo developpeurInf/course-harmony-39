@@ -269,12 +269,6 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
     return config.exercices && config.exercices.length > 0 ? config.exercices : t.defaultExercises;
   }, [config.exercices, lang, t]);
 
-  // Analyse statistique pédagogique approfondie
-  const analysisCommentary = React.useMemo(() => {
-    if (!includeGraphs) return null;
-    return generateStatisticalCommentary(stats, lang, selectedClassesNames);
-  }, [includeGraphs, stats, lang, selectedClassesNames]);
-
   // Totaux des tranches
   const totalPresentsNum = parseInt(stats.total_presents || "0", 10);
   const totalT1 = stats.classes_stats.reduce((acc, s) => acc + s.t1_count, 0);
@@ -292,48 +286,6 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
   const generalAvg = validAvgs.length > 0
     ? (validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length).toFixed(2)
     : "0.00";
-
-  // Donut chart geometry (compact et net)
-  const generatePieSlices = () => {
-    const data = [
-      { pct: pctT1, count: totalT1, color: "#dc2626", label: tranches.t1 },
-      { pct: pctT2, count: totalT2, color: "#d97706", label: tranches.t2 },
-      { pct: pctT3, count: totalT3, color: "#2563eb", label: tranches.t3 },
-      { pct: pctT4, count: totalT4, color: "#059669", label: tranches.t4 }
-    ];
-
-    const cx = 50;
-    const cy = 50;
-    const r = 44;
-    const innerR = 24;
-
-    let cumulativeAngle = -Math.PI / 2;
-    const slices: Array<{ path: string; color: string; pct: number }> = [];
-
-    data.forEach(item => {
-      if (item.pct <= 0) return;
-      const angle = (item.pct / 100) * 2 * Math.PI;
-      const x1 = cx + r * Math.cos(cumulativeAngle);
-      const y1 = cy + r * Math.sin(cumulativeAngle);
-      const x2 = cx + r * Math.cos(cumulativeAngle + angle);
-      const y2 = cy + r * Math.sin(cumulativeAngle + angle);
-
-      const ix1 = cx + innerR * Math.cos(cumulativeAngle + angle);
-      const iy1 = cy + innerR * Math.sin(cumulativeAngle + angle);
-      const ix2 = cx + innerR * Math.cos(cumulativeAngle);
-      const iy2 = cy + innerR * Math.sin(cumulativeAngle);
-
-      const largeArc = angle > Math.PI ? 1 : 0;
-      const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix2} ${iy2} Z`;
-
-      slices.push({ path, color: item.color, pct: item.pct });
-      cumulativeAngle += angle;
-    });
-
-    return slices;
-  };
-
-  const pieSlices = generatePieSlices();
 
   return (
     <div
@@ -377,7 +329,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           }
         }
 
-        /* MODE EXPORT PDF STRICT — Annule tous les paddings/marges d'aperçu écran */
+        /* MODE EXPORT PDF STRICT */
         .pdf-export-mode {
           padding: 0 !important;
           margin: 0 !important;
@@ -406,7 +358,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           min-height: 297mm;
           height: 297mm;
           max-height: 297mm;
-          padding: 10mm 15mm 10mm 15mm;
+          padding: 12mm 16mm 12mm 16mm;
           margin: 0 auto 30px auto;
           position: relative;
           background: #ffffff;
@@ -417,15 +369,15 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           box-shadow: 0 4px 18px rgba(0,0,0,0.18);
           display: flex;
           flex-direction: column;
-          justify-content: flex-start;
+          justify-content: space-between;
         }
 
-        /* PAGE 1 TYPOGRAPHIE & ESPACEMENTS HARMONIEUX */
+        /* EN-TÊTE */
         .diag-header-box {
           border: 1.5px solid #000000;
-          padding: 4px 10px;
+          padding: 5px 12px;
           text-align: center;
-          margin-bottom: 7px;
+          margin-bottom: 8px;
           background: #ffffff;
         }
         .diag-header-logo {
@@ -438,11 +390,11 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: 10pt;
+          font-size: 10.5pt;
           font-weight: bold;
           font-family: 'Times New Roman', 'Amiri', serif;
           direction: rtl;
-          padding-top: 1px;
+          padding-top: 2px;
         }
         .diag-dash-sep {
           letter-spacing: 2px;
@@ -455,6 +407,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           font-size: 13pt;
           font-weight: bold;
           font-style: italic;
+          font-family: 'Times New Roman', 'Amiri', serif;
           text-decoration: underline;
           text-underline-offset: 4px;
           text-decoration-thickness: 1.2px;
@@ -476,6 +429,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           font-size: 10.8pt;
         }
 
+        /* UNIFORMITÉ STRICTE DES PARAGRAPHES (9.8pt, line-height 1.4) */
         .diag-intro-text {
           text-align: justify;
           text-justify: inter-word;
@@ -495,7 +449,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         .diag-heading-blue-light {
           font-family: 'Bodoni MT', 'Times New Roman', 'Amiri', serif;
           font-weight: bold;
-          font-size: 11.2pt;
+          font-size: 11.5pt;
           color: #0070c1;
           margin: 7px 0 3px 0;
         }
@@ -507,6 +461,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           margin: 7px 0 3px 0;
         }
 
+        /* UNIFORMITÉ DES LISTES À PUCES (9.8pt) */
         .diag-obj-list {
           list-style: none;
           padding-left: 10px;
@@ -514,9 +469,9 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           margin: 3px 0 8px 0;
         }
         .diag-obj-list li {
-          font-size: 9.6pt;
-          line-height: 1.35;
-          margin-bottom: 2px;
+          font-size: 9.8pt;
+          line-height: 1.38;
+          margin-bottom: 2.5px;
         }
         .diag-obj-list li::before {
           content: "✓ ";
@@ -548,10 +503,10 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           background: #f8fafc;
           border-radius: 4px;
           padding: 6px 10px;
-          font-size: 9.2pt;
+          font-size: 9.5pt;
           color: #334155;
           line-height: 1.35;
-          margin-top: 10px;
+          margin-top: 8px;
         }
 
         .diag-stats-table {
@@ -563,9 +518,9 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         }
         .diag-stats-table th, .diag-stats-table td {
           border: 1px solid #000000;
-          padding: 3px 4px;
+          padding: 3.5px 4px;
           text-align: center;
-          font-size: 9.2pt;
+          font-size: 9.4pt;
         }
         .diag-stats-table th.arabic-header {
           font-family: 'Times New Roman', 'Amiri', serif;
@@ -578,14 +533,13 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           font-weight: bold;
         }
 
-        /* PAGE 2 : TITRES & SECTIONS */
         .diag-section-title-red {
           font-family: 'Times New Roman', 'Amiri', serif;
-          font-size: 12pt;
+          font-size: 11.8pt;
           font-weight: bold;
           color: #b91c1c;
           text-decoration: underline;
-          margin: 5px 0 4px 0;
+          margin: 6px 0 4px 0;
         }
         .diag-section-title-green {
           font-family: 'Times New Roman', 'Amiri', serif;
@@ -612,7 +566,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
         .diag-kpi-card-label {
-          font-size: 8pt;
+          font-size: 8.2pt;
           color: #334155;
           display: block;
           line-height: 1.15;
@@ -626,41 +580,36 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           line-height: 1.1;
         }
 
-        /* GRAPHIQUES EN LIGNE CÔTE À CÔTE */
-        .diag-graphs-grid-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          background: #f8fafc;
+        /* BOÎTES DE GRAPHIQUES SÉPARÉES L'UNE AU-DESSOUS DE L'AUTRE */
+        .diag-separate-graph-block {
           border: 1px solid #e2e8f0;
           border-radius: 4px;
-          padding: 5px 8px;
-          margin-bottom: 5px;
+          background: #f8fafc;
+          padding: 6px 10px;
+          margin-bottom: 7px;
         }
-        .diag-graph-card {
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-        .diag-graph-title {
-          font-size: 8.5pt;
+        .diag-separate-graph-header {
+          font-size: 9.5pt;
           font-weight: bold;
           color: #0f172a;
-          margin-bottom: 2px;
           border-bottom: 1px solid #e2e8f0;
-          padding-bottom: 2px;
+          padding-bottom: 3px;
+          margin-bottom: 4px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
 
         .diag-bullet-list {
           list-style: none;
           padding-left: 10px;
           padding-right: 10px;
-          margin: 2px 0 4px 0;
+          margin: 3px 0 6px 0;
         }
         .diag-bullet-list li {
-          font-size: 8.8pt;
-          line-height: 1.25;
-          margin-bottom: 2px;
+          font-size: 9.8pt;
+          line-height: 1.38;
+          margin-bottom: 2.5px;
           position: relative;
           padding-left: 14px;
           padding-right: 14px;
@@ -670,11 +619,11 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           content: "➢";
           position: absolute;
           ${isRtl ? "right: 0;" : "left: 0;"}
-          font-size: 9pt;
+          font-size: 9.5pt;
         }
 
         .diag-signature-section {
-          margin-top: 6px;
+          margin-top: 8px;
           width: 100%;
           display: flex;
           justify-content: flex-end;
@@ -683,12 +632,12 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         }
         .diag-signature-box {
           text-align: center;
-          font-size: 9.5pt;
+          font-size: 10pt;
         }
         .diag-signature-title {
           font-weight: bold;
           text-decoration: underline;
-          margin-bottom: 2px;
+          margin-bottom: 3px;
         }
         .diag-signature-name {
           font-weight: bold;
@@ -698,125 +647,127 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
       {/* ==================== PAGE 1 : CADRE RÉGLEMENTAIRE, OBJECTIFS, INFORMATIONS GÉNÉRALES & CONTENU DU TEST ==================== */}
       <div className="diag-a4-page">
-        {/* En-tête officiel Royaume du Maroc */}
-        <div className="diag-header-box">
-          <img
-            src="/assets/header_logo.png"
-            alt="Royaume du Maroc"
-            className="diag-header-logo"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <div className="diag-header-sub-text">
-            <span>{config.academie}</span>
-            <span className="diag-dash-sep">----</span>
-            <span>{config.direction}</span>
-            <span className="diag-dash-sep">----</span>
-            <span>{config.lycee}</span>
+        <div>
+          {/* En-tête officiel Royaume du Maroc */}
+          <div className="diag-header-box">
+            <img
+              src="/assets/header_logo.png"
+              alt="Royaume du Maroc"
+              className="diag-header-logo"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <div className="diag-header-sub-text">
+              <span>{config.academie}</span>
+              <span className="diag-dash-sep">----</span>
+              <span>{config.direction}</span>
+              <span className="diag-dash-sep">----</span>
+              <span>{config.lycee}</span>
+            </div>
           </div>
-        </div>
 
-        {/* Titre du rapport officiel */}
-        <div className="diag-report-title">{reportMainTitle}</div>
+          {/* Titre du rapport officiel */}
+          <div className="diag-report-title">{reportMainTitle}</div>
 
-        {/* Cadre de l'enseignant */}
-        <div className="diag-teacher-box">
-          <span>{t.reportTeacherPrefix} {config.nom_enseignant}</span>
-          <span>{t.reportSubjectPrefix} {displayedSubject}</span>
-          <span>{t.reportLevelPrefix} {displayedLevel}</span>
-        </div>
+          {/* Cadre de l'enseignant */}
+          <div className="diag-teacher-box">
+            <span>{t.reportTeacherPrefix} {config.nom_enseignant}</span>
+            <span>{t.reportSubjectPrefix} {displayedSubject}</span>
+            <span>{t.reportLevelPrefix} {displayedLevel}</span>
+          </div>
 
-        {/* Texte introductif réglementaire */}
-        <div className="diag-intro-text">
-          {lang === "ar" ? (
-            `تطبيقا لمقتضيات المادة 08 من المقرر الوزاري المنظم للسنة الدراسية ${config.annee_scolaire}، خُصصت الفترة الممتدة ${displayedPeriod} لتشخيص المكتسبات القبلية لدى المتعلمين. وفي هذا الإطار، وبغية التحقق من مدى جاهزية المتعلم وضبط الفوارق قبل الانطلاق في إرساء الموارد الجديدة، تم إنجاز هذا التقويم التشخيصي لفائدة ${classesText}.`
-          ) : lang === "en" ? (
-            `In accordance with Article 08 of the ministerial decision governing the ${config.annee_scolaire} academic year, the period ${displayedPeriod} is dedicated to diagnosing students' prior competencies. To verify learners' prerequisites before embarking on new modules, this diagnostic assessment was conducted for ${classesText}.`
-          ) : (
-            `Conformément aux dispositions de l’article 08 de la décision ministérielle organisant la nouvelle année scolaire ${config.annee_scolaire}, la période du ${displayedPeriod} est consacrée au diagnostic des connaissances antérieures des apprenants. Afin d’examiner les connaissances de l’apprenant avant de s’engager dans un nouvel apprentissage, nous avons effectué l’évaluation diagnostique pour ${classesText}.`
-          )}
-        </div>
+          {/* Texte introductif réglementaire */}
+          <div className="diag-intro-text">
+            {lang === "ar" ? (
+              `تطبيقا لمقتضيات المادة 08 من المقرر الوزاري المنظم للسنة الدراسية ${config.annee_scolaire}، خُصصت الفترة الممتدة ${displayedPeriod} لتشخيص المكتسبات القبلية لدى المتعلمين. وفي هذا الإطار، وبغية التحقق من مدى جاهزية المتعلم وضبط الفوارق قبل الانطلاق في إرساء الموارد الجديدة، تم إنجاز هذا التقويم التشخيصي لفائدة ${classesText}.`
+            ) : lang === "en" ? (
+              `In accordance with Article 08 of the ministerial decision governing the ${config.annee_scolaire} academic year, the period ${displayedPeriod} is dedicated to diagnosing students' prior competencies. To verify learners' prerequisites before embarking on new modules, this diagnostic assessment was conducted for ${classesText}.`
+            ) : (
+              `Conformément aux dispositions de l’article 08 de la décision ministérielle organisant la nouvelle année scolaire ${config.annee_scolaire}, la période du ${displayedPeriod} est consacrée au diagnostic des connaissances antérieures des apprenants. Afin d’examiner les connaissances de l’apprenant avant de s’engager dans un nouvel apprentissage, nous avons effectué l’évaluation diagnostique pour ${classesText}.`
+            )}
+          </div>
 
-        {/* Objectifs du diagnostic */}
-        <div className="diag-heading-blue-dark">{t.reportObjectivesTitle}</div>
-        <ul className="diag-obj-list">
-          {lang === "ar" ? (
-            <>
-              <li>رصد مكامن القوة ومواطن الضعف والتعثرات لدى المتعلمين.</li>
-              <li>تحديد الصعوبات المعرفية والمنهجية وتحفيز المتعلمين على تجاوزها.</li>
-              <li>استثمار نتائج التقويم التشخيصي في التخطيط البيداغوجي لحصص الدعم والتثبيت.</li>
-              <li>اعتماد هذه المخرجات في التوجيه والتأطير التربوي الملائم.</li>
-            </>
-          ) : lang === "en" ? (
-            <>
-              <li>Identify strengths and learning gaps among students.</li>
-              <li>Determine learning obstacles and motivate learners to overcome them.</li>
-              <li>Leverage diagnostic results to design targeted remediation and support activities.</li>
-              <li>Utilize assessment outcomes for pedagogical guidance and student counseling.</li>
-            </>
-          ) : (
-            <>
-              <li>Détecter les points forts et les points faibles des apprenants.</li>
-              <li>Déterminer les difficultés et les obstacles d’apprentissage et motiver les apprenants à les surmonter.</li>
-              <li>Investir les résultats de l’évaluation diagnostique pour planifier les activités de soutien.</li>
-              <li>Adopter ces résultats pour l’orientation et le conseil.</li>
-            </>
-          )}
-        </ul>
+          {/* Objectifs du diagnostic */}
+          <div className="diag-heading-blue-dark">{t.reportObjectivesTitle}</div>
+          <ul className="diag-obj-list">
+            {lang === "ar" ? (
+              <>
+                <li>رصد مكامن القوة ومواطن الضعف والتعثرات لدى المتعلمين.</li>
+                <li>تحديد الصعوبات المعرفية والمنهجية وتحفيز المتعلمين على تجاوزها.</li>
+                <li>استثمار نتائج التقويم التشخيصي في التخطيط البيداغوجي لحصص الدعم والتثبيت.</li>
+                <li>اعتماد هذه المخرجات في التوجيه والتأطير التربوي الملائم.</li>
+              </>
+            ) : lang === "en" ? (
+              <>
+                <li>Identify strengths and learning gaps among students.</li>
+                <li>Determine learning obstacles and motivate learners to overcome them.</li>
+                <li>Leverage diagnostic results to design targeted remediation and support activities.</li>
+                <li>Utilize assessment outcomes for pedagogical guidance and student counseling.</li>
+              </>
+            ) : (
+              <>
+                <li>Détecter les points forts et les points faibles des apprenants.</li>
+                <li>Déterminer les difficultés et les obstacles d’apprentissage et motiver les apprenants à les surmonter.</li>
+                <li>Investir les résultats de l’évaluation diagnostique pour planifier les activités de soutien.</li>
+                <li>Adopter ces résultats pour l’orientation et le conseil.</li>
+              </>
+            )}
+          </ul>
 
-        {/* Section I : Informations générales */}
-        <div className="diag-heading-blue-light">
-          {t.reportSection1Title} ({selectedClassesNames.length > 0 ? selectedClassesNames.join(", ") : config.classes_section_1}) :
-        </div>
-        <div style={{ fontSize: "9.3pt", marginBottom: "3px" }}>
-          {t.reportSection1Intro}
-        </div>
+          {/* Section I : Informations générales */}
+          <div className="diag-heading-blue-light">
+            {t.reportSection1Title} ({selectedClassesNames.length > 0 ? selectedClassesNames.join(", ") : config.classes_section_1}) :
+          </div>
+          <div style={{ fontSize: "9.8pt", marginBottom: "4px" }}>
+            {t.reportSection1Intro}
+          </div>
 
-        {/* Tableau 1 Planification */}
-        <table className="diag-custom-table">
-          <thead>
-            <tr>
-              <th style={{ width: "32%" }}>{t.reportTable1ClassCol}</th>
-              <th style={{ width: "33%" }}>{t.reportTable1DateCol}</th>
-              <th style={{ width: "35%" }}>{t.reportTable1PresentsCol}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.classes_plan.map((cls, idx) => (
-              <tr key={idx}>
-                <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>{cls.nom}</td>
-                <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>{cls.date}</td>
+          {/* Tableau 1 Planification */}
+          <table className="diag-custom-table">
+            <thead>
+              <tr>
+                <th style={{ width: "32%" }}>{t.reportTable1ClassCol}</th>
+                <th style={{ width: "33%" }}>{t.reportTable1DateCol}</th>
+                <th style={{ width: "35%" }}>{t.reportTable1PresentsCol}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.classes_plan.map((cls, idx) => (
+                <tr key={idx}>
+                  <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>{cls.nom}</td>
+                  <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>{cls.date}</td>
+                  <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
+                    {getAbsentLabel(cls.nb_presents_texte, lang)}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={2} style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
+                  {t.reportTable1TotalRow}
+                </td>
                 <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
-                  {getAbsentLabel(cls.nb_presents_texte, lang)}
+                  {stats.total_presents}
                 </td>
               </tr>
-            ))}
-            <tr>
-              <td colSpan={2} style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
-                {t.reportTable1TotalRow}
-              </td>
-              <td style={{ textAlign: "center", fontStyle: "italic", fontWeight: "bold" }}>
-                {stats.total_presents}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
 
-        {/* Composition du test */}
-        <div className="diag-sub-heading-blue">
-          {t.reportCompositionPrefix} {displayedNumExercises} {lang === "ar" ? "تمارين" : lang === "en" ? "exercises" : "exercices"}
+          {/* Composition du test */}
+          <div className="diag-sub-heading-blue">
+            {t.reportCompositionPrefix} {displayedNumExercises} {lang === "ar" ? "تمارين" : lang === "en" ? "exercises" : "exercices"}
+          </div>
+          <table className="diag-custom-table" style={{ marginTop: "3px" }}>
+            <tbody>
+              {displayedExercises.map((ex, idx) => (
+                <tr key={idx}>
+                  <td style={{ width: "22%", fontWeight: "bold", background: "#fafafa" }}>{ex.titre}</td>
+                  <td style={{ width: "78%", fontWeight: "bold" }}>{ex.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <table className="diag-custom-table" style={{ marginTop: "3px" }}>
-          <tbody>
-            {displayedExercises.map((ex, idx) => (
-              <tr key={idx}>
-                <td style={{ width: "22%", fontWeight: "bold", background: "#fafafa" }}>{ex.titre}</td>
-                <td style={{ width: "78%", fontWeight: "bold" }}>{ex.description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
 
         {/* Note de cadrage méthodologique en bas de page 1 */}
         <div className="diag-modalities-box">
@@ -829,238 +780,368 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         </div>
       </div>
 
-      {/* ==================== PAGE 2 : ANALYSE DÉTAILLÉE DES RÉSULTATS, KPIS, OBSERVATIONS, PROPOSITIONS & SIGNATURE ==================== */}
-      <div className="diag-a4-page">
-        {/* Section II : Tableau des résultats avec noms des tranches traduits selon la langue */}
-        <div className="diag-heading-blue-light" style={{ marginTop: "0", marginBottom: "3px" }}>
-          {t.reportSection2Title}
-        </div>
-        <table className="diag-stats-table">
-          <thead>
-            <tr>
-              <th rowSpan={2} style={{ width: "23%", fontStyle: "italic" }}>{t.reportTable1ClassCol}</th>
-              <th rowSpan={2} style={{ width: "17%" }}>{t.indicatorCol}</th>
-              <th className="arabic-header" style={{ width: "15%", color: "#dc2626" }}>
-                {tranches.t1}<br />
-                <span style={{ fontSize: "8.8pt" }}>{tranches.r1}</span>
-              </th>
-              <th className="arabic-header" style={{ width: "15%", color: "#d97706" }}>
-                {tranches.t2}<br />
-                <span style={{ fontSize: "8.8pt" }}>{tranches.r2}</span>
-              </th>
-              <th className="arabic-header" style={{ width: "15%", color: "#2563eb" }}>
-                {tranches.t3}<br />
-                <span style={{ fontSize: "8.8pt" }}>{tranches.r3}</span>
-              </th>
-              <th className="arabic-header" style={{ width: "15%", color: "#059669" }}>
-                {tranches.t4}<br />
-                <span style={{ fontSize: "8.8pt" }}>{tranches.r4}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.classes_stats.map((stat, idx) => (
-              <React.Fragment key={idx}>
-                <tr>
-                  <td rowSpan={2} style={{ fontWeight: "bold", fontStyle: "italic" }}>{stat.nom}</td>
-                  <td style={{ fontWeight: "bold" }}>{t.countRow}</td>
-                  <td className="diag-purple-stat">{stat.t1_count}</td>
-                  <td className="diag-purple-stat">{stat.t2_count}</td>
-                  <td className="diag-purple-stat">{stat.t3_count}</td>
-                  <td className="diag-purple-stat">{stat.t4_count}</td>
-                </tr>
-                <tr>
-                  <td style={{ fontWeight: "bold", fontStyle: "italic" }}>{t.percentageRow}</td>
-                  <td className="diag-purple-stat">{stat.t1_pct} %</td>
-                  <td className="diag-purple-stat">{stat.t2_pct} %</td>
-                  <td className="diag-purple-stat">{stat.t3_pct} %</td>
-                  <td className="diag-purple-stat">{stat.t4_pct} %</td>
-                </tr>
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-
-        {/* 1. TITRE RÉSULTATS ET ANALYSE STATISTIQUE */}
-        <div className="diag-section-title-red">
-          {lang === "ar" ? "النتائج والتحليل الإحصائي :" : lang === "en" ? "Results & Statistical Analysis:" : "Résultats et analyse statistique :"}
-        </div>
-
-        <div className="diag-intro-text" style={{ marginBottom: "6px" }}>
-          {lang === "ar" ? (
-            `بعد اجتياز المتعلمين لهذا الرائز التشخيصي، يُسجل أن النتائج المحصل عليها جاءت `
-          ) : lang === "en" ? (
-            `Following the administration of this test, the recorded results are assessed as `
-          ) : (
-            `Après que les apprenants aient passé ce test, on constate que les résultats obtenus sont `
-          )}
-          <strong>{displayedAppreciation}</strong>
-          {lang === "ar" ? (
-            `، مع تفصيل المؤشرات والرسوم البيانية التوضيحية أسفله :`
-          ) : lang === "en" ? (
-            `, with detailed indicators and illustrative charts presented below:`
-          ) : (
-            `, avec le détail des indicateurs et graphiques explicatifs ci-dessous :`
-          )}
-        </div>
-
-        {/* 4 CARTOUCHES KPI */}
-        <div className="diag-kpi-grid-large">
-          <div className="diag-kpi-card-large">
-            <span className="diag-kpi-card-label">{t.statsKpiTotalPresents}</span>
-            <span className="diag-kpi-card-value text-indigo-700">{stats.total_presents}</span>
-          </div>
-          <div className="diag-kpi-card-large">
-            <span className="diag-kpi-card-label">{t.kpiSuccessRate}</span>
-            <span className="diag-kpi-card-value text-emerald-700">{pctT3 + pctT4}%</span>
-          </div>
-          <div className="diag-kpi-card-large">
-            <span className="diag-kpi-card-label">{t.statsKpiStrugglingRate}</span>
-            <span className="diag-kpi-card-value text-rose-600">{stats.pct_struggling}%</span>
-          </div>
-          <div className="diag-kpi-card-large">
-            <span className="diag-kpi-card-label">{t.kpiAverageGrade}</span>
-            <span className="diag-kpi-card-value text-blue-700">{generalAvg}/20</span>
-          </div>
-        </div>
-
-        {includeGraphs && (
-          <div className="diag-graphs-grid-row">
-            {/* GRAPHE 1 : Colonnes des 4 tranches */}
-            <div className="diag-graph-card">
-              <div className="diag-graph-title">
-                {t.chartColumnsTitle} ({stats.total_presents} {lang === "ar" ? "تلميذاً" : "élèves"})
+      {includeGraphs ? (
+        <>
+          {/* ==================== PAGE 2 (AVEC GRAPHIQUES SÉPARÉS) ==================== */}
+          <div className="diag-a4-page">
+            <div>
+              {/* Section II : Tableau des résultats */}
+              <div className="diag-heading-blue-light" style={{ marginTop: "0", marginBottom: "2px" }}>
+                {t.reportSection2Title}
               </div>
-
-              <svg viewBox="0 0 240 70" style={{ width: "100%", height: "62px", overflow: "visible" }}>
-                <line x1="10" y1="10" x2="230" y2="10" stroke="#e2e8f0" strokeDasharray="2 2" />
-                <line x1="10" y1="30" x2="230" y2="30" stroke="#e2e8f0" strokeDasharray="2 2" />
-                <line x1="10" y1="52" x2="230" y2="52" stroke="#94a3b8" strokeWidth="1" />
-
-                {/* Tranche 1 */}
-                {(() => {
-                  const h = Math.max(4, Math.round((pctT1 / 100) * 42));
-                  const y = 52 - h;
-                  return (
-                    <g>
-                      <rect x="20" y={y} width="36" height={h} fill="#dc2626" rx="2" />
-                      <text x="38" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#dc2626">{pctT1}%</text>
-                      <text x="38" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r1}</text>
-                    </g>
-                  );
-                })()}
-
-                {/* Tranche 2 */}
-                {(() => {
-                  const h = Math.max(4, Math.round((pctT2 / 100) * 42));
-                  const y = 52 - h;
-                  return (
-                    <g>
-                      <rect x="75" y={y} width="36" height={h} fill="#d97706" rx="2" />
-                      <text x="93" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#d97706">{pctT2}%</text>
-                      <text x="93" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r2}</text>
-                    </g>
-                  );
-                })()}
-
-                {/* Tranche 3 */}
-                {(() => {
-                  const h = Math.max(4, Math.round((pctT3 / 100) * 42));
-                  const y = 52 - h;
-                  return (
-                    <g>
-                      <rect x="130" y={y} width="36" height={h} fill="#2563eb" rx="2" />
-                      <text x="148" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#2563eb">{pctT3}%</text>
-                      <text x="148" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r3}</text>
-                    </g>
-                  );
-                })()}
-
-                {/* Tranche 4 */}
-                {(() => {
-                  const h = Math.max(4, Math.round((pctT4 / 100) * 42));
-                  const y = 52 - h;
-                  return (
-                    <g>
-                      <rect x="185" y={y} width="36" height={h} fill="#059669" rx="2" />
-                      <text x="203" y={y - 2} textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669">{pctT4}%</text>
-                      <text x="203" y="62" textAnchor="middle" fontSize="7" fill="#334155" fontWeight="bold">{tranches.r4}</text>
-                    </g>
-                  );
-                })()}
-              </svg>
-            </div>
-
-            {/* GRAPHE 2 : Donut */}
-            <div className="diag-graph-card">
-              <div className="diag-graph-title">
-                {t.chartPieTitle}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "2px 0" }}>
-                <svg viewBox="0 0 100 100" style={{ width: "58px", height: "58px" }}>
-                  {pieSlices.map((slice, i) => (
-                    <path key={i} d={slice.path} fill={slice.color} stroke="#ffffff" strokeWidth="1.5" />
+              <table className="diag-stats-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{ width: "23%", fontStyle: "italic" }}>{t.reportTable1ClassCol}</th>
+                    <th rowSpan={2} style={{ width: "17%" }}>{t.indicatorCol}</th>
+                    <th className="arabic-header" style={{ width: "15%", color: "#dc2626" }}>
+                      {tranches.t1}<br />
+                      <span style={{ fontSize: "8.5pt" }}>{tranches.r1}</span>
+                    </th>
+                    <th className="arabic-header" style={{ width: "15%", color: "#d97706" }}>
+                      {tranches.t2}<br />
+                      <span style={{ fontSize: "8.5pt" }}>{tranches.r2}</span>
+                    </th>
+                    <th className="arabic-header" style={{ width: "15%", color: "#2563eb" }}>
+                      {tranches.t3}<br />
+                      <span style={{ fontSize: "8.5pt" }}>{tranches.r3}</span>
+                    </th>
+                    <th className="arabic-header" style={{ width: "15%", color: "#059669" }}>
+                      {tranches.t4}<br />
+                      <span style={{ fontSize: "8.5pt" }}>{tranches.r4}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.classes_stats.map((stat, idx) => (
+                    <React.Fragment key={idx}>
+                      <tr>
+                        <td rowSpan={2} style={{ fontWeight: "bold", fontStyle: "italic" }}>{stat.nom}</td>
+                        <td style={{ fontWeight: "bold" }}>{t.countRow}</td>
+                        <td className="diag-purple-stat">{stat.t1_count}</td>
+                        <td className="diag-purple-stat">{stat.t2_count}</td>
+                        <td className="diag-purple-stat">{stat.t3_count}</td>
+                        <td className="diag-purple-stat">{stat.t4_count}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: "bold", fontStyle: "italic" }}>{t.percentageRow}</td>
+                        <td className="diag-purple-stat">{stat.t1_pct} %</td>
+                        <td className="diag-purple-stat">{stat.t2_pct} %</td>
+                        <td className="diag-purple-stat">{stat.t3_pct} %</td>
+                        <td className="diag-purple-stat">{stat.t4_pct} %</td>
+                      </tr>
+                    </React.Fragment>
                   ))}
-                  <text x="50" y="52" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#0f172a">
-                    {stats.total_presents}
-                  </text>
-                  <text x="50" y="62" textAnchor="middle" fontSize="6" fill="#64748b">
-                    {lang === "ar" ? "تلميذاً" : "élèves"}
-                  </text>
-                </svg>
+                </tbody>
+              </table>
 
-                <div style={{ fontSize: "7.5pt", display: "flex", flexDirection: "column", gap: "2px" }}>
-                  <span className="text-red-700">● {tranches.t1} : <strong>{pctT1}%</strong></span>
-                  <span className="text-amber-700">● {tranches.t2} : <strong>{pctT2}%</strong></span>
-                  <span className="text-blue-700">● {tranches.t3} : <strong>{pctT3}%</strong></span>
-                  <span className="text-emerald-700">● {tranches.t4} : <strong>{pctT4}%</strong></span>
+              {/* 1. TITRE RÉSULTATS ET ANALYSE STATISTIQUE */}
+              <div className="diag-section-title-red">
+                {lang === "ar" ? "النتائج والتحليل الإحصائي :" : lang === "en" ? "Results & Statistical Analysis:" : "Résultats et analyse statistique :"}
+              </div>
+
+              <div className="diag-intro-text" style={{ marginBottom: "5px" }}>
+                {lang === "ar" ? (
+                  `بعد اجتياز المتعلمين لهذا الرائز التشخيصي، يُسجل أن النتائج المحصل عليها جاءت `
+                ) : lang === "en" ? (
+                  `Following the administration of this test, the recorded results are assessed as `
+                ) : (
+                  `Après que les apprenants aient passé ce test, on constate que les résultats obtenus sont `
+                )}
+                <strong>{displayedAppreciation}</strong>
+                {lang === "ar" ? (
+                  `، مع تفصيل المؤشرات والرسوم البيانية التوضيحية أسفله :`
+                ) : lang === "en" ? (
+                  `, with detailed indicators and illustrative charts presented below:`
+                ) : (
+                  `, avec le détail des indicateurs et graphiques explicatifs ci-dessous :`
+                )}
+              </div>
+
+              {/* 4 CARTOUCHES KPI */}
+              <div className="diag-kpi-grid-large">
+                <div className="diag-kpi-card-large">
+                  <span className="diag-kpi-card-label">{t.statsKpiTotalPresents}</span>
+                  <span className="diag-kpi-card-value text-indigo-700">{stats.total_presents}</span>
+                </div>
+                <div className="diag-kpi-card-large">
+                  <span className="diag-kpi-card-label">{t.kpiSuccessRate}</span>
+                  <span className="diag-kpi-card-value text-emerald-700">{pctT3 + pctT4}%</span>
+                </div>
+                <div className="diag-kpi-card-large">
+                  <span className="diag-kpi-card-label">{t.statsKpiStrugglingRate}</span>
+                  <span className="diag-kpi-card-value text-rose-600">{stats.pct_struggling}%</span>
+                </div>
+                <div className="diag-kpi-card-large">
+                  <span className="diag-kpi-card-label">{t.kpiAverageGrade}</span>
+                  <span className="diag-kpi-card-value text-blue-700">{generalAvg}/20</span>
+                </div>
+              </div>
+
+              {/* BOÎTE 1 SÉPARÉE : GRAPHE EN BARRES DES 4 TRANCHES */}
+              <div className="diag-separate-graph-block">
+                <div className="diag-separate-graph-header">
+                  <span>{t.chartColumnsTitle}</span>
+                  <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>
+                    {lang === "ar" ? `العدد الإجمالي : ${stats.total_presents} تلميذاً` : `Effectif : ${stats.total_presents} élèves`}
+                  </span>
+                </div>
+                <svg viewBox="0 0 460 68" style={{ width: "100%", height: "60px", overflow: "visible" }}>
+                  <line x1="20" y1="10" x2="440" y2="10" stroke="#e2e8f0" strokeDasharray="3 3" />
+                  <line x1="20" y1="30" x2="440" y2="30" stroke="#e2e8f0" strokeDasharray="3 3" />
+                  <line x1="20" y1="50" x2="440" y2="50" stroke="#94a3b8" strokeWidth="1.2" />
+
+                  {/* Tranche 1 */}
+                  {(() => {
+                    const h = Math.max(4, Math.round((pctT1 / 100) * 38));
+                    const y = 50 - h;
+                    return (
+                      <g>
+                        <rect x="40" y={y} width="58" height={h} fill="#dc2626" rx="2" />
+                        <text x="69" y={y - 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#dc2626">{pctT1}% ({totalT1})</text>
+                        <text x="69" y="62" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r1}</text>
+                      </g>
+                    );
+                  })()}
+
+                  {/* Tranche 2 */}
+                  {(() => {
+                    const h = Math.max(4, Math.round((pctT2 / 100) * 38));
+                    const y = 50 - h;
+                    return (
+                      <g>
+                        <rect x="145" y={y} width="58" height={h} fill="#d97706" rx="2" />
+                        <text x="174" y={y - 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#d97706">{pctT2}% ({totalT2})</text>
+                        <text x="174" y="62" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r2}</text>
+                      </g>
+                    );
+                  })()}
+
+                  {/* Tranche 3 */}
+                  {(() => {
+                    const h = Math.max(4, Math.round((pctT3 / 100) * 38));
+                    const y = 50 - h;
+                    return (
+                      <g>
+                        <rect x="250" y={y} width="58" height={h} fill="#2563eb" rx="2" />
+                        <text x="279" y={y - 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2563eb">{pctT3}% ({totalT3})</text>
+                        <text x="279" y="62" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r3}</text>
+                      </g>
+                    );
+                  })()}
+
+                  {/* Tranche 4 */}
+                  {(() => {
+                    const h = Math.max(4, Math.round((pctT4 / 100) * 38));
+                    const y = 50 - h;
+                    return (
+                      <g>
+                        <rect x="355" y={y} width="58" height={h} fill="#059669" rx="2" />
+                        <text x="384" y={y - 2} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#059669">{pctT4}% ({totalT4})</text>
+                        <text x="384" y="62" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r4}</text>
+                      </g>
+                    );
+                  })()}
+                </svg>
+              </div>
+
+              {/* BOÎTE 2 SÉPARÉE EN DESSOUS : GRAPHE DONUT */}
+              <div className="diag-separate-graph-block">
+                <div className="diag-separate-graph-header">
+                  <span>{t.chartPieTitle}</span>
+                  <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>
+                    {lang === "ar" ? "النسب المئوية" : "Pourcentages"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "2px 0" }}>
+                  <svg viewBox="0 0 100 100" style={{ width: "58px", height: "58px" }}>
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="#dc2626" strokeWidth="16" strokeDasharray={`${(pctT1 / 100) * 238.7} 238.7`} strokeDashoffset="0" />
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="#d97706" strokeWidth="16" strokeDasharray={`${(pctT2 / 100) * 238.7} 238.7`} strokeDashoffset={`-${(pctT1 / 100) * 238.7}`} />
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="#2563eb" strokeWidth="16" strokeDasharray={`${(pctT3 / 100) * 238.7} 238.7`} strokeDashoffset={`-${((pctT1 + pctT2) / 100) * 238.7}`} />
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="#059669" strokeWidth="16" strokeDasharray={`${(pctT4 / 100) * 238.7} 238.7`} strokeDashoffset={`-${((pctT1 + pctT2 + pctT3) / 100) * 238.7}`} />
+                    <text x="50" y="53" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#0f172a">{stats.total_presents}</text>
+                  </svg>
+                  <div style={{ fontSize: "8pt", display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <span className="text-red-700">● {tranches.t1} {tranches.r1} : <strong>{pctT1}%</strong> ({totalT1})</span>
+                    <span className="text-amber-700">● {tranches.t2} {tranches.r2} : <strong>{pctT2}%</strong> ({totalT2})</span>
+                    <span className="text-blue-700">● {tranches.t3} {tranches.r3} : <strong>{pctT3}%</strong> ({totalT3})</span>
+                    <span className="text-emerald-700">● {tranches.t4} {tranches.r4} : <strong>{pctT4}%</strong> ({totalT4})</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
 
-        {/* 2. SECTION SÉPARÉE : OBSERVATIONS PÉDAGOGIQUES */}
-        <div className="diag-section-title-green">
-          {lang === "ar" ? "الملاحظات البيداغوجية المرصودة :" : lang === "en" ? "Pedagogical Observations:" : "Observations pédagogiques constatées :"}
-        </div>
+          {/* ==================== PAGE 3 (OBSERVATIONS, PROPOSITIONS & SIGNATURE) ==================== */}
+          <div className="diag-a4-page">
+            <div>
+              {/* Observations pédagogiques */}
+              <div className="diag-section-title-green" style={{ marginTop: "0" }}>
+                {lang === "ar" ? "الملاحظات البيداغوجية المرصودة :" : lang === "en" ? "Pedagogical Observations:" : "Observations pédagogiques constatées :"}
+              </div>
 
-        {includeGraphs && analysisCommentary && (
-          <div className="diag-intro-text" style={{ fontSize: "8.5pt", lineHeight: 1.25, marginBottom: "3px" }}>
-            <strong>{lang === "ar" ? "التوجيه البيداغوجي : " : lang === "en" ? "Pedagogical Roadmap: " : "Orientation pédagogique : "}</strong>
-            {analysisCommentary.pedagogicalRoadmap}
+              <ul className="diag-bullet-list">
+                {displayedObservations.map((obs, idx) => (
+                  <li key={idx}>{obs}</li>
+                ))}
+              </ul>
+
+              {/* Section III : Propositions */}
+              <div className="diag-heading-blue-light" style={{ marginTop: "14px", marginBottom: "4px" }}>
+                {t.reportSection3Title}
+              </div>
+              <div style={{ fontSize: "9.8pt", marginBottom: "6px" }}>
+                {t.reportSection3Intro}
+              </div>
+
+              <ul className="diag-bullet-list">
+                {displayedPropositions.map((prop, idx) => (
+                  <li key={idx}>{prop}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Signature de l'enseignant */}
+            <div className="diag-signature-section">
+              <div className="diag-signature-box">
+                <div className="diag-signature-title">{t.reportSignatureTitle}</div>
+                <div className="diag-signature-name">{config.nom_enseignant}</div>
+              </div>
+            </div>
           </div>
-        )}
+        </>
+      ) : (
+        /* ==================== PAGE 2 (SANS GRAPHIQUES : RÉSULTATS, KPIS, OBSERVATIONS, PROPOSITIONS & SIGNATURE) ==================== */
+        <div className="diag-a4-page">
+          <div>
+            {/* Section II : Tableau des résultats */}
+            <div className="diag-heading-blue-light" style={{ marginTop: "0", marginBottom: "2px" }}>
+              {t.reportSection2Title}
+            </div>
+            <table className="diag-stats-table">
+              <thead>
+                <tr>
+                  <th rowSpan={2} style={{ width: "23%", fontStyle: "italic" }}>{t.reportTable1ClassCol}</th>
+                  <th rowSpan={2} style={{ width: "17%" }}>{t.indicatorCol}</th>
+                  <th className="arabic-header" style={{ width: "15%", color: "#dc2626" }}>
+                    {tranches.t1}<br />
+                    <span style={{ fontSize: "8.5pt" }}>{tranches.r1}</span>
+                  </th>
+                  <th className="arabic-header" style={{ width: "15%", color: "#d97706" }}>
+                    {tranches.t2}<br />
+                    <span style={{ fontSize: "8.5pt" }}>{tranches.r2}</span>
+                  </th>
+                  <th className="arabic-header" style={{ width: "15%", color: "#2563eb" }}>
+                    {tranches.t3}<br />
+                    <span style={{ fontSize: "8.5pt" }}>{tranches.r3}</span>
+                  </th>
+                  <th className="arabic-header" style={{ width: "15%", color: "#059669" }}>
+                    {tranches.t4}<br />
+                    <span style={{ fontSize: "8.5pt" }}>{tranches.r4}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.classes_stats.map((stat, idx) => (
+                  <React.Fragment key={idx}>
+                    <tr>
+                      <td rowSpan={2} style={{ fontWeight: "bold", fontStyle: "italic" }}>{stat.nom}</td>
+                      <td style={{ fontWeight: "bold" }}>{t.countRow}</td>
+                      <td className="diag-purple-stat">{stat.t1_count}</td>
+                      <td className="diag-purple-stat">{stat.t2_count}</td>
+                      <td className="diag-purple-stat">{stat.t3_count}</td>
+                      <td className="diag-purple-stat">{stat.t4_count}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: "bold", fontStyle: "italic" }}>{t.percentageRow}</td>
+                      <td className="diag-purple-stat">{stat.t1_pct} %</td>
+                      <td className="diag-purple-stat">{stat.t2_pct} %</td>
+                      <td className="diag-purple-stat">{stat.t3_pct} %</td>
+                      <td className="diag-purple-stat">{stat.t4_pct} %</td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
 
-        {/* Liste des observations */}
-        <ul className="diag-bullet-list">
-          {displayedObservations.map((obs, idx) => (
-            <li key={idx}>{obs}</li>
-          ))}
-        </ul>
+            {/* 1. TITRE RÉSULTATS ET ANALYSE STATISTIQUE */}
+            <div className="diag-section-title-red">
+              {lang === "ar" ? "النتائج والتحليل الإحصائي :" : lang === "en" ? "Results & Statistical Analysis:" : "Résultats et analyse statistique :"}
+            </div>
 
-        {/* 3. SECTION III : PROPOSITIONS DE SOUTIEN & REMÉDIATION */}
-        <div className="diag-heading-blue-light" style={{ marginTop: "4px", marginBottom: "2px" }}>
-          {t.reportSection3Title}
-        </div>
-        <div style={{ fontSize: "8.8pt", marginBottom: "2px" }}>
-          {t.reportSection3Intro}
-        </div>
+            <div className="diag-intro-text" style={{ marginBottom: "5px" }}>
+              {lang === "ar" ? (
+                `بعد اجتياز المتعلمين لهذا الرائز التشخيصي، يُسجل أن النتائج المحصل عليها جاءت `
+              ) : lang === "en" ? (
+                `Following the administration of this test, the recorded results are assessed as `
+              ) : (
+                `Après que les apprenants aient passé ce test, on constate que les résultats obtenus sont `
+              )}
+              <strong>{displayedAppreciation}</strong>
+              {lang === "ar" ? (
+                `، مع تفصيل المؤشرات والرسوم البيانية التوضيحية أسفله :`
+              ) : lang === "en" ? (
+                `, with detailed indicators and illustrative charts presented below:`
+              ) : (
+                `, avec le détail des indicateurs et graphiques explicatifs ci-dessous :`
+              )}
+            </div>
 
-        <ul className="diag-bullet-list">
-          {displayedPropositions.map((prop, idx) => (
-            <li key={idx}>{prop}</li>
-          ))}
-        </ul>
+            {/* 4 CARTOUCHES KPI */}
+            <div className="diag-kpi-grid-large">
+              <div className="diag-kpi-card-large">
+                <span className="diag-kpi-card-label">{t.statsKpiTotalPresents}</span>
+                <span className="diag-kpi-card-value text-indigo-700">{stats.total_presents}</span>
+              </div>
+              <div className="diag-kpi-card-large">
+                <span className="diag-kpi-card-label">{t.kpiSuccessRate}</span>
+                <span className="diag-kpi-card-value text-emerald-700">{pctT3 + pctT4}%</span>
+              </div>
+              <div className="diag-kpi-card-large">
+                <span className="diag-kpi-card-label">{t.statsKpiStrugglingRate}</span>
+                <span className="diag-kpi-card-value text-rose-600">{stats.pct_struggling}%</span>
+              </div>
+              <div className="diag-kpi-card-large">
+                <span className="diag-kpi-card-label">{t.kpiAverageGrade}</span>
+                <span className="diag-kpi-card-value text-blue-700">{generalAvg}/20</span>
+              </div>
+            </div>
 
-        {/* Signature de l'enseignant */}
-        <div className="diag-signature-section">
-          <div className="diag-signature-box">
-            <div className="diag-signature-title">{t.reportSignatureTitle}</div>
-            <div className="diag-signature-name">{config.nom_enseignant}</div>
+            {/* Observations pédagogiques */}
+            <div className="diag-section-title-green">
+              {lang === "ar" ? "الملاحظات البيداغوجية المرصودة :" : lang === "en" ? "Pedagogical Observations:" : "Observations pédagogiques constatées :"}
+            </div>
+
+            <ul className="diag-bullet-list">
+              {displayedObservations.map((obs, idx) => (
+                <li key={idx}>{obs}</li>
+              ))}
+            </ul>
+
+            {/* Section III : Propositions */}
+            <div className="diag-heading-blue-light" style={{ marginTop: "8px", marginBottom: "3px" }}>
+              {t.reportSection3Title}
+            </div>
+            <div style={{ fontSize: "9.8pt", marginBottom: "4px" }}>
+              {t.reportSection3Intro}
+            </div>
+
+            <ul className="diag-bullet-list">
+              {displayedPropositions.map((prop, idx) => (
+                <li key={idx}>{prop}</li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Signature de l'enseignant */}
+          <div className="diag-signature-section">
+            <div className="diag-signature-box">
+              <div className="diag-signature-title">{t.reportSignatureTitle}</div>
+              <div className="diag-signature-name">{config.nom_enseignant}</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
