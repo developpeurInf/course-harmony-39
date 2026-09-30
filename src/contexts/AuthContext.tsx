@@ -28,6 +28,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<boolean>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   uploadAvatar: (file: File) => Promise<string | null>;
+  deleteAvatar: () => Promise<boolean>;
   getStudents: (roomId?: string) => Promise<UserProfile[]>;
   addStudent: (email: string, password: string, name: string) => Promise<boolean>;
   isLoggedIn: boolean;
@@ -532,6 +533,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteAvatar = async (): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: null
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        toast.error("Failed to delete avatar");
+        return false;
+      }
+
+      setUser({ ...user, avatar_url: undefined });
+      return true;
+    } catch (error) {
+      toast.error("Failed to delete avatar");
+      return false;
+    }
+  };
+
   const getStudents = async (roomId?: string): Promise<UserProfile[]> => {
     try {
       let query = supabase
@@ -604,6 +629,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetPassword,
       updateProfile,
       uploadAvatar,
+      deleteAvatar,
       getStudents,
       addStudent,
       isLoggedIn

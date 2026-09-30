@@ -1,6 +1,5 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,6 +8,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
 
 interface Student {
   id: string;
@@ -230,27 +230,19 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
       </DialogContent>
     </Dialog>
 
-    <AlertDialog open={showAvatarDialog} onOpenChange={setShowAvatarDialog}>
-      <AlertDialogContent className="max-w-3xl">
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {language === "ar" ? `صورة الملف الشخصي لـ ${student.name}` : language === "fr" ? `Photo de profil de ${student.name}` : `${student.name}'s Profile Picture`}
-          </AlertDialogTitle>
-        </AlertDialogHeader>
-        <div className="flex items-center justify-center p-4">
-          <img 
-            src={getAvatarUrl()} 
-            alt={`${student.name}'s avatar`}
-            className="max-w-full max-h-[70vh] object-contain rounded-lg"
-          />
-        </div>
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={() => setShowAvatarDialog(false)}>
-            Close
-          </Button>
-        </div>
-      </AlertDialogContent>
-    </AlertDialog>
+    {/* Instagram-style Student Avatar Dialog */}
+    <ProfileAvatarDialog
+      isOpen={showAvatarDialog}
+      onOpenChange={setShowAvatarDialog}
+      userOverride={{
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        role: student.role,
+        avatar_url: getAvatarUrl()
+      }}
+      editable={false}
+    />
   </>
   );
 };

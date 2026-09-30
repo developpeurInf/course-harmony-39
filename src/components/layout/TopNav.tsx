@@ -17,7 +17,8 @@ import {
   Bell, 
   LogOut, 
   User,
-  Settings
+  Settings,
+  Camera
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,12 +26,14 @@ import Sidebar from "./Sidebar";
 import NotificationBell from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
 
 const TopNav = () => {
   const { user, logout } = useAuth();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -71,7 +74,7 @@ const TopNav = () => {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 overflow-hidden ring-2 ring-primary/20 hover:ring-primary/50 transition-all">
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 overflow-hidden ring-2 ring-primary/20 hover:ring-primary/50 transition-all cursor-pointer">
               <Avatar className="h-9 w-9">
                 <AvatarImage src={user?.avatar_url} alt={user?.name || "Profile"} className="object-cover" />
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xs">
@@ -81,23 +84,45 @@ const TopNav = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>{t("profile.account")}</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex flex-col">
+              <span className="font-semibold text-sm">{user?.name || t("profile.account")}</span>
+              <span className="text-xs text-muted-foreground font-normal truncate">{user?.email}</span>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/profile")}>
+            <DropdownMenuItem 
+              onClick={() => setIsAvatarModalOpen(true)}
+              className="cursor-pointer"
+            >
+              <Camera className="mr-2 h-4 w-4 text-primary" />
+              <span>
+                {language === "ar" 
+                  ? "صورة الملف الشخصي" 
+                  : language === "fr" 
+                  ? "Photo de profil" 
+                  : "Profile Photo"}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer">
               <User className="mr-2 h-4 w-4" />
               <span>{t("nav.profile")}</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
+            <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer">
               <Settings className="mr-2 h-4 w-4" />
               <span>{t("nav.settings")}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>{t("nav.logout")}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Instagram-style Profile Avatar Modal */}
+        <ProfileAvatarDialog 
+          isOpen={isAvatarModalOpen}
+          onOpenChange={setIsAvatarModalOpen}
+        />
       </div>
     </header>
   );
