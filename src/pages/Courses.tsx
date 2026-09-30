@@ -701,84 +701,102 @@ const Courses = () => {
             })}
           </div>
         ) : (
-          <div className="border rounded-lg">
-            <table className="w-full">
-              <thead className="bg-muted/50">
+          <div className="border rounded-xl overflow-x-auto shadow-xs bg-card">
+            <table className="w-full text-sm border-collapse min-w-[720px]">
+              <thead className="bg-muted/60 border-b">
                 <tr>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "الدرس" : "Course"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "القسم" : "Room"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "التلاميذ" : "Students"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "التمارين" : "Exercises"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحانات" : "Exams"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "الرؤية" : "Visibility"}</th>
-                  {isProfessor && <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : "Actions"}</th>}
+                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
+                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الوثائق (PDF)" : language === "fr" ? "Supports (PDF)" : "Materials (PDF)"}</th>
+                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "القسم" : language === "fr" ? "Classe" : "Room"}</th>
+                  {isProfessor && <th className="p-3.5 text-left font-semibold">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>}
+                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
+                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
+                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الرؤية" : language === "fr" ? "Statut" : "Status"}</th>
+                  {isProfessor && <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>}
                 </tr>
               </thead>
               <tbody>
                 {displayedCourses.map((course) => {
                   const stats = getCourseStats(course.id);
                   const enrollmentCount = getEnrollmentCount(course.id);
+                  const materials = courseMaterials[course.id] || [];
                   
                   return (
-                    <tr key={course.id} className="border-t">
-                      <td className="p-4">
+                    <tr key={course.id} className="border-t hover:bg-muted/40 transition-colors">
+                      <td className="p-3.5 max-w-[220px]">
                         <div>
-                          <h3 className="font-medium">{course.title}</h3>
-                          <p className="text-sm text-muted-foreground">{course.description}</p>
+                          <h3 className="font-semibold text-sm line-clamp-1">{course.title}</h3>
+                          {course.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{course.description}</p>
+                          )}
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1">
-                          <Building className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">
-                            {course.room_id ? getRoomName(course.room_id) : "No Room"}
+                      <td className="p-3.5">
+                        {materials.length > 0 ? (
+                          <CourseMaterials materials={materials} compact={true} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">
+                            {language === "ar" ? "لا توجد ملفات" : language === "fr" ? "Aucun PDF" : "No files"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Building className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate max-w-[120px]">
+                            {course.room_id ? getRoomName(course.room_id) : "—"}
                           </span>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4 text-blue-600" />
-                          <span>{enrollmentCount}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
+                      {isProfessor && (
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-1 text-xs">
+                            <Users className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                            <span>{enrollmentCount}</span>
+                          </div>
+                        </td>
+                      )}
+                      <td className="p-3.5">
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => navigateToExercises(course.id)}
-                          className="h-7"
+                          className="h-7 text-xs px-2"
                         >
-                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          <FileText className="h-3.5 w-3.5 mr-1 text-indigo-500" />
                           {stats.exerciseCount}
                         </Button>
                       </td>
-                      <td className="p-4">
+                      <td className="p-3.5">
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => navigateToExams(course.id)}
-                          className="h-7"
+                          className="h-7 text-xs px-2"
                         >
-                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          <Calendar className="h-3.5 w-3.5 mr-1 text-emerald-500" />
                           {stats.examCount}
                         </Button>
                       </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          course.is_visible ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
-                        }`}>
-                          {course.is_visible ? (language === "ar" ? "مرئي" : "Visible") : (language === "ar" ? "مخفي" : "Hidden")}
-                        </span>
+                      <td className="p-3.5">
+                        <Badge 
+                          variant={course.is_visible ? "default" : "secondary"} 
+                          className="text-[10px] px-2 py-0.5 font-medium"
+                        >
+                          {course.is_visible 
+                            ? (language === "ar" ? "مرئي" : "Visible") 
+                            : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
+                        </Badge>
                       </td>
                       {isProfessor && (
-                        <td className="p-4">
-                          <div className="flex gap-1">
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-1">
                             <Button 
                               variant="ghost" 
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => handleToggleVisibility(course.id)}
-                              title={course.is_visible ? "Hide from students" : "Make visible to students"}
+                              title={course.is_visible ? "Masquer" : "Rendre visible"}
                             >
                               {course.is_visible ? (
                                 <EyeOff className="h-3.5 w-3.5" />
@@ -791,6 +809,7 @@ const Courses = () => {
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => openEnrollDialog(course)}
+                              title={language === "ar" ? "تسجيل تلاميذ" : "Inscrire élèves"}
                             >
                               <UserPlus className="h-3.5 w-3.5" />
                             </Button>
@@ -799,6 +818,7 @@ const Courses = () => {
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => openEditDialog(course)}
+                              title={language === "ar" ? "تعديل" : "Modifier"}
                             >
                               <Edit className="h-3.5 w-3.5" />
                             </Button>
@@ -807,6 +827,7 @@ const Courses = () => {
                               size="icon"
                               className="h-7 w-7 text-destructive"
                               onClick={() => openDeleteDialog(course)}
+                              title={language === "ar" ? "حذف" : "Supprimer"}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
