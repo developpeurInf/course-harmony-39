@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Popover,
@@ -26,8 +25,7 @@ import {
   Info,
   Check,
   Sparkles,
-  Inbox,
-  Flame
+  Inbox
 } from "lucide-react";
 import { useNotifications, Notification, NotificationType } from "@/contexts/NotificationContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -56,7 +54,6 @@ export const NotificationBell = () => {
       await markAsRead(notification.id);
     }
 
-    // Smart navigation based on notification type and ids
     if (notification.type.includes('course')) {
       navigate('/courses');
     } else if (notification.type.includes('exercise')) {
@@ -87,6 +84,117 @@ export const NotificationBell = () => {
       month: "short",
       day: "numeric",
     });
+  };
+
+  // Helper to extract the original item title (inside quotes or fallback)
+  const extractItemTitle = (notification: Notification): string => {
+    const match = notification.message.match(/"([^"]+)"/) || notification.title.match(/"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+    return "";
+  };
+
+  // Localize title and message based on the active language
+  const getLocalizedContent = (notification: Notification) => {
+    const itemTitle = extractItemTitle(notification);
+    const type = notification.type;
+
+    if (type === 'course_added') {
+      return {
+        title: t("📚 Nouveau cours disponible", "📚 درس جديد متوفر", "📚 New course available"),
+        message: itemTitle
+          ? t(
+              `Le cours "${itemTitle}" a été publié pour votre classe.`,
+              `تم نشر الدرس "${itemTitle}" لقسمك.`,
+              `The course "${itemTitle}" has been published for your class.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'course_deleted') {
+      return {
+        title: t("🗑️ Cours retiré", "🗑️ تم حذف الدرس", "🗑️ Course removed"),
+        message: itemTitle
+          ? t(
+              `Le cours "${itemTitle}" a été retiré par votre professeur.`,
+              `تم حذف الدرس "${itemTitle}" من قبل أستاذك.`,
+              `The course "${itemTitle}" was removed by your professor.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'exercise_added') {
+      return {
+        title: t("📝 Nouvel exercice disponible", "📝 تمرين جديد متوفر", "📝 New exercise available"),
+        message: itemTitle
+          ? t(
+              `L'exercice "${itemTitle}" a été ajouté à votre classe.`,
+              `تمت إضافة التمرين "${itemTitle}" لقسمك.`,
+              `The exercise "${itemTitle}" has been added to your class.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'exercise_deleted') {
+      return {
+        title: t("🗑️ Exercice retiré", "🗑️ تم حذف التمرين", "🗑️ Exercise removed"),
+        message: itemTitle
+          ? t(
+              `L'exercice "${itemTitle}" a été supprimé.`,
+              `تم حذف التمرين "${itemTitle}".`,
+              `The exercise "${itemTitle}" was removed.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'exam_added') {
+      return {
+        title: t("🎓 Nouvelle évaluation programmée", "🎓 تقييم جديد مبرمج", "🎓 New assessment scheduled"),
+        message: itemTitle
+          ? t(
+              `L'évaluation "${itemTitle}" a été programmée pour votre classe.`,
+              `تمت برمجة التقييم "${itemTitle}" لقسمك.`,
+              `The assessment "${itemTitle}" has been scheduled for your class.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'exam_deleted') {
+      return {
+        title: t("🗑️ Évaluation annulée", "🗑️ تم إلغاء التقييم", "🗑️ Assessment cancelled"),
+        message: itemTitle
+          ? t(
+              `L'évaluation "${itemTitle}" a été supprimée ou annulée.`,
+              `تم إلغاء أو حذف التقييم "${itemTitle}".`,
+              `The assessment "${itemTitle}" was cancelled or removed.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'exam_reminder') {
+      return {
+        title: t("⏰ Rappel : Évaluation dans moins de 24h !", "⏰ تذكير: تقييم خلال أقل من 24 ساعة!", "⏰ Reminder: Assessment in less than 24h!"),
+        message: itemTitle
+          ? t(
+              `L'évaluation "${itemTitle}" aura lieu très prochainement. Préparez-vous !`,
+              `التقييم "${itemTitle}" سيُجرى قريباً جداً. استعد جيداً!`,
+              `The assessment "${itemTitle}" will take place very soon. Get ready!`
+            )
+          : notification.message
+      };
+    }
+
+    return {
+      title: notification.title,
+      message: notification.message
+    };
   };
 
   const getNotificationIcon = (type: NotificationType) => {
@@ -131,7 +239,7 @@ export const NotificationBell = () => {
         return {
           icon: Clock,
           bg: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 animate-pulse",
-          badge: t("⏰ Rappel < 24h", "⏰ تذكير", "⏰ Reminder")
+          badge: t("⏰ Rappel < 24h", "⏰ تذكير < 24س", "⏰ Reminder < 24h")
         };
       case 'warning':
         return {
@@ -298,6 +406,7 @@ export const NotificationBell = () => {
               {filteredNotifications.map((notification) => {
                 const iconConfig = getNotificationIcon(notification.type);
                 const IconComponent = iconConfig.icon;
+                const localized = getLocalizedContent(notification);
 
                 return (
                   <div
@@ -322,7 +431,7 @@ export const NotificationBell = () => {
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-xs font-bold text-foreground leading-snug line-clamp-1">
-                          {notification.title}
+                          {localized.title}
                         </span>
                         <span className="text-[10px] text-muted-foreground flex-shrink-0 font-medium">
                           {formatRelativeTime(notification.created_at)}
@@ -330,7 +439,7 @@ export const NotificationBell = () => {
                       </div>
 
                       <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                        {notification.message}
+                        {localized.message}
                       </p>
 
                       <div className="flex items-center justify-between pt-1">

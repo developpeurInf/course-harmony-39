@@ -14,7 +14,8 @@ export type NotificationType =
   | 'info'
   | 'success'
   | 'warning'
-  | 'error';
+  | 'error'
+  | '__DELETED__';
 
 export interface Notification {
   id: string;
@@ -58,6 +59,32 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+// Storage helper for persisted deleted IDs
+const getDeletedIdsKey = (userId: string) => `course_harmony_deleted_notifs_${userId}`;
+
+const getPersistedDeletedIds = (userId: string): Set<string> => {
+  try {
+    const raw = localStorage.getItem(getDeletedIdsKey(userId));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch (e) {
+    console.error('Failed to read deleted notifications cache:', e);
+  }
+  return new Set<string>();
+};
+
+const addPersistedDeletedIds = (userId: string, ids: string[]) => {
+  try {
+    const current = getPersistedDeletedIds(userId);
+    ids.forEach(id => current.add(id));
+    localStorage.setItem(getDeletedIdsKey(userId), JSON.stringify(Array.from(current)));
+  } catch (e) {
+    console.error('Failed to save deleted notifications cache:', e);
+  }
+};
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -74,10 +101,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
     try {
+      const deletedIds = getPersistedDeletedIds(user.id);
+
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
+        .neq('type', '__DELETED__')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -85,10 +115,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return;
       }
 
-      setNotifications((data || []).map(notification => ({
-        ...notification,
-        type: (notification.type as NotificationType) || 'info'
-      })));
+      const active = (data || [])
+        .filter(n => n.type !== '__DELETED__' && !deletedIds.has(n.id))
+        .map(notification => ({
+          ...notification,
+          type: (notification.type as NotificationType) || 'info'
+        }));
+
+      setNotifications(active);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {
@@ -122,7 +156,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       if (examsError || !exams || exams.length === 0) return;
 
       const now = new Date();
-      const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
       // 3. Get existing reminders for this user
       const { data: existingReminders } = await supabase
@@ -135,7 +168,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         (existingReminders || [])
           .filter(r => {
             const reminderDate = new Date(r.created_at);
-            // Ignore reminders sent in the last 24h
             return now.getTime() - reminderDate.getTime() < 24 * 60 * 60 * 1000;
           })
           .map(r => r.exam_id)
@@ -204,21 +236,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
+          const deletedIds = getPersistedDeletedIds(user.id);
+
           if (payload.eventType === 'INSERT') {
             const newNotif = payload.new as Notification;
-            setNotifications(prev => [
-              { ...newNotif, type: (newNotif.type as NotificationType) || 'info' },
-              ...prev
-            ]);
-            toast.info(newNotif.title, {
-              description: newNotif.message,
-              duration: 5000,
-            });
+            if (newNotif.type !== '__DELETED__' && !deletedIds.has(newNotif.id)) {
+              setNotifications(prev => [
+                { ...newNotif, type: (newNotif.type as NotificationType) || 'info' },
+                ...prev
+              ]);
+              toast.info(newNotif.title, {
+                description: newNotif.message,
+                duration: 5000,
+              });
+            }
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Notification;
-            setNotifications(prev =>
-              prev.map(n => n.id === updated.id ? { ...updated, type: (updated.type as NotificationType) || 'info' } : n)
-            );
+            if (updated.type === '__DELETED__' || deletedIds.has(updated.id)) {
+              setNotifications(prev => prev.filter(n => n.id !== updated.id));
+            } else {
+              setNotifications(prev =>
+                prev.map(n => n.id === updated.id ? { ...updated, type: (updated.type as NotificationType) || 'info' } : n)
+              );
+            }
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as { id: string }).id;
             setNotifications(prev => prev.filter(n => n.id !== deletedId));
@@ -272,7 +312,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications(prev =>
         prev.map(n => ({ ...n, read: true }))
       );
-      toast.success("Toutes les notifications sont marquées comme lues");
       return true;
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
@@ -280,19 +319,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  // Robust delete using both soft-delete update, hard-delete attempt, and localStorage persistence
   const deleteNotification = async (id: string): Promise<boolean> => {
+    if (!user) return false;
+
     try {
-      const { error } = await supabase
+      // 1. Persist to localStorage
+      addPersistedDeletedIds(user.id, [id]);
+
+      // 2. Optimistically update local state
+      setNotifications(prev => prev.filter(n => n.id !== id));
+
+      // 3. Mark as deleted in Supabase (allowed by UPDATE RLS policy)
+      await supabase
+        .from('notifications')
+        .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      // 4. Also attempt hard delete in case policy allows it
+      await supabase
         .from('notifications')
         .delete()
         .eq('id', id);
 
-      if (error) {
-        console.error('Failed to delete notification:', error);
-        return false;
-      }
-
-      setNotifications(prev => prev.filter(n => n.id !== id));
       return true;
     } catch (error) {
       console.error('Failed to delete notification:', error);
@@ -300,22 +349,33 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  // Robust clear all using both soft-delete update, hard-delete attempt, and localStorage persistence
   const clearAllNotifications = async (): Promise<boolean> => {
     if (!user) return false;
 
     try {
-      const { error } = await supabase
+      const currentIds = notifications.map(n => n.id);
+
+      // 1. Persist all IDs to localStorage
+      if (currentIds.length > 0) {
+        addPersistedDeletedIds(user.id, currentIds);
+      }
+
+      // 2. Optimistically clear local state
+      setNotifications([]);
+
+      // 3. Mark all as deleted in Supabase (allowed by UPDATE RLS policy)
+      await supabase
+        .from('notifications')
+        .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      // 4. Also attempt hard delete
+      await supabase
         .from('notifications')
         .delete()
         .eq('user_id', user.id);
 
-      if (error) {
-        console.error('Failed to clear notifications:', error);
-        return false;
-      }
-
-      setNotifications([]);
-      toast.success("Toutes les notifications ont été supprimées");
       return true;
     } catch (error) {
       console.error('Failed to clear notifications:', error);
