@@ -11,13 +11,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, Plus, Search, Grid, List, Edit, Info, KeyRound } from "lucide-react";
+import { Users, UserX, Plus, Search, Grid, List, Edit, Info, KeyRound, BellOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
 import { EditStudentDialog } from "@/components/EditStudentDialog";
 import { StudentInfoDialog } from "@/components/StudentInfoDialog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 interface Student {
   id: string;
@@ -35,6 +36,7 @@ const RoomStudents = () => {
   const { roomId } = useParams();
   const { user, resetStudentPassword } = useAuth();
   const { refreshData } = useCourses();
+  const { clearRoomStudentsNotifications } = useNotifications();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -171,9 +173,50 @@ const RoomStudents = () => {
             {language === "ar" ? "إدارة التلاميذ في هذا القسم" : language === "fr" ? "Gérer les élèves de cette classe" : "Manage students in this class"}
           </p>
         </div>
-        <Badge variant="secondary">
-          {students.length} {language === "ar" ? "تلاميذ" : language === "fr" ? `élève${students.length > 1 ? "s" : ""}` : `student${students.length !== 1 ? "s" : ""}`}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {roomId && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 border-amber-300 dark:border-amber-800 flex items-center gap-1.5"
+                >
+                  <BellOff className="h-4 w-4" />
+                  <span>{language === "ar" ? "مسح إشعارات القسم" : language === "fr" ? "Vider les notifications" : "Clear Notifications"}</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <BellOff className="h-5 w-5 text-amber-500" />
+                    {language === "ar" ? "مسح إشعارات تلاميذ هذا القسم" : language === "fr" ? "Vider les notifications de la classe" : "Clear Class Notifications"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {language === "ar"
+                      ? "هل أنت متأكد من رغبتك في مسح جميع الإشعارات لدى تلاميذ هذا القسم؟ ستتم إعادة تعيين واجهاتهم كأنك لم تقم بأي تعديلات."
+                      : language === "fr"
+                      ? "Êtes-vous sûr de vouloir supprimer toutes les notifications de tous les élèves de cette classe ? Leurs interfaces seront réinitialisées."
+                      : "Are you sure you want to delete all notifications for students in this class? Their notification feeds will be reset."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => roomId && clearRoomStudentsNotifications(roomId)}
+                    className="bg-amber-600 text-white hover:bg-amber-700"
+                  >
+                    {language === "ar" ? "تأكيد ومسح" : language === "fr" ? "Confirmer et vider" : "Confirm & Clear"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          <Badge variant="secondary">
+            {students.length} {language === "ar" ? "تلاميذ" : language === "fr" ? `élève${students.length > 1 ? "s" : ""}` : `student${students.length !== 1 ? "s" : ""}`}
+          </Badge>
+        </div>
       </div>
 
       {/* Student Excel Manager */}

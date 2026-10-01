@@ -54,6 +54,7 @@ interface NotificationContextType {
   markAllAsRead: () => Promise<boolean>;
   deleteNotification: (id: string) => Promise<boolean>;
   clearAllNotifications: () => Promise<boolean>;
+  clearRoomStudentsNotifications: (roomId: string) => Promise<boolean>;
   createNotification: (notification: Omit<Notification, 'id' | 'created_at' | 'updated_at'>) => Promise<boolean>;
   notifyRoomStudents: (params: NotifyRoomParams) => Promise<void>;
   checkExamReminders: () => Promise<void>;
@@ -386,6 +387,60 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  // Professor clears all notifications for all students in a specific room/class
+  const clearRoomStudentsNotifications = async (roomId: string): Promise<boolean> => {
+    try {
+      // 1. Get all students in this room (direct assignment + enrollments)
+      const { data: roomStudents } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('room_id', roomId)
+        .eq('role', 'student');
+
+      const studentIdsSet = new Set<string>();
+      (roomStudents || []).forEach(s => studentIdsSet.add(s.id));
+
+      const { data: enrollments } = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .eq('room_id', roomId);
+
+      (enrollments || []).forEach(e => studentIdsSet.add(e.student_id));
+
+      const studentIds = Array.from(studentIdsSet);
+
+      if (studentIds.length === 0) {
+        toast.info("Aucun élève trouvé dans cette classe.");
+        return true;
+      }
+
+      // 2. Mark as deleted in Supabase so it triggers Realtime and updates DB
+      const { error: updateError } = await supabase
+        .from('notifications')
+        .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
+        .in('user_id', studentIds);
+
+      if (updateError) {
+        console.error('Error clearing room notifications:', updateError);
+        toast.error("Erreur lors de la suppression des notifications");
+        return false;
+      }
+
+      // 3. Attempt hard delete as well
+      await supabase
+        .from('notifications')
+        .delete()
+        .in('user_id', studentIds);
+
+      toast.success("Toutes les notifications des élèves de cette classe ont été supprimées avec succès !");
+      return true;
+    } catch (error) {
+      console.error('Exception clearing room students notifications:', error);
+      toast.error("Erreur lors de la suppression des notifications");
+      return false;
+    }
+  };
+
   const createNotification = async (
     notification: Omit<Notification, 'id' | 'created_at' | 'updated_at'>
   ): Promise<boolean> => {
@@ -545,6 +600,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       markAllAsRead,
       deleteNotification,
       clearAllNotifications,
+      clearRoomStudentsNotifications,
       createNotification,
       notifyRoomStudents,
       checkExamReminders,

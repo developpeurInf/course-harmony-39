@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle } from "lucide-react";
+import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, BellOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 interface Room {
   id: string;
@@ -34,6 +35,7 @@ const ClassManagement = () => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const { rooms, addRoom, updateRoom, deleteRoom } = useCourses();
+  const { clearRoomStudentsNotifications } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [roomsWithCounts, setRoomsWithCounts] = useState<Room[]>([]);
@@ -412,6 +414,41 @@ const ClassManagement = () => {
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title={language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
+                          >
+                            <BellOff className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                              <BellOff className="h-5 w-5 text-amber-500" />
+                              {language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {language === "ar"
+                                ? `هل أنت متأكد من رغبتك في مسح جميع الإشعارات لدى تلاميذ قسم "${room.name}"؟ ستتم إعادة تعيين واجهاتهم وتفريغ شريط الإشعارات لديهم.`
+                                : language === "fr"
+                                ? `Êtes-vous sûr de vouloir supprimer toutes les notifications des élèves de la classe "${room.name}" ? Leurs interfaces seront réinitialisées et leurs alertes vidées.`
+                                : `Are you sure you want to clear all notifications for students in class "${room.name}"? Their notification feeds will be reset.`}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => clearRoomStudentsNotifications(room.id)}
+                              className="bg-amber-600 text-white hover:bg-amber-700"
+                            >
+                              {language === "ar" ? "مسح الإشعارات" : language === "fr" ? "Vider les notifications" : "Clear Notifications"}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="sm">
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -487,6 +524,41 @@ const ClassManagement = () => {
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title={language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
+                      >
+                        <BellOff className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                          <BellOff className="h-5 w-5 text-amber-500" />
+                          {language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {language === "ar"
+                            ? `هل أنت متأكد من رغبتك في مسح جميع الإشعارات لدى تلاميذ قسم "${room.name}"؟ ستتم إعادة تعيين واجهاتهم وتفريغ شريط الإشعارات لديهم.`
+                            : language === "fr"
+                            ? `Êtes-vous sûr de vouloir supprimer toutes les notifications des élèves de la classe "${room.name}" ? Leurs interfaces seront réinitialisées et leurs alertes vidées.`
+                            : `Are you sure you want to clear all notifications for students in class "${room.name}"? Their notification feeds will be reset.`}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => clearRoomStudentsNotifications(room.id)}
+                          className="bg-amber-600 text-white hover:bg-amber-700"
+                        >
+                          {language === "ar" ? "مسح الإشعارات" : language === "fr" ? "Vider les notifications" : "Clear Notifications"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="sm">
