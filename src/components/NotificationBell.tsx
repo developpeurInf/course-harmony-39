@@ -289,6 +289,7 @@ export const NotificationBell = () => {
   };
 
   const filteredNotifications = notifications.filter(n => {
+    if (n.type === '__DELETED__' || n.type === '__CLEAR_ALL__' || n.title === '__RESET_ROOM_NOTIFICATIONS__') return false;
     if (filter === "unread") return !n.read;
     return true;
   });

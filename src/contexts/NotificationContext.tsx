@@ -18,7 +18,8 @@ export type NotificationType =
   | 'success'
   | 'warning'
   | 'error'
-  | '__DELETED__';
+  | '__DELETED__'
+  | '__CLEAR_ALL__';
 
 export interface Notification {
   id: string;
@@ -89,6 +90,33 @@ const addPersistedDeletedIds = (userId: string, ids: string[]) => {
   }
 };
 
+// Storage helper for persisted clear timestamp per student
+const getClearTsKey = (userId: string) => `course_harmony_clear_ts_${userId}`;
+
+const getLastClearTimestamp = (userId: string): number => {
+  try {
+    const raw = localStorage.getItem(getClearTsKey(userId));
+    if (raw) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Failed to get last clear timestamp:', e);
+  }
+  return 0;
+};
+
+const setLastClearTimestamp = (userId: string, ts: number) => {
+  try {
+    const current = getLastClearTimestamp(userId);
+    if (ts > current) {
+      localStorage.setItem(getClearTsKey(userId), ts.toString());
+    }
+  } catch (e) {
+    console.error('Failed to set last clear timestamp:', e);
+  }
+};
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -106,12 +134,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setLoading(true);
     try {
       const deletedIds = getPersistedDeletedIds(user.id);
+      let lastClearTs = getLastClearTimestamp(user.id);
 
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
-        .neq('type', '__DELETED__')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -119,14 +147,69 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return;
       }
 
-      const active = (data || [])
-        .filter(n => n.type !== '__DELETED__' && !deletedIds.has(n.id))
+      const allRows = data || [];
+
+      // Check for reset markers
+      const clearMarkers = allRows.filter(
+        n => n.type === '__CLEAR_ALL__' || n.title === '__RESET_ROOM_NOTIFICATIONS__'
+      );
+
+      if (clearMarkers.length > 0) {
+        const maxMarkerTs = Math.max(
+          ...clearMarkers.map(m => new Date(m.created_at).getTime())
+        );
+        if (maxMarkerTs > lastClearTs) {
+          lastClearTs = maxMarkerTs;
+          setLastClearTimestamp(user.id, maxMarkerTs);
+        }
+      }
+
+      // Filter active notifications
+      const active = allRows
+        .filter(n => {
+          if (n.type === '__DELETED__' || n.type === '__CLEAR_ALL__') return false;
+          if (n.title === '__RESET_ROOM_NOTIFICATIONS__') return false;
+          if (deletedIds.has(n.id)) return false;
+          const notifTime = new Date(n.created_at).getTime();
+          if (lastClearTs > 0 && notifTime <= lastClearTs) return false;
+          return true;
+        })
         .map(notification => ({
           ...notification,
           type: (notification.type as NotificationType) || 'info'
         }));
 
       setNotifications(active);
+
+      // Student client cleanup in Supabase for rows <= lastClearTs
+      if (lastClearTs > 0) {
+        const staleRows = allRows.filter(n => {
+          const notifTime = new Date(n.created_at).getTime();
+          return notifTime <= lastClearTs || n.type === '__CLEAR_ALL__' || n.title === '__RESET_ROOM_NOTIFICATIONS__';
+        });
+
+        if (staleRows.length > 0) {
+          const staleIds = staleRows.map(r => r.id);
+          addPersistedDeletedIds(user.id, staleIds);
+
+          // As the student (auth.uid() = user_id), perform cleanup
+          try {
+            await supabase
+              .from('notifications')
+              .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
+              .eq('user_id', user.id)
+              .lte('created_at', new Date(lastClearTs).toISOString());
+
+            await supabase
+              .from('notifications')
+              .delete()
+              .eq('user_id', user.id)
+              .lte('created_at', new Date(lastClearTs).toISOString());
+          } catch (cleanErr) {
+            console.error('Error during student cleanup:', cleanErr);
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {
@@ -139,6 +222,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!user || user.role !== 'student' || !user.room_id) return;
 
     try {
+      const lastClearTs = getLastClearTimestamp(user.id);
+      const deletedIds = getPersistedDeletedIds(user.id);
+
       // 1. Get courses in student's room
       const { data: courses, error: coursesError } = await supabase
         .from('courses')
@@ -164,13 +250,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       // 3. Get existing reminders for this user
       const { data: existingReminders } = await supabase
         .from('notifications')
-        .select('exam_id, created_at')
+        .select('id, exam_id, created_at, type')
         .eq('user_id', user.id)
         .eq('type', 'exam_reminder');
 
       const existingExamIds = new Set(
         (existingReminders || [])
           .filter(r => {
+            if (deletedIds.has(r.id)) return true;
             const reminderDate = new Date(r.created_at);
             return now.getTime() - reminderDate.getTime() < 24 * 60 * 60 * 1000;
           })
@@ -186,6 +273,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         // If exam is in the future and within the next 24 hours
         if (hoursDiff > 0 && hoursDiff <= 24 && !existingExamIds.has(exam.id)) {
+          // If cleared after exam creation, skip
+          const examCreatedTs = new Date(exam.created_at || exam.updated_at || 0).getTime();
+          if (lastClearTs > 0 && examCreatedTs <= lastClearTs) {
+            continue;
+          }
+
           const formattedDate = examDate.toLocaleDateString(undefined, {
             weekday: 'short',
             month: 'short',
@@ -239,12 +332,42 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           table: 'notifications',
           filter: `user_id=eq.${user.id}`
         },
-        (payload) => {
-          const deletedIds = getPersistedDeletedIds(user.id);
-
+        async (payload) => {
           if (payload.eventType === 'INSERT') {
             const newNotif = payload.new as Notification;
-            if (newNotif.type !== '__DELETED__' && !deletedIds.has(newNotif.id)) {
+            
+            // Check for reset marker
+            if (newNotif.type === '__CLEAR_ALL__' || newNotif.title === '__RESET_ROOM_NOTIFICATIONS__') {
+              const clearTs = new Date(newNotif.created_at).getTime();
+              setLastClearTimestamp(user.id, clearTs);
+              setNotifications([]);
+              try {
+                await supabase
+                  .from('notifications')
+                  .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
+                  .eq('user_id', user.id)
+                  .lte('created_at', newNotif.created_at);
+
+                await supabase
+                  .from('notifications')
+                  .delete()
+                  .eq('user_id', user.id)
+                  .lte('created_at', newNotif.created_at);
+              } catch (e) {
+                // ignore
+              }
+              return;
+            }
+
+            const deletedIds = getPersistedDeletedIds(user.id);
+            const lastClearTs = getLastClearTimestamp(user.id);
+            const notifTime = new Date(newNotif.created_at).getTime();
+
+            if (
+              newNotif.type !== '__DELETED__' &&
+              !deletedIds.has(newNotif.id) &&
+              (lastClearTs === 0 || notifTime > lastClearTs)
+            ) {
               setNotifications(prev => [
                 { ...newNotif, type: (newNotif.type as NotificationType) || 'info' },
                 ...prev
@@ -256,7 +379,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             }
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Notification;
-            if (updated.type === '__DELETED__' || deletedIds.has(updated.id)) {
+            const deletedIds = getPersistedDeletedIds(user.id);
+            const lastClearTs = getLastClearTimestamp(user.id);
+            const notifTime = new Date(updated.created_at).getTime();
+
+            if (
+              updated.type === '__DELETED__' ||
+              updated.type === '__CLEAR_ALL__' ||
+              deletedIds.has(updated.id) ||
+              (lastClearTs > 0 && notifTime <= lastClearTs)
+            ) {
               setNotifications(prev => prev.filter(n => n.id !== updated.id));
             } else {
               setNotifications(prev =>
@@ -271,8 +403,27 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       )
       .subscribe();
 
+    // Also listen to room broadcasts for students
+    let roomChannel: any = null;
+    if (user.role === 'student' && user.room_id) {
+      roomChannel = supabase
+        .channel(`room-notifications-${user.room_id}`)
+        .on('broadcast', { event: 'clear_all' }, (payload) => {
+          const clearTs = payload.payload?.timestamp ? new Date(payload.payload.timestamp).getTime() : Date.now();
+          setLastClearTimestamp(user.id, clearTs);
+          setNotifications([]);
+          supabase
+            .from('notifications')
+            .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
+            .eq('user_id', user.id)
+            .lte('created_at', new Date(clearTs).toISOString());
+        })
+        .subscribe();
+    }
+
     return () => {
       supabase.removeChannel(channel);
+      if (roomChannel) supabase.removeChannel(roomChannel);
     };
   }, [user, fetchNotifications, checkExamReminders]);
 
@@ -323,24 +474,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  // Robust delete using both soft-delete update, hard-delete attempt, and localStorage persistence
+  // Robust delete using soft-delete update, hard-delete attempt, and localStorage persistence
   const deleteNotification = async (id: string): Promise<boolean> => {
     if (!user) return false;
 
     try {
-      // 1. Persist to localStorage
       addPersistedDeletedIds(user.id, [id]);
-
-      // 2. Optimistically update local state
       setNotifications(prev => prev.filter(n => n.id !== id));
 
-      // 3. Mark as deleted in Supabase (allowed by UPDATE RLS policy)
       await supabase
         .from('notifications')
         .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
         .eq('id', id);
 
-      // 4. Also attempt hard delete in case policy allows it
       await supabase
         .from('notifications')
         .delete()
@@ -353,28 +499,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  // Robust clear all using both soft-delete update, hard-delete attempt, and localStorage persistence
+  // Robust clear all using soft-delete update, hard-delete attempt, and localStorage persistence
   const clearAllNotifications = async (): Promise<boolean> => {
     if (!user) return false;
 
     try {
-      const currentIds = notifications.map(n => n.id);
+      const nowTs = Date.now();
+      setLastClearTimestamp(user.id, nowTs);
 
-      // 1. Persist all IDs to localStorage
+      const currentIds = notifications.map(n => n.id);
       if (currentIds.length > 0) {
         addPersistedDeletedIds(user.id, currentIds);
       }
 
-      // 2. Optimistically clear local state
       setNotifications([]);
 
-      // 3. Mark all as deleted in Supabase (allowed by UPDATE RLS policy)
       await supabase
         .from('notifications')
         .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
         .eq('user_id', user.id);
 
-      // 4. Also attempt hard delete
       await supabase
         .from('notifications')
         .delete()
@@ -390,7 +534,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   // Professor clears all notifications for all students in a specific room/class
   const clearRoomStudentsNotifications = async (roomId: string): Promise<boolean> => {
     try {
-      // 1. Get all students in this room (direct assignment + enrollments)
+      // 1. Get all students in this room
       const { data: roomStudents } = await supabase
         .from('profiles')
         .select('id')
@@ -407,6 +551,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       (enrollments || []).forEach(e => studentIdsSet.add(e.student_id));
 
+      // Get room courses
+      const { data: roomCourses } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('room_id', roomId);
+
+      const courseIds = (roomCourses || []).map(c => c.id);
+
+      if (courseIds.length > 0) {
+        const { data: courseEnrollments } = await supabase
+          .from('enrollments')
+          .select('student_id')
+          .in('course_id', courseIds);
+
+        (courseEnrollments || []).forEach(e => studentIdsSet.add(e.student_id));
+      }
+
       const studentIds = Array.from(studentIdsSet);
 
       if (studentIds.length === 0) {
@@ -414,23 +575,68 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return true;
       }
 
-      // 2. Mark as deleted in Supabase so it triggers Realtime and updates DB
-      const { error: updateError } = await supabase
-        .from('notifications')
-        .update({ type: '__DELETED__', updated_at: new Date().toISOString() })
-        .in('user_id', studentIds);
-
-      if (updateError) {
-        console.error('Error clearing room notifications:', updateError);
-        toast.error("Erreur lors de la suppression des notifications");
-        return false;
+      // 2. Find a valid course_id owned by the professor so the INSERT policy passes
+      let validCourseId: string | null = courseIds[0] || null;
+      if (!validCourseId && user) {
+        const { data: profCourses } = await supabase
+          .from('courses')
+          .select('id')
+          .eq('professor_id', user.id)
+          .limit(1);
+        if (profCourses && profCourses.length > 0) {
+          validCourseId = profCourses[0].id;
+        }
       }
 
-      // 3. Attempt hard delete as well
+      if (!validCourseId) {
+        const { data: anyCourse } = await supabase
+          .from('courses')
+          .select('id')
+          .limit(1);
+        if (anyCourse && anyCourse.length > 0) {
+          validCourseId = anyCourse[0].id;
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // 3. Insert reset markers for each student (allowed by professor INSERT policy)
+      if (validCourseId) {
+        const resetRows = studentIds.map(studentId => ({
+          user_id: studentId,
+          title: '__RESET_ROOM_NOTIFICATIONS__',
+          message: `RESET_${roomId}_${nowIso}`,
+          type: '__CLEAR_ALL__' as NotificationType,
+          course_id: validCourseId,
+          read: true,
+          created_at: nowIso,
+          updated_at: nowIso
+        }));
+
+        const { error: insertError } = await supabase.from('notifications').insert(resetRows);
+        if (insertError) {
+          console.error('Error inserting clear markers:', insertError);
+        }
+      }
+
+      // 4. Update the room updated_at
       await supabase
-        .from('notifications')
-        .delete()
-        .in('user_id', studentIds);
+        .from('rooms')
+        .update({ updated_at: nowIso })
+        .eq('id', roomId);
+
+      // 5. Broadcast to room realtime channel
+      const channel = supabase.channel(`room-notifications-${roomId}`);
+      channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.send({
+            type: 'broadcast',
+            event: 'clear_all',
+            payload: { roomId, timestamp: nowIso }
+          });
+          supabase.removeChannel(channel);
+        }
+      });
 
       toast.success("Toutes les notifications des élèves de cette classe ont été supprimées avec succès !");
       return true;
