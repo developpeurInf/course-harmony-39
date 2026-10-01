@@ -463,10 +463,16 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       await refreshData(course.room_id);
       toast.success("Course added successfully");
       
-      // Notify enrolled students
+      // Notify enrolled and room students
       setTimeout(async () => {
-        await notifyStudentsAboutUpdate(data.id, course.title, 'course');
-      }, 1000);
+        await notifyStudentsAboutUpdate({
+          courseId: data.id,
+          roomId: course.room_id,
+          title: course.title,
+          itemType: 'course',
+          action: 'add'
+        });
+      }, 500);
       
       return data;
     } catch (error) {
@@ -499,6 +505,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   const deleteCourse = async (courseId: string): Promise<boolean> => {
     try {
+      // Find course details before deletion
+      const courseToDelete = courses.find(c => c.id === courseId);
+      const courseTitle = courseToDelete?.title || 'Cours';
+      const courseRoomId = courseToDelete?.room_id;
+
       // First, delete all related data from the database
       console.log('Deleting course and all related data for course:', courseId);
       
@@ -618,6 +629,19 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       // Refresh all data from database to ensure consistency
       await refreshData();
       
+      // Notify students about course deletion
+      if (courseToDelete) {
+        setTimeout(async () => {
+          await notifyStudentsAboutUpdate({
+            courseId,
+            roomId: courseRoomId,
+            title: courseTitle,
+            itemType: 'course',
+            action: 'delete'
+          });
+        }, 500);
+      }
+
       toast.success("Course and all related data deleted successfully");
       return true;
     } catch (error) {
@@ -685,10 +709,19 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       await refreshData();
       toast.success("Exercise added successfully");
       
-      // Notify enrolled students
+      // Notify enrolled and room students
+      const parentCourse = courses.find(c => c.id === exercise.course_id);
       setTimeout(async () => {
-        await notifyStudentsAboutUpdate(exercise.course_id, exercise.title, 'exercise');
-      }, 1000);
+        await notifyStudentsAboutUpdate({
+          courseId: exercise.course_id,
+          exerciseId: data.id,
+          roomId: parentCourse?.room_id,
+          title: exercise.title,
+          courseTitle: parentCourse?.title,
+          itemType: 'exercise',
+          action: 'add'
+        });
+      }, 500);
       
       return data;
     } catch (error) {
@@ -721,6 +754,9 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   const deleteExercise = async (exerciseId: string): Promise<boolean> => {
     try {
+      const exerciseToDelete = exercises.find(e => e.id === exerciseId);
+      const parentCourse = exerciseToDelete ? courses.find(c => c.id === exerciseToDelete.course_id) : null;
+
       const { error } = await supabase
         .from('exercises')
         .delete()
@@ -733,6 +769,21 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       // Refresh data to ensure consistency
       await refreshData();
+
+      // Notify students about exercise deletion
+      if (exerciseToDelete) {
+        setTimeout(async () => {
+          await notifyStudentsAboutUpdate({
+            courseId: exerciseToDelete.course_id,
+            exerciseId,
+            roomId: parentCourse?.room_id,
+            title: exerciseToDelete.title,
+            itemType: 'exercise',
+            action: 'delete'
+          });
+        }, 500);
+      }
+
       toast.success("Exercise deleted successfully");
       return true;
     } catch (error) {
@@ -813,10 +864,19 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       await refreshData();
       toast.success("Exam added successfully");
       
-      // Notify enrolled students
+      // Notify enrolled and room students
+      const parentCourse = courses.find(c => c.id === exam.course_id);
       setTimeout(async () => {
-        await notifyStudentsAboutUpdate(exam.course_id, exam.title, 'exam');
-      }, 1000);
+        await notifyStudentsAboutUpdate({
+          courseId: exam.course_id,
+          examId: data.id,
+          roomId: parentCourse?.room_id,
+          title: exam.title,
+          examDate: exam.exam_date,
+          itemType: exam.type === 'quiz' ? 'quiz' : 'exam',
+          action: 'add'
+        });
+      }, 500);
       
       return data as Exam;
     } catch (error) {
@@ -849,6 +909,9 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   const deleteExam = async (examId: string): Promise<boolean> => {
     try {
+      const examToDelete = exams.find(e => e.id === examId);
+      const parentCourse = examToDelete ? courses.find(c => c.id === examToDelete.course_id) : null;
+
       const { error } = await supabase
         .from('exams')
         .delete()
@@ -861,6 +924,21 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       // Refresh data to ensure consistency
       await refreshData();
+
+      // Notify students about exam deletion
+      if (examToDelete) {
+        setTimeout(async () => {
+          await notifyStudentsAboutUpdate({
+            courseId: examToDelete.course_id,
+            examId,
+            roomId: parentCourse?.room_id,
+            title: examToDelete.title,
+            itemType: examToDelete.type === 'quiz' ? 'quiz' : 'exam',
+            action: 'delete'
+          });
+        }, 500);
+      }
+
       toast.success("Exam deleted successfully");
       return true;
     } catch (error) {
@@ -1232,37 +1310,117 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return quizSubmissions.find(sub => sub.exam_id === examId && sub.student_id === studentId) || null;
   };
 
-  const notifyStudentsAboutUpdate = async (courseId: string, title: string, type: 'course' | 'exercise' | 'exam') => {
+  const notifyStudentsAboutUpdate = async (params: {
+    courseId?: string | null;
+    roomId?: string | null;
+    exerciseId?: string | null;
+    examId?: string | null;
+    title: string;
+    courseTitle?: string;
+    itemType: 'course' | 'exercise' | 'exam' | 'quiz';
+    action: 'add' | 'delete';
+    examDate?: string;
+  }) => {
     try {
-      // Get all students enrolled in the course
-      const { data: enrollments, error: enrollmentError } = await supabase
-        .from('enrollments')
-        .select('student_id')
-        .eq('course_id', courseId);
+      const {
+        courseId,
+        roomId,
+        exerciseId,
+        examId,
+        title,
+        courseTitle,
+        itemType,
+        action,
+        examDate
+      } = params;
 
-      if (enrollmentError || !enrollments || enrollments.length === 0) {
+      const studentIdsSet = new Set<string>();
+
+      // 1. If roomId provided, get all students in this room
+      if (roomId) {
+        const { data: roomStudents } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('room_id', roomId)
+          .eq('role', 'student');
+
+        (roomStudents || []).forEach(s => studentIdsSet.add(s.id));
+      }
+
+      // 2. If courseId provided, get all enrolled students
+      if (courseId) {
+        const { data: enrollments } = await supabase
+          .from('enrollments')
+          .select('student_id')
+          .eq('course_id', courseId);
+
+        (enrollments || []).forEach(e => studentIdsSet.add(e.student_id));
+      }
+
+      if (studentIdsSet.size === 0) {
         return;
       }
 
-      const studentIds = enrollments.map(e => e.student_id);
+      // 3. Format title, message, and type
+      let notifType: string;
+      let notifTitle: string;
+      let notifMessage: string;
 
-      // Create notification for each student
-      const notificationData = {
-        title: `New ${type} available`,
-        message: `${title} has been added to your course`,
-        type: 'info' as const,
+      if (action === 'add') {
+        if (itemType === 'course') {
+          notifType = 'course_added';
+          notifTitle = `📚 Nouveau cours disponible`;
+          notifMessage = `Le cours "${title}" a été publié pour votre classe.`;
+        } else if (itemType === 'exercise') {
+          notifType = 'exercise_added';
+          notifTitle = `📝 Nouvel exercice disponible`;
+          notifMessage = courseTitle
+            ? `L'exercice "${title}" a été ajouté dans le cours "${courseTitle}".`
+            : `L'exercice "${title}" a été ajouté à vos devoirs.`;
+        } else if (itemType === 'quiz') {
+          notifType = 'exam_added';
+          notifTitle = `🎯 Nouveau Quiz programmé`;
+          notifMessage = examDate
+            ? `Le quiz "${title}" est disponible. Date limite : ${new Date(examDate).toLocaleDateString()}.`
+            : `Le quiz "${title}" est maintenant disponible.`;
+        } else {
+          notifType = 'exam_added';
+          notifTitle = `🎓 Nouvel examen programmé`;
+          notifMessage = examDate
+            ? `L'examen "${title}" est programmé pour le ${new Date(examDate).toLocaleDateString()}.`
+            : `L'examen "${title}" a été ajouté.`;
+        }
+      } else {
+        if (itemType === 'course') {
+          notifType = 'course_deleted';
+          notifTitle = `🗑️ Cours retiré`;
+          notifMessage = `Le cours "${title}" a été retiré par votre professeur.`;
+        } else if (itemType === 'exercise') {
+          notifType = 'exercise_deleted';
+          notifTitle = `🗑️ Exercice retiré`;
+          notifMessage = `L'exercice "${title}" a été supprimé.`;
+        } else {
+          notifType = 'exam_deleted';
+          notifTitle = `🗑️ Évaluation retirée`;
+          notifMessage = `L'évaluation "${title}" a été supprimée/annulée.`;
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      const insertRows = Array.from(studentIdsSet).map(studentId => ({
+        user_id: studentId,
+        title: notifTitle,
+        message: notifMessage,
+        type: notifType,
         read: false,
-        course_id: courseId
-      };
-
-      const notifications = studentIds.map(studentId => ({
-        ...notificationData,
-        user_id: studentId
+        course_id: courseId || null,
+        exercise_id: exerciseId || null,
+        exam_id: examId || null,
+        created_at: nowIso,
+        updated_at: nowIso
       }));
 
-      await supabase
-        .from('notifications')
-        .insert(notifications);
+      await supabase.from('notifications').insert(insertRows);
     } catch (error) {
       console.error('Failed to notify students:', error);
     }

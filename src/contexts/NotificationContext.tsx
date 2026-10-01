@@ -1,20 +1,45 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
+
+export type NotificationType =
+  | 'course_added'
+  | 'course_deleted'
+  | 'exercise_added'
+  | 'exercise_deleted'
+  | 'exam_added'
+  | 'exam_deleted'
+  | 'exam_reminder'
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
 
 export interface Notification {
   id: string;
   user_id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: NotificationType;
   read: boolean;
   created_at: string;
   updated_at: string;
-  course_id?: string;
-  exam_id?: string;
-  exercise_id?: string;
+  course_id?: string | null;
+  exam_id?: string | null;
+  exercise_id?: string | null;
+}
+
+export interface NotifyRoomParams {
+  roomId?: string | null;
+  courseId?: string | null;
+  exerciseId?: string | null;
+  examId?: string | null;
+  title: string;
+  courseTitle?: string;
+  itemType: 'course' | 'exercise' | 'exam' | 'quiz';
+  action: 'add' | 'delete';
+  examDate?: string;
 }
 
 interface NotificationContextType {
@@ -23,8 +48,12 @@ interface NotificationContextType {
   loading: boolean;
   markAsRead: (id: string) => Promise<boolean>;
   markAllAsRead: () => Promise<boolean>;
-  createNotification: (notification: Omit<Notification, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<boolean>;
-  notifyStudentsAboutCourse: (courseId: string, title: string, type: 'course' | 'exercise' | 'exam') => Promise<void>;
+  deleteNotification: (id: string) => Promise<boolean>;
+  clearAllNotifications: () => Promise<boolean>;
+  createNotification: (notification: Omit<Notification, 'id' | 'created_at' | 'updated_at'>) => Promise<boolean>;
+  notifyRoomStudents: (params: NotifyRoomParams) => Promise<void>;
+  checkExamReminders: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -33,21 +62,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const reminderCheckedRef = useRef(false);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Fetch notifications for the current user
-  useEffect(() => {
-    if (user) {
-      fetchNotifications();
-    } else {
+  const fetchNotifications = useCallback(async () => {
+    if (!user) {
       setNotifications([]);
+      return;
     }
-  }, [user]);
 
-  const fetchNotifications = async () => {
-    if (!user) return;
-    
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -63,20 +87,156 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       setNotifications((data || []).map(notification => ({
         ...notification,
-        type: notification.type as 'info' | 'success' | 'warning' | 'error'
+        type: (notification.type as NotificationType) || 'info'
       })));
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  // Check for exams approaching in less than 24h
+  const checkExamReminders = useCallback(async () => {
+    if (!user || user.role !== 'student' || !user.room_id) return;
+
+    try {
+      // 1. Get courses in student's room
+      const { data: courses, error: coursesError } = await supabase
+        .from('courses')
+        .select('id, title')
+        .eq('room_id', user.room_id)
+        .eq('is_visible', true);
+
+      if (coursesError || !courses || courses.length === 0) return;
+
+      const courseIds = courses.map(c => c.id);
+
+      // 2. Get exams for these courses
+      const { data: exams, error: examsError } = await supabase
+        .from('exams')
+        .select('*')
+        .in('course_id', courseIds)
+        .eq('is_visible', true);
+
+      if (examsError || !exams || exams.length === 0) return;
+
+      const now = new Date();
+      const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      // 3. Get existing reminders for this user
+      const { data: existingReminders } = await supabase
+        .from('notifications')
+        .select('exam_id, created_at')
+        .eq('user_id', user.id)
+        .eq('type', 'exam_reminder');
+
+      const existingExamIds = new Set(
+        (existingReminders || [])
+          .filter(r => {
+            const reminderDate = new Date(r.created_at);
+            // Ignore reminders sent in the last 24h
+            return now.getTime() - reminderDate.getTime() < 24 * 60 * 60 * 1000;
+          })
+          .map(r => r.exam_id)
+      );
+
+      for (const exam of exams) {
+        if (!exam.exam_date) continue;
+
+        const examDate = new Date(exam.exam_date);
+        const timeDiff = examDate.getTime() - now.getTime();
+        const hoursDiff = timeDiff / (1000 * 60 * 60);
+
+        // If exam is in the future and within the next 24 hours
+        if (hoursDiff > 0 && hoursDiff <= 24 && !existingExamIds.has(exam.id)) {
+          const formattedDate = examDate.toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          await supabase.from('notifications').insert({
+            user_id: user.id,
+            title: `⏰ Rappel : ${exam.type === 'quiz' ? 'Quiz' : 'Examen'} dans moins de 24h !`,
+            message: `L'évaluation "${exam.title}" aura lieu le ${formattedDate}. Préparez-vous !`,
+            type: 'exam_reminder',
+            read: false,
+            course_id: exam.course_id,
+            exam_id: exam.id
+          });
+
+          existingExamIds.add(exam.id);
+        }
+      }
+
+      fetchNotifications();
+    } catch (err) {
+      console.error('Error checking exam reminders:', err);
+    }
+  }, [user, fetchNotifications]);
+
+  // Initial fetch and Realtime subscription
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+
+    fetchNotifications();
+
+    if (!reminderCheckedRef.current && user.role === 'student') {
+      reminderCheckedRef.current = true;
+      checkExamReminders();
+    }
+
+    // Set up Realtime subscription for user's notifications
+    const channel = supabase
+      .channel(`user-notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newNotif = payload.new as Notification;
+            setNotifications(prev => [
+              { ...newNotif, type: (newNotif.type as NotificationType) || 'info' },
+              ...prev
+            ]);
+            toast.info(newNotif.title, {
+              description: newNotif.message,
+              duration: 5000,
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as Notification;
+            setNotifications(prev =>
+              prev.map(n => n.id === updated.id ? { ...updated, type: (updated.type as NotificationType) || 'info' } : n)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as { id: string }).id;
+            setNotifications(prev => prev.filter(n => n.id !== deletedId));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchNotifications, checkExamReminders]);
 
   const markAsRead = async (id: string): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ read: true, updated_at: new Date().toISOString() })
         .eq('id', id);
 
       if (error) {
@@ -84,7 +244,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return false;
       }
 
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, read: true } : n)
       );
       return true;
@@ -96,11 +256,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const markAllAsRead = async (): Promise<boolean> => {
     if (!user) return false;
-    
+
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ read: true, updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
         .eq('read', false);
 
@@ -109,9 +269,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return false;
       }
 
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => ({ ...n, read: true }))
       );
+      toast.success("Toutes les notifications sont marquées comme lues");
       return true;
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
@@ -119,15 +280,59 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  const createNotification = async (notification: Omit<Notification, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<boolean> => {
+  const deleteNotification = async (id: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Failed to delete notification:', error);
+        return false;
+      }
+
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      return true;
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      return false;
+    }
+  };
+
+  const clearAllNotifications = async (): Promise<boolean> => {
     if (!user) return false;
-    
+
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Failed to clear notifications:', error);
+        return false;
+      }
+
+      setNotifications([]);
+      toast.success("Toutes les notifications ont été supprimées");
+      return true;
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+      return false;
+    }
+  };
+
+  const createNotification = async (
+    notification: Omit<Notification, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('notifications')
         .insert({
           ...notification,
-          user_id: user.id
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
       if (error) {
@@ -135,7 +340,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         return false;
       }
 
-      // Refresh notifications
       fetchNotifications();
       return true;
     } catch (error) {
@@ -144,50 +348,114 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  const notifyStudentsAboutCourse = async (courseId: string, title: string, type: 'course' | 'exercise' | 'exam'): Promise<void> => {
+  // Broadcast addition/deletion of course, exercise, exam to all students in room + enrollments
+  const notifyRoomStudents = async (params: NotifyRoomParams): Promise<void> => {
     try {
-      // Get all students enrolled in the course
-      const { data: enrollments, error: enrollmentError } = await supabase
-        .from('enrollments')
-        .select('student_id')
-        .eq('course_id', courseId);
+      const {
+        roomId,
+        courseId,
+        exerciseId,
+        examId,
+        title,
+        courseTitle,
+        itemType,
+        action,
+        examDate
+      } = params;
 
-      if (enrollmentError) {
-        console.error('Failed to fetch enrollments:', enrollmentError);
+      const studentIdsSet = new Set<string>();
+
+      // 1. Find all students belonging to the room
+      if (roomId) {
+        const { data: roomStudents } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('room_id', roomId)
+          .eq('role', 'student');
+
+        (roomStudents || []).forEach(s => studentIdsSet.add(s.id));
+      }
+
+      // 2. Find students enrolled in the course if courseId is available
+      if (courseId) {
+        const { data: enrollments } = await supabase
+          .from('enrollments')
+          .select('student_id')
+          .eq('course_id', courseId);
+
+        (enrollments || []).forEach(e => studentIdsSet.add(e.student_id));
+      }
+
+      if (studentIdsSet.size === 0) {
         return;
       }
 
-      if (!enrollments || enrollments.length === 0) {
-        return;
+      // 3. Determine notification type, title, and message
+      let notifType: NotificationType;
+      let notifTitle: string;
+      let notifMessage: string;
+
+      if (action === 'add') {
+        if (itemType === 'course') {
+          notifType = 'course_added';
+          notifTitle = `📚 Nouveau cours disponible`;
+          notifMessage = `Le cours "${title}" a été publié pour votre classe.`;
+        } else if (itemType === 'exercise') {
+          notifType = 'exercise_added';
+          notifTitle = `📝 Nouvel exercice disponible`;
+          notifMessage = courseTitle
+            ? `L'exercice "${title}" a été ajouté dans le cours "${courseTitle}".`
+            : `L'exercice "${title}" a été ajouté à vos devoirs.`;
+        } else if (itemType === 'quiz') {
+          notifType = 'exam_added';
+          notifTitle = `🎯 Nouveau Quiz programmé`;
+          notifMessage = examDate
+            ? `Le quiz "${title}" est disponible. Date limite : ${new Date(examDate).toLocaleDateString()}.`
+            : `Le quiz "${title}" est maintenant disponible.`;
+        } else {
+          notifType = 'exam_added';
+          notifTitle = `🎓 Nouvel examen programmé`;
+          notifMessage = examDate
+            ? `L'examen "${title}" est programmé pour le ${new Date(examDate).toLocaleDateString()}.`
+            : `L'examen "${title}" a été ajouté.`;
+        }
+      } else {
+        // Deletion
+        if (itemType === 'course') {
+          notifType = 'course_deleted';
+          notifTitle = `🗑️ Cours retiré`;
+          notifMessage = `Le cours "${title}" a été retiré par votre professeur.`;
+        } else if (itemType === 'exercise') {
+          notifType = 'exercise_deleted';
+          notifTitle = `🗑️ Exercice retiré`;
+          notifMessage = `L'exercice "${title}" a été supprimé.`;
+        } else {
+          notifType = 'exam_deleted';
+          notifTitle = `🗑️ Évaluation retirée`;
+          notifMessage = `L'évaluation "${title}" a été supprimée/annulée.`;
+        }
       }
 
-      const studentIds = enrollments.map(e => e.student_id);
-
-      // Create notification for each student
-      const notificationData = {
-        title: `New ${type} available`,
-        message: `${title} has been added to your course`,
-        type: 'info' as const,
+      const nowIso = new Date().toISOString();
+      const insertRows = Array.from(studentIdsSet).map(studentId => ({
+        user_id: studentId,
+        title: notifTitle,
+        message: notifMessage,
+        type: notifType,
         read: false,
-        course_id: courseId,
-        ...(type === 'exam' && { exam_id: courseId }),
-        ...(type === 'exercise' && { exercise_id: courseId })
-      };
-
-      const notifications = studentIds.map(studentId => ({
-        ...notificationData,
-        user_id: studentId
+        course_id: courseId || null,
+        exercise_id: exerciseId || null,
+        exam_id: examId || null,
+        created_at: nowIso,
+        updated_at: nowIso
       }));
 
-      const { error } = await supabase
-        .from('notifications')
-        .insert(notifications);
-
+      const { error } = await supabase.from('notifications').insert(insertRows);
       if (error) {
-        console.error('Failed to create notifications:', error);
+        console.error('Error broadcasting notifications to students:', error);
       }
-    } catch (error) {
-      console.error('Failed to notify students:', error);
+    } catch (err) {
+      console.error('Exception in notifyRoomStudents:', err);
     }
   };
 
@@ -198,8 +466,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       loading,
       markAsRead,
       markAllAsRead,
+      deleteNotification,
+      clearAllNotifications,
       createNotification,
-      notifyStudentsAboutCourse
+      notifyRoomStudents,
+      checkExamReminders,
+      refreshNotifications: fetchNotifications
     }}>
       {children}
     </NotificationContext.Provider>
