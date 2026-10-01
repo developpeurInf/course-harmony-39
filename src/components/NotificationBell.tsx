@@ -46,6 +46,8 @@ export const NotificationBell = () => {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const navigate = useNavigate();
 
+  const isRtl = language === "ar";
+
   const t = (fr: string, ar: string, en: string) =>
     language === "ar" ? ar : language === "fr" ? fr : en;
 
@@ -86,7 +88,7 @@ export const NotificationBell = () => {
     });
   };
 
-  // Helper to extract the original item title (inside quotes or fallback)
+  // Helper to extract the item title (inside quotes or fallback)
   const extractItemTitle = (notification: Notification): string => {
     const match = notification.message.match(/"([^"]+)"/) || notification.title.match(/"([^"]+)"/);
     if (match && match[1]) {
@@ -95,7 +97,7 @@ export const NotificationBell = () => {
     return "";
   };
 
-  // Localize title and message based on the active language
+  // Localize title and formatted message parts
   const getLocalizedContent = (notification: Notification) => {
     const itemTitle = extractItemTitle(notification);
     const type = notification.type;
@@ -103,136 +105,109 @@ export const NotificationBell = () => {
     if (type === 'course_added') {
       return {
         title: t("📚 Nouveau cours disponible", "📚 درس جديد متوفر", "📚 New course available"),
-        message: itemTitle
-          ? t(
-              `Le cours "${itemTitle}" a été publié pour votre classe.`,
-              `تم نشر الدرس "${itemTitle}" لقسمك.`,
-              `The course "${itemTitle}" has been published for your class.`
-            )
-          : notification.message
+        prefix: t("Le cours ", "تم نشر الدرس ", "The course "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" a été publié pour votre classe.", " لقسمك.", " has been published for your class."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'course_updated') {
       return {
         title: t("🔄 Cours mis à jour", "🔄 تم تحديث الدرس", "🔄 Course updated"),
-        message: itemTitle
-          ? t(
-              `Le contenu du cours "${itemTitle}" a été modifié. Veuillez le consulter.`,
-              `تم تعديل محتوى الدرس "${itemTitle}". يرجى الاطلاع عليه.`,
-              `The content of course "${itemTitle}" has been updated. Please check it out.`
-            )
-          : notification.message
+        prefix: t("Le contenu du cours ", "تم تعديل محتوى الدرس ", "The content of course "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(". Veuillez le consulter.", ". يرجى الاطلاع عليه.", ". Please check it out."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'course_deleted') {
       return {
         title: t("🗑️ Cours retiré", "🗑️ تم حذف الدرس", "🗑️ Course removed"),
-        message: itemTitle
-          ? t(
-              `Le cours "${itemTitle}" a été retiré par votre professeur.`,
-              `تم حذف الدرس "${itemTitle}" من قبل أستاذك.`,
-              `The course "${itemTitle}" was removed by your professor.`
-            )
-          : notification.message
+        prefix: t("Le cours ", "تم حذف الدرس ", "The course "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" a été retiré par votre professeur.", " من قبل أستاذك.", " was removed by your professor."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exercise_added') {
       return {
         title: t("📝 Nouvel exercice disponible", "📝 تمرين جديد متوفر", "📝 New exercise available"),
-        message: itemTitle
-          ? t(
-              `L'exercice "${itemTitle}" a été ajouté à votre classe.`,
-              `تمت إضافة التمرين "${itemTitle}" لقسمك.`,
-              `The exercise "${itemTitle}" has been added to your class.`
-            )
-          : notification.message
+        prefix: t("L'exercice ", "تمت إضافة التمرين ", "The exercise "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" a été ajouté à votre classe.", " لقسمك.", " has been added to your class."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exercise_updated') {
       return {
         title: t("🔄 Exercice mis à jour", "🔄 تم تحديث التمرين", "🔄 Exercise updated"),
-        message: itemTitle
-          ? t(
-              `L'exercice "${itemTitle}" a été modifié. Veuillez le consulter.`,
-              `تم تعديل التمرين "${itemTitle}". يرجى الاطلاع عليه.`,
-              `The exercise "${itemTitle}" has been updated. Please check it out.`
-            )
-          : notification.message
+        prefix: t("L'exercice ", "تم تعديل التمرين ", "The exercise "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(". Veuillez le consulter.", ". يرجى الاطلاع عليه.", ". Please check it out."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exercise_deleted') {
       return {
         title: t("🗑️ Exercice retiré", "🗑️ تم حذف التمرين", "🗑️ Exercise removed"),
-        message: itemTitle
-          ? t(
-              `L'exercice "${itemTitle}" a été supprimé.`,
-              `تم حذف التمرين "${itemTitle}".`,
-              `The exercise "${itemTitle}" was removed.`
-            )
-          : notification.message
+        prefix: t("L'exercice ", "تم حذف التمرين ", "The exercise "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" a été supprimé.", ".", " was removed."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exam_added') {
       return {
         title: t("🎓 Nouvelle évaluation programmée", "🎓 تقييم جديد مبرمج", "🎓 New assessment scheduled"),
-        message: itemTitle
-          ? t(
-              `L'évaluation "${itemTitle}" a été programmée pour votre classe.`,
-              `تمت برمجة التقييم "${itemTitle}" لقسمك.`,
-              `The assessment "${itemTitle}" has been scheduled for your class.`
-            )
-          : notification.message
+        prefix: t("L'évaluation ", "تمت برمجة التقييم ", "The assessment "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" a été programmée pour votre classe.", " لقسمك.", " has been scheduled for your class."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exam_updated') {
       return {
         title: t("🔄 Évaluation mise à jour", "🔄 تم تحديث التقييم", "🔄 Assessment updated"),
-        message: itemTitle
-          ? t(
-              `L'évaluation "${itemTitle}" a été modifiée. Veuillez vérifier les détails.`,
-              `تم تعديل التقييم "${itemTitle}". يرجى التحقق من التفاصيل.`,
-              `The assessment "${itemTitle}" has been updated. Please check the details.`
-            )
-          : notification.message
+        prefix: t("L'évaluation ", "تم تعديل التقييم ", "The assessment "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(". Veuillez vérifier les détails.", ". يرجى التحقق من التفاصيل.", ". Please check the details."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exam_deleted') {
       return {
         title: t("🗑️ Évaluation annulée", "🗑️ تم إلغاء التقييم", "🗑️ Assessment cancelled"),
-        message: itemTitle
-          ? t(
-              `L'évaluation "${itemTitle}" a été supprimée ou annulée.`,
-              `تم إلغاء أو حذف التقييم "${itemTitle}".`,
-              `The assessment "${itemTitle}" was cancelled or removed.`
-            )
-          : notification.message
+        prefix: t("L'évaluation ", "تم إلغاء التقييم ", "The assessment "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" a été annulée.", ".", " was cancelled."),
+        fallbackMessage: notification.message
       };
     }
 
     if (type === 'exam_reminder') {
       return {
         title: t("⏰ Rappel : Évaluation dans moins de 24h !", "⏰ تذكير: تقييم خلال أقل من 24 ساعة!", "⏰ Reminder: Assessment in less than 24h!"),
-        message: itemTitle
-          ? t(
-              `L'évaluation "${itemTitle}" aura lieu très prochainement. Préparez-vous !`,
-              `التقييم "${itemTitle}" سيُجرى قريباً جداً. استعد جيداً!`,
-              `The assessment "${itemTitle}" will take place very soon. Get ready!`
-            )
-          : notification.message
+        prefix: t("L'évaluation ", "التقييم ", "The assessment "),
+        itemTitle: itemTitle ? `"${itemTitle}"` : "",
+        suffix: t(" aura lieu très prochainement. Préparez-vous !", " سيُجرى قريباً جداً. استعد جيداً!", " will take place very soon. Get ready!"),
+        fallbackMessage: notification.message
       };
     }
 
     return {
       title: notification.title,
-      message: notification.message
+      prefix: "",
+      itemTitle: "",
+      suffix: "",
+      fallbackMessage: notification.message
     };
   };
 
@@ -337,8 +312,9 @@ export const NotificationBell = () => {
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[92vw] sm:w-[410px] p-0 shadow-2xl border-border/80 backdrop-blur-md bg-card/95 overflow-hidden"
-        align={language === "ar" ? "start" : "end"}
+        dir={isRtl ? "rtl" : "ltr"}
+        className="w-[92vw] sm:w-[420px] p-0 shadow-2xl border-border/80 backdrop-blur-md bg-card/95 overflow-hidden"
+        align={isRtl ? "start" : "end"}
         sideOffset={8}
       >
         {/* Header */}
@@ -468,8 +444,9 @@ export const NotificationBell = () => {
                 return (
                   <div
                     key={notification.id}
+                    dir={isRtl ? "rtl" : "ltr"}
                     className={cn(
-                      "group relative flex items-start gap-3 p-3.5 transition-all cursor-pointer hover:bg-muted/60",
+                      "group relative flex items-start gap-3 p-3.5 transition-all cursor-pointer hover:bg-muted/60 text-start",
                       !notification.read && "bg-primary/[0.04] dark:bg-primary/[0.07]"
                     )}
                     onClick={() => handleNotificationClick(notification)}
@@ -495,8 +472,15 @@ export const NotificationBell = () => {
                         </span>
                       </div>
 
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                        {localized.message}
+                      {/* BiDi-safe message rendering */}
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2" dir={isRtl ? "rtl" : "ltr"}>
+                        {localized.prefix}
+                        {localized.itemTitle && (
+                          <bdi className="font-semibold text-foreground mx-0.5">
+                            {localized.itemTitle}
+                          </bdi>
+                        )}
+                        {localized.suffix || localized.fallbackMessage}
                       </p>
 
                       <div className="flex items-center justify-between pt-1">
@@ -533,7 +517,10 @@ export const NotificationBell = () => {
 
                     {/* Unread indicator dot */}
                     {!notification.read && (
-                      <span className="absolute top-4 right-3 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+                      <span className={cn(
+                        "absolute top-4 h-2 w-2 rounded-full bg-primary ring-2 ring-background",
+                        isRtl ? "left-3" : "right-3"
+                      )} />
                     )}
                   </div>
                 );
