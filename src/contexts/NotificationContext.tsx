@@ -5,10 +5,13 @@ import { useAuth } from "./AuthContext";
 
 export type NotificationType =
   | 'course_added'
+  | 'course_updated'
   | 'course_deleted'
   | 'exercise_added'
+  | 'exercise_updated'
   | 'exercise_deleted'
   | 'exam_added'
+  | 'exam_updated'
   | 'exam_deleted'
   | 'exam_reminder'
   | 'info'
@@ -39,7 +42,7 @@ export interface NotifyRoomParams {
   title: string;
   courseTitle?: string;
   itemType: 'course' | 'exercise' | 'exam' | 'quiz';
-  action: 'add' | 'delete';
+  action: 'add' | 'delete' | 'update';
   examDate?: string;
 }
 
@@ -478,6 +481,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           notifMessage = examDate
             ? `L'examen "${title}" est programmé pour le ${new Date(examDate).toLocaleDateString()}.`
             : `L'examen "${title}" a été ajouté.`;
+        }
+      } else if (action === 'update') {
+        if (itemType === 'course') {
+          notifType = 'course_updated';
+          notifTitle = `🔄 Cours mis à jour`;
+          notifMessage = `Le contenu du cours "${title}" a été modifié. Veuillez le consulter.`;
+        } else if (itemType === 'exercise') {
+          notifType = 'exercise_updated';
+          notifTitle = `🔄 Exercice mis à jour`;
+          notifMessage = `L'exercice "${title}" a été modifié. Veuillez le consulter.`;
+        } else {
+          notifType = 'exam_updated';
+          notifTitle = `🔄 Évaluation mise à jour`;
+          notifMessage = `L'évaluation "${title}" a été modifiée. Veuillez vérifier les détails.`;
         }
       } else {
         // Deletion

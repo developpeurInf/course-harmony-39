@@ -496,6 +496,22 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       // Refresh data to ensure consistency
       await refreshData();
       toast.success("Course updated successfully");
+
+      // Notify enrolled and room students about modification
+      const course = courses.find(c => c.id === courseId);
+      const courseTitle = updates.title || course?.title || 'Cours';
+      const courseRoomId = updates.room_id || course?.room_id;
+
+      setTimeout(async () => {
+        await notifyStudentsAboutUpdate({
+          courseId,
+          roomId: courseRoomId,
+          title: courseTitle,
+          itemType: 'course',
+          action: 'update'
+        });
+      }, 500);
+
       return true;
     } catch (error) {
       toast.error("Failed to update course");
@@ -745,6 +761,25 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       // Refresh data to ensure consistency
       await refreshData();
       toast.success("Exercise updated successfully");
+
+      // Notify enrolled and room students about modification
+      const exercise = exercises.find(e => e.id === exerciseId);
+      const targetCourseId = updates.course_id || exercise?.course_id;
+      const parentCourse = courses.find(c => c.id === targetCourseId);
+      const exerciseTitle = updates.title || exercise?.title || 'Exercice';
+
+      setTimeout(async () => {
+        await notifyStudentsAboutUpdate({
+          courseId: targetCourseId,
+          exerciseId,
+          roomId: parentCourse?.room_id,
+          title: exerciseTitle,
+          courseTitle: parentCourse?.title,
+          itemType: 'exercise',
+          action: 'update'
+        });
+      }, 500);
+
       return true;
     } catch (error) {
       toast.error("Failed to update exercise");
@@ -900,6 +935,25 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       // Refresh data to ensure consistency
       await refreshData();
       toast.success("Exam updated successfully");
+
+      // Notify enrolled and room students about modification
+      const exam = exams.find(e => e.id === examId);
+      const targetCourseId = updates.course_id || exam?.course_id;
+      const parentCourse = courses.find(c => c.id === targetCourseId);
+      const examTitle = updates.title || exam?.title || 'Évaluation';
+
+      setTimeout(async () => {
+        await notifyStudentsAboutUpdate({
+          courseId: targetCourseId,
+          examId,
+          roomId: parentCourse?.room_id,
+          title: examTitle,
+          examDate: updates.exam_date || exam?.exam_date,
+          itemType: (updates.type || exam?.type) === 'quiz' ? 'quiz' : 'exam',
+          action: 'update'
+        });
+      }, 500);
+
       return true;
     } catch (error) {
       toast.error("Failed to update exam");
@@ -1318,7 +1372,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     title: string;
     courseTitle?: string;
     itemType: 'course' | 'exercise' | 'exam' | 'quiz';
-    action: 'add' | 'delete';
+    action: 'add' | 'delete' | 'update';
     examDate?: string;
   }) => {
     try {
@@ -1389,6 +1443,20 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
           notifMessage = examDate
             ? `L'examen "${title}" est programmé pour le ${new Date(examDate).toLocaleDateString()}.`
             : `L'examen "${title}" a été ajouté.`;
+        }
+      } else if (action === 'update') {
+        if (itemType === 'course') {
+          notifType = 'course_updated';
+          notifTitle = `🔄 Cours mis à jour`;
+          notifMessage = `Le contenu du cours "${title}" a été modifié. Veuillez le consulter.`;
+        } else if (itemType === 'exercise') {
+          notifType = 'exercise_updated';
+          notifTitle = `🔄 Exercice mis à jour`;
+          notifMessage = `L'exercice "${title}" a été modifié. Veuillez le consulter.`;
+        } else {
+          notifType = 'exam_updated';
+          notifTitle = `🔄 Évaluation mise à jour`;
+          notifMessage = `L'évaluation "${title}" a été modifiée. Veuillez vérifier les détails.`;
         }
       } else {
         if (itemType === 'course') {

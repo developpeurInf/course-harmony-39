@@ -113,6 +113,19 @@ export const NotificationBell = () => {
       };
     }
 
+    if (type === 'course_updated') {
+      return {
+        title: t("🔄 Cours mis à jour", "🔄 تم تحديث الدرس", "🔄 Course updated"),
+        message: itemTitle
+          ? t(
+              `Le contenu du cours "${itemTitle}" a été modifié. Veuillez le consulter.`,
+              `تم تعديل محتوى الدرس "${itemTitle}". يرجى الاطلاع عليه.`,
+              `The content of course "${itemTitle}" has been updated. Please check it out.`
+            )
+          : notification.message
+      };
+    }
+
     if (type === 'course_deleted') {
       return {
         title: t("🗑️ Cours retiré", "🗑️ تم حذف الدرس", "🗑️ Course removed"),
@@ -139,6 +152,19 @@ export const NotificationBell = () => {
       };
     }
 
+    if (type === 'exercise_updated') {
+      return {
+        title: t("🔄 Exercice mis à jour", "🔄 تم تحديث التمرين", "🔄 Exercise updated"),
+        message: itemTitle
+          ? t(
+              `L'exercice "${itemTitle}" a été modifié. Veuillez le consulter.`,
+              `تم تعديل التمرين "${itemTitle}". يرجى الاطلاع عليه.`,
+              `The exercise "${itemTitle}" has been updated. Please check it out.`
+            )
+          : notification.message
+      };
+    }
+
     if (type === 'exercise_deleted') {
       return {
         title: t("🗑️ Exercice retiré", "🗑️ تم حذف التمرين", "🗑️ Exercise removed"),
@@ -160,6 +186,19 @@ export const NotificationBell = () => {
               `L'évaluation "${itemTitle}" a été programmée pour votre classe.`,
               `تمت برمجة التقييم "${itemTitle}" لقسمك.`,
               `The assessment "${itemTitle}" has been scheduled for your class.`
+            )
+          : notification.message
+      };
+    }
+
+    if (type === 'exam_updated') {
+      return {
+        title: t("🔄 Évaluation mise à jour", "🔄 تم تحديث التقييم", "🔄 Assessment updated"),
+        message: itemTitle
+          ? t(
+              `L'évaluation "${itemTitle}" a été modifiée. Veuillez vérifier les détails.`,
+              `تم تعديل التقييم "${itemTitle}". يرجى التحقق من التفاصيل.`,
+              `The assessment "${itemTitle}" has been updated. Please check the details.`
             )
           : notification.message
       };
@@ -203,7 +242,13 @@ export const NotificationBell = () => {
         return {
           icon: BookOpen,
           bg: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
-          badge: t("Cours", "درس", "Course")
+          badge: t("Nouveau cours", "درس جديد", "New Course")
+        };
+      case 'course_updated':
+        return {
+          icon: BookOpen,
+          bg: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30",
+          badge: t("Cours mis à jour", "تحديث درس", "Course Updated")
         };
       case 'course_deleted':
         return {
@@ -215,7 +260,13 @@ export const NotificationBell = () => {
         return {
           icon: FileText,
           bg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-          badge: t("Exercice", "تمرين", "Exercise")
+          badge: t("Nouvel exercice", "تمرين جديد", "New Exercise")
+        };
+      case 'exercise_updated':
+        return {
+          icon: FileText,
+          bg: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30",
+          badge: t("Exercice mis à jour", "تحديث تمرين", "Exercise Updated")
         };
       case 'exercise_deleted':
         return {
@@ -227,7 +278,13 @@ export const NotificationBell = () => {
         return {
           icon: GraduationCap,
           bg: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
-          badge: t("Évaluation", "تقييم", "Exam")
+          badge: t("Nouvelle évaluation", "تقييم جديد", "New Exam")
+        };
+      case 'exam_updated':
+        return {
+          icon: GraduationCap,
+          bg: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30",
+          badge: t("Évaluation mise à jour", "تحديث تقييم", "Exam Updated")
         };
       case 'exam_deleted':
         return {
