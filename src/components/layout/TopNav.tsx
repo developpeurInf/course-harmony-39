@@ -48,7 +48,7 @@ const TopNav = () => {
             <Menu />
           </Button>
         </SheetTrigger>
-        <SheetContent side={language === "ar" ? "right" : "left"} className="p-0 w-72 max-w-[85vw]" onClick={(e) => {
+        <SheetContent side={language === "ar" ? "right" : "left"} className="p-0 w-72 max-w-[85vw] border-0 overflow-hidden bg-transparent shadow-2xl" onClick={(e) => {
           // Close sheet when clicking on links inside
           if ((e.target as HTMLElement).closest('a')) {
             setIsOpen(false);
