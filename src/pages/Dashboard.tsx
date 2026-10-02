@@ -258,14 +258,35 @@ const Dashboard = () => {
           setRecentSubmissions([]);
         }
 
-        // 3. Weekly activity points (Starting on Sunday -> Dimanche)
+        // 3. Weekly activity points filtered by selected room
         const activityList: ActivityPoint[] = [];
         const today = new Date();
-        const currentDayIndex = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-        
+        const currentDayIndex = today.getDay();
+
         // Start of current week on Sunday
         const startOfWeek = new Date(today);
         startOfWeek.setDate(today.getDate() - currentDayIndex);
+
+        // Build list of student IDs for the selected room(s)
+        const roomStudentIds: string[] = [];
+        if (roomIds.length > 0) {
+          const { data: rStudents } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'student')
+            .in('room_id', roomIds);
+          const { data: rEnrollments } = await supabase
+            .from('enrollments')
+            .select('student_id')
+            .in('room_id', roomIds);
+          const rSet = new Set<string>();
+          rStudents?.forEach(s => rSet.add(s.id));
+          rEnrollments?.forEach(e => rSet.add(e.student_id));
+          roomStudentIds.push(...Array.from(rSet));
+        }
+
+        // Exam IDs for the selected room (already computed above as relevantExamIds)
+        const weeklyExamIds = relevantExamIds.length > 0 ? relevantExamIds : [];
 
         for (let i = 0; i < 7; i++) {
           const day = new Date(startOfWeek);
@@ -275,27 +296,44 @@ const Dashboard = () => {
           const end = new Date(day);
           end.setHours(23, 59, 59, 999);
 
-          const { data: dayActivities } = await supabase
-            .from('student_activities')
-            .select('student_id')
-            .gte('created_at', start.toISOString())
-            .lte('created_at', end.toISOString());
-
-          const { data: daySubmissions } = await supabase
-            .from('quiz_submissions')
-            .select('id')
-            .gte('submitted_at', start.toISOString())
-            .lte('submitted_at', end.toISOString());
-
           const dayName = day.toLocaleDateString(
             language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US",
             { weekday: "short" }
           );
 
+          // If we have no students in the room at all, just push zeros
+          if (roomIds.length > 0 && roomStudentIds.length === 0) {
+            activityList.push({ date: dayName, activeStudents: 0, submissions: 0 });
+            continue;
+          }
+
+          // Activities: filter by room student IDs
+          let dayActQuery = supabase
+            .from('student_activities')
+            .select('student_id')
+            .gte('created_at', start.toISOString())
+            .lte('created_at', end.toISOString());
+          if (roomStudentIds.length > 0) {
+            dayActQuery = dayActQuery.in('student_id', roomStudentIds);
+          }
+          const { data: dayActivities } = await dayActQuery;
+
+          // Submissions: filter by room exam IDs
+          let daySubCount = 0;
+          if (weeklyExamIds.length > 0) {
+            const { data: daySubmissions } = await supabase
+              .from('quiz_submissions')
+              .select('id')
+              .in('exam_id', weeklyExamIds)
+              .gte('submitted_at', start.toISOString())
+              .lte('submitted_at', end.toISOString());
+            daySubCount = daySubmissions?.length || 0;
+          }
+
           activityList.push({
             date: dayName,
             activeStudents: new Set(dayActivities?.map(a => a.student_id) || []).size,
-            submissions: daySubmissions?.length || 0
+            submissions: daySubCount
           });
         }
         setActivityHistory(activityList);
