@@ -413,14 +413,21 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       workbook.creator = 'Course Harmony';
       workbook.created = new Date();
 
-      const sheet = workbook.addWorksheet('Identifiants Élèves');
+      // Noms des colonnes selon la langue (le contenu des cellules n'est pas traduit)
+      const colHeaders = language === 'ar'
+        ? { nom: 'النسب', prenom: 'الاسم', massar: 'رمز مسار', pwd: 'كلمة المرور المؤقتة', sheet: 'بيانات التلاميذ' }
+        : language === 'fr'
+        ? { nom: 'Nom', prenom: 'Prénom', massar: 'Code Massar', pwd: 'Mot de passe temporaire', sheet: 'Identifiants Élèves' }
+        : { nom: 'Last Name', prenom: 'First Name', massar: 'Massar Code', pwd: 'Temporary Password', sheet: 'Student Credentials' };
+
+      const sheet = workbook.addWorksheet(colHeaders.sheet);
 
       // Largeurs des colonnes
       sheet.columns = [
-        { header: 'Nom',                    key: 'nom',      width: 28 },
-        { header: 'Prénom',                 key: 'prenom',   width: 28 },
-        { header: 'Code Massar',            key: 'massar',   width: 22 },
-        { header: 'Mot de passe temporaire', key: 'pwd',     width: 28 },
+        { header: colHeaders.nom,    key: 'nom',    width: 28 },
+        { header: colHeaders.prenom, key: 'prenom', width: 28 },
+        { header: colHeaders.massar, key: 'massar', width: 22 },
+        { header: colHeaders.pwd,    key: 'pwd',    width: 28 },
       ];
 
       // Style partagé pour les bordures noires
