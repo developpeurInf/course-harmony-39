@@ -8,11 +8,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle } from "lucide-react";
-import { useCourses, QuizQuestion, QuizOption, serializeQuestionText, parseQuestionText, serializeExamDescription, parseExamAvailability } from "@/contexts/CourseContext";
+import { useCourses, QuizQuestion, QuizOption, serializeQuestionText, parseQuestionText, serializeExamDescription, parseExamAvailability, QuizSettings as QuizSettingsType, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import QuizSettings, { QuizSettings as QuizSettingsType } from "@/components/QuizSettings";
+import QuizSettings from "@/components/QuizSettings";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/RichTextEditor";
@@ -62,16 +62,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   ]);
 
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  const [quizSettings, setQuizSettings] = useState<QuizSettingsType>({
-    sequentialQuestions: false,
-    allowMultipleAttempts: false,
-    allowCorrections: true,
-    shuffleQuestions: false,
-    shuffleOptions: false,
-    timeLimit: null,
-    showResultsImmediately: true,
-    allowReview: true,
-  });
+  const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(DEFAULT_QUIZ_SETTINGS);
 
   useEffect(() => {
     if (examId) {
@@ -83,9 +74,26 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const loadExamData = async () => {
     const { data } = await supabase.from('exams').select('*').eq('id', examId).maybeSingle();
     if (data) {
-      const parsed = parseExamAvailability(data);
+      const parsed = parseExamAvailability(data) as any;
       setExamData(parsed);
-      setIsSequentialMode((parsed as any).quiz_mode === 'sequential_timed');
+      const loadedSettings = parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS;
+      setQuizSettings(loadedSettings);
+      setIsSequentialMode(loadedSettings.sequentialQuestions || parsed.quiz_mode === 'sequential_timed');
+    }
+  };
+
+  const handleSequentialToggle = (checked: boolean) => {
+    setIsSequentialMode(checked);
+    setQuizSettings(prev => ({
+      ...prev,
+      sequentialQuestions: checked
+    }));
+  };
+
+  const handleSettingsChange = (newSettings: QuizSettingsType) => {
+    setQuizSettings(newSettings);
+    if (newSettings.sequentialQuestions !== isSequentialMode) {
+      setIsSequentialMode(newSettings.sequentialQuestions);
     }
   };
 
@@ -385,11 +393,23 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       }
     }
 
-    // Save sequential mode to exam description
+    // Save sequential mode & full quiz_settings to exam description
     if (examData) {
+      const finalSettings: QuizSettingsType = {
+        ...quizSettings,
+        sequentialQuestions: isSequentialMode
+      };
       const newMode = isSequentialMode ? 'sequential_timed' : 'free';
-      const newDesc = serializeExamDescription(examData.description || '', examData.available_until || null, newMode);
-      await supabase.from('exams').update({ description: newDesc }).eq('id', examId);
+      const newDesc = serializeExamDescription(
+        examData.description || '',
+        examData.available_until || null,
+        newMode,
+        finalSettings
+      );
+      const { error } = await supabase.from('exams').update({ description: newDesc }).eq('id', examId);
+      if (error) {
+        console.error("Error updating exam description/settings:", error);
+      }
       await refreshData();
     }
 
@@ -433,7 +453,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               <span className="hidden sm:inline">{language === "fr" ? "Séquentiel minuté" : language === "ar" ? "ترتيب موقوت" : "Sequential timed"}</span>
               <Switch
                 checked={isSequentialMode}
-                onCheckedChange={setIsSequentialMode}
+                onCheckedChange={handleSequentialToggle}
                 className="scale-75"
               />
             </div>
@@ -868,7 +888,10 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
             {/* Settings Tab */}
             <TabsContent value="settings" className="flex-1 overflow-y-auto m-0 p-1">
-              <QuizSettings onSettingsChange={setQuizSettings} />
+              <QuizSettings
+                initialSettings={quizSettings}
+                onSettingsChange={handleSettingsChange}
+              />
             </TabsContent>
           </Tabs>
         </div>

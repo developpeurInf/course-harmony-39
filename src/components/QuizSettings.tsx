@@ -1,39 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Settings, ShuffleIcon, Lock, Award, CheckCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { QuizSettings as QuizSettingsType, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
+
+export type { QuizSettings } from "@/contexts/CourseContext";
 
 interface QuizSettingsProps {
-  onSettingsChange: (settings: QuizSettings) => void;
+  initialSettings?: Partial<QuizSettingsType>;
+  onSettingsChange: (settings: QuizSettingsType) => void;
 }
 
-export interface QuizSettings {
-  sequentialQuestions: boolean;
-  allowMultipleAttempts: boolean;
-  allowCorrections: boolean;
-  shuffleQuestions: boolean;
-  shuffleOptions: boolean;
-  timeLimit: number | null;
-  showResultsImmediately: boolean;
-  allowReview: boolean;
-}
-
-const QuizSettings = ({ onSettingsChange }: QuizSettingsProps) => {
+const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) => {
   const { language } = useLanguage();
-  const [settings, setSettings] = useState<QuizSettings>({
-    sequentialQuestions: false,
-    allowMultipleAttempts: false,
-    allowCorrections: true,
-    shuffleQuestions: false,
-    shuffleOptions: false,
-    timeLimit: null,
-    showResultsImmediately: true,
-    allowReview: true,
+  const [settings, setSettings] = useState<QuizSettingsType>({
+    ...DEFAULT_QUIZ_SETTINGS,
+    ...initialSettings
   });
 
-  const updateSetting = (key: keyof QuizSettings, value: any) => {
+  useEffect(() => {
+    if (initialSettings) {
+      setSettings(prev => ({
+        ...prev,
+        ...initialSettings
+      }));
+    }
+  }, [JSON.stringify(initialSettings)]);
+
+  const updateSetting = (key: keyof QuizSettingsType, value: any) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     onSettingsChange(newSettings);

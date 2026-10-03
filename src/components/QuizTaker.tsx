@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Clock, CheckCircle, Award, ArrowLeft, ArrowRight, Check, Timer, AlertTriangle } from "lucide-react";
-import { useCourses, QuizQuestion, QuizOption, Exam, parseQuestionText, parseExamAvailability } from "@/contexts/CourseContext";
+import { Clock, CheckCircle, Award, ArrowLeft, ArrowRight, Check, Timer, AlertTriangle, RefreshCw, Eye } from "lucide-react";
+import { useCourses, QuizQuestion, QuizOption, Exam, parseQuestionText, parseExamAvailability, QuizSettings, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,14 +48,19 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const startTimeRef = useRef<number>(0);
 
-  // Sequential mode
+  // Settings & Sequential mode
+  const [quizSettings, setQuizSettings] = useState<QuizSettings>(DEFAULT_QUIZ_SETTINGS);
   const [isSequentialMode, setIsSequentialMode] = useState(false);
+  const [previousSubmission, setPreviousSubmission] = useState<any>(null);
+  const [showReviewDetails, setShowReviewDetails] = useState(false);
 
   useEffect(() => {
-    loadQuizData();
-    // Parse quiz mode from exam description
     const parsed = parseExamAvailability(exam) as any;
-    setIsSequentialMode(parsed.quiz_mode === 'sequential_timed');
+    const settings: QuizSettings = parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS;
+    setQuizSettings(settings);
+    const seq = !!(settings.sequentialQuestions || parsed.quiz_mode === 'sequential_timed');
+    setIsSequentialMode(seq);
+    loadQuizData(settings);
   }, [exam.id]);
 
   // Global quiz timer
@@ -121,7 +126,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     };
   }, [currentQuestionIndex, isSequentialMode, isStarted, parsedQuestions]);
 
-  const loadQuizData = async () => {
+  const loadQuizData = async (settings: QuizSettings) => {
     setLoading(true);
     try {
       if (user?.id) {
@@ -130,14 +135,19 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           .select('*')
           .eq('exam_id', exam.id)
           .eq('student_id', user.id)
-          .maybeSingle();
+          .order('submitted_at', { ascending: false });
 
-        if (subData) {
-          setIsSubmitted(true);
-          setScore(subData.score);
-          setTotalPoints(subData.total_points || 0);
-          setLoading(false);
-          return;
+        if (subData && subData.length > 0) {
+          const latestSub = subData[0];
+          setPreviousSubmission(latestSub);
+          if (!settings.allowMultipleAttempts) {
+            // Block retaking, show submitted screen directly
+            setIsSubmitted(true);
+            setScore(latestSub.score);
+            setTotalPoints(latestSub.total_points || 0);
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -147,7 +157,13 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         .eq('exam_id', exam.id)
         .order('question_order', { ascending: true });
 
-      const qList = (qData || []) as QuizQuestion[];
+      let qList = (qData || []) as QuizQuestion[];
+
+      // 🔀 Apply shuffleQuestions setting if enabled
+      if (settings.shuffleQuestions && qList.length > 0) {
+        qList = [...qList].sort(() => Math.random() - 0.5);
+      }
+
       setQuestions(qList);
 
       // Parse per-question timing from question HTML
@@ -165,7 +181,14 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           .in('question_id', qIds)
           .order('option_order', { ascending: true });
 
-        setOptions((oData || []) as QuizOption[]);
+        let fetchedOptions = (oData || []) as QuizOption[];
+
+        // 🔀 Apply shuffleOptions setting if enabled
+        if (settings.shuffleOptions && fetchedOptions.length > 0) {
+          fetchedOptions = [...fetchedOptions].sort(() => Math.random() - 0.5);
+        }
+
+        setOptions(fetchedOptions);
       }
     } catch (err) {
       console.error('Error loading quiz data:', err);
@@ -176,6 +199,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   const startQuiz = () => {
     setIsStarted(true);
+    setIsSubmitted(false);
+    setAnswers([]);
+    setCurrentQuestionIndex(0);
     setTimeLeft((exam.duration_minutes || 30) * 60);
     startTimeRef.current = Date.now();
 
@@ -186,6 +212,17 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   };
 
   const handleSelectOption = (questionId: string, optionId: string) => {
+    // 🔒 If allowCorrections is false and student already selected an answer, block changing
+    const existing = getCurrentAnswer(questionId);
+    if (!quizSettings.allowCorrections && existing?.selectedOptionId) {
+      toast.info(
+        language === "fr" ? "Les corrections ne sont pas autorisées pour ce quiz."
+        : language === "ar" ? "غير مسموح بتعديل الإجابات في هذا الاختبار."
+        : "Corrections are not allowed for this quiz."
+      );
+      return;
+    }
+
     setAnswers(prev => {
       const filtered = prev.filter(a => a.questionId !== questionId);
       return [...filtered, { questionId, selectedOptionId: optionId }];
@@ -193,6 +230,11 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   };
 
   const handleTextAnswer = (questionId: string, text: string) => {
+    const existing = getCurrentAnswer(questionId);
+    if (!quizSettings.allowCorrections && existing?.textAnswer && existing.textAnswer.trim()) {
+      return;
+    }
+
     setAnswers(prev => {
       const filtered = prev.filter(a => a.questionId !== questionId);
       return [...filtered, { questionId, textAnswer: text }];
@@ -204,7 +246,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   };
 
   const getQuestionOptions = (questionId: string) => {
-    return options.filter(o => o.question_id === questionId).sort((a, b) => a.option_order - b.option_order);
+    return options.filter(o => o.question_id === questionId);
   };
 
   const handleSubmit = async () => {
@@ -225,12 +267,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       let validSelectedOptionId: string | null = null;
       if (answer?.selectedOptionId) {
         const rawSel = answer.selectedOptionId;
-        // Check if rawSel is already a valid UUID
         const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(rawSel);
         if (isUuid) {
           validSelectedOptionId = rawSel;
         } else {
-          // Attempt to find matching option by option_text (e.g., "True" or "False")
           const matchOpt = qOptions.find(o => o.option_text.toLowerCase() === rawSel.toLowerCase());
           if (matchOpt) {
             validSelectedOptionId = matchOpt.id;
@@ -322,8 +362,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     const percentage = totalPoints > 0 ? Math.round(((score || 0) / totalPoints) * 100) : 0;
 
     return (
-      <Card className="max-w-xl mx-auto p-6 text-center border shadow-lg rounded-2xl">
-        <div className="flex justify-center mb-4">
+      <Card className="max-w-xl mx-auto p-6 text-center border shadow-lg rounded-2xl space-y-4">
+        <div className="flex justify-center">
           <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950 flex items-center justify-center text-amber-600">
             <Award className="h-10 w-10" />
           </div>
@@ -331,15 +371,99 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         <CardTitle className="text-2xl font-bold">
           {language === "ar" ? "تم إنهاء الاختبار !" : language === "fr" ? "Quiz terminé !" : "Quiz Completed!"}
         </CardTitle>
-        <CardContent className="space-y-4 pt-4">
-          <div className="text-4xl font-extrabold text-primary font-mono">
-            {score}/{totalPoints} <span className="text-lg font-normal text-muted-foreground">{language === "ar" ? "نقطة" : "pts"}</span>
-          </div>
-          <div className="text-base font-semibold text-muted-foreground">
-            {percentage}% {language === "ar" ? "النتيجة النهائية" : language === "fr" ? "Score final" : "Final Score"}
-          </div>
-          <Progress value={percentage} className="w-full max-w-xs mx-auto h-2.5" />
-          <div className="pt-4">
+        <CardContent className="space-y-4 pt-2">
+          {/* 🎯 Respect showResultsImmediately setting */}
+          {quizSettings.showResultsImmediately ? (
+            <>
+              <div className="text-4xl font-extrabold text-primary font-mono">
+                {score}/{totalPoints} <span className="text-lg font-normal text-muted-foreground">{language === "ar" ? "نقطة" : "pts"}</span>
+              </div>
+              <div className="text-base font-semibold text-muted-foreground">
+                {percentage}% {language === "ar" ? "النتيجة النهائية" : language === "fr" ? "Score final" : "Final Score"}
+              </div>
+              <Progress value={percentage} className="w-full max-w-xs mx-auto h-2.5" />
+            </>
+          ) : (
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs">
+              <p className="font-semibold">
+                {language === "fr"
+                  ? "Votre réponse a été enregistrée avec succès. La note sera publiée par votre enseignant."
+                  : language === "ar"
+                  ? "تم حفظ إجابتك بنجاح. سيتم نشر النتيجة من طرف الأستاذ."
+                  : "Your response has been saved. Scores will be published by your teacher."}
+              </p>
+            </div>
+          )}
+
+          {/* 📖 Respect allowReview setting */}
+          {quizSettings.allowReview && questions.length > 0 && (
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowReviewDetails(!showReviewDetails)}
+                className="text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                {showReviewDetails
+                  ? (language === "fr" ? "Masquer le corrigé" : language === "ar" ? "إخفاء التصحيح" : "Hide correction")
+                  : (language === "fr" ? "Consulter le corrigé détaillé" : language === "ar" ? "عرض التصحيح التفصيلي" : "View detailed correction")}
+              </Button>
+
+              {showReviewDetails && (
+                <div className="pt-4 border-t text-left space-y-3 mt-3">
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    {language === "fr" ? "Corrigé détaillé :" : language === "ar" ? "التصحيح التفصيلي :" : "Detailed Correction:"}
+                  </h4>
+                  <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                    {questions.map((q, idx) => {
+                      const { cleanText } = parseQuestionText(q.question);
+                      const ans = getCurrentAnswer(q.id);
+                      const qOpts = getQuestionOptions(q.id);
+                      const correctOpt = qOpts.find(o => o.is_correct);
+
+                      let isCorrect = false;
+                      if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
+                        if (correctOpt && (ans?.selectedOptionId === correctOpt.id || (ans?.selectedOptionId && ans.selectedOptionId.toLowerCase() === correctOpt.option_text.toLowerCase()))) {
+                          isCorrect = true;
+                        }
+                      }
+
+                      return (
+                        <div key={q.id} className={`p-3 rounded-xl border text-xs space-y-1 ${isCorrect ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20' : 'bg-rose-50/50 border-rose-200 dark:bg-rose-950/20'}`}>
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="truncate max-w-[70%]">Q{idx + 1}: <span dangerouslySetInnerHTML={{ __html: cleanText }} /></span>
+                            <Badge variant={isCorrect ? 'default' : 'destructive'} className="text-[10px]">
+                              {isCorrect ? `+${q.points} pt` : `0 / ${q.points} pt`}
+                            </Badge>
+                          </div>
+                          {correctOpt && (
+                            <p className="text-muted-foreground text-[11px]">
+                              <strong className="text-foreground">{language === "fr" ? "Bonne réponse : " : "Correct answer: "}</strong>
+                              {correctOpt.option_text}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 🔄 Allow multiple attempts button if allowed */}
+          {quizSettings.allowMultipleAttempts && (
+            <div className="pt-2">
+              <Button onClick={startQuiz} size="sm" variant="outline" className="text-xs font-semibold gap-1.5 border-primary text-primary hover:bg-primary/10">
+                <RefreshCw className="h-3.5 w-3.5" />
+                {language === "fr" ? "Repasser le quiz" : language === "ar" ? "إعادة اجتياز الاختبار" : "Retake Quiz"}
+              </Button>
+            </div>
+          )}
+
+          <div className="pt-2">
             <Button onClick={onClose} className="px-6 font-semibold">
               {language === "ar" ? "إغلاق" : language === "fr" ? "Fermer" : "Close"}
             </Button>
@@ -351,7 +475,6 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   // ─── Start Screen ──────────────────────────────────────────────────────────
   if (!isStarted) {
-    // Check if all questions have time limits when sequential
     const questionsWithNoTime = isSequentialMode ? parsedQuestions.filter(p => !p.timeLimitSeconds).length : 0;
 
     return (
@@ -385,6 +508,18 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             )}
           </div>
 
+          {previousSubmission && quizSettings.allowMultipleAttempts && (
+            <div className="p-3 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 text-xs flex items-center justify-between">
+              <div>
+                <span className="font-bold">{language === "fr" ? "Dernière tentative :" : "Previous score:"} </span>
+                <span>{previousSubmission.score} / {previousSubmission.total_points} pts</span>
+              </div>
+              <Badge variant="outline" className="border-blue-300 text-blue-700 font-semibold">
+                {language === "fr" ? "Plusieurs tentatives autorisées" : "Multiple attempts allowed"}
+              </Badge>
+            </div>
+          )}
+
           {isSequentialMode && questionsWithNoTime > 0 && (
             <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 text-xs">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -414,6 +549,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                   <li>{language === "fr" ? "Vous pouvez naviguer librement entre les questions." : language === "ar" ? "يمكنك التنقل بين الأسئلة بحرية." : "You can navigate between questions using next/prev buttons."}</li>
                   <li>{language === "fr" ? "Cliquez sur Terminer une fois vos réponses complétées." : language === "ar" ? "انقر على زر الإرسال عند الانتهاء." : "Submit when ready or when the timer expires."}</li>
                 </>
+              )}
+              {quizSettings.shuffleQuestions && (
+                <li>{language === "fr" ? "Les questions sont mélangées aléatoirement." : "Questions are randomized."}</li>
+              )}
+              {quizSettings.shuffleOptions && (
+                <li>{language === "fr" ? "Les options de réponse sont mélangées aléatoirement." : "Answer options are randomized."}</li>
+              )}
+              {!quizSettings.allowCorrections && (
+                <li>{language === "fr" ? "Une fois votre réponse choisie, vous ne pourrez pas la modifier." : "Answer modifications are locked after selection."}</li>
               )}
             </ul>
           </div>
@@ -520,12 +664,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           <div className="space-y-2.5 pt-2">
             {qOptions.map((opt, oIdx) => {
               const isSelected = currentAnswer?.selectedOptionId === opt.id;
+              const isLocked = !quizSettings.allowCorrections && !!currentAnswer?.selectedOptionId && !isSelected;
 
               return (
                 <div
                   key={opt.id}
-                  onClick={() => handleSelectOption(currentQ.id, opt.id)}
-                  className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+                  onClick={() => !isLocked && handleSelectOption(currentQ.id, opt.id)}
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all ${
+                    isLocked ? 'opacity-50 cursor-not-allowed border-muted' : 'cursor-pointer'
+                  } ${
                     isSelected
                       ? 'border-primary bg-primary/10 shadow-xs'
                       : 'border-muted hover:border-muted-foreground/30 hover:bg-muted/10'
@@ -551,11 +698,13 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               const matchingOpt = qOptions.find(o => o.option_text.toLowerCase() === val.toLowerCase());
               const optId = matchingOpt ? matchingOpt.id : val;
               const isSelected = currentAnswer?.selectedOptionId === optId || currentAnswer?.selectedOptionId === val;
+              const isLocked = !quizSettings.allowCorrections && !!currentAnswer?.selectedOptionId && !isSelected;
 
               return (
                 <Button
                   key={val}
                   type="button"
+                  disabled={isLocked}
                   variant={isSelected ? "default" : "outline"}
                   onClick={() => handleSelectOption(currentQ.id, optId)}
                   className={`h-12 text-sm font-bold gap-2 ${isSelected ? 'bg-primary text-primary-foreground' : ''}`}

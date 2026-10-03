@@ -55,26 +55,72 @@ export interface Exam {
   updated_at: string;
 }
 
-export const serializeExamDescription = (rawDescription: string, availableUntil: string | null, quizMode?: string | null): string => {
+export interface QuizSettings {
+  sequentialQuestions: boolean;
+  allowMultipleAttempts: boolean;
+  allowCorrections: boolean;
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+  timeLimit: number | null;
+  showResultsImmediately: boolean;
+  allowReview: boolean;
+}
+
+export const DEFAULT_QUIZ_SETTINGS: QuizSettings = {
+  sequentialQuestions: false,
+  allowMultipleAttempts: false,
+  allowCorrections: true,
+  shuffleQuestions: false,
+  shuffleOptions: false,
+  timeLimit: null,
+  showResultsImmediately: true,
+  allowReview: true,
+};
+
+export const serializeExamDescription = (
+  rawDescription: string,
+  availableUntil: string | null,
+  quizMode?: string | null,
+  quizSettings?: QuizSettings | null
+): string => {
   let clean = (rawDescription || "")
     .replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "")
     .replace(/<!--QUIZ_MODE:[\s\S]*?-->/g, "")
+    .replace(/<!--QUIZ_SETTINGS:[\s\S]*?-->/g, "")
     .trim();
   if (availableUntil) clean = `${clean}${clean ? "\n" : ""}<!--AVAIL_UNTIL:${availableUntil}-->`;
   if (quizMode && quizMode !== 'free') clean = `${clean}\n<!--QUIZ_MODE:${quizMode}-->`;
+  if (quizSettings) clean = `${clean}\n<!--QUIZ_SETTINGS:${JSON.stringify(quizSettings)}-->`;
   return clean;
 };
 
-export const parseExamAvailability = (exam: any): Exam & { quiz_mode?: string } => {
+export const parseExamAvailability = (exam: any): Exam & { quiz_mode?: string; quiz_settings?: QuizSettings } => {
   if (!exam) return exam;
   const desc = exam.description || "";
   const matchUntil = desc.match(/<!--AVAIL_UNTIL:(.+?)-->/);
   const matchMode = desc.match(/<!--QUIZ_MODE:(.+?)-->/);
+  const matchSettings = desc.match(/<!--QUIZ_SETTINGS:([\s\S]+?)-->/);
+
   const available_until = matchUntil ? matchUntil[1].trim() : (exam.available_until || null);
-  const quiz_mode = matchMode ? matchMode[1].trim() : 'free';
+  let quiz_mode = matchMode ? matchMode[1].trim() : 'free';
+
+  let quiz_settings: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS };
+  if (matchSettings) {
+    try {
+      quiz_settings = { ...DEFAULT_QUIZ_SETTINGS, ...JSON.parse(matchSettings[1].trim()) };
+    } catch (e) {
+      console.error("Error parsing quiz_settings:", e);
+    }
+  }
+
+  if (quiz_settings.sequentialQuestions) {
+    quiz_mode = 'sequential_timed';
+  }
+
   const cleanDescription = desc
     .replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "")
     .replace(/<!--QUIZ_MODE:[\s\S]*?-->/g, "")
+    .replace(/<!--QUIZ_SETTINGS:[\s\S]*?-->/g, "")
     .trim();
   const available_from = exam.available_from || exam.exam_date;
 
@@ -83,6 +129,7 @@ export const parseExamAvailability = (exam: any): Exam & { quiz_mode?: string } 
     available_from,
     available_until,
     quiz_mode,
+    quiz_settings,
     description: cleanDescription
   };
 };
@@ -999,7 +1046,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         const existingModeMatch = rawStoredDesc.match(/<!--QUIZ_MODE:(.+?)-->/);
         const existingMode = existingModeMatch ? existingModeMatch[1].trim() : null;
 
-        dbUpdates.description = serializeExamDescription(rawDesc || "", untilVal || null, existingMode);
+        const existingSettingsMatch = rawStoredDesc.match(/<!--QUIZ_SETTINGS:([\s\S]+?)-->/);
+        let existingSettings: QuizSettings | null = null;
+        if (existingSettingsMatch) {
+          try {
+            existingSettings = JSON.parse(existingSettingsMatch[1].trim());
+          } catch (e) {}
+        }
+
+        dbUpdates.description = serializeExamDescription(rawDesc || "", untilVal || null, existingMode, existingSettings);
       }
 
       delete dbUpdates.available_from;
