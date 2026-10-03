@@ -936,9 +936,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     try {
       const payload: any = {
         title: exam.title,
-        description: exam.available_until 
-          ? serializeExamDescription(exam.description || "", exam.available_until)
-          : (exam.description || ""),
+        description: serializeExamDescription(exam.description || "", exam.available_until || null),
         course_id: exam.course_id,
         exam_date: exam.exam_date,
         duration_minutes: exam.duration_minutes,
@@ -993,11 +991,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (updates.available_until !== undefined || updates.description !== undefined) {
         const untilVal = updates.available_until;
-        const currentExam = exams.find(e => e.id === examId);
-        const rawDesc = updates.description !== undefined ? updates.description : (currentExam?.description || "");
-        dbUpdates.description = untilVal 
-          ? serializeExamDescription(rawDesc || "", untilVal)
-          : (rawDesc || "").replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "").trim();
+        const currentExamData = exams.find(e => e.id === examId);
+        const rawDesc = updates.description !== undefined ? updates.description : (currentExamData?.description || "");
+        // Fetch raw DB description to preserve existing quiz_mode if set
+        const { data: rawExamData } = await supabase.from('exams').select('description').eq('id', examId).maybeSingle();
+        const rawStoredDesc = rawExamData?.description || "";
+        const existingModeMatch = rawStoredDesc.match(/<!--QUIZ_MODE:(.+?)-->/);
+        const existingMode = existingModeMatch ? existingModeMatch[1].trim() : null;
+
+        dbUpdates.description = serializeExamDescription(rawDesc || "", untilVal || null, existingMode);
       }
 
       delete dbUpdates.available_from;

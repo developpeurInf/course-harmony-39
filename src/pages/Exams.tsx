@@ -815,6 +815,14 @@ const Exams = () => {
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                         <span>{language === "ar" ? "المدة: " : language === "fr" ? "Durée : " : "Duration: "}{formatDuration(exam.duration_minutes)}</span>
                       </div>
+                      {(exam as any).quiz_mode === 'sequential_timed' && (
+                        <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                          <Timer className="h-3.5 w-3.5" />
+                          <span className="font-semibold text-[11px]">
+                            {language === "fr" ? "Mode séquentiel minuté" : language === "ar" ? "وضع ترتيب موقوت" : "Sequential timed mode"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                   <CardFooter className="border-t bg-muted/30 px-4 py-2.5">
@@ -970,9 +978,17 @@ const Exams = () => {
                         </div>
                       </td>
                       <td className="p-3">
-                        <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[10px]">
-                          {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[10px] w-fit">
+                            {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
+                          </Badge>
+                          {exam.type === 'quiz' && (exam as any).quiz_mode === 'sequential_timed' && (
+                            <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700 dark:text-amber-400">
+                              <Timer className="h-2.5 w-2.5 mr-0.5" />
+                              {language === "fr" ? "Séquentiel" : language === "ar" ? "ترتيب موقوت" : "Sequential"}
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col gap-1">
