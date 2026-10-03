@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Upload, Download, FileSpreadsheet, Users } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { downloadExcelFile } from '@/lib/download';
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -407,61 +408,72 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     }
 
     try {
-      // 4 colonnes cadrées en noir : Nom | Prénom | Code Massar | Mot de passe temporaire
-      const rowsHtml = studentList.map((s, idx) => `
-        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
-          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; text-align: left; color: #000000;">${(s.nom || '').replace(/</g, '&lt;')}</td>
-          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; text-align: left; color: #000000;">${(s.prenom || '').replace(/</g, '&lt;')}</td>
-          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; text-align: center; font-weight: bold; mso-number-format:'\\@'; color: #000000;">${(s.codeMassar || s.username || '').replace(/</g, '&lt;')}</td>
-          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Consolas, 'Courier New', monospace; font-size: 11pt; text-align: center; font-weight: bold; mso-number-format:'\\@'; color: #000000;">${(s.temporaryPassword || '').replace(/</g, '&lt;')}</td>
-        </tr>
-      `).join('');
+      // Génération d'un vrai fichier .xlsx avec bordures noires via ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Course Harmony';
+      workbook.created = new Date();
 
-      const htmlTable = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-          <!--[if gte mso 9]>
-          <xml>
-            <x:ExcelWorkbook>
-              <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                  <x:Name>Identifiants Élèves</x:Name>
-                  <x:WorksheetOptions>
-                    <x:DisplayGridlines/>
-                  </x:WorksheetOptions>
-                </x:ExcelWorksheet>
-              </x:ExcelWorksheets>
-            </x:ExcelWorkbook>
-          </xml>
-          <![endif]-->
-          <style>
-            table { border-collapse: collapse; width: 100%; border: 1px solid #000000; }
-            th { border: 1px solid #000000; background-color: #E2E8F0; font-weight: bold; text-align: center; padding: 9px 12px; font-size: 11pt; font-family: Calibri, Arial, sans-serif; color: #000000; }
-            td { border: 1px solid #000000; padding: 7px 12px; font-size: 11pt; font-family: Calibri, Arial, sans-serif; color: #000000; }
-          </style>
-        </head>
-        <body>
-          <table border="1" style="border-collapse: collapse; border: 1px solid #000000;">
-            <thead>
-              <tr style="background-color: #E2E8F0;">
-                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 180px; text-align: center; font-weight: bold;">Nom</th>
-                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 180px; text-align: center; font-weight: bold;">Prénom</th>
-                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 180px; text-align: center; font-weight: bold;">Code Massar</th>
-                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 220px; text-align: center; font-weight: bold;">Mot de passe temporaire</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-        </body>
-        </html>
-      `;
+      const sheet = workbook.addWorksheet('Identifiants Élèves');
 
-      const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      // Largeurs des colonnes
+      sheet.columns = [
+        { header: 'Nom',                    key: 'nom',      width: 28 },
+        { header: 'Prénom',                 key: 'prenom',   width: 28 },
+        { header: 'Code Massar',            key: 'massar',   width: 22 },
+        { header: 'Mot de passe temporaire', key: 'pwd',     width: 28 },
+      ];
+
+      // Style partagé pour les bordures noires
+      const thinBlack: Partial<ExcelJS.Borders> = {
+        top:    { style: 'thin', color: { argb: 'FF000000' } },
+        left:   { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        right:  { style: 'thin', color: { argb: 'FF000000' } },
+      };
+
+      // Style de l'en-tête
+      const headerRow = sheet.getRow(1);
+      headerRow.height = 22;
+      headerRow.eachCell((cell) => {
+        cell.font      = { bold: true, size: 12, name: 'Calibri', color: { argb: 'FF000000' } };
+        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+        cell.border    = thinBlack;
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      // Ajout des lignes de données
+      studentList.forEach((s, idx) => {
+        const row = sheet.addRow({
+          nom:    s.nom    || '',
+          prenom: s.prenom || '',
+          massar: s.codeMassar || s.username || '',
+          pwd:    s.temporaryPassword || '',
+        });
+        row.height = 18;
+        row.eachCell((cell, colNumber) => {
+          cell.border    = thinBlack;
+          cell.font      = { size: 11, name: 'Calibri', color: { argb: 'FF000000' } };
+          cell.fill      = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: idx % 2 === 0 ? 'FFFFFFFF' : 'FFF9FAFB' },
+          };
+          cell.alignment = { vertical: 'middle', horizontal: colNumber >= 3 ? 'center' : 'left' };
+          // Forcer le format texte pour Code Massar et mot de passe (évite la conversion numérique)
+          if (colNumber >= 3) cell.numFmt = '@';
+        });
+      });
+
+      // Figer la première ligne (en-tête)
+      sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+      // Générer le buffer et télécharger
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
       const timestamp = new Date().toISOString().split('T')[0];
-      const filename = `liste_identifiants_eleves_${timestamp}.xls`;
+      const filename = `liste_identifiants_eleves_${timestamp}.xlsx`;
 
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
