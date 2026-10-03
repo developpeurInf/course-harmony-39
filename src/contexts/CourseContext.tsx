@@ -55,6 +55,28 @@ export interface Exam {
   updated_at: string;
 }
 
+export const serializeExamDescription = (rawDescription: string, availableUntil: string | null): string => {
+  const clean = (rawDescription || "").replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "").trim();
+  if (!availableUntil) return clean;
+  return `${clean}${clean ? "\n" : ""}<!--AVAIL_UNTIL:${availableUntil}-->`;
+};
+
+export const parseExamAvailability = (exam: any): Exam => {
+  if (!exam) return exam;
+  const desc = exam.description || "";
+  const match = desc.match(/<!--AVAIL_UNTIL:(.+?)-->/);
+  const available_until = match ? match[1].trim() : (exam.available_until || null);
+  const cleanDescription = desc.replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "").trim();
+  const available_from = exam.available_from || exam.exam_date;
+
+  return {
+    ...exam,
+    available_from,
+    available_until,
+    description: cleanDescription
+  };
+};
+
 export interface QuizQuestion {
   id: string;
   exam_id: string;
@@ -324,13 +346,14 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (examsData.error) console.error('Exams fetch error:', examsData.error);
       else {
-        // Clean up the exams data if it came from a join query
+        // Clean up the exams data if it came from a join query and parse availability
         const cleanExams = (examsData.data || []).map((exam: any) => {
+          let baseExam = exam;
           if (exam.courses) {
-            const { courses, ...cleanExam } = exam;
-            return cleanExam;
+            const { courses, ...clean } = exam;
+            baseExam = clean;
           }
-          return exam;
+          return parseExamAvailability(baseExam);
         });
         setExams(cleanExams);
       }
@@ -886,16 +909,32 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   // Exam operations
   const addExam = async (exam: Omit<Exam, "id" | "created_at" | "updated_at">): Promise<Exam | null> => {
     try {
+      const payload: any = {
+        title: exam.title,
+        description: exam.available_until 
+          ? serializeExamDescription(exam.description || "", exam.available_until)
+          : (exam.description || ""),
+        course_id: exam.course_id,
+        exam_date: exam.exam_date,
+        duration_minutes: exam.duration_minutes,
+        is_visible: exam.is_visible,
+        type: exam.type,
+      };
+      if (exam.pdf_url) payload.pdf_url = exam.pdf_url;
+
       const { data, error } = await supabase
         .from('exams')
-        .insert([exam])
+        .insert([payload])
         .select()
         .single();
 
       if (error) {
+        console.error("Supabase insert exam error:", error);
         toast.error("Failed to add exam");
         return null;
       }
+
+      const parsedExam = parseExamAvailability(data);
 
       // Refresh data to ensure consistency
       await refreshData();
@@ -915,8 +954,9 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         });
       }, 500);
       
-      return data as Exam;
+      return parsedExam;
     } catch (error) {
+      console.error("addExam error:", error);
       toast.error("Failed to add exam");
       return null;
     }
@@ -924,12 +964,27 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   const updateExam = async (examId: string, updates: Partial<Exam>): Promise<boolean> => {
     try {
+      const dbUpdates: any = { ...updates };
+
+      if (updates.available_until !== undefined || updates.description !== undefined) {
+        const untilVal = updates.available_until;
+        const currentExam = exams.find(e => e.id === examId);
+        const rawDesc = updates.description !== undefined ? updates.description : (currentExam?.description || "");
+        dbUpdates.description = untilVal 
+          ? serializeExamDescription(rawDesc || "", untilVal)
+          : (rawDesc || "").replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "").trim();
+      }
+
+      delete dbUpdates.available_from;
+      delete dbUpdates.available_until;
+
       const { error } = await supabase
         .from('exams')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', examId);
 
       if (error) {
+        console.error("Supabase update exam error:", error);
         toast.error("Failed to update exam");
         return false;
       }
@@ -958,6 +1013,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       return true;
     } catch (error) {
+      console.error("updateExam error:", error);
       toast.error("Failed to update exam");
       return false;
     }

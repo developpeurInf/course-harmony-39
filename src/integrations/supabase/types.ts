@@ -137,8 +137,8 @@ export type Database = {
       }
       exams: {
         Row: {
-          available_from: string | null
-          available_until: string | null
+          available_from?: string | null
+          available_until?: string | null
           course_id: string
           created_at: string
           description: string | null
