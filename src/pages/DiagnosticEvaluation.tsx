@@ -126,6 +126,9 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [exerciseToDeleteDiag, setExerciseToDeleteDiag] = useState<number | null>(null);
   const [isResetDefaultsOpen, setIsResetDefaultsOpen] = useState(false);
 
+  const [isQuickEditConfigOpen, setIsQuickEditConfigOpen] = useState(false);
+  const [editConfigDraft, setEditConfigDraft] = useState<any>(null);
+
   const [importTargetClass, setImportTargetClass] = useState<DiagnosticClass | null>(null);
   const [importingFile, setImportingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1896,6 +1899,19 @@ export const DiagnosticEvaluation: React.FC = () => {
               </Button>
 
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditConfigDraft({ ...appData.config });
+                  setIsQuickEditConfigOpen(true);
+                }}
+                className="text-xs gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{lang === "ar" ? "تعديل الفترة والمعلومات" : "Modifier la période & informations"}</span>
+              </Button>
+
+              <Button
                 size="sm"
                 onClick={handleDownloadPdf}
                 disabled={isExportingPdf}
@@ -2205,6 +2221,149 @@ export const DiagnosticEvaluation: React.FC = () => {
               }}
             >
               {lang === "ar" ? "استعادة" : lang === "fr" ? "Rétablir" : "Reset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Edit Report Configuration Dialog */}
+      <Dialog open={isQuickEditConfigOpen} onOpenChange={setIsQuickEditConfigOpen}>
+        <DialogContent className="max-w-xl" dir={getDirection()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-indigo-700 dark:text-indigo-400">
+              <Edit3 className="w-5 h-5 text-indigo-600" />
+              {lang === "ar" ? "تعديل فترة ومعلومات التقرير الرسمي" : "Modifier la période & informations du rapport"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {lang === "ar"
+                ? "تعديل فترة التقويم التشخيصي، السنة الدراسية، الأستاذ والمؤسسة مباشرة على التقرير."
+                : "Modifiez la période du diagnostic, l'année scolaire, l'enseignant et l'établissement."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editConfigDraft && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5 p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    {lang === "ar" ? "فترة التقويم التشخيصي (المادة 08) :" : "Période du diagnostic (Article 08) :"}
+                  </Label>
+                  <Badge variant="outline" className="text-[10px] border-indigo-300 text-indigo-700">
+                    {lang === "ar" ? "المادة 08" : "Article 08"}
+                  </Badge>
+                </div>
+                <Input
+                  value={editConfigDraft.periode_diagnostic || ""}
+                  onChange={(e) => setEditConfigDraft({ ...editConfigDraft, periode_diagnostic: e.target.value })}
+                  placeholder="ex: 01 au 09 octobre 2026 ou 15 au 25 septembre 2026"
+                  className="text-xs bg-white dark:bg-slate-900 font-semibold"
+                />
+                {/* Raccourcis rapides */}
+                <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground">{lang === "ar" ? "اقتراحات سريعة:" : "Suggestions :"}</span>
+                  {[
+                    "01 au 09 octobre 2026",
+                    "02 au 10 octobre 2026",
+                    "15 au 25 septembre 2026",
+                    "01 au 09 octobre 2025"
+                  ].map((p) => (
+                    <Button
+                      key={p}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditConfigDraft({ ...editConfigDraft, periode_diagnostic: p })}
+                      className="h-5 px-2 text-[10px] text-indigo-700 bg-white/80 dark:bg-indigo-900/40 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-700 rounded-md"
+                    >
+                      {p}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">{t.anneeScolaireLabel} :</Label>
+                  <Input
+                    value={editConfigDraft.annee_scolaire || ""}
+                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, annee_scolaire: e.target.value })}
+                    placeholder="2026 / 2027"
+                    className="text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">{t.teacherNameLabel} :</Label>
+                  <Input
+                    value={editConfigDraft.nom_enseignant || ""}
+                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, nom_enseignant: e.target.value })}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">{t.subjectLabel} :</Label>
+                  <Input
+                    value={editConfigDraft.matiere || ""}
+                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, matiere: e.target.value })}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">{t.lyceeLabel} :</Label>
+                  <Input
+                    value={editConfigDraft.lycee || ""}
+                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, lycee: e.target.value })}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">{t.gradeLevelLabel} :</Label>
+                  <Input
+                    value={editConfigDraft.niveau || ""}
+                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, niveau: e.target.value })}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">{t.titleHeaderLabel} :</Label>
+                  <Input
+                    value={editConfigDraft.niveau_titre || ""}
+                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, niveau_titre: e.target.value })}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setIsQuickEditConfigOpen(false)}>
+              {lang === "ar" ? "إلغاء" : "Annuler"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (editConfigDraft) {
+                  updateAppData(prev => ({
+                    ...prev,
+                    config: { ...editConfigDraft }
+                  }));
+                  setIsQuickEditConfigOpen(false);
+                  toast.success(
+                    lang === "ar"
+                      ? "تم حفظ التعديلات وتحديث التقرير بنجاح"
+                      : "Modifications enregistrées et rapport actualisé avec succès"
+                  );
+                }
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs"
+            >
+              {lang === "ar" ? "حفظ وتحديث التقرير" : "Enregistrer et actualiser le rapport"}
             </Button>
           </DialogFooter>
         </DialogContent>

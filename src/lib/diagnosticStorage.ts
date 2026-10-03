@@ -87,6 +87,7 @@ const OLD_DEFAULTS = {
   direction: "المديرية الإقليمية تارودانت",
   lycee: "ثانوية النهضة التأهيلية-أولاد تايمة",
   annee_scolaire_list: ["2024 / 2025", "2025 / 2026"],
+  old_periods: ["01 au 09 octobre 2024", "du 01 au 09 octobre 2024", "من 01 إلى 09 أكتوبر 2024"],
 };
 
 function migrateData(data: DiagnosticAppData): DiagnosticAppData {
@@ -95,8 +96,9 @@ function migrateData(data: DiagnosticAppData): DiagnosticAppData {
   const isOldDirection = cfg.direction === OLD_DEFAULTS.direction;
   const isOldLycee = cfg.lycee === OLD_DEFAULTS.lycee;
   const isOldAnnee = OLD_DEFAULTS.annee_scolaire_list.includes(cfg.annee_scolaire);
+  const isOldPeriod = OLD_DEFAULTS.old_periods.includes(cfg.periode_diagnostic);
 
-  if (isOldAcademie || isOldDirection || isOldLycee || isOldAnnee) {
+  if (isOldAcademie || isOldDirection || isOldLycee || isOldAnnee || isOldPeriod) {
     const migrated: DiagnosticAppData = {
       ...data,
       config: {
@@ -105,6 +107,7 @@ function migrateData(data: DiagnosticAppData): DiagnosticAppData {
         direction: isOldDirection ? DEFAULT_DIAGNOSTIC_DATA.config.direction : cfg.direction,
         lycee: isOldLycee ? DEFAULT_DIAGNOSTIC_DATA.config.lycee : cfg.lycee,
         annee_scolaire: isOldAnnee ? DEFAULT_DIAGNOSTIC_DATA.config.annee_scolaire : cfg.annee_scolaire,
+        periode_diagnostic: isOldPeriod ? DEFAULT_DIAGNOSTIC_DATA.config.periode_diagnostic : cfg.periode_diagnostic,
       },
     };
     saveDiagnosticData(migrated);

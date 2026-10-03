@@ -21,30 +21,34 @@ function formatDiagnosticPeriod(period: string, lang: DiagLang): string {
   if (!period) return "";
   if (lang === "ar") {
     let res = period
-      .replace(/202601/g, "2024")
-      .replace(/2026/g, "2024")
       .replace(/\bau\b/gi, "إلى")
       .replace(/\bdu\b/gi, "من")
       .replace(/octobre/gi, "أكتوبر")
       .replace(/septembre/gi, "شتنبر")
       .replace(/novembre/gi, "نونبر")
-      .replace(/décembre|decembre/gi, "دجنبر");
+      .replace(/décembre|decembre/gi, "دجنبر")
+      .replace(/janvier/gi, "يناير")
+      .replace(/février|fevrier/gi, "فبراير")
+      .replace(/mars/gi, "مارس")
+      .replace(/avril/gi, "أبريل")
+      .replace(/mai/gi, "ماي")
+      .replace(/juin/gi, "يونيو");
     
-    if (!res.trim().startsWith("من")) {
+    if (!res.trim().startsWith("من") && !res.trim().startsWith("إلى")) {
       res = `من ${res.trim()}`;
     }
     return res;
   }
   if (lang === "en") {
     return period
-      .replace(/202601/g, "2024")
-      .replace(/2026/g, "2024")
       .replace(/\bau\b/gi, "to")
       .replace(/\bdu\b/gi, "from")
       .replace(/octobre/gi, "October")
-      .replace(/septembre/gi, "September");
+      .replace(/septembre/gi, "September")
+      .replace(/novembre/gi, "November")
+      .replace(/décembre|decembre/gi, "December");
   }
-  return period.replace(/202601/g, "2024").replace(/2026/g, "2024");
+  return period;
 }
 
 // Détection intelligente du niveau scolaire selon le nom de classe
