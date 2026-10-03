@@ -15,10 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2, Grid3x3, List, BookOpen, Clock } from "lucide-react";
+import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2, Grid3x3, List, BookOpen, Clock, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import PdfInfo from "@/components/PdfInfo";
+import { toast } from "sonner";
 
 const Exercises = () => {
   const { user } = useAuth();
@@ -72,61 +73,134 @@ const Exercises = () => {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const resetForm = () => {
+    // Determine default course_id if available
+    let defaultCourseId = "";
+    if (courses && courses.length > 0) {
+      if (roomId) {
+        const roomCourse = courses.find(c => c.room_id === roomId);
+        if (roomCourse) defaultCourseId = roomCourse.id;
+      }
+      if (!defaultCourseId && courses.length === 1) {
+        defaultCourseId = courses[0].id;
+      }
+    }
+
+    // Default due date: tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const defaultDueDate = tomorrow.toISOString().split("T")[0];
+
     setFormData({
       id: "",
-      course_id: "",
+      course_id: defaultCourseId,
       title: "",
       description: "",
-      due_date: "",
+      due_date: defaultDueDate,
       is_visible: true,
     });
     setSelectedFiles([]);
   };
 
   const handleAddExercise = async () => {
-    if (!formData.course_id || !formData.title || !formData.due_date) return;
-    
-    const newExercise = await addExercise({
-      course_id: formData.course_id,
-      title: formData.title,
-      description: formData.description,
-      due_date: new Date(formData.due_date).toISOString(),
-      is_visible: formData.is_visible,
-    });
-    
-    if (newExercise) {
-      if (selectedFiles.length > 0) {
-        for (const file of selectedFiles) {
-          await uploadExercisePdf(newExercise.id, file, formData.course_id);
+    if (isSubmitting) return;
+
+    if (!formData.title.trim()) {
+      toast.error(language === "ar" ? "يرجى إدخال عنوان التمرين" : "Veuillez entrer un titre pour l'exercice");
+      return;
+    }
+
+    if (!formData.course_id) {
+      toast.error(language === "ar" ? "يرجى اختيار الدرس" : "Veuillez sélectionner un cours");
+      return;
+    }
+
+    if (!formData.due_date) {
+      toast.error(language === "ar" ? "يرجى تحديد تاريخ التسليم" : "Veuillez indiquer une date limite");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const newExercise = await addExercise({
+        course_id: formData.course_id,
+        title: formData.title.trim(),
+        description: formData.description,
+        due_date: new Date(formData.due_date).toISOString(),
+        is_visible: formData.is_visible,
+      });
+
+      if (newExercise) {
+        if (selectedFiles.length > 0) {
+          for (const file of selectedFiles) {
+            try {
+              await uploadExercisePdf(newExercise.id, file, formData.course_id);
+            } catch (err) {
+              console.error("Error uploading exercise PDF:", err);
+            }
+          }
         }
+        resetForm();
+        setIsAddDialogOpen(false);
       }
-      resetForm();
-      setIsAddDialogOpen(false);
+    } catch (err) {
+      console.error("Error in handleAddExercise:", err);
+      toast.error(language === "ar" ? "فشل إنشاء التمرين" : "Échec de création de l'exercice");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditExercise = async () => {
-    if (!formData.id || !formData.course_id || !formData.title || !formData.due_date) return;
-    
-    const success = await updateExercise(formData.id, {
-      course_id: formData.course_id,
-      title: formData.title,
-      description: formData.description,
-      due_date: new Date(formData.due_date).toISOString(),
-      is_visible: formData.is_visible,
-    });
-    
-    // Handle multiple file uploads if files are selected
-    if (selectedFiles.length > 0 && success) {
-      for (const file of selectedFiles) {
-        await uploadExercisePdf(formData.id, file, formData.course_id);
-      }
+    if (isSubmitting || !formData.id) return;
+
+    if (!formData.title.trim()) {
+      toast.error(language === "ar" ? "يرجى إدخال عنوان التمرين" : "Veuillez entrer un titre pour l'exercice");
+      return;
     }
-    
-    if (success) {
-      resetForm();
-      setIsEditDialogOpen(false);
+
+    if (!formData.course_id) {
+      toast.error(language === "ar" ? "يرجى اختيار الدرس" : "Veuillez sélectionner un cours");
+      return;
+    }
+
+    if (!formData.due_date) {
+      toast.error(language === "ar" ? "يرجى تحديد تاريخ التسليم" : "Veuillez indiquer une date limite");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const success = await updateExercise(formData.id, {
+        course_id: formData.course_id,
+        title: formData.title.trim(),
+        description: formData.description,
+        due_date: new Date(formData.due_date).toISOString(),
+        is_visible: formData.is_visible,
+      });
+
+      // Handle multiple file uploads if files are selected
+      if (selectedFiles.length > 0 && success) {
+        for (const file of selectedFiles) {
+          try {
+            await uploadExercisePdf(formData.id, file, formData.course_id);
+          } catch (err) {
+            console.error("Error uploading exercise PDF:", err);
+          }
+        }
+      }
+
+      if (success) {
+        resetForm();
+        setIsEditDialogOpen(false);
+      }
+    } catch (err) {
+      console.error("Error in handleEditExercise:", err);
+      toast.error(language === "ar" ? "فشل تحديث التمرين" : "Échec de la mise à jour");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -311,10 +385,22 @@ const Exercises = () => {
                 </div>
               </div>
               <DialogFooter className="mt-4">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSubmitting}>
                   {t("app.cancel")}
                 </Button>
-                <Button onClick={handleAddExercise}>{t("form.create")}</Button>
+                <Button 
+                  onClick={handleAddExercise}
+                  disabled={isSubmitting || !formData.title.trim() || !formData.course_id || !formData.due_date}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      {language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création en cours..." : "Creating..."}
+                    </>
+                  ) : (
+                    t("form.create")
+                  )}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -629,10 +715,22 @@ const Exercises = () => {
             </div>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
               {t("app.cancel")}
             </Button>
-            <Button onClick={handleEditExercise}>{t("form.update")}</Button>
+            <Button 
+              onClick={handleEditExercise}
+              disabled={isSubmitting || !formData.title.trim() || !formData.course_id || !formData.due_date}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {language === "ar" ? "جاري التحديث..." : language === "fr" ? "Mise à jour..." : "Updating..."}
+                </>
+              ) : (
+                t("form.update")
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

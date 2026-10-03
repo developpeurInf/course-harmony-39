@@ -38,7 +38,8 @@ import {
   LayoutList,
   Building,
   Download,
-  File
+  File,
+  Loader2
 } from "lucide-react";
 import {
   Select,
@@ -156,6 +157,8 @@ const Courses = () => {
     setCourseMaterials(materialsMap);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Reset form
   const resetForm = () => {
     setTitle("");
@@ -169,76 +172,99 @@ const Courses = () => {
 
   // Add new course
   const handleAddCourse = async () => {
-    // Create the course first
-    const newCourse = await addCourse({
-      title,
-      description,
-      is_visible: isVisible,
-      room_id: roomId || undefined
-    });
-    if (!newCourse) return;
-
-    // Upload PDFs if selected
-    if (selectedPdfFiles.length > 0 && user) {
-      for (const file of selectedPdfFiles) {
-        try {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-          const filePath = `courses/${newCourse.id}/${fileName}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('course-materials')
-            .upload(filePath, file, { upsert: true });
-          
-          if (uploadError) {
-            console.error('Upload error:', uploadError);
-            toast.error(`Failed to upload ${file.name}`);
-            continue;
-          }
-
-          const { data: publicUrlData } = supabase.storage
-            .from('course-materials')
-            .getPublicUrl(filePath);
-          
-          // Save file info to course_materials table
-          const { error: dbError } = await supabase
-            .from('course_materials')
-            .insert({
-              course_id: newCourse.id,
-              file_name: file.name,
-              file_path: filePath,
-              file_size: file.size,
-              uploaded_by: user.id
-            });
-
-          if (dbError) {
-            console.error('DB error:', dbError);
-            toast.error(`Failed to save ${file.name} info`);
-          }
-
-          // Also set pdf_url on course for fast direct viewing
-          await supabase
-            .from('courses')
-            .update({ pdf_url: publicUrlData.publicUrl })
-            .eq('id', newCourse.id);
-
-        } catch (error) {
-          console.error('Error uploading PDF:', error);
-          toast.error(`Failed to upload ${file.name}`);
-        }
-      }
+    if (isSubmitting) return;
+    if (!title.trim()) {
+      toast.error(language === "ar" ? "يرجى إدخال عنوان الدرس" : "Veuillez entrer un titre de cours");
+      return;
     }
 
-    setIsAddDialogOpen(false);
-    resetForm();
-    await loadCourseMaterials(); // Refresh materials
+    setIsSubmitting(true);
+    try {
+      // Create the course first
+      const newCourse = await addCourse({
+        title: title.trim(),
+        description,
+        is_visible: isVisible,
+        room_id: roomId || undefined
+      });
+      if (!newCourse) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Upload PDFs if selected
+      if (selectedPdfFiles.length > 0 && user) {
+        for (const file of selectedPdfFiles) {
+          try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const filePath = `courses/${newCourse.id}/${fileName}`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from('course-materials')
+              .upload(filePath, file, { upsert: true });
+            
+            if (uploadError) {
+              console.error('Upload error:', uploadError);
+              toast.error(`Failed to upload ${file.name}`);
+              continue;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+              .from('course-materials')
+              .getPublicUrl(filePath);
+            
+            // Save file info to course_materials table
+            const { error: dbError } = await supabase
+              .from('course_materials')
+              .insert({
+                course_id: newCourse.id,
+                file_name: file.name,
+                file_path: filePath,
+                file_size: file.size,
+                uploaded_by: user.id
+              });
+
+            if (dbError) {
+              console.error('DB error:', dbError);
+              toast.error(`Failed to save ${file.name} info`);
+            }
+
+            // Also set pdf_url on course for fast direct viewing
+            await supabase
+              .from('courses')
+              .update({ pdf_url: publicUrlData.publicUrl })
+              .eq('id', newCourse.id);
+
+          } catch (error) {
+            console.error('Error uploading PDF:', error);
+            toast.error(`Failed to upload ${file.name}`);
+          }
+        }
+      }
+
+      setIsAddDialogOpen(false);
+      resetForm();
+      await loadCourseMaterials(); // Refresh materials
+    } catch (err) {
+      console.error('Error in handleAddCourse:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Edit course
   const handleEditCourse = async () => {
-    if (currentCourse) {
+    if (isSubmitting || !currentCourse) return;
+    if (!title.trim()) {
+      toast.error(language === "ar" ? "يرجى إدخال عنوان الدرس" : "Veuillez entrer un titre de cours");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
       const success = await updateCourse(currentCourse.id, {
-        title,
+        title: title.trim(),
         description,
         room_id: roomId || undefined,
         is_visible: isVisible
@@ -282,6 +308,7 @@ const Courses = () => {
               toast.error(`Failed to save ${file.name} info`);
             }
 
+            // Also update pdf_url on course
             await supabase
               .from('courses')
               .update({ pdf_url: publicUrlData.publicUrl })
@@ -295,8 +322,14 @@ const Courses = () => {
         await loadCourseMaterials(); // Refresh materials
       }
 
-      setIsEditDialogOpen(false);
-      resetForm();
+      if (success) {
+        setIsEditDialogOpen(false);
+        resetForm();
+      }
+    } catch (err) {
+      console.error('Error in handleEditCourse:', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -532,11 +565,18 @@ const Courses = () => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSubmitting}>
                     {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                   </Button>
-                  <Button onClick={handleAddCourse} disabled={!title}>
-                    {language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course"}
+                  <Button onClick={handleAddCourse} disabled={!title.trim() || isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création en cours..." : "Creating..."}
+                      </>
+                    ) : (
+                      language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course"
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -967,11 +1007,18 @@ const Courses = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button onClick={handleEditCourse}>
-              {language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Enregistrer les modifications" : "Save Changes"}
+            <Button onClick={handleEditCourse} disabled={!title.trim() || isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {language === "ar" ? "جاري الحفظ..." : language === "fr" ? "Enregistrement..." : "Saving..."}
+                </>
+              ) : (
+                language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Enregistrer les modifications" : "Save Changes"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

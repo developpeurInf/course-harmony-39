@@ -49,6 +49,8 @@ export interface Exam {
   is_visible: boolean;
   pdf_url?: string;
   type: 'exam' | 'quiz';
+  available_from?: string | null;
+  available_until?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1203,20 +1205,32 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getVisibleExercisesForStudent = (studentId: string): Exercise[] => {
-    const studentCourses = getVisibleCoursesForStudent(studentId);
-    const courseIds = studentCourses.map(c => c.id);
-    
+    const studentRoomId = user?.id === studentId ? user?.room_id : null;
+    const accessibleCourseIds = new Set<string>();
+
+    if (studentRoomId) {
+      courses.filter(c => c.room_id === studentRoomId).forEach(c => accessibleCourseIds.add(c.id));
+    }
+
+    enrollments.filter(enr => enr.student_id === studentId).forEach(enr => accessibleCourseIds.add(enr.course_id));
+
     return exercises.filter(exercise => 
-      courseIds.includes(exercise.course_id) && exercise.is_visible
+      exercise.is_visible && (accessibleCourseIds.has(exercise.course_id) || accessibleCourseIds.size === 0)
     );
   };
 
   const getVisibleExamsForStudent = (studentId: string): Exam[] => {
-    const studentCourses = getVisibleCoursesForStudent(studentId);
-    const courseIds = studentCourses.map(c => c.id);
-    
+    const studentRoomId = user?.id === studentId ? user?.room_id : null;
+    const accessibleCourseIds = new Set<string>();
+
+    if (studentRoomId) {
+      courses.filter(c => c.room_id === studentRoomId).forEach(c => accessibleCourseIds.add(c.id));
+    }
+
+    enrollments.filter(enr => enr.student_id === studentId).forEach(enr => accessibleCourseIds.add(enr.course_id));
+
     return exams.filter(exam => 
-      courseIds.includes(exam.course_id) && exam.is_visible
+      exam.is_visible && (accessibleCourseIds.has(exam.course_id) || accessibleCourseIds.size === 0)
     );
   };
 

@@ -39,7 +39,11 @@ import {
   BookOpen,
   Settings,
   Play,
-  Trophy
+  Trophy,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Timer
 } from "lucide-react";
 import QuizBuilder from "@/components/QuizBuilder";
 import QuizTaker from "@/components/QuizTaker";
@@ -48,6 +52,7 @@ import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { toast } from "sonner";
 
 const Exams = () => {
   const { t, language } = useLanguage();
@@ -72,12 +77,15 @@ const Exams = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [courseId, setCourseId] = useState("");
   const [examDate, setExamDate] = useState("");
   const [examTime, setExamTime] = useState("");
+  const [availableUntilDate, setAvailableUntilDate] = useState("");
+  const [availableUntilTime, setAvailableUntilTime] = useState("");
   const [duration, setDuration] = useState(60);
   const [isVisible, setIsVisible] = useState(true);
   const [examType, setExamType] = useState<"exam" | "quiz">("exam");
@@ -92,8 +100,6 @@ const Exams = () => {
   // Refresh data when component mounts or when navigating between room/global views
   useEffect(() => {
     if (user) {
-      // If we're NOT in a room context (accessing /exams directly), refresh all data
-      // RoomExams component handles refresh for room-specific context
       if (!roomId) {
         refreshData();
       }
@@ -124,20 +130,39 @@ const Exams = () => {
     ? userExams 
     : userExams.filter(exam => exam.course_id === selectedCourseFilter);
 
-  // Filter courses based on user role for the course dropdown
+  // Filter courses based on user role for the course dropdown (both room & enrollments)
   const availableCourses = isProfessor 
     ? courses 
     : courses.filter(course => 
-        course.is_visible && user && enrollments.some(e => e.course_id === course.id && e.student_id === user.id)
+        course.is_visible && user && (
+          (user.room_id && course.room_id === user.room_id) ||
+          enrollments.some(e => e.course_id === course.id && e.student_id === user.id)
+        )
       );
 
-  // Reset form
+  // Reset form with smart defaults
   const resetForm = () => {
+    let defaultCourseId = "";
+    if (courses && courses.length > 0) {
+      if (selectedCourseFilter !== "all" && courses.some(c => c.id === selectedCourseFilter)) {
+        defaultCourseId = selectedCourseFilter;
+      } else if (roomId) {
+        const roomCourse = courses.find(c => c.room_id === roomId);
+        if (roomCourse) defaultCourseId = roomCourse.id;
+      } else if (courses.length === 1) {
+        defaultCourseId = courses[0].id;
+      }
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
     setTitle("");
     setDescription("");
-    setCourseId("");
-    setExamDate("");
-    setExamTime("");
+    setCourseId(defaultCourseId);
+    setExamDate(todayStr);
+    setExamTime("01:00");
+    setAvailableUntilDate(todayStr);
+    setAvailableUntilTime("03:00");
     setDuration(60);
     setIsVisible(true);
     setExamType("exam");
@@ -146,59 +171,175 @@ const Exams = () => {
 
   // Format date for input field
   const formatDateForInput = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toISOString().split('T')[0];
+    try {
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
+    } catch {
+      return "";
+    }
   };
 
   // Format time for input field
   const formatTimeForInput = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toISOString().split('T')[1].substring(0, 5);
+    try {
+      const date = new Date(dateString);
+      return date.toTimeString().substring(0, 5);
+    } catch {
+      return "";
+    }
   };
 
   // Combine date and time to ISO string
   const combineDateTime = (date: string, time: string) => {
-    return new Date(`${date}T${time}:00`).toISOString();
+    const timeVal = time || "00:00";
+    return new Date(`${date}T${timeVal}:00`).toISOString();
+  };
+
+  // Helper to determine dynamic Quiz availability and time window
+  const getQuizStatus = (exam: Exam) => {
+    const now = new Date().getTime();
+    const fromTime = exam.available_from ? new Date(exam.available_from).getTime() : new Date(exam.exam_date).getTime();
+    const untilTime = exam.available_until ? new Date(exam.available_until).getTime() : null;
+
+    if (fromTime && now < fromTime) {
+      return {
+        status: 'upcoming' as const,
+        from: new Date(fromTime),
+        until: untilTime ? new Date(untilTime) : null,
+        label: language === 'ar' ? 'غير متاح بعد' : language === 'fr' ? 'Pas encore disponible' : 'Not available yet',
+        badgeVariant: 'secondary' as const
+      };
+    }
+
+    if (untilTime && now > untilTime) {
+      return {
+        status: 'expired' as const,
+        from: new Date(fromTime),
+        until: new Date(untilTime),
+        label: language === 'ar' ? 'منتهي' : language === 'fr' ? 'Expiré' : 'Expired',
+        badgeVariant: 'outline' as const
+      };
+    }
+
+    return {
+      status: 'available' as const,
+      from: new Date(fromTime),
+      until: untilTime ? new Date(untilTime) : null,
+      label: language === 'ar' ? 'متاح الآن' : language === 'fr' ? 'Disponible maintenant' : 'Available now',
+      badgeVariant: 'default' as const
+    };
+  };
+
+  // Check if exam is in the past
+  const isPastExam = (dateString: string, examObj?: Exam) => {
+    if (examObj && examObj.type === 'quiz') {
+      return getQuizStatus(examObj).status === 'expired';
+    }
+    const now = new Date();
+    const examDateVal = new Date(dateString);
+    return examDateVal < now;
   };
 
   // Add new exam
   const handleAddExam = async () => {
-    const newExam = await addExam({
-      title,
-      description,
-      course_id: courseId,
-      exam_date: combineDateTime(examDate, examTime),
-      duration_minutes: duration,
-      is_visible: isVisible,
-      type: examType
-    });
-    
-    if (newExam) {
-      setIsAddDialogOpen(false);
-      resetForm();
-      if (examType === "quiz") {
-        setShowQuizBuilder(newExam.id);
+    if (isSubmitting) return;
+
+    if (!title.trim()) {
+      toast.error(language === "ar" ? "يرجى إدخال عنوان الامتحان" : "Veuillez entrer un titre pour l'examen");
+      return;
+    }
+
+    if (!courseId) {
+      toast.error(language === "ar" ? "يرجى اختيار الدرس" : "Veuillez sélectionner un cours");
+      return;
+    }
+
+    if (!examDate || !examTime) {
+      toast.error(language === "ar" ? "يرجى تحديد التاريخ والوقت" : "Veuillez définir la date et l'heure");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const startIso = combineDateTime(examDate, examTime);
+      const endIso = examType === "quiz" && availableUntilTime 
+        ? combineDateTime(availableUntilDate || examDate, availableUntilTime) 
+        : null;
+
+      const newExam = await addExam({
+        title: title.trim(),
+        description,
+        course_id: courseId,
+        exam_date: startIso,
+        duration_minutes: duration,
+        is_visible: isVisible,
+        type: examType,
+        available_from: startIso,
+        available_until: endIso
+      });
+      
+      if (newExam) {
+        setIsAddDialogOpen(false);
+        resetForm();
+        if (examType === "quiz") {
+          setShowQuizBuilder(newExam.id);
+        }
       }
+    } catch (err) {
+      console.error("Error adding exam:", err);
+      toast.error(language === "ar" ? "فشل إنشاء الامتحان" : "Échec de création de l'examen");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Edit exam
   const handleEditExam = async () => {
-    if (currentExam) {
+    if (isSubmitting || !currentExam) return;
+
+    if (!title.trim()) {
+      toast.error(language === "ar" ? "يرجى إدخال عنوان الامتحان" : "Veuillez entrer un titre pour l'examen");
+      return;
+    }
+
+    if (!courseId) {
+      toast.error(language === "ar" ? "يرجى اختيار الدرس" : "Veuillez sélectionner un cours");
+      return;
+    }
+
+    if (!examDate || !examTime) {
+      toast.error(language === "ar" ? "يرجى تحديد التاريخ والوقت" : "Veuillez définir la date et l'heure");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const startIso = combineDateTime(examDate, examTime);
+      const endIso = examType === "quiz" && availableUntilTime 
+        ? combineDateTime(availableUntilDate || examDate, availableUntilTime) 
+        : null;
+
       const success = await updateExam(currentExam.id, {
-        title,
+        title: title.trim(),
         description,
         course_id: courseId,
-        exam_date: combineDateTime(examDate, examTime),
+        exam_date: startIso,
         duration_minutes: duration,
         is_visible: isVisible,
-        type: examType
+        type: examType,
+        available_from: startIso,
+        available_until: endIso
       });
       
       if (success) {
         setIsEditDialogOpen(false);
         resetForm();
       }
+    } catch (err) {
+      console.error("Error updating exam:", err);
+      toast.error(language === "ar" ? "فشل تعديل الامتحان" : "Échec de modification de l'examen");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -217,8 +358,19 @@ const Exams = () => {
     setTitle(exam.title);
     setDescription(exam.description);
     setCourseId(exam.course_id);
-    setExamDate(formatDateForInput(exam.exam_date));
-    setExamTime(formatTimeForInput(exam.exam_date));
+    
+    const startDate = exam.available_from || exam.exam_date;
+    setExamDate(formatDateForInput(startDate));
+    setExamTime(formatTimeForInput(startDate));
+    
+    if (exam.available_until) {
+      setAvailableUntilDate(formatDateForInput(exam.available_until));
+      setAvailableUntilTime(formatTimeForInput(exam.available_until));
+    } else {
+      setAvailableUntilDate(formatDateForInput(startDate));
+      setAvailableUntilTime("");
+    }
+    
     setDuration(exam.duration_minutes);
     setIsVisible(exam.is_visible);
     setExamType(exam.type);
@@ -283,12 +435,6 @@ const Exams = () => {
     }
   };
 
-  // Check if exam date is in the past
-  const isPastExam = (dateString: string) => {
-    const now = new Date();
-    const examDate = new Date(dateString);
-    return examDate < now;
-  };
 
 
   // Handle course filter change
@@ -374,26 +520,6 @@ const Exams = () => {
                       rows={3}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="examDate">{language === "ar" ? "تاريخ الامتحان" : language === "fr" ? "Date de l'examen" : "Exam Date"}</Label>
-                      <Input
-                        id="examDate"
-                        type="date"
-                        value={examDate}
-                        onChange={(e) => setExamDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="examTime">{language === "ar" ? "وقت البداية" : language === "fr" ? "Heure de début" : "Start Time"}</Label>
-                      <Input
-                        id="examTime"
-                        type="time"
-                        value={examTime}
-                        onChange={(e) => setExamTime(e.target.value)}
-                      />
-                    </div>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="examType">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</Label>
                     <Select value={examType} onValueChange={(value: "exam" | "quiz") => setExamType(value)}>
@@ -406,13 +532,112 @@ const Exams = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {examType === "quiz" ? (
+                    <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                        <Timer className="h-4 w-4" />
+                        <span>
+                          {language === "ar" ? "فترة إتاحة الاختبار (Quiz)" : language === "fr" ? "Période de disponibilité du Quiz" : "Quiz Availability Window"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {language === "ar"
+                          ? "حدد فترة بدء وانتهاء إتاحة الاختبار. خلال هذه الفترة يمكن للتلميذ بدء الإجابة، وبعد وقت الانتهاء ينتهي الاختبار تلقائياً."
+                          : language === "fr"
+                          ? "Définissez la plage horaire durant laquelle le quiz est accessible (ex. 01h00 à 03h00). Après l'heure de fin, le quiz expire automatiquement."
+                          : "Set when students can access the quiz. After the end time, the quiz automatically expires."}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="examDate" className="text-xs">
+                            {language === "ar" ? "تاريخ البداية" : language === "fr" ? "Date de début" : "Start Date"}
+                          </Label>
+                          <Input
+                            id="examDate"
+                            type="date"
+                            value={examDate}
+                            onChange={(e) => setExamDate(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="examTime" className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            {language === "ar" ? "وقت البداية (متاح من)" : language === "fr" ? "Heure de début (Dès)" : "Start Time"}
+                          </Label>
+                          <Input
+                            id="examTime"
+                            type="time"
+                            value={examTime}
+                            onChange={(e) => setExamTime(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="availableUntilDate" className="text-xs">
+                            {language === "ar" ? "تاريخ النهاية" : language === "fr" ? "Date de fin" : "End Date"}
+                          </Label>
+                          <Input
+                            id="availableUntilDate"
+                            type="date"
+                            value={availableUntilDate || examDate}
+                            onChange={(e) => setAvailableUntilDate(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="availableUntilTime" className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                            {language === "ar" ? "وقت الانتهاء (حتى)" : language === "fr" ? "Heure de fin (Jusqu'à)" : "End Time"}
+                          </Label>
+                          <Input
+                            id="availableUntilTime"
+                            type="time"
+                            value={availableUntilTime}
+                            onChange={(e) => setAvailableUntilTime(e.target.value)}
+                            placeholder="ex: 03:00"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="examDate">{language === "ar" ? "تاريخ الامتحان" : language === "fr" ? "Date de l'examen" : "Exam Date"}</Label>
+                        <Input
+                          id="examDate"
+                          type="date"
+                          value={examDate}
+                          onChange={(e) => setExamDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="examTime">{language === "ar" ? "وقت البداية" : language === "fr" ? "Heure de début" : "Start Time"}</Label>
+                        <Input
+                          id="examTime"
+                          type="time"
+                          value={examTime}
+                          onChange={(e) => setExamTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <Label htmlFor="duration">{language === "ar" ? "المدة (بالدقائق)" : language === "fr" ? "Durée (minutes)" : "Duration (minutes)"}</Label>
+                    <Label htmlFor="duration">
+                      {examType === "quiz" 
+                        ? (language === "ar" ? "مدة الاختبار للتلميذ بعد البدء (بالدقائق)" : language === "fr" ? "Durée de passage par élève (minutes)" : "Quiz Duration per attempt (minutes)")
+                        : (language === "ar" ? "المدة (بالدقائق)" : language === "fr" ? "Durée (minutes)" : "Duration (minutes)")}
+                    </Label>
                     <Input
                       id="duration"
                       type="number"
-                      min="15"
-                      step="15"
+                      min="5"
+                      step="5"
                       value={duration}
                       onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
                     />
@@ -429,16 +654,23 @@ const Exams = () => {
                   </div>
                 </div>
                 <DialogFooter className="gap-2 sm:gap-0">
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSubmitting}>
                     {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                   </Button>
                   <Button 
                     onClick={handleAddExam}
-                    disabled={!title || !courseId || !examDate || !examTime}
+                    disabled={isSubmitting || !title.trim() || !courseId || !examDate || !examTime}
                   >
-                    {examType === 'quiz' 
-                      ? (language === 'ar' ? 'إنشاء الاختبار' : language === 'fr' ? 'Créer le quiz' : 'Create Quiz') 
-                      : (language === 'ar' ? 'جدولة الامتحان' : language === 'fr' ? "Planifier l'examen" : 'Schedule Exam')}
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création en cours..." : "Creating..."}
+                      </>
+                    ) : (
+                      examType === 'quiz' 
+                        ? (language === 'ar' ? 'إنشاء الاختبار' : language === 'fr' ? 'Créer le quiz' : 'Create Quiz') 
+                        : (language === 'ar' ? 'جدولة الامتحان' : language === 'fr' ? "Planifier l'examen" : 'Schedule Exam')
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -503,215 +735,338 @@ const Exams = () => {
       {displayedExams.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {displayedExams.map((exam) => (
-              <Card key={exam.id} className="overflow-hidden card-hover">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <CardTitle>{exam.title}</CardTitle>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'}>
-                        {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
-                      </Badge>
-                      {!exam.is_visible && (
-                        <Badge variant="outline">{language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}</Badge>
+            {displayedExams.map((exam) => {
+              const quizStatus = getQuizStatus(exam);
+              return (
+                <Card key={exam.id} className="overflow-hidden card-hover flex flex-col justify-between">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-base font-semibold truncate" title={exam.title}>
+                          {exam.title}
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs">
+                          {getCourseName(exam.course_id)}
+                        </CardDescription>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[10px]">
+                          {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
+                        </Badge>
+                        {!exam.is_visible && (
+                          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                            {language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}
+                          </Badge>
+                        )}
+                        {exam.type === 'quiz' ? (
+                          <Badge 
+                            variant="outline"
+                            className={`text-[10px] font-medium ${
+                              quizStatus.status === 'available'
+                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-300'
+                                : quizStatus.status === 'upcoming'
+                                ? 'bg-amber-500/10 text-amber-600 border-amber-300'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {quizStatus.label}
+                          </Badge>
+                        ) : (
+                          isPastExam(exam.exam_date, exam) ? (
+                            <Badge variant="secondary" className="text-[10px]">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
+                          ) : (
+                            <Badge className="text-[10px]">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-3 space-y-2.5 flex-1">
+                    {exam.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{exam.description}</p>
+                    )}
+                    <div className="flex flex-col gap-1.5 text-xs text-muted-foreground pt-1 border-t">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-primary" />
+                        <span>{formatExamDateTime(exam.available_from || exam.exam_date)}</span>
+                      </div>
+                      {exam.available_until && (
+                        <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                          <Timer className="h-3.5 w-3.5" />
+                          <span>
+                            {language === "ar" ? "متاح حتى: " : language === "fr" ? "Fermeture : " : "Closes: "}
+                            {formatExamDateTime(exam.available_until)}
+                          </span>
+                        </div>
                       )}
-                      {isPastExam(exam.exam_date) ? (
-                        <Badge variant="secondary">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
-                      ) : (
-                        <Badge>{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{language === "ar" ? "المدة: " : language === "fr" ? "Durée : " : "Duration: "}{formatDuration(exam.duration_minutes)}</span>
+                      </div>
                     </div>
-                  </div>
-                  <CardDescription className="mt-1">
-                    {getCourseName(exam.course_id)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pb-3">
-                  <p className="text-sm mb-3">{exam.description}</p>
-                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span>{formatExamDateTime(exam.exam_date)}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      <span>{language === "ar" ? "المدة: " : language === "fr" ? "Durée : " : "Duration: "}{formatDuration(exam.duration_minutes)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                  <div className="flex justify-between w-full">
-                    {isProfessor ? (
-                      <>
-                         <div className="flex gap-2 items-center">
-                           {exam.type === 'quiz' && (
-                             <Button 
-                               variant="outline" 
-                               size="sm"
-                               className="h-8 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-                               onClick={() => setShowQuizBuilder(exam.id)}
-                             >
-                               <PlusCircle className="h-3.5 w-3.5" />
-                               <span>{language === "ar" ? "محرر الأسئلة" : language === "fr" ? "Créateur de Quiz" : "Quiz Builder"}</span>
-                             </Button>
-                           )}
-                           {exam.type === 'quiz' && (
+                  </CardContent>
+                  <CardFooter className="border-t bg-muted/30 px-4 py-2.5">
+                    <div className="flex justify-between items-center w-full">
+                      {isProfessor ? (
+                        <>
+                           <div className="flex gap-1.5 items-center">
+                             {exam.type === 'quiz' && (
+                               <Button 
+                                 variant="outline" 
+                                 size="sm"
+                                 className="h-8 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                                 onClick={() => setShowQuizBuilder(exam.id)}
+                               >
+                                 <PlusCircle className="h-3.5 w-3.5" />
+                                 <span>{language === "ar" ? "الأسئلة" : language === "fr" ? "Questions" : "Questions"}</span>
+                               </Button>
+                             )}
+                             {exam.type === 'quiz' && (
+                               <Button 
+                                 variant="ghost" 
+                                 size="icon"
+                                 className="h-8 w-8 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                 onClick={() => setShowQuizResults(exam.id)}
+                                 title={language === "ar" ? "عرض النتائج" : language === "fr" ? "Voir les résultats" : "View Results"}
+                               >
+                                 <Trophy className="h-4 w-4" />
+                               </Button>
+                             )}
                              <Button 
                                variant="ghost" 
                                size="icon"
-                               className="h-8 w-8 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
-                               onClick={() => setShowQuizResults(exam.id)}
-                               title={language === "ar" ? "عرض النتائج" : language === "fr" ? "Voir les résultats" : "View Results"}
+                               className="h-8 w-8"
+                               onClick={() => handleToggleVisibility(exam.id)}
+                               title={exam.is_visible 
+                                 ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer aux élèves" : "Hide from students")
+                                 : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
                              >
-                               <Trophy className="h-4 w-4" />
+                               {exam.is_visible ? (
+                                 <EyeOff className="h-4 w-4" />
+                               ) : (
+                                 <Eye className="h-4 w-4 text-muted-foreground" />
+                               )}
                              </Button>
-                           )}
-                           <Button 
-                             variant="ghost" 
-                             size="icon"
-                             onClick={() => handleToggleVisibility(exam.id)}
-                             title={exam.is_visible 
-                               ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer aux élèves" : "Hide from students")
-                               : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
-                           >
-                             {exam.is_visible ? (
-                               <EyeOff className="h-4 w-4" />
-                             ) : (
-                               <Eye className="h-4 w-4" />
-                             )}
-                           </Button>
-                         </div>
-                         <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => openEditDialog(exam)}
-                            title={language === "ar" ? "تعديل الامتحان" : language === "fr" ? "Modifier l'examen" : "Edit exam"}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => openDeleteDialog(exam)}
-                            title={language === "ar" ? "حذف الامتحان" : language === "fr" ? "Supprimer l'examen" : "Delete exam"}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
+                           </div>
+                           <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openEditDialog(exam)}
+                              title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => openDeleteDialog(exam)}
+                              title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </>
+                      ) : exam.type === 'quiz' ? (
+                        <div className="flex justify-end w-full items-center gap-2">
+                          {quizStatus.status === 'available' ? (
+                            <Button 
+                              size="sm"
+                              onClick={() => setShowQuizTaker(exam)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs h-8 gap-1.5"
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                              {language === "ar" ? "اجتياز الاختبار" : language === "fr" ? "Passer le Quiz" : "Take Quiz"}
+                            </Button>
+                          ) : quizStatus.status === 'upcoming' ? (
+                            <Button 
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              className="text-xs h-8 gap-1.5 opacity-70 text-amber-600 border-amber-300"
+                            >
+                              <Clock className="h-3.5 w-3.5" />
+                              {language === "ar" ? "غير متاح بعد" : language === "fr" ? "Pas encore disponible" : "Not available yet"}
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">
+                              {language === "ar" ? "انتهت فترة الاختبار" : language === "fr" ? "Période expirée" : "Quiz expired"}
+                            </span>
+                          )}
                         </div>
-                      </>
-                    ) : exam.type === 'quiz' && !isPastExam(exam.exam_date) && (
-                      <div className="flex justify-end w-full">
-                        <Button 
-                          size="sm"
-                          onClick={() => setShowQuizTaker(exam)}
-                          className="flex items-center gap-2"
-                        >
-                          <Play className="h-4 w-4" />
-                          {language === "ar" ? "اجتياز الاختبار" : language === "fr" ? "Passer le Quiz" : "Take Quiz"}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardFooter>
-              </Card>
-            ))}
+                      ) : (
+                        <div className="text-xs text-muted-foreground">
+                          {isPastExam(exam.exam_date, exam) ? (
+                            language === "ar" ? "امتحان منتهي" : "Examen terminé"
+                          ) : (
+                            language === "ar" ? "امتحان حضوري مجدول" : "Examen programmé"
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </CardFooter>
+                </Card>
+              );
+            })}
           </div>
         ) : (
-          <div className="border rounded-lg">
-            <table className="w-full">
+          <div className="border rounded-lg overflow-x-auto">
+            <table className="w-full text-xs">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحان" : language === "fr" ? "Examen" : "Exam"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "التاريخ والوقت" : language === "fr" ? "Date et Heure" : "Date & Time"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "المدة" : language === "fr" ? "Durée" : "Duration"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</th>
-                  <th className="p-4 text-left font-medium">{language === "ar" ? "الحالة" : language === "fr" ? "Statut" : "Status"}</th>
-                  {isProfessor && <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>}
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "الامتحان" : language === "fr" ? "Examen" : "Exam"}</th>
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "فترة الإتاحة" : language === "fr" ? "Disponibilité / Date" : "Availability"}</th>
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "المدة" : language === "fr" ? "Durée" : "Duration"}</th>
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</th>
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "الحالة" : language === "fr" ? "Statut" : "Status"}</th>
+                  <th className="p-3 text-left font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedExams.map((exam) => (
-                  <tr key={exam.id} className="border-t">
-                    <td className="p-4">
-                      <div>
-                        <h3 className="font-medium">{exam.title}</h3>
-                        <p className="text-sm text-muted-foreground">{exam.description}</p>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm">{getCourseName(exam.course_id)}</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="text-sm">
-                        <div>{format(new Date(exam.exam_date), "PPP")}</div>
-                        <div className="text-muted-foreground">{format(new Date(exam.exam_date), "p")}</div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{exam.duration_minutes} min</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'}>
-                        {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-col gap-1">
-                        {isPastExam(exam.exam_date) ? (
-                          <Badge variant="outline" className="w-fit">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
-                        ) : (
-                          <Badge variant="default" className="w-fit">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
-                        )}
-                        {!exam.is_visible && (
-                          <Badge variant="outline" className="w-fit">{language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}</Badge>
-                        )}
-                      </div>
-                    </td>
-                    {isProfessor && (
-                      <td className="p-4">
-                        <div className="flex gap-1">
-                          {exam.type === 'quiz' && (
+                {displayedExams.map((exam) => {
+                  const quizStatus = getQuizStatus(exam);
+                  return (
+                    <tr key={exam.id} className="border-t hover:bg-muted/30 transition-colors">
+                      <td className="p-3">
+                        <div>
+                          <h3 className="font-semibold text-sm">{exam.title}</h3>
+                          {exam.description && <p className="text-xs text-muted-foreground line-clamp-1">{exam.description}</p>}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <BookOpen className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <span className="truncate max-w-[140px]">{getCourseName(exam.course_id)}</span>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-xs">
+                          <div className="font-medium">{format(new Date(exam.available_from || exam.exam_date), "dd MMM yyyy")}</div>
+                          <div className="text-muted-foreground">
+                            {format(new Date(exam.available_from || exam.exam_date), "HH:mm")}
+                            {exam.available_until && ` → ${format(new Date(exam.available_until), "HH:mm")}`}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>{exam.duration_minutes} min</span>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[10px]">
+                          {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          {exam.type === 'quiz' ? (
+                            <Badge 
+                              variant="outline"
+                              className={`text-[10px] w-fit ${
+                                quizStatus.status === 'available'
+                                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-300'
+                                  : quizStatus.status === 'upcoming'
+                                  ? 'bg-amber-500/10 text-amber-600 border-amber-300'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {quizStatus.label}
+                            </Badge>
+                          ) : (
+                            isPastExam(exam.exam_date, exam) ? (
+                              <Badge variant="outline" className="w-fit text-[10px]">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
+                            ) : (
+                              <Badge variant="default" className="w-fit text-[10px]">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
+                            )
+                          )}
+                          {!exam.is_visible && (
+                            <Badge variant="outline" className="w-fit text-[10px] text-amber-600 border-amber-300">
+                              {language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        {isProfessor ? (
+                          <div className="flex gap-1 items-center">
+                            {exam.type === 'quiz' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-primary hover:bg-primary/10"
+                                onClick={() => setShowQuizBuilder(exam.id)}
+                                title={language === "ar" ? "الأسئلة" : language === "fr" ? "Créateur de Quiz" : "Quiz Builder"}
+                              >
+                                <PlusCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {exam.type === 'quiz' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                onClick={() => setShowQuizResults(exam.id)}
+                                title={language === "ar" ? "عرض النتائج" : language === "fr" ? "Voir les résultats" : "View Results"}
+                              >
+                                <Trophy className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-primary hover:bg-primary/10"
-                              onClick={() => setShowQuizBuilder(exam.id)}
-                              title={language === "ar" ? "محرر الأسئلة" : language === "fr" ? "Créateur de Quiz" : "Quiz Builder"}
+                              className="h-7 w-7"
+                              onClick={() => openEditDialog(exam)}
+                              title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
                             >
-                              <PlusCircle className="h-3.5 w-3.5" />
+                              <Edit className="h-3.5 w-3.5" />
                             </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => openEditDialog(exam)}
-                            title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => openDeleteDialog(exam)}
-                            title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => openDeleteDialog(exam)}
+                              title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          exam.type === 'quiz' && (
+                            quizStatus.status === 'available' ? (
+                              <Button
+                                size="sm"
+                                onClick={() => setShowQuizTaker(exam)}
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                              >
+                                <Play className="h-3 w-3" />
+                                {language === "ar" ? "اجتياز" : language === "fr" ? "Passer" : "Take"}
+                              </Button>
+                            ) : quizStatus.status === 'upcoming' ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="h-7 text-xs opacity-70 text-amber-600 border-amber-300"
+                              >
+                                <Clock className="h-3 w-3 mr-1" />
+                                {language === "ar" ? "قادم" : language === "fr" ? "Bientôt" : "Soon"}
+                              </Button>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground italic">
+                                {language === "ar" ? "منتهي" : language === "fr" ? "Expiré" : "Expired"}
+                              </span>
+                            )
+                          )
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -796,26 +1151,6 @@ const Exams = () => {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-examDate">{language === "ar" ? "تاريخ الامتحان" : language === "fr" ? "Date de l'examen" : "Exam Date"}</Label>
-                <Input
-                  id="edit-examDate"
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-examTime">{language === "ar" ? "وقت البداية" : language === "fr" ? "Heure de début" : "Start Time"}</Label>
-                <Input
-                  id="edit-examTime"
-                  type="time"
-                  value={examTime}
-                  onChange={(e) => setExamTime(e.target.value)}
-                />
-              </div>
-            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-examType">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</Label>
               <Select value={examType} onValueChange={(value: "exam" | "quiz") => setExamType(value)}>
@@ -828,13 +1163,112 @@ const Exams = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {examType === "quiz" ? (
+              <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                  <Timer className="h-4 w-4" />
+                  <span>
+                    {language === "ar" ? "فترة إتاحة الاختبار (Quiz)" : language === "fr" ? "Période de disponibilité du Quiz" : "Quiz Availability Window"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {language === "ar"
+                    ? "حدد فترة بدء وانتهاء إتاحة الاختبار. خلال هذه الفترة يمكن للتلميذ بدء الإجابة، وبعد وقت الانتهاء ينتهي الاختبار تلقائياً."
+                    : language === "fr"
+                    ? "Définissez la plage horaire durant laquelle le quiz est accessible (ex. 01h00 à 03h00). Après l'heure de fin, le quiz expire automatiquement."
+                    : "Set when students can access the quiz. After the end time, the quiz automatically expires."}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-examDate" className="text-xs">
+                      {language === "ar" ? "تاريخ البداية" : language === "fr" ? "Date de début" : "Start Date"}
+                    </Label>
+                    <Input
+                      id="edit-examDate"
+                      type="date"
+                      value={examDate}
+                      onChange={(e) => setExamDate(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-examTime" className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      {language === "ar" ? "وقت البداية (متاح من)" : language === "fr" ? "Heure de début (Dès)" : "Start Time"}
+                    </Label>
+                    <Input
+                      id="edit-examTime"
+                      type="time"
+                      value={examTime}
+                      onChange={(e) => setExamTime(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-availableUntilDate" className="text-xs">
+                      {language === "ar" ? "تاريخ النهاية" : language === "fr" ? "Date de fin" : "End Date"}
+                    </Label>
+                    <Input
+                      id="edit-availableUntilDate"
+                      type="date"
+                      value={availableUntilDate || examDate}
+                      onChange={(e) => setAvailableUntilDate(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-availableUntilTime" className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                      {language === "ar" ? "وقت الانتهاء (حتى)" : language === "fr" ? "Heure de fin (Jusqu'à)" : "End Time"}
+                    </Label>
+                    <Input
+                      id="edit-availableUntilTime"
+                      type="time"
+                      value={availableUntilTime}
+                      onChange={(e) => setAvailableUntilTime(e.target.value)}
+                      placeholder="ex: 03:00"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-examDate">{language === "ar" ? "تاريخ الامتحان" : language === "fr" ? "Date de l'examen" : "Exam Date"}</Label>
+                  <Input
+                    id="edit-examDate"
+                    type="date"
+                    value={examDate}
+                    onChange={(e) => setExamDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-examTime">{language === "ar" ? "وقت البداية" : language === "fr" ? "Heure de début" : "Start Time"}</Label>
+                  <Input
+                    id="edit-examTime"
+                    type="time"
+                    value={examTime}
+                    onChange={(e) => setExamTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="edit-duration">{language === "ar" ? "المدة (بالدقائق)" : language === "fr" ? "Durée (minutes)" : "Duration (minutes)"}</Label>
+              <Label htmlFor="edit-duration">
+                {examType === "quiz" 
+                  ? (language === "ar" ? "مدة الاختبار للتلميذ بعد البدء (بالدقائق)" : language === "fr" ? "Durée de passage par élève (minutes)" : "Quiz Duration per attempt (minutes)")
+                  : (language === "ar" ? "المدة (بالدقائق)" : language === "fr" ? "Durée (minutes)" : "Duration (minutes)")}
+              </Label>
               <Input
                 id="edit-duration"
                 type="number"
-                min="15"
-                step="15"
+                min="5"
+                step="5"
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
               />
@@ -851,14 +1285,21 @@ const Exams = () => {
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button 
               onClick={handleEditExam}
-              disabled={!title || !courseId || !examDate || !examTime}
+              disabled={isSubmitting || !title.trim() || !courseId || !examDate || !examTime}
             >
-              {language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Sauvegarder les modifications" : "Save Changes"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {language === "ar" ? "جاري الحفظ..." : language === "fr" ? "Sauvegarde..." : "Saving..."}
+                </>
+              ) : (
+                language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Sauvegarder les modifications" : "Save Changes"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
