@@ -251,6 +251,16 @@ const Students = () => {
           // Also refresh enrollments data to show newly imported students
           await refreshData(roomId);
         }}
+        existingStudents={students.map(s => {
+          const parts = (s.name || '').trim().split(/\s+/);
+          return {
+            prenom: parts[0] || '',
+            nom: parts.slice(1).join(' ') || s.name || '',
+            codeMassar: s.username || '',
+            username: s.username || '',
+            temporaryPassword: (s as any).temporary_password || ''
+          };
+        })}
       />
 
       {/* Filters */}

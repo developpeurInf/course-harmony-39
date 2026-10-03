@@ -223,12 +223,16 @@ const RoomStudents = () => {
       <StudentExcelManager 
         roomId={roomId} 
         onStudentsImported={loadStudents}
-        existingStudents={students.map(s => ({
-          prenom: s.name.split(' ')[0] || '',
-          nom: s.name.split(' ').slice(1).join(' ') || '',
-          username: s.username,
-          temporaryPassword: s.temporary_password
-        }))}
+        existingStudents={students.map(s => {
+          const parts = (s.name || '').trim().split(/\s+/);
+          return {
+            prenom: parts[0] || '',
+            nom: parts.slice(1).join(' ') || s.name || '',
+            codeMassar: s.username || '',
+            username: s.username || '',
+            temporaryPassword: s.temporary_password || ''
+          };
+        })}
       />
 
       {/* Search and View Toggle */}

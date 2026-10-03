@@ -325,10 +325,11 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
   // Fetch existing students from database
   const fetchExistingStudents = async () => {
+    if (!roomId) return;
     try {
       const { data: students, error } = await supabase
         .from('profiles')
-        .select('name, username, massar_code, email, temporary_password')
+        .select('name, username, email, temporary_password')
         .eq('role', 'student')
         .eq('room_id', roomId);
 
@@ -337,55 +338,145 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         return;
       }
 
-      const formattedStudents: StudentData[] = students.map(student => ({
-        prenom: student.name.split(' ')[0] || '',
-        nom: student.name.split(' ').slice(1).join(' ') || '',
-        codeMassar: (student as any).massar_code || student.username || '',
-        username: student.username || '',
-        temporaryPassword: student.temporary_password || ''
-      }));
+      if (students && students.length > 0) {
+        const formattedStudents: StudentData[] = students.map(student => {
+          const parts = (student.name || '').trim().split(/\s+/);
+          const prenom = parts[0] || '';
+          const nom = parts.slice(1).join(' ') || student.name || '';
+          return {
+            prenom,
+            nom,
+            codeMassar: student.username || '',
+            username: student.username || '',
+            temporaryPassword: student.temporary_password || ''
+          };
+        });
 
-      setAllStudentsForDownload(formattedStudents);
+        setAllStudentsForDownload(formattedStudents);
+      }
     } catch (error) {
       console.error('Error fetching existing students:', error);
     }
   };
 
-  // Load existing students on component mount
+  // Load existing students on component mount and when props change
   useEffect(() => {
-    fetchExistingStudents();
-  }, [roomId]);
+    if (existingStudents && existingStudents.length > 0) {
+      setAllStudentsForDownload(existingStudents);
+    } else {
+      fetchExistingStudents();
+    }
+  }, [roomId, existingStudents]);
 
-  // Update download list when students are imported or deleted
-  useEffect(() => {
-    fetchExistingStudents();
-  }, [existingStudents]);
-
-  // Download student list with credentials
+  // Download student list with credentials (4 columns with black borders)
   const handleDownloadList = async () => {
-    if (allStudentsForDownload.length === 0) {
-      toast.error("No students to download. Add students first.");
+    let studentList = allStudentsForDownload;
+    if (studentList.length === 0 && existingStudents && existingStudents.length > 0) {
+      studentList = existingStudents;
+    }
+
+    if (studentList.length === 0 && roomId) {
+      const { data: dbStudents } = await supabase
+        .from('profiles')
+        .select('name, username, email, temporary_password')
+        .eq('role', 'student')
+        .eq('room_id', roomId);
+
+      if (dbStudents && dbStudents.length > 0) {
+        studentList = dbStudents.map(student => {
+          const parts = (student.name || '').trim().split(/\s+/);
+          return {
+            prenom: parts[0] || '',
+            nom: parts.slice(1).join(' ') || student.name || '',
+            codeMassar: student.username || '',
+            username: student.username || '',
+            temporaryPassword: student.temporary_password || ''
+          };
+        });
+        setAllStudentsForDownload(studentList);
+      }
+    }
+
+    if (studentList.length === 0) {
+      toast.error(
+        language === "ar"
+          ? "لا يوجد تلاميذ في هذا القسم لتحميل القائمة."
+          : "Aucun élève trouvé dans cette classe pour le téléchargement."
+      );
       return;
     }
 
     try {
-      const worksheetData = allStudentsForDownload.map(student => ({
-        'Prénom': student.prenom,
-        'Nom': student.nom,
-        'Code Massar': student.codeMassar || student.username,
-        'Temporary Password': student.temporaryPassword
-      }));
+      // 4 colonnes cadrées en noir : Nom | Prénom | Code Massar | Mot de passe temporaire
+      const rowsHtml = studentList.map((s, idx) => `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; text-align: left; color: #000000;">${(s.nom || '').replace(/</g, '&lt;')}</td>
+          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; text-align: left; color: #000000;">${(s.prenom || '').replace(/</g, '&lt;')}</td>
+          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Calibri, Arial, sans-serif; font-size: 11pt; text-align: center; font-weight: bold; mso-number-format:'\\@'; color: #000000;">${(s.codeMassar || s.username || '').replace(/</g, '&lt;')}</td>
+          <td style="border: 1px solid #000000; padding: 7px 12px; font-family: Consolas, 'Courier New', monospace; font-size: 11pt; text-align: center; font-weight: bold; mso-number-format:'\\@'; color: #000000;">${(s.temporaryPassword || '').replace(/</g, '&lt;')}</td>
+        </tr>
+      `).join('');
 
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+      const htmlTable = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Identifiants Élèves</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            table { border-collapse: collapse; width: 100%; border: 1px solid #000000; }
+            th { border: 1px solid #000000; background-color: #E2E8F0; font-weight: bold; text-align: center; padding: 9px 12px; font-size: 11pt; font-family: Calibri, Arial, sans-serif; color: #000000; }
+            td { border: 1px solid #000000; padding: 7px 12px; font-size: 11pt; font-family: Calibri, Arial, sans-serif; color: #000000; }
+          </style>
+        </head>
+        <body>
+          <table border="1" style="border-collapse: collapse; border: 1px solid #000000;">
+            <thead>
+              <tr style="background-color: #E2E8F0;">
+                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 180px; text-align: center; font-weight: bold;">Nom</th>
+                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 180px; text-align: center; font-weight: bold;">Prénom</th>
+                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 180px; text-align: center; font-weight: bold;">Code Massar</th>
+                <th style="border: 1px solid #000000; background-color: #E2E8F0; width: 220px; text-align: center; font-weight: bold;">Mot de passe temporaire</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
 
-      // Generate filename with timestamp
+      const blob = new Blob([htmlTable], { type: 'application/vnd.ms-excel;charset=utf-8' });
       const timestamp = new Date().toISOString().split('T')[0];
-      const filename = `students_credentials_${timestamp}.xlsx`;
+      const filename = `liste_identifiants_eleves_${timestamp}.xls`;
 
-      XLSX.writeFile(workbook, filename);
-      toast.success("Student list downloaded successfully");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(
+        language === "ar"
+          ? "تم تحميل لائحة التلاميذ وبيانات الدخول بنجاح"
+          : "Liste des élèves et identifiants téléchargée avec succès"
+      );
     } catch (error) {
       console.error('Error downloading student list:', error);
       toast.error("Failed to download student list");
@@ -516,18 +607,19 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
           <Button
             variant="outline"
             onClick={handleDownloadList}
-            disabled={allStudentsForDownload.length === 0}
+            disabled={allStudentsForDownload.length === 0 && (!existingStudents || existingStudents.length === 0)}
+            className="font-medium"
           >
-            <Download className="h-4 w-4 mr-2" />
-            {language === "ar" ? "تحميل القائمة" : "Download List"}
+            <Download className="h-4 w-4 mr-2 text-emerald-600" />
+            {language === "ar" ? "تحميل قائمة الحسابات" : language === "fr" ? "Télécharger la liste" : "Download List"}
           </Button>
         </div>
 
-        {allStudentsForDownload.length > 0 && (
+        {(allStudentsForDownload.length > 0 || (existingStudents && existingStudents.length > 0)) && (
           <div className="text-sm text-muted-foreground">
             <p className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              {allStudentsForDownload.length} {language === "ar" ? "تلميذ متاح للتحميل" : "students available for download"}
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              {allStudentsForDownload.length || existingStudents?.length} {language === "ar" ? "تلميذ متاح للتحميل مع كلمات المرور" : language === "fr" ? "élèves disponibles au téléchargement avec mots de passe" : "students available for download with passwords"}
             </p>
           </div>
         )}
