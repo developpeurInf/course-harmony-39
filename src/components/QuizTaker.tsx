@@ -222,18 +222,36 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       const qOptions = getQuestionOptions(q.id);
       let isCorrect = false;
 
+      let validSelectedOptionId: string | null = null;
+      if (answer?.selectedOptionId) {
+        const rawSel = answer.selectedOptionId;
+        // Check if rawSel is already a valid UUID
+        const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(rawSel);
+        if (isUuid) {
+          validSelectedOptionId = rawSel;
+        } else {
+          // Attempt to find matching option by option_text (e.g., "True" or "False")
+          const matchOpt = qOptions.find(o => o.option_text.toLowerCase() === rawSel.toLowerCase());
+          if (matchOpt) {
+            validSelectedOptionId = matchOpt.id;
+          }
+        }
+      }
+
       if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
         const correctOpt = qOptions.find(o => o.is_correct);
-        if (correctOpt && answer?.selectedOptionId === correctOpt.id) {
-          isCorrect = true;
-          earnedScore += q.points;
+        if (correctOpt) {
+          if (validSelectedOptionId === correctOpt.id || (answer?.selectedOptionId && answer.selectedOptionId.toLowerCase() === correctOpt.option_text.toLowerCase())) {
+            isCorrect = true;
+            earnedScore += q.points;
+          }
         }
       }
 
       answerRecords.push({
         question_id: q.id,
-        selected_option_id: answer?.selectedOptionId,
-        text_answer: answer?.textAnswer,
+        selected_option_id: validSelectedOptionId,
+        text_answer: answer?.textAnswer || null,
         is_correct: isCorrect,
         points_earned: isCorrect ? q.points : 0
       });
@@ -530,14 +548,16 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         {currentQ.question_type === 'true_false' && (
           <div className="grid grid-cols-2 gap-4 pt-2">
             {['True', 'False'].map(val => {
-              const isSelected = currentAnswer?.selectedOptionId === val;
+              const matchingOpt = qOptions.find(o => o.option_text.toLowerCase() === val.toLowerCase());
+              const optId = matchingOpt ? matchingOpt.id : val;
+              const isSelected = currentAnswer?.selectedOptionId === optId || currentAnswer?.selectedOptionId === val;
 
               return (
                 <Button
                   key={val}
                   type="button"
                   variant={isSelected ? "default" : "outline"}
-                  onClick={() => handleSelectOption(currentQ.id, val)}
+                  onClick={() => handleSelectOption(currentQ.id, optId)}
                   className={`h-12 text-sm font-bold gap-2 ${isSelected ? 'bg-primary text-primary-foreground' : ''}`}
                 >
                   {val === 'True'

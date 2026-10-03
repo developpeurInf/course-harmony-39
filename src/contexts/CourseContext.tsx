@@ -1422,32 +1422,50 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (submissionError) {
+        console.error("Supabase insert quiz_submissions error:", submissionError);
         toast.error("Failed to submit quiz");
         return false;
       }
 
-      // Insert answers
-      const answersWithSubmissionId = answers.map(answer => ({
-        ...answer,
-        submission_id: submissionData.id
-      }));
+      // Insert answers (sanitize selected_option_id to ensure valid UUIDs)
+      const answersWithSubmissionId = answers.map(answer => {
+        const payload: any = {
+          submission_id: submissionData.id,
+          question_id: answer.question_id,
+          is_correct: !!answer.is_correct,
+          points_earned: answer.points_earned || 0
+        };
 
-      const { error: answersError } = await supabase
-        .from('quiz_answers')
-        .insert(answersWithSubmissionId);
+        if (answer.selected_option_id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(answer.selected_option_id)) {
+          payload.selected_option_id = answer.selected_option_id;
+        }
 
-      if (answersError) {
-        toast.error("Failed to save answers");
-        return false;
+        if (answer.text_answer) {
+          payload.text_answer = answer.text_answer;
+        }
+
+        return payload;
+      });
+
+      if (answersWithSubmissionId.length > 0) {
+        const { error: answersError } = await supabase
+          .from('quiz_answers')
+          .insert(answersWithSubmissionId);
+
+        if (answersError) {
+          console.error("Supabase insert quiz_answers error:", answersError);
+          toast.error("Failed to save answers");
+          return false;
+        }
       }
 
       // Update local state
       setQuizSubmissions(prev => [...prev, submissionData]);
       refreshData(); // Refresh to get the inserted answers
       
-      toast.success("Quiz submitted successfully");
       return true;
     } catch (error) {
+      console.error("submitQuiz error:", error);
       toast.error("Failed to submit quiz");
       return false;
     }
