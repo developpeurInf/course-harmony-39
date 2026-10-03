@@ -688,6 +688,12 @@ const Exams = () => {
       {showQuizTaker && (
         <Dialog open={!!showQuizTaker} onOpenChange={() => setShowQuizTaker(null)}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{showQuizTaker.title}</DialogTitle>
+              <DialogDescription>
+                {language === "fr" ? "Passer le quiz" : language === "ar" ? "تأدية الاختبار" : "Take the quiz"}
+              </DialogDescription>
+            </DialogHeader>
             <div className="h-full overflow-y-auto p-6">
               <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} />
             </div>
@@ -699,6 +705,12 @@ const Exams = () => {
       {showQuizResults && (
         <Dialog open={!!showQuizResults} onOpenChange={() => setShowQuizResults(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{language === "fr" ? "Résultats du quiz" : language === "ar" ? "نتائج الاختبار" : "Quiz Results"}</DialogTitle>
+              <DialogDescription>
+                {language === "fr" ? "Détails des résultats" : language === "ar" ? "تفاصيل النتائج" : "Detailed quiz results"}
+              </DialogDescription>
+            </DialogHeader>
             <div className="h-full overflow-y-auto p-6">
               <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
             </div>

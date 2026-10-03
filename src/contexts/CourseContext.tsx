@@ -55,26 +55,50 @@ export interface Exam {
   updated_at: string;
 }
 
-export const serializeExamDescription = (rawDescription: string, availableUntil: string | null): string => {
-  const clean = (rawDescription || "").replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "").trim();
-  if (!availableUntil) return clean;
-  return `${clean}${clean ? "\n" : ""}<!--AVAIL_UNTIL:${availableUntil}-->`;
+export const serializeExamDescription = (rawDescription: string, availableUntil: string | null, quizMode?: string | null): string => {
+  let clean = (rawDescription || "")
+    .replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "")
+    .replace(/<!--QUIZ_MODE:[\s\S]*?-->/g, "")
+    .trim();
+  if (availableUntil) clean = `${clean}${clean ? "\n" : ""}<!--AVAIL_UNTIL:${availableUntil}-->`;
+  if (quizMode && quizMode !== 'free') clean = `${clean}\n<!--QUIZ_MODE:${quizMode}-->`;
+  return clean;
 };
 
-export const parseExamAvailability = (exam: any): Exam => {
+export const parseExamAvailability = (exam: any): Exam & { quiz_mode?: string } => {
   if (!exam) return exam;
   const desc = exam.description || "";
-  const match = desc.match(/<!--AVAIL_UNTIL:(.+?)-->/);
-  const available_until = match ? match[1].trim() : (exam.available_until || null);
-  const cleanDescription = desc.replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "").trim();
+  const matchUntil = desc.match(/<!--AVAIL_UNTIL:(.+?)-->/);
+  const matchMode = desc.match(/<!--QUIZ_MODE:(.+?)-->/);
+  const available_until = matchUntil ? matchUntil[1].trim() : (exam.available_until || null);
+  const quiz_mode = matchMode ? matchMode[1].trim() : 'free';
+  const cleanDescription = desc
+    .replace(/<!--AVAIL_UNTIL:[\s\S]*?-->/g, "")
+    .replace(/<!--QUIZ_MODE:[\s\S]*?-->/g, "")
+    .trim();
   const available_from = exam.available_from || exam.exam_date;
 
   return {
     ...exam,
     available_from,
     available_until,
+    quiz_mode,
     description: cleanDescription
   };
+};
+
+// Serialize/parse per-question time limit embedded in the question HTML
+export const serializeQuestionText = (questionHtml: string, timeLimitSeconds: number | null): string => {
+  const clean = (questionHtml || "").replace(/<!--TIME:\d+-->/g, "").trimEnd();
+  if (!timeLimitSeconds || timeLimitSeconds <= 0) return clean;
+  return `${clean}<!--TIME:${timeLimitSeconds}-->`;
+};
+
+export const parseQuestionText = (rawQuestion: string): { cleanText: string; timeLimitSeconds: number | null } => {
+  const match = (rawQuestion || "").match(/<!--TIME:(\d+)-->/);
+  const timeLimitSeconds = match ? parseInt(match[1]) : null;
+  const cleanText = (rawQuestion || "").replace(/<!--TIME:\d+-->/g, "").trimEnd();
+  return { cleanText, timeLimitSeconds };
 };
 
 export interface QuizQuestion {
@@ -84,6 +108,7 @@ export interface QuizQuestion {
   question_order: number;
   question_type: 'multiple_choice' | 'true_false' | 'short_answer';
   points: number;
+  time_limit_seconds?: number | null;
   created_at: string;
   updated_at: string;
 }

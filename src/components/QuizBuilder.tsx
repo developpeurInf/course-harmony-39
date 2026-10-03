@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check } from "lucide-react";
-import { useCourses, QuizQuestion, QuizOption } from "@/contexts/CourseContext";
+import { Switch } from "@/components/ui/switch";
+import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle } from "lucide-react";
+import { useCourses, QuizQuestion, QuizOption, serializeQuestionText, parseQuestionText, serializeExamDescription, parseExamAvailability } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import QuizSettings, { QuizSettings as QuizSettingsType } from "@/components/Qui
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/RichTextEditor";
+
 
 interface QuizBuilderProps {
   examId: string;
@@ -32,16 +34,24 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const [saving, setSaving] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<QuizQuestion | null>(null);
 
+  // Sequential mode & per-question timing
+  const [isSequentialMode, setIsSequentialMode] = useState(false);
+  const [examData, setExamData] = useState<any>(null);
+
   const [currentQuestion, setCurrentQuestion] = useState<{
     question: string;
     question_type: 'multiple_choice' | 'true_false' | 'short_answer';
     points: number;
     question_order: number;
+    timeMins: number;
+    timeSecs: number;
   }>({
     question: "",
     question_type: "multiple_choice",
     points: 1,
-    question_order: 1
+    question_order: 1,
+    timeMins: 0,
+    timeSecs: 0,
   });
 
   const [currentOptions, setCurrentOptions] = useState([
@@ -66,8 +76,18 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   useEffect(() => {
     if (examId) {
       loadQuestions();
+      loadExamData();
     }
   }, [examId]);
+
+  const loadExamData = async () => {
+    const { data } = await supabase.from('exams').select('*').eq('id', examId).maybeSingle();
+    if (data) {
+      const parsed = parseExamAvailability(data);
+      setExamData(parsed);
+      setIsSequentialMode((parsed as any).quiz_mode === 'sequential_timed');
+    }
+  };
 
   const loadQuestions = async () => {
     setLoading(true);
@@ -108,7 +128,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       question: "",
       question_type: "multiple_choice",
       points: 1,
-      question_order: questions.length + 1
+      question_order: questions.length + 1,
+      timeMins: 0,
+      timeSecs: 0,
     });
     setCurrentOptions([
       { option_text: "", is_correct: false, option_order: 1 },
@@ -154,11 +176,14 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
     setSaving(true);
     try {
+      const timeLimitSeconds = currentQuestion.timeMins * 60 + currentQuestion.timeSecs;
+      const serializedQuestion = serializeQuestionText(currentQuestion.question, timeLimitSeconds > 0 ? timeLimitSeconds : null);
+
       const { data: newQuestion, error: qError } = await supabase
         .from('quiz_questions')
         .insert([{
           exam_id: examId,
-          question: currentQuestion.question,
+          question: serializedQuestion,
           question_type: currentQuestion.question_type,
           points: currentQuestion.points,
           question_order: questions.length + 1
@@ -228,10 +253,13 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
     setSaving(true);
     try {
+      const timeLimitSeconds = currentQuestion.timeMins * 60 + currentQuestion.timeSecs;
+      const serializedQuestion = serializeQuestionText(currentQuestion.question, timeLimitSeconds > 0 ? timeLimitSeconds : null);
+
       const { error: qError } = await supabase
         .from('quiz_questions')
         .update({
-          question: currentQuestion.question,
+          question: serializedQuestion,
           question_type: currentQuestion.question_type,
           points: currentQuestion.points
         })
@@ -278,11 +306,17 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   };
 
   const handleEditQuestion = (question: QuizQuestion) => {
+    const { cleanText, timeLimitSeconds } = parseQuestionText(question.question);
+    const timeMins = timeLimitSeconds ? Math.floor(timeLimitSeconds / 60) : 0;
+    const timeSecs = timeLimitSeconds ? timeLimitSeconds % 60 : 0;
+
     setCurrentQuestion({
-      question: question.question,
+      question: cleanText,
       question_type: question.question_type,
       points: question.points,
-      question_order: question.question_order
+      question_order: question.question_order,
+      timeMins,
+      timeSecs,
     });
 
     const questionOptions = getQuestionOptions(question.id);
@@ -332,14 +366,31 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
   const totalPoints = questions.reduce((sum, q) => sum + (q.points || 1), 0);
 
+  // Compute total question time for sequential mode
+  const totalQuestionSeconds = questions.reduce((sum, q) => {
+    const { timeLimitSeconds } = parseQuestionText(q.question);
+    return sum + (timeLimitSeconds || 0);
+  }, 0);
+  const totalQuestionMins = Math.floor(totalQuestionSeconds / 60);
+  const totalQuestionSecs = totalQuestionSeconds % 60;
+  const previewTimeSecs = currentQuestion.timeMins * 60 + currentQuestion.timeSecs;
+
   const handleSaveAllAndClose = async () => {
-    // If there's an unsaved question in progress, inform or auto-save if filled
+    // Auto-save in-progress question if filled
     if (currentQuestion.question.trim()) {
       if (editingQuestionId) {
         await handleUpdateQuestion();
       } else if (currentQuestion.question_type !== 'multiple_choice' || currentOptions.some(o => o.is_correct && o.option_text.trim())) {
         await handleAddQuestion();
       }
+    }
+
+    // Save sequential mode to exam description
+    if (examData) {
+      const newMode = isSequentialMode ? 'sequential_timed' : 'free';
+      const newDesc = serializeExamDescription(examData.description || '', examData.available_until || null, newMode);
+      await supabase.from('exams').update({ description: newDesc }).eq('id', examId);
+      await refreshData();
     }
 
     toast.success(
@@ -375,7 +426,17 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               </DialogDescription>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Sequential mode toggle */}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${isSequentialMode ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400' : 'bg-muted/30 border-muted text-muted-foreground'}`}>
+              <Timer className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{language === "fr" ? "Séquentiel minuté" : language === "ar" ? "ترتيب موقوت" : "Sequential timed"}</span>
+              <Switch
+                checked={isSequentialMode}
+                onCheckedChange={setIsSequentialMode}
+                className="scale-75"
+              />
+            </div>
             <Badge variant="secondary" className="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10">
               {language === "ar" ? `المجموع: ${totalPoints} نقطة` : language === "fr" ? `Total : ${totalPoints} pts` : `Total: ${totalPoints} pts`}
             </Badge>
@@ -442,6 +503,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     questions.map((q, idx) => {
                       const qOpts = getQuestionOptions(q.id);
                       const isSelected = editingQuestionId === q.id;
+                      const { cleanText: qCleanText, timeLimitSeconds: qTimeSec } = parseQuestionText(q.question);
 
                       return (
                         <Card
@@ -469,12 +531,19 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 <span className="text-[10px] font-semibold text-muted-foreground">
                                   {q.points} {language === "ar" ? "نقطة" : q.points > 1 ? "pts" : "pt"}
                                 </span>
+                                {qTimeSec && qTimeSec > 0 && (
+                                  <span className="text-[10px] font-semibold text-amber-600 flex items-center gap-0.5">
+                                    <Timer className="h-2.5 w-2.5" />
+                                    {Math.floor(qTimeSec / 60) > 0 && `${Math.floor(qTimeSec / 60)}m`}{qTimeSec % 60 > 0 && `${qTimeSec % 60}s`}
+                                  </span>
+                                )}
                               </div>
 
                               <div 
                                 className="text-xs font-semibold text-foreground mb-1.5 prose prose-xs max-w-none dark:prose-invert line-clamp-3 [&_p]:m-0 [&_img]:max-h-20 [&_img]:rounded [&_img]:inline-block" 
-                                dangerouslySetInnerHTML={{ __html: q.question }}
+                                dangerouslySetInnerHTML={{ __html: qCleanText }}
                               />
+
 
                               {/* Options preview for QCM */}
                               {q.question_type === 'multiple_choice' && qOpts.length > 0 && (
@@ -601,6 +670,62 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     />
                   </div>
                 </div>
+
+                {/* Per-question timing (shown only in sequential mode) */}
+                {isSequentialMode && (
+                  <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Timer className="h-3.5 w-3.5 text-amber-600" />
+                      <Label className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                        {language === "fr" ? "Durée pour cette question" : language === "ar" ? "مدة هذا السؤال" : "Time for this question"}
+                      </Label>
+                      {previewTimeSecs > 0 && (
+                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto">
+                          {currentQuestion.timeMins > 0 && `${currentQuestion.timeMins}min `}{currentQuestion.timeSecs > 0 && `${currentQuestion.timeSecs}s`}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 flex-1">
+                        <Input
+                          type="number" min="0" max="59"
+                          value={currentQuestion.timeMins}
+                          onChange={(e) => setCurrentQuestion(prev => ({ ...prev, timeMins: Math.max(0, parseInt(e.target.value) || 0) }))}
+                          className="h-8 text-xs w-16 text-center"
+                        />
+                        <span className="text-xs text-muted-foreground font-medium">{language === "fr" ? "min" : language === "ar" ? "دقيقة" : "min"}</span>
+                        <Input
+                          type="number" min="0" max="59"
+                          value={currentQuestion.timeSecs}
+                          onChange={(e) => setCurrentQuestion(prev => ({ ...prev, timeSecs: Math.max(0, Math.min(59, parseInt(e.target.value) || 0)) }))}
+                          className="h-8 text-xs w-16 text-center"
+                        />
+                        <span className="text-xs text-muted-foreground font-medium">{language === "fr" ? "sec" : language === "ar" ? "ث" : "sec"}</span>
+                      </div>
+                      {/* Quick presets */}
+                      <div className="flex gap-1 flex-wrap">
+                        {[{l:'30s',m:0,s:30},{l:'1m',m:1,s:0},{l:'2m',m:2,s:0},{l:'3m',m:3,s:0},{l:'5m',m:5,s:0}].map(p => (
+                          <Button key={p.l} type="button" size="sm" variant="outline"
+                            className={`h-6 px-2 text-[10px] font-bold ${currentQuestion.timeMins === p.m && currentQuestion.timeSecs === p.s ? 'bg-amber-200 border-amber-400 text-amber-800' : 'hover:bg-amber-100 dark:hover:bg-amber-950'}`}
+                            onClick={() => setCurrentQuestion(prev => ({ ...prev, timeMins: p.m, timeSecs: p.s }))}
+                          >{p.l}</Button>
+                        ))}
+                        <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[10px] text-muted-foreground"
+                          onClick={() => setCurrentQuestion(prev => ({ ...prev, timeMins: 0, timeSecs: 0 }))}
+                        ><X className="h-3 w-3"/></Button>
+                      </div>
+                    </div>
+                    {totalQuestionSeconds > 0 && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                        {language === "fr"
+                          ? `⏱ Total questions : ${totalQuestionMins}min ${totalQuestionSecs}s`
+                          : language === "ar"
+                          ? `⏱ إجمالي الأسئلة: ${totalQuestionMins} دقيقة ${totalQuestionSecs} ث`
+                          : `⏱ Total questions time: ${totalQuestionMins}min ${totalQuestionSecs}s`}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">
