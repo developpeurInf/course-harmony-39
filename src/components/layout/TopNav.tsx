@@ -1,17 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { 
   Menu, 
   LogOut, 
@@ -49,9 +41,30 @@ const TopNav = () => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const isRtl = language === "ar";
   const isProfessor = user?.role === "professor";
+
+  // Close user dropdown when clicking / touching outside (compatible with iOS 12 Safari)
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [isUserMenuOpen]);
 
   const handleLogout = () => {
     logout();
@@ -217,122 +230,163 @@ const TopNav = () => {
         </div>
 
         {/* User Profile Capsule Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
-              className="h-10 px-2 sm:px-2.5 py-1 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-900 border border-transparent hover:border-slate-200 dark:hover:border-slate-800 transition-all flex items-center gap-2 cursor-pointer focus-visible:ring-1"
-            >
-              <div className="relative flex-shrink-0">
-                <Avatar className="h-7 w-7 ring-2 ring-primary/20">
-                  <AvatarImage src={user?.avatar_url} alt={user?.name || "Profile"} className="object-cover" />
-                  <AvatarFallback className="bg-gradient-to-tr from-primary to-indigo-600 text-white font-bold text-[11px]">
-                    {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || user?.name?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-1.5 ring-background" />
-              </div>
-
-              <div className="hidden lg:flex flex-col items-start text-left rtl:text-right min-w-0">
-                <span className="text-xs font-bold text-foreground truncate max-w-[100px] leading-tight">
-                  {user?.name || (isProfessor ? "Professeur" : "Élève")}
-                </span>
-                <span className="text-[10px] text-muted-foreground leading-tight">
-                  {isProfessor ? t("Professeur", "أستاذ", "Professor") : t("Élève", "تلميذ", "Student")}
-                </span>
-              </div>
-
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:block transition-transform duration-200" />
-            </Button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent 
-            align={isRtl ? "start" : "end"} 
-            className="w-64 p-1.5 rounded-2xl shadow-2xl border-border/80 backdrop-blur-xl bg-card/95 overflow-hidden"
+        <div ref={userMenuRef} className="relative inline-block text-left">
+          <Button 
+            type="button"
+            variant="ghost" 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsUserMenuOpen((prev) => !prev);
+            }}
+            className={cn(
+              "h-10 px-2 sm:px-2.5 py-1 rounded-2xl border transition-all flex items-center gap-2 cursor-pointer select-none",
+              isUserMenuOpen 
+                ? "bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800" 
+                : "border-transparent hover:bg-slate-100 dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800"
+            )}
+            aria-expanded={isUserMenuOpen}
+            aria-haspopup="true"
           >
-            {/* Header with full user details */}
-            <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl mb-1 border border-border/40">
-              <div className="relative flex-shrink-0">
-                <Avatar className="h-10 w-10 ring-2 ring-primary/30 shadow-xs">
-                  <AvatarImage src={user?.avatar_url} alt={user?.name || "Profile"} className="object-cover" />
-                  <AvatarFallback className="bg-gradient-to-tr from-primary to-indigo-600 text-white font-bold text-sm">
-                    {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-sm text-foreground truncate">{user?.name}</span>
-                </div>
-                <span className="text-xs text-muted-foreground font-normal truncate">{user?.email}</span>
-                <div className="mt-1">
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-[9px] px-1.5 py-0 h-4 border-0 font-bold",
-                      isProfessor 
-                        ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" 
-                        : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                    )}
-                  >
-                    {isProfessor ? t("Professeur", "أستاذ", "Professor") : t("Élève", "تلميذ", "Student")}
-                  </Badge>
-                </div>
-              </div>
+            <div className="relative flex-shrink-0 pointer-events-none">
+              <Avatar className="h-7 w-7 ring-2 ring-primary/20">
+                <AvatarImage src={user?.avatar_url} alt={user?.name || "Profile"} className="object-cover" />
+                <AvatarFallback className="bg-gradient-to-tr from-primary to-indigo-600 text-white font-bold text-[11px]">
+                  {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || user?.name?.charAt(0) || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-1.5 ring-background" />
             </div>
 
-            <DropdownMenuSeparator />
-
-            {/* Menu Items */}
-            <DropdownMenuItem 
-              onClick={() => setIsAvatarModalOpen(true)}
-              className="cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors"
-            >
-              <div className="p-1 rounded-lg bg-primary/10 text-primary">
-                <Camera className="h-4 w-4" />
-              </div>
-              <span>
-                {language === "ar" 
-                  ? "تغيير صورة الملف الشخصي" 
-                  : language === "fr" 
-                  ? "Photo de profil" 
-                  : "Profile Photo"}
+            <div className="hidden lg:flex flex-col items-start text-left rtl:text-right min-w-0 pointer-events-none">
+              <span className="text-xs font-bold text-foreground truncate max-w-[100px] leading-tight">
+                {user?.name || (isProfessor ? "Professeur" : "Élève")}
               </span>
-            </DropdownMenuItem>
+              <span className="text-[10px] text-muted-foreground leading-tight">
+                {isProfessor ? t("Professeur", "أستاذ", "Professor") : t("Élève", "تلميذ", "Student")}
+              </span>
+            </div>
 
-            <DropdownMenuItem 
-              onClick={() => navigate("/profile")} 
-              className="cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground hidden sm:block transition-transform duration-200 pointer-events-none", isUserMenuOpen && "rotate-180")} />
+          </Button>
+
+          {isUserMenuOpen && (
+            <div 
+              className="absolute top-full right-0 rtl:right-auto rtl:left-0 mt-1.5 w-64 p-1.5 rounded-2xl shadow-2xl border border-border/80 bg-card text-card-foreground z-50 animate-in fade-in-50 zoom-in-95 overflow-hidden"
+              role="menu"
             >
-              <div className="p-1 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
-                <User className="h-4 w-4" />
+              {/* Header with full user details */}
+              <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl mb-1 border border-border/40">
+                <div className="relative flex-shrink-0">
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/30 shadow-xs">
+                    <AvatarImage src={user?.avatar_url} alt={user?.name || "Profile"} className="object-cover" />
+                    <AvatarFallback className="bg-gradient-to-tr from-primary to-indigo-600 text-white font-bold text-sm">
+                      {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm text-foreground truncate">{user?.name}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-normal truncate">{user?.email}</span>
+                  <div className="mt-1">
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[9px] px-1.5 py-0 h-4 border-0 font-bold",
+                        isProfessor 
+                          ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" 
+                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      )}
+                    >
+                      {isProfessor ? t("Professeur", "أستاذ", "Professor") : t("Élève", "تلميذ", "Student")}
+                    </Badge>
+                  </div>
+                </div>
               </div>
-              <span>{t("nav.profile")}</span>
-            </DropdownMenuItem>
 
-            <DropdownMenuItem 
-              onClick={() => navigate("/settings")} 
-              className="cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <div className="p-1 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
-                <Settings className="h-4 w-4" />
-              </div>
-              <span>{t("nav.settings")}</span>
-            </DropdownMenuItem>
+              <div className="h-px bg-border/60 my-1" />
 
-            <DropdownMenuSeparator />
+              {/* Menu Items */}
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsUserMenuOpen(false);
+                  setIsAvatarModalOpen(true);
+                }}
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors text-left rtl:text-right select-none"
+                role="menuitem"
+              >
+                <div className="p-1 rounded-lg bg-primary/10 text-primary">
+                  <Camera className="h-4 w-4" />
+                </div>
+                <span>
+                  {language === "ar" 
+                    ? "تغيير صورة الملف الشخصي" 
+                    : language === "fr" 
+                    ? "Photo de profil" 
+                    : "Profile Photo"}
+                </span>
+              </button>
 
-            <DropdownMenuItem 
-              onClick={handleLogout} 
-              className="cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 dark:hover:bg-rose-500/15 focus:text-rose-600 transition-colors"
-            >
-              <div className="p-1 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                <LogOut className="h-4 w-4" />
-              </div>
-              <span>{t("nav.logout")}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsUserMenuOpen(false);
+                  navigate("/profile");
+                }}
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left rtl:text-right select-none"
+                role="menuitem"
+              >
+                <div className="p-1 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
+                  <User className="h-4 w-4" />
+                </div>
+                <span>{t("nav.profile")}</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsUserMenuOpen(false);
+                  navigate("/settings");
+                }}
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left rtl:text-right select-none"
+                role="menuitem"
+              >
+                <div className="p-1 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
+                  <Settings className="h-4 w-4" />
+                </div>
+                <span>{t("nav.settings")}</span>
+              </button>
+
+              <div className="h-px bg-border/60 my-1" />
+
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsUserMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 dark:hover:bg-rose-500/15 transition-colors text-left rtl:text-right select-none"
+                role="menuitem"
+              >
+                <div className="p-1 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                  <LogOut className="h-4 w-4" />
+                </div>
+                <span>{t("nav.logout")}</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Profile Avatar Modal Dialog */}
         <ProfileAvatarDialog 

@@ -1,12 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -44,7 +39,27 @@ export const NotificationBell = () => {
   const { language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Close notification popover when clicking / touching outside (compatible with iOS 12 Safari)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [isOpen]);
 
   const isRtl = language === "ar";
 
@@ -295,29 +310,36 @@ export const NotificationBell = () => {
   });
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-9 w-9 rounded-full transition-colors hover:bg-muted focus-visible:ring-1"
-          aria-label="Notifications"
-        >
-          <Bell className={cn("h-5 w-5 transition-transform", unreadCount > 0 && "text-primary animate-wiggle")} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground shadow-md ring-2 ring-background animate-scale-in">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-
-      <PopoverContent
-        dir={isRtl ? "rtl" : "ltr"}
-        className="w-[92vw] sm:w-[420px] p-0 shadow-2xl border-border/80 backdrop-blur-md bg-card/95 overflow-hidden"
-        align={isRtl ? "start" : "end"}
-        sideOffset={8}
+    <div ref={containerRef} className="relative inline-block text-left">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen((prev) => !prev);
+        }}
+        className={cn(
+          "relative h-9 w-9 rounded-full transition-colors cursor-pointer select-none",
+          isOpen ? "bg-muted text-primary" : "hover:bg-muted"
+        )}
+        aria-label="Notifications"
+        aria-expanded={isOpen}
       >
+        <Bell className={cn("h-5 w-5 transition-transform pointer-events-none", unreadCount > 0 && "text-primary animate-wiggle")} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground shadow-md ring-2 ring-background animate-scale-in pointer-events-none">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+      </Button>
+
+      {isOpen && (
+        <div
+          dir={isRtl ? "rtl" : "ltr"}
+          className="absolute top-full right-0 rtl:right-auto rtl:left-0 mt-1.5 w-[92vw] sm:w-[420px] max-w-[95vw] p-0 shadow-2xl border border-border bg-card text-card-foreground rounded-2xl overflow-hidden z-50 animate-in fade-in-50 zoom-in-95"
+        >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
           <div className="flex items-center gap-2">
@@ -529,8 +551,9 @@ export const NotificationBell = () => {
             </div>
           )}
         </ScrollArea>
-      </PopoverContent>
-    </Popover>
+        </div>
+      )}
+    </div>
   );
 };
 
