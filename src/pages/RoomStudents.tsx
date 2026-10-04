@@ -165,28 +165,28 @@ const RoomStudents = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t("nav.students")}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("nav.students")}</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {language === "ar" ? "إدارة التلاميذ في هذا القسم" : language === "fr" ? "Gérer les élèves de cette classe" : "Manage students in this class"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           {roomId && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 border-amber-300 dark:border-amber-800 flex items-center gap-1.5"
+                  className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 border-amber-300 dark:border-amber-800 flex items-center gap-1.5 text-xs h-8"
                 >
-                  <BellOff className="h-4 w-4" />
+                  <BellOff className="h-3.5 w-3.5" />
                   <span>{language === "ar" ? "مسح إشعارات القسم" : language === "fr" ? "Vider les notifications" : "Clear Notifications"}</span>
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="flex items-center gap-2">
                     <BellOff className="h-5 w-5 text-amber-500" />
@@ -213,7 +213,7 @@ const RoomStudents = () => {
             </AlertDialog>
           )}
 
-          <Badge variant="secondary">
+          <Badge variant="secondary" className="text-xs shrink-0">
             {students.length} {language === "ar" ? "تلاميذ" : language === "fr" ? `élève${students.length > 1 ? "s" : ""}` : `student${students.length !== 1 ? "s" : ""}`}
           </Badge>
         </div>
@@ -236,28 +236,30 @@ const RoomStudents = () => {
       />
 
       {/* Search and View Toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Search className="h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={language === "ar" ? "البحث عن التلاميذ..." : language === "fr" ? "Rechercher des élèves..." : "Search students..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
+            className="pl-9 w-full"
           />
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-1.5 self-end sm:self-auto bg-muted/50 rounded-lg p-1">
           <Button
-            variant={viewMode === 'cards' ? 'default' : 'outline'}
+            variant={viewMode === 'cards' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('cards')}
+            className="h-8 w-8 p-0"
           >
             <Grid className="h-4 w-4" />
           </Button>
           <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
+            variant={viewMode === 'list' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('list')}
+            className="h-8 w-8 p-0"
           >
             <List className="h-4 w-4" />
           </Button>
@@ -284,60 +286,63 @@ const RoomStudents = () => {
           </CardContent>
         </Card>
       ) : viewMode === 'cards' ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredStudents.map((student) => (
             <Card key={student.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
+              <CardHeader className="p-4 pb-2.5">
                 <div className="flex items-center space-x-3">
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="h-10 w-10 shrink-0">
                     <AvatarImage src={student.avatar_url || undefined} />
                     <AvatarFallback>
                       {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base truncate">{student.name}</CardTitle>
-                    <CardDescription className="truncate">
+                    <CardTitle className="text-sm sm:text-base truncate">{student.name}</CardTitle>
+                    <CardDescription className="truncate text-xs">
                       {student.username ? `@${student.username}` : student.email}
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-xs">
+              <CardContent className="p-4 pt-0">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="outline" className="text-[11px] shrink-0">
                     {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
                   </Badge>
-                  <div className="flex space-x-1">
+                  <div className="flex items-center gap-1">
                     <Button 
                       variant="outline" 
                       size="sm"
+                      className="h-7 w-7 p-0"
                       onClick={() => handleInfoStudent(student)}
                     >
-                      <Info className="h-3 w-3" />
+                      <Info className="h-3.5 w-3.5" />
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
+                      className="h-7 w-7 p-0"
                       onClick={() => handleEditStudent(student)}
                     >
-                      <Edit className="h-3 w-3" />
+                      <Edit className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-7 w-7 p-0"
                       title={language === "ar" ? "إعادة تعيين كلمة المرور" : language === "fr" ? "Réinitialiser le mot de passe" : "Reset Password"}
                       onClick={() => { setResetPasswordStudent(student); setNewTempPassword(""); }}
                     >
-                      <KeyRound className="h-3 w-3" />
+                      <KeyRound className="h-3.5 w-3.5" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <UserX className="h-3 w-3" />
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive">
+                          <UserX className="h-3.5 w-3.5" />
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
                         <AlertDialogHeader>
                           <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : "Remove Student"}</AlertDialogTitle>
                           <AlertDialogDescription>
@@ -359,7 +364,7 @@ const RoomStudents = () => {
                     </AlertDialog>
                   </div>
                 </div>
-                <div className="mt-2 text-xs text-muted-foreground">
+                <div className="mt-2 text-[11px] text-muted-foreground">
                   {language === "ar" ? "انضم في " : "Joined "} {new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}
                 </div>
               </CardContent>
@@ -367,100 +372,105 @@ const RoomStudents = () => {
           ))}
         </div>
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{language === "ar" ? "التلميذ" : "Student"}</TableHead>
-                <TableHead>{language === "ar" ? "رمز مسار" : language === "fr" ? "Code Massar" : "Code Massar"}</TableHead>
-                <TableHead>{language === "ar" ? "البريد الإلكتروني" : "Email"}</TableHead>
-                <TableHead>{language === "ar" ? "الصفة" : "Role"}</TableHead>
-                <TableHead>{language === "ar" ? "تاريخ الانضمام" : "Joined"}</TableHead>
-                <TableHead className="text-right">{language === "ar" ? "الإجراءات" : "Actions"}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStudents.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={student.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{student.name}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{student.username ? `@${student.username}` : '-'}</TableCell>
-                  <TableCell>{student.email || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-1">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleInfoStudent(student)}
-                      >
-                        <Info className="h-3 w-3" />
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleEditStudent(student)}
-                      >
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        title={language === "ar" ? "إعادة تعيين كلمة المرور" : language === "fr" ? "Réinitialiser le mot de passe" : "Reset Password"}
-                        onClick={() => { setResetPasswordStudent(student); setNewTempPassword(""); }}
-                      >
-                        <KeyRound className="h-3 w-3" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <UserX className="h-3 w-3" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : language === "fr" ? "Retirer l'élève" : "Remove Student"}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {language === "ar" 
-                                ? `هل أنت متأكد من رغبتك في حذف ${student.name} من هذا القسم؟ سيتم حذف حسابه وجميع بياناته بشكل نهائي.`
-                                : language === "fr"
-                                ? `Êtes-vous sûr de vouloir retirer ${student.name} de cette classe ? Cela supprimera définitivement son compte et toutes ses données associées.`
-                                : `Are you sure you want to remove ${student.name} from this class? This will permanently delete their account and all associated data.`}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleRemoveStudent(student.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {language === "ar" ? "حذف" : language === "fr" ? "Retirer" : "Remove"}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[640px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{language === "ar" ? "التلميذ" : "Student"}</TableHead>
+                  <TableHead>{language === "ar" ? "رمز مسار" : language === "fr" ? "Code Massar" : "Code Massar"}</TableHead>
+                  <TableHead>{language === "ar" ? "البريد الإلكتروني" : "Email"}</TableHead>
+                  <TableHead>{language === "ar" ? "الصفة" : "Role"}</TableHead>
+                  <TableHead>{language === "ar" ? "تاريخ الانضمام" : "Joined"}</TableHead>
+                  <TableHead className="text-right">{language === "ar" ? "الإجراءات" : "Actions"}</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents.map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={student.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium truncate max-w-[140px]">{student.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{student.username ? `@${student.username}` : '-'}</TableCell>
+                    <TableCell className="text-xs truncate max-w-[150px]">{student.email || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => handleInfoStudent(student)}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => handleEditStudent(student)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          title={language === "ar" ? "إعادة تعيين كلمة المرور" : language === "fr" ? "Réinitialiser le mot de passe" : "Reset Password"}
+                          onClick={() => { setResetPasswordStudent(student); setNewTempPassword(""); }}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive">
+                              <UserX className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : language === "fr" ? "Retirer l'élève" : "Remove Student"}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {language === "ar" 
+                                  ? `هل أنت متأكد من رغبتك في حذف ${student.name} من هذا القسم؟ سيتم حذف حسابه وجميع بياناته بشكل نهائي.`
+                                  : language === "fr"
+                                  ? `Êtes-vous sûr de vouloir retirer ${student.name} de cette classe ? Cela supprimera définitivement son compte et toutes ses données associées.`
+                                  : `Are you sure you want to remove ${student.name} from this class? This will permanently delete their account and all associated data.`}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleRemoveStudent(student.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                {language === "ar" ? "حذف" : language === "fr" ? "Retirer" : "Remove"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
 

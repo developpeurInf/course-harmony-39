@@ -535,7 +535,7 @@ const Reports = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6 animate-fade-in pb-12">
+    <div className="space-y-6 animate-fade-in pb-12">
       {/* Header and Filter */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

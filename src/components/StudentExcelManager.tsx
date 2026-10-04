@@ -518,7 +518,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Dialog open={isImportDialogOpen} onOpenChange={(open) => {
             setIsImportDialogOpen(open);
             if (!open) {
@@ -527,12 +527,12 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
             }
           }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="font-semibold text-xs sm:text-sm">
                 <Upload className="h-4 w-4 mr-2" />
                 {language === "ar" ? "استيراد من Excel" : language === "fr" ? "Importer depuis Excel" : "Import from Excel"}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{language === "ar" ? "استيراد التلاميذ من Excel" : language === "fr" ? "Importer des élèves depuis Excel" : "Import Students from Excel"}</DialogTitle>
                 <DialogDescription>

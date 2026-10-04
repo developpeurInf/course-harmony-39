@@ -299,7 +299,7 @@ const RoomCourses = () => {
   
   if (!currentRoom) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="space-y-6 animate-fade-in">
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
@@ -312,23 +312,23 @@ const RoomCourses = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("nav.courses")}</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("nav.courses")}</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {language === "ar" ? `إدارة وعرض الدروس في ${currentRoom.name}` : language === "fr" ? `Gérer et consulter les cours dans ${currentRoom.name}` : `Manage and view courses in ${currentRoom.name}`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* View Toggle */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('grid')}
-              className="h-8"
+              className="h-8 w-8 p-0"
             >
               <Grid3x3 className="h-4 w-4" />
             </Button>
@@ -336,7 +336,7 @@ const RoomCourses = () => {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="h-8"
+              className="h-8 w-8 p-0"
             >
               <List className="h-4 w-4" />
             </Button>
@@ -345,12 +345,12 @@ const RoomCourses = () => {
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="shadow-elegant">
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button className="shadow-elegant text-xs sm:text-sm">
+                  <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
                   {t("Add Course")}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{t("Add New Course")}</DialogTitle>
                   <DialogDescription>
@@ -607,7 +607,7 @@ const RoomCourses = () => {
       
       {/* Edit Course Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit Course"}</DialogTitle>
             <DialogDescription>

@@ -256,14 +256,14 @@ const Exercises = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             {language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {language === "ar" 
               ? "إدارة وعرض التمارين المرتبطة بالدروس" 
               : language === "fr" 
@@ -271,14 +271,14 @@ const Exercises = () => {
               : "Manage and view exercises linked to courses"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* View Toggle */}
           <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('grid')}
-              className="h-8"
+              className="h-8 w-8 p-0"
             >
               <Grid3x3 className="h-4 w-4" />
             </Button>
@@ -286,7 +286,7 @@ const Exercises = () => {
               variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="h-8"
+              className="h-8 w-8 p-0"
             >
               <List className="h-4 w-4" />
             </Button>
@@ -295,12 +295,12 @@ const Exercises = () => {
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="shadow-elegant" onClick={resetForm}>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button className="shadow-elegant text-xs sm:text-sm" onClick={resetForm}>
+                  <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
                   {t("exercise.add")}
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t("exercise.add")}</DialogTitle>
                 <DialogDescription>
@@ -629,7 +629,7 @@ const Exercises = () => {
 
       {/* Edit Exercise Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("exercise.edit")}</DialogTitle>
             <DialogDescription>

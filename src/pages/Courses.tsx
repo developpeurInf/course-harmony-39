@@ -474,19 +474,19 @@ const Courses = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             {language === "ar" ? "الدروس" : language === "fr" ? "Cours" : "Courses"}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {isProfessor 
               ? (language === "ar" ? "إدارة دروسك وتسجيلات التلاميذ" : language === "fr" ? "Gérer vos cours et les inscriptions des élèves" : "Manage your courses and student enrollments") 
               : (language === "ar" ? "عرض الدروس المسجل بها" : language === "fr" ? "Consultez les cours auxquels vous êtes inscrit" : "View courses you're enrolled in")}
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <ViewToggle
             view={viewMode}
             onViewChange={(view) => setViewMode(view)}
@@ -495,12 +495,12 @@ const Courses = () => {
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button className="font-semibold text-xs sm:text-sm">
+                  <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
                   {language === "ar" ? "إضافة درس" : language === "fr" ? "Ajouter un cours" : "Add Course"}
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{language === "ar" ? "إضافة درس جديد" : language === "fr" ? "Ajouter un nouveau cours" : "Add New Course"}</DialogTitle>
                   <DialogDescription>
@@ -634,39 +634,41 @@ const Courses = () => {
               const enrollmentCount = getEnrollmentCount(course.id);
               
               return (
-                <Card key={course.id} className="overflow-hidden card-hover">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <CardTitle>{course.title}</CardTitle>
+                <Card key={course.id} className="overflow-hidden card-hover flex flex-col justify-between">
+                  <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="text-base sm:text-lg font-bold truncate" title={course.title}>
+                        {course.title}
+                      </CardTitle>
                       {!course.is_visible && (
-                        <Badge variant="outline">{language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}</Badge>
+                        <Badge variant="outline" className="shrink-0">{language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}</Badge>
                       )}
                     </div>
-                    <CardDescription className="mt-2">
+                    <CardDescription className="mt-1.5 line-clamp-2 text-xs sm:text-sm">
                       {course.description}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="pb-3">
+                  <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 pb-3 sm:pb-3 flex-1">
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center text-sm">
+                      <div className="flex justify-between items-center text-xs sm:text-sm">
                         <div className="flex items-center text-muted-foreground">
-                          <Users className="h-4 w-4 mr-1" />
+                          <Users className="h-4 w-4 mr-1 shrink-0" />
                           <span>{enrollmentCount} {language === "ar" ? "تلاميذ" : language === "fr" ? (enrollmentCount > 1 ? "élèves" : "élève") : (enrollmentCount === 1 ? "student" : "students")}</span>
                         </div>
                       </div>
                       
                       {course.room_id && (
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Building className="h-4 w-4 mr-1" />
-                          <span>{language === "ar" ? "القسم: " : language === "fr" ? "Classe : " : "Room: "}{getRoomName(course.room_id)}</span>
+                        <div className="flex items-center text-xs sm:text-sm text-muted-foreground">
+                          <Building className="h-4 w-4 mr-1 shrink-0" />
+                          <span className="truncate">{language === "ar" ? "القسم: " : language === "fr" ? "Classe : " : "Room: "}{getRoomName(course.room_id)}</span>
                         </div>
                       )}
                       
-                      <div className="flex flex-wrap gap-3 mt-3">
+                      <div className="flex flex-wrap gap-2 mt-3">
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-7"
+                          className="h-7 text-xs px-2.5"
                           onClick={() => navigateToExercises(course.id)}
                         >
                           <FileText className="h-3.5 w-3.5 mr-1" />
@@ -675,7 +677,7 @@ const Courses = () => {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-7"
+                          className="h-7 text-xs px-2.5"
                           onClick={() => navigateToExams(course.id)}
                         >
                           <Calendar className="h-3.5 w-3.5 mr-1" />
@@ -691,7 +693,7 @@ const Courses = () => {
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="h-7"
+                              className="h-7 text-xs px-2.5"
                               onClick={() => handleViewPdf(course.pdf_url!)}
                             >
                               <File className="h-3.5 w-3.5 mr-1" />
@@ -703,26 +705,28 @@ const Courses = () => {
                     </div>
                   </CardContent>
                   {isProfessor && (
-                    <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                      <div className="flex justify-between w-full">
+                    <CardFooter className="border-t bg-muted/30 px-3 sm:px-6 py-2.5 sm:py-3">
+                      <div className="flex items-center justify-between w-full flex-wrap gap-2">
                         <Button 
                           variant="ghost" 
                           size="icon"
+                          className="h-8 w-8"
                           onClick={() => handleToggleVisibility(course.id)}
                           title={course.is_visible 
                             ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer pour les élèves" : "Hide from students") 
                             : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
                         >
                           {course.is_visible ? (
-                            <EyeOff className="h-4 w-4" />
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
                           ) : (
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4 text-amber-500" />
                           )}
                         </Button>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
                           <Button 
                             variant="ghost" 
                             size="icon"
+                            className="h-8 w-8"
                             onClick={() => openEnrollDialog(course)}
                             title={language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gérer les élèves" : "Manage students"}
                           >
@@ -731,6 +735,7 @@ const Courses = () => {
                           <Button 
                             variant="ghost" 
                             size="icon"
+                            className="h-8 w-8"
                             onClick={() => openEditDialog(course)}
                             title={language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit course"}
                           >
@@ -739,6 +744,7 @@ const Courses = () => {
                           <Button 
                             variant="ghost" 
                             size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => openDeleteDialog(course)}
                             title={language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete course"}
                           >
@@ -945,7 +951,7 @@ const Courses = () => {
       
       {/* Edit Course Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit Course"}</DialogTitle>
             <DialogDescription>
@@ -1026,7 +1032,7 @@ const Courses = () => {
 
       {/* Delete Course Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}</DialogTitle>
             <DialogDescription>
@@ -1050,7 +1056,7 @@ const Courses = () => {
 
       {/* Enrollment Dialog */}
       <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gérer les élèves" : "Manage Students"}</DialogTitle>
             <DialogDescription>

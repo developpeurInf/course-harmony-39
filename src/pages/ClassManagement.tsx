@@ -268,26 +268,26 @@ const ClassManagement = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t("Class Management")}</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">{t("Class Management")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             {t("Manage your classes and their associated content")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <ViewToggle
             view={viewMode}
             onViewChange={(view) => setViewMode(view)}
           />
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openCreateDialog}>
+            <Button onClick={openCreateDialog} size="sm" className="sm:size-default">
               <Plus className="mr-2 h-4 w-4" />
               {t("Create New Class")}
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("Create New Class")}</DialogTitle>
               <DialogDescription>
@@ -346,8 +346,8 @@ const ClassManagement = () => {
           </div>
         </div>
       ) : viewMode === "table" ? (
-        <div className="border rounded-lg">
-          <table className="w-full">
+        <div className="border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[650px]">
             <thead className="bg-muted/50">
               <tr>
                 <th className="p-4 text-left font-medium">{language === "ar" ? "اسم القسم" : language === "fr" ? "Nom de la classe" : "Class Name"}</th>
@@ -649,7 +649,7 @@ const ClassManagement = () => {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingRoom} onOpenChange={() => setEditingRoom(null)}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "تعديل القسم" : "Edit Class"}</DialogTitle>
             <DialogDescription>

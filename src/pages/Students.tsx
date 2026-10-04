@@ -218,27 +218,26 @@ const Students = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Users className="h-8 w-8" />
-            {t("students.management")}
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <Users className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+            <span>{t("students.management")}</span>
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {t("students.manage.desc")}
           </p>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <ViewToggle view={viewMode} onViewChange={setViewMode} />
-          <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                {t("students.add")}
-              </Button>
-            </DialogTrigger>
-          </Dialog>
+          <Button 
+            onClick={() => setIsAddStudentDialogOpen(true)}
+            className="text-xs sm:text-sm font-semibold"
+          >
+            <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
+            {t("students.add")}
+          </Button>
         </div>
       </div>
 
@@ -359,70 +358,73 @@ const Students = () => {
             ))}
           </div>
         ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("student.name")}</TableHead>
-                  <TableHead>{t("student.email")}</TableHead>
-                  <TableHead>{t("nav.courses")}</TableHead>
-                  <TableHead>{t("students.enrolled.courses")}</TableHead>
-                  <TableHead>{t("nav.settings")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={student.avatar_url} alt={student.name} />
-                          <AvatarFallback>
-                            {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{student.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{student.email}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {getStudentCourseCount(student.id)} {t("students.courses")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {getStudentCourses(student.id).slice(0, 2).map(course => (
-                          <div key={course.id} className="flex items-center justify-between">
-                            <span className="truncate max-w-[150px]">{course.title}</span>
-                          </div>
-                        ))}
-                        {getStudentCourses(student.id).length > 2 && (
-                          <span className="text-muted-foreground">
-                            +{getStudentCourses(student.id).length - 2} {t("students.more")}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEnrollDialog(student)}
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        {t("students.enroll")}
-                      </Button>
-                    </TableCell>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[620px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("student.name")}</TableHead>
+                    <TableHead>{t("student.email")}</TableHead>
+                    <TableHead>{t("nav.courses")}</TableHead>
+                    <TableHead>{t("students.enrolled.courses")}</TableHead>
+                    <TableHead>{t("nav.settings")}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarImage src={student.avatar_url} alt={student.name} />
+                            <AvatarFallback>
+                              {student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium truncate max-w-[140px]">{student.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-xs sm:text-sm truncate max-w-[160px]">{student.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs shrink-0">
+                          {getStudentCourseCount(student.id)} {t("students.courses")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {getStudentCourses(student.id).slice(0, 2).map(course => (
+                            <div key={course.id} className="flex items-center justify-between">
+                              <span className="truncate max-w-[130px] text-xs">{course.title}</span>
+                            </div>
+                          ))}
+                          {getStudentCourses(student.id).length > 2 && (
+                            <span className="text-muted-foreground text-xs">
+                              +{getStudentCourses(student.id).length - 2} {t("students.more")}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-8"
+                          onClick={() => openEnrollDialog(student)}
+                        >
+                          <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                          {t("students.enroll")}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </Card>
         )
       ) : (

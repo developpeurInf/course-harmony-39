@@ -157,14 +157,14 @@ const TopNav = () => {
       className="sticky top-0 z-30 h-16 w-full bg-background/80 backdrop-blur-xl border-b border-border/70 shadow-xs flex items-center justify-between px-3 md:px-6 transition-all"
     >
       {/* Left Section: Mobile Drawer Trigger + Current Page Info */}
-      <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
-        {/* Mobile Sidebar Hamburger */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 max-w-[50vw] sm:max-w-[60vw] md:max-w-none">
+        {/* Mobile Sidebar Hamburger (visible on phones and tablets < lg) */}
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="md:hidden h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors flex-shrink-0"
+              className="lg:hidden h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors flex-shrink-0"
               aria-label="Menu"
             >
               <Menu className="h-5 w-5" />
@@ -184,19 +184,19 @@ const TopNav = () => {
         </Sheet>
 
         {/* Brand on mobile / Page context on desktop */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <div className={cn(
-            "p-2 rounded-xl transition-all flex items-center justify-center flex-shrink-0",
+            "p-1.5 sm:p-2 rounded-xl transition-all flex items-center justify-center flex-shrink-0",
             pageInfo.color
           )}>
-            <PageIcon className="h-4.5 w-4.5" />
+            <PageIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
           </div>
 
           <div className="flex flex-col min-w-0">
-            <h1 className="text-sm sm:text-base font-bold text-foreground truncate tracking-tight">
+            <h1 className="text-xs sm:text-sm md:text-base font-bold text-foreground truncate tracking-tight">
               {pageInfo.title}
             </h1>
-            <span className="text-[11px] text-muted-foreground hidden sm:block truncate">
+            <span className="text-[10px] sm:text-[11px] text-muted-foreground hidden sm:block truncate">
               {language === "ar"
                 ? `مرحباً، ${firstName} 👋`
                 : language === "fr"
@@ -208,9 +208,9 @@ const TopNav = () => {
       </div>
 
       {/* Right Section: Compact Glass Toolbar & Profile Capsule */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
         {/* Controls Container Pill */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xs">
+        <div className="flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xs">
           <LanguageSelector />
           <NotificationBell />
           <ThemeToggle />

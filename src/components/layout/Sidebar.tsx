@@ -32,6 +32,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LanguageSelector } from "@/components/LanguageSelector";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 const Sidebar = () => {
@@ -438,7 +440,16 @@ const Sidebar = () => {
       </nav>
 
       {/* Modern User Profile Footer Card */}
-      <div className="p-3 border-t border-slate-200/80 dark:border-slate-800/80 flex-shrink-0 bg-slate-100/60 dark:bg-slate-900/60 backdrop-blur-xs">
+      <div className="p-3 border-t border-slate-200/80 dark:border-slate-800/80 flex-shrink-0 bg-slate-100/60 dark:bg-slate-900/60 backdrop-blur-xs space-y-2">
+        {/* Mobile quick settings: Language + Theme Toggle */}
+        <div className="flex items-center justify-between px-2 py-1 bg-background/60 dark:bg-slate-950/40 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
+          <span className="text-[11px] font-medium text-muted-foreground">{t("Affichage & Langue", "العرض واللغة", "Display & Language")}</span>
+          <div className="flex items-center gap-1">
+            <LanguageSelector />
+            <ThemeToggle />
+          </div>
+        </div>
+
         <div className="flex items-center justify-between p-2 rounded-xl bg-background/80 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative flex-shrink-0">

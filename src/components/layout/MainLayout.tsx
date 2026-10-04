@@ -71,14 +71,14 @@ const MainLayout = () => {
 
   return (
     <div className="flex h-screen h-[100dvh] bg-background overflow-hidden">
-      <aside className="hidden md:flex md:w-64 lg:w-72 h-full max-h-screen overflow-hidden bg-background border-r border-border/70 shadow-xs flex-shrink-0 z-20">
+      <aside className="hidden lg:flex lg:w-72 h-full max-h-screen overflow-hidden bg-background border-r border-border/70 shadow-xs flex-shrink-0 z-20">
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <TopNav />
         <main
           ref={mainRef}
-          className="flex-1 overflow-y-auto p-4 md:p-6 pb-28 md:pb-12 touch-auto"
+          className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-28 md:pb-12 touch-auto"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <Outlet />

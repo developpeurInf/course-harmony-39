@@ -452,17 +452,17 @@ const Exams = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {isProfessor 
               ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : language === "fr" ? "Gérer les examens et évaluations de vos cours" : "Manage exams and tests for your courses") 
               : (language === "ar" ? "عرض امتحاناتك القادمة والماضية" : language === "fr" ? "Consulter vos examens à venir et passés" : "View your upcoming and past exams")}
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <ViewToggle
             view={viewMode}
             onViewChange={(view) => setViewMode(view)}
@@ -471,12 +471,12 @@ const Exams = () => {
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button className="text-xs sm:text-sm font-semibold">
+                  <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
                   {language === "ar" ? "إضافة امتحان" : language === "fr" ? "Ajouter un examen" : "Add Exam"}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {language === "ar" ? "جدولة امتحان جديد" : language === "fr" ? "Planifier un nouvel examen" : "Schedule New Exam"}
@@ -687,14 +687,14 @@ const Exams = () => {
       {/* Quiz Taker Modal */}
       {showQuizTaker && (
         <Dialog open={!!showQuizTaker} onOpenChange={() => setShowQuizTaker(null)}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+          <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col">
             <DialogHeader className="sr-only">
               <DialogTitle>{showQuizTaker.title}</DialogTitle>
               <DialogDescription>
                 {language === "fr" ? "Passer le quiz" : language === "ar" ? "تأدية الاختبار" : "Take the quiz"}
               </DialogDescription>
             </DialogHeader>
-            <div className="h-full overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6">
               <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} />
             </div>
           </DialogContent>
@@ -704,14 +704,14 @@ const Exams = () => {
       {/* Quiz Results Modal */}
       {showQuizResults && (
         <Dialog open={!!showQuizResults} onOpenChange={() => setShowQuizResults(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+          <DialogContent className="w-[96vw] max-w-4xl max-h-[92vh] overflow-hidden p-0 flex flex-col">
             <DialogHeader className="sr-only">
               <DialogTitle>{language === "fr" ? "Résultats du quiz" : language === "ar" ? "نتائج الاختبار" : "Quiz Results"}</DialogTitle>
               <DialogDescription>
                 {language === "fr" ? "Détails des résultats" : language === "ar" ? "تفاصيل النتائج" : "Detailed quiz results"}
               </DialogDescription>
             </DialogHeader>
-            <div className="h-full overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6">
               <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
             </div>
           </DialogContent>
@@ -1137,7 +1137,7 @@ const Exams = () => {
       
       {/* Edit Exam Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "تعديل الامتحان" : language === "fr" ? "Modifier l'examen" : "Edit Exam"}</DialogTitle>
             <DialogDescription>
@@ -1335,7 +1335,7 @@ const Exams = () => {
 
       {/* Delete Exam Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "حذف الامتحان" : language === "fr" ? "Supprimer l'examen" : "Delete Exam"}</DialogTitle>
             <DialogDescription>

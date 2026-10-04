@@ -1949,7 +1949,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* ==================== DIALOG AJOUTER UNE CLASSE ==================== */}
       <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
-        <DialogContent className="sm:max-w-md" dir={getDirection()}>
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto" dir={getDirection()}>
           <DialogHeader>
             <DialogTitle>{t.addClassBtn}</DialogTitle>
             <DialogDescription className="text-xs">
@@ -1987,7 +1987,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* ==================== DIALOG MODIFIER UNE CLASSE ==================== */}
       <Dialog open={editingClass !== null} onOpenChange={(open) => !open && setEditingClass(null)}>
-        <DialogContent className="sm:max-w-md" dir={getDirection()}>
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto" dir={getDirection()}>
           <DialogHeader>
             <DialogTitle>{t.editClassBtn}</DialogTitle>
           </DialogHeader>
@@ -2020,7 +2020,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* ==================== DIALOG AJOUTER UN ÉLÈVE ==================== */}
       <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-        <DialogContent className="sm:max-w-md" dir={getDirection()}>
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto" dir={getDirection()}>
           <DialogHeader>
             <DialogTitle>{t.addStudentBtn} ({currentClass?.nom})</DialogTitle>
           </DialogHeader>
@@ -2064,7 +2064,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Delete Class Confirmation Dialog */}
       <Dialog open={!!classToDelete} onOpenChange={(open) => { if (!open) setClassToDelete(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>
               {lang === "ar" ? "حذف الفصل" : lang === "fr" ? "Supprimer la classe" : "Delete Class"}
@@ -2090,7 +2090,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Delete Student Confirmation Dialog */}
       <Dialog open={!!studentToDelete} onOpenChange={(open) => { if (!open) setStudentToDelete(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>
               {lang === "ar" ? "حذف التلميذ" : lang === "fr" ? "Retirer l'élève" : "Remove Student"}
@@ -2116,7 +2116,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Delete Observation Confirmation Dialog */}
       <Dialog open={observationToDelete !== null} onOpenChange={(open) => { if (!open) setObservationToDelete(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>
               {lang === "ar" ? "حذف الملاحظة" : lang === "fr" ? "Supprimer l'observation" : "Delete Observation"}
@@ -2142,7 +2142,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Delete Proposition Confirmation Dialog */}
       <Dialog open={propositionToDelete !== null} onOpenChange={(open) => { if (!open) setPropositionToDelete(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>
               {lang === "ar" ? "حذف المقترح" : lang === "fr" ? "Supprimer la proposition" : "Delete Proposition"}
@@ -2168,7 +2168,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Delete Exercise (Diagnostic) Confirmation Dialog */}
       <Dialog open={exerciseToDeleteDiag !== null} onOpenChange={(open) => { if (!open) setExerciseToDeleteDiag(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>
               {lang === "ar" ? "حذف التمرين" : lang === "fr" ? "Supprimer l'exercice" : "Delete Exercise"}
@@ -2194,7 +2194,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Reset Defaults Confirmation Dialog */}
       <Dialog open={isResetDefaultsOpen} onOpenChange={setIsResetDefaultsOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>
               {lang === "ar" ? "استعادة الإعدادات الافتراضية" : lang === "fr" ? "Rétablir la configuration par défaut" : "Reset Default Settings"}
@@ -2228,7 +2228,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* Quick Edit Report Configuration Dialog */}
       <Dialog open={isQuickEditConfigOpen} onOpenChange={setIsQuickEditConfigOpen}>
-        <DialogContent className="max-w-xl" dir={getDirection()}>
+        <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto" dir={getDirection()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-indigo-700 dark:text-indigo-400">
               <Edit3 className="w-5 h-5 text-indigo-600" />
