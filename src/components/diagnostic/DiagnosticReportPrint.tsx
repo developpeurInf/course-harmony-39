@@ -14,6 +14,7 @@ interface DiagnosticReportPrintProps {
   lang?: DiagLang;
   includeGraphs?: boolean;
   selectedClassesNames?: string[];
+  chartBackground?: "gray" | "white";
 }
 
 // Formatage adapté de la période
@@ -104,7 +105,8 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
   stats,
   lang = "fr",
   includeGraphs = false,
-  selectedClassesNames = []
+  selectedClassesNames = [],
+  chartBackground = "gray"
 }) => {
   const t = DIAGNOSTIC_TRANSLATIONS[lang] || DIAGNOSTIC_TRANSLATIONS.fr;
   const isRtl = lang === "ar";
@@ -586,19 +588,19 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
         /* BOÎTES DE GRAPHIQUES SÉPARÉES L'UNE AU-DESSOUS DE L'AUTRE */
         .diag-separate-graph-block {
-          border: 1px solid #e2e8f0;
+          border: 1px solid ${chartBackground === "white" ? "#cbd5e1" : "#e2e8f0"};
           border-radius: 4px;
-          background: #f8fafc;
-          padding: 6px 10px;
-          margin-bottom: 7px;
+          background: ${chartBackground === "white" ? "#ffffff" : "#f8fafc"} !important;
+          padding: 5px 8px;
+          margin-bottom: 5px;
         }
         .diag-separate-graph-header {
-          font-size: 9.5pt;
+          font-size: 8.8pt;
           font-weight: bold;
           color: #0f172a;
-          border-bottom: 1px solid #e2e8f0;
-          padding-bottom: 3px;
-          margin-bottom: 4px;
+          border-bottom: 1px solid ${chartBackground === "white" ? "#e2e8f0" : "#e2e8f0"};
+          padding-bottom: 2px;
+          margin-bottom: 3px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -890,72 +892,69 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                     {lang === "ar" ? `العدد الإجمالي : ${stats.total_presents} تلميذاً` : `Effectif : ${stats.total_presents} élèves`}
                   </span>
                 </div>
-                <svg viewBox="0 0 460 220" style={{ width: "100%", height: "220px", overflow: "visible" }}>
+                <svg viewBox="0 0 460 120" style={{ width: "100%", height: "115px", display: "block", overflow: "visible" }}>
                   {/* Grille horizontale */}
-                  <line x1="42" y1="10"  x2="450" y2="10"  stroke="#e2e8f0" strokeDasharray="4 3" strokeWidth="0.8"/>
-                  <line x1="42" y1="45"  x2="450" y2="45"  stroke="#e2e8f0" strokeDasharray="4 3" strokeWidth="0.8"/>
-                  <line x1="42" y1="80"  x2="450" y2="80"  stroke="#e2e8f0" strokeDasharray="4 3" strokeWidth="0.8"/>
-                  <line x1="42" y1="115" x2="450" y2="115" stroke="#e2e8f0" strokeDasharray="4 3" strokeWidth="0.8"/>
-                  <line x1="42" y1="150" x2="450" y2="150" stroke="#e2e8f0" strokeDasharray="4 3" strokeWidth="0.8"/>
+                  <line x1="38" y1="8"  x2="450" y2="8"  stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
+                  <line x1="38" y1="30" x2="450" y2="30" stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
+                  <line x1="38" y1="52" x2="450" y2="52" stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
+                  <line x1="38" y1="74" x2="450" y2="74" stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
+                  <line x1="38" y1="96" x2="450" y2="96" stroke="#94a3b8" strokeWidth="1.2"/>
+
                   {/* Axe Y labels */}
-                  <text x="38" y="13"  textAnchor="end" fontSize="7" fill="#94a3b8">100</text>
-                  <text x="38" y="48"  textAnchor="end" fontSize="7" fill="#94a3b8">75</text>
-                  <text x="38" y="83"  textAnchor="end" fontSize="7" fill="#94a3b8">50</text>
-                  <text x="38" y="118" textAnchor="end" fontSize="7" fill="#94a3b8">25</text>
-                  <text x="38" y="153" textAnchor="end" fontSize="7" fill="#94a3b8">0</text>
-                  {/* Axe Y label vertical */}
-                  <text transform="rotate(-90 14 90)" x="14" y="90" textAnchor="middle" fontSize="7.5" fill="#64748b">Pourcentage (%)</text>
-                  {/* Ligne de base */}
-                  <line x1="42" y1="153" x2="450" y2="153" stroke="#94a3b8" strokeWidth="1.5"/>
+                  <text x="34" y="11" textAnchor="end" fontSize="7" fill="#94a3b8">100</text>
+                  <text x="34" y="33" textAnchor="end" fontSize="7" fill="#94a3b8">75</text>
+                  <text x="34" y="55" textAnchor="end" fontSize="7" fill="#94a3b8">50</text>
+                  <text x="34" y="77" textAnchor="end" fontSize="7" fill="#94a3b8">25</text>
+                  <text x="34" y="98" textAnchor="end" fontSize="7" fill="#94a3b8">0</text>
 
                   {/* Tranche 1 - Rouge */}
                   {(() => {
-                    const h = Math.max(3, Math.round((pctT1 / 100) * 143));
-                    const y = 153 - h;
+                    const h = Math.max(3, Math.round((pctT1 / 100) * 88));
+                    const y = 96 - h;
                     return (
                       <g>
-                        <rect x="62"  y={y} width="68" height={h} fill="#dc2626" rx="3"/>
-                        <text x="96"  y={y - 5} textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#dc2626">{pctT1}% ({totalT1})</text>
-                        <text x="96"  y="168" textAnchor="middle" fontSize="8" fill="#334155" fontWeight="bold">{tranches.r1}</text>
+                        <rect x="58" y={y} width="66" height={h} fill="#dc2626" rx="2.5"/>
+                        <text x="91" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#dc2626">{pctT1}% ({totalT1})</text>
+                        <text x="91" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r1}</text>
                       </g>
                     );
                   })()}
 
                   {/* Tranche 2 - Orange */}
                   {(() => {
-                    const h = Math.max(3, Math.round((pctT2 / 100) * 143));
-                    const y = 153 - h;
+                    const h = Math.max(3, Math.round((pctT2 / 100) * 88));
+                    const y = 96 - h;
                     return (
                       <g>
-                        <rect x="163" y={y} width="68" height={h} fill="#d97706" rx="3"/>
-                        <text x="197" y={y - 5} textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#d97706">{pctT2}% ({totalT2})</text>
-                        <text x="197" y="168" textAnchor="middle" fontSize="8" fill="#334155" fontWeight="bold">{tranches.r2}</text>
+                        <rect x="158" y={y} width="66" height={h} fill="#d97706" rx="2.5"/>
+                        <text x="191" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#d97706">{pctT2}% ({totalT2})</text>
+                        <text x="191" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r2}</text>
                       </g>
                     );
                   })()}
 
                   {/* Tranche 3 - Bleu */}
                   {(() => {
-                    const h = Math.max(3, Math.round((pctT3 / 100) * 143));
-                    const y = 153 - h;
+                    const h = Math.max(3, Math.round((pctT3 / 100) * 88));
+                    const y = 96 - h;
                     return (
                       <g>
-                        <rect x="264" y={y} width="68" height={h} fill="#2563eb" rx="3"/>
-                        <text x="298" y={y - 5} textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#2563eb">{pctT3}% ({totalT3})</text>
-                        <text x="298" y="168" textAnchor="middle" fontSize="8" fill="#334155" fontWeight="bold">{tranches.r3}</text>
+                        <rect x="258" y={y} width="66" height={h} fill="#2563eb" rx="2.5"/>
+                        <text x="291" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2563eb">{pctT3}% ({totalT3})</text>
+                        <text x="291" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r3}</text>
                       </g>
                     );
                   })()}
 
                   {/* Tranche 4 - Vert */}
                   {(() => {
-                    const h = Math.max(3, Math.round((pctT4 / 100) * 143));
-                    const y = 153 - h;
+                    const h = Math.max(3, Math.round((pctT4 / 100) * 88));
+                    const y = 96 - h;
                     return (
                       <g>
-                        <rect x="365" y={y} width="68" height={h} fill="#059669" rx="3"/>
-                        <text x="399" y={y - 5} textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#059669">{pctT4}% ({totalT4})</text>
-                        <text x="399" y="168" textAnchor="middle" fontSize="8" fill="#334155" fontWeight="bold">{tranches.r4}</text>
+                        <rect x="358" y={y} width="66" height={h} fill="#059669" rx="2.5"/>
+                        <text x="391" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#059669">{pctT4}% ({totalT4})</text>
+                        <text x="391" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r4}</text>
                       </g>
                     );
                   })()}
@@ -970,27 +969,26 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                     {lang === "ar" ? "النسب المئوية" : "Pourcentages"}
                   </span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "10px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "3px 12px" }}>
                   {/* Donut large */}
-                  <svg viewBox="0 0 100 100" style={{ width: "160px", height: "160px", flexShrink: 0 }}>
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="#dc2626" strokeWidth="16"
-                      strokeDasharray={`${(pctT1/100)*238.7} 238.7`} strokeDashoffset="0"/>
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="#d97706" strokeWidth="16"
-                      strokeDasharray={`${(pctT2/100)*238.7} 238.7`} strokeDashoffset={`-${(pctT1/100)*238.7}`}/>
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="#2563eb" strokeWidth="16"
-                      strokeDasharray={`${(pctT3/100)*238.7} 238.7`} strokeDashoffset={`-${((pctT1+pctT2)/100)*238.7}`}/>
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="#059669" strokeWidth="16"
-                      strokeDasharray={`${(pctT4/100)*238.7} 238.7`} strokeDashoffset={`-${((pctT1+pctT2+pctT3)/100)*238.7}`}/>
+                  <svg viewBox="0 0 100 100" style={{ width: "85px", height: "85px", flexShrink: 0 }}>
+                    <circle cx="50" cy="50" r="36" fill="none" stroke="#dc2626" strokeWidth="13"
+                      strokeDasharray={`${(pctT1 / 100) * 226.2} 226.2`} strokeDashoffset="0"/>
+                    <circle cx="50" cy="50" r="36" fill="none" stroke="#d97706" strokeWidth="13"
+                      strokeDasharray={`${(pctT2 / 100) * 226.2} 226.2`} strokeDashoffset={`-${(pctT1 / 100) * 226.2}`}/>
+                    <circle cx="50" cy="50" r="36" fill="none" stroke="#2563eb" strokeWidth="13"
+                      strokeDasharray={`${(pctT3 / 100) * 226.2} 226.2`} strokeDashoffset={`-${((pctT1 + pctT2) / 100) * 226.2}`}/>
+                    <circle cx="50" cy="50" r="36" fill="none" stroke="#059669" strokeWidth="13"
+                      strokeDasharray={`${(pctT4 / 100) * 226.2} 226.2`} strokeDashoffset={`-${((pctT1 + pctT2 + pctT3) / 100) * 226.2}`}/>
                     {/* Total au centre */}
-                    <text x="50" y="47" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#0f172a">{stats.total_presents}</text>
-                    <text x="50" y="59" textAnchor="middle" fontSize="7.5" fill="#64748b">Total</text>
-                    {/* Pct dominant */}
-                    <text x="50" y="72" textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#059669">
-                      {Math.max(pctT1,pctT2,pctT3,pctT4)}%
+                    <text x="50" y="47" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#0f172a">{stats.total_presents}</text>
+                    <text x="50" y="58" textAnchor="middle" fontSize="6.5" fill="#64748b">{lang === "ar" ? "المجموع" : "Total"}</text>
+                    <text x="50" y="70" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669">
+                      {Math.max(pctT1, pctT2, pctT3, pctT4)}%
                     </text>
                   </svg>
                   {/* Légende */}
-                  <div style={{ fontSize: "9.5pt", display: "flex", flexDirection: "column", gap: "8px", marginLeft: "20px" }}>
+                  <div style={{ fontSize: "8.5pt", display: "flex", flexDirection: "column", gap: "3px", marginLeft: "15px" }}>
                     <span style={{ color: "#dc2626" }}>● <span style={{ fontWeight: 500 }}>{tranches.t1} {tranches.r1}</span> : <strong>{pctT1}% ({totalT1})</strong></span>
                     <span style={{ color: "#d97706" }}>● <span style={{ fontWeight: 500 }}>{tranches.t2} {tranches.r2}</span> : <strong>{pctT2}% ({totalT2})</strong></span>
                     <span style={{ color: "#2563eb" }}>● <span style={{ fontWeight: 500 }}>{tranches.t3} {tranches.r3}</span> : <strong>{pctT3}% ({totalT3})</strong></span>

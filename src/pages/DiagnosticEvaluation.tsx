@@ -120,6 +120,7 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [selectedSingleClassId, setSelectedSingleClassId] = useState<string>("");
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [includeGraphsInReport, setIncludeGraphsInReport] = useState<boolean>(false);
+  const [chartBgTheme, setChartBgTheme] = useState<"gray" | "white">("gray");
 
   // Modals state
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -915,20 +916,50 @@ export const DiagnosticEvaluation: React.FC = () => {
             </div>
           </div>
 
-          {/* Toggle Option Graphiques & Analyse */}
-          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-            <Switch
-              id="include-graphs-toggle"
-              checked={includeGraphsInReport}
-              onCheckedChange={setIncludeGraphsInReport}
-            />
-            <Label
-              htmlFor="include-graphs-toggle"
-              className="text-xs font-semibold cursor-pointer flex items-center gap-1.5 text-slate-800 dark:text-slate-200"
-            >
-              <BarChart2 className="w-4 h-4 text-indigo-600" />
-              <span>{t.includeGraphsInReportLabel}</span>
-            </Label>
+          {/* Toggle Option Graphiques & Analyse + Sélecteur de Fond (Gris / Blanc) */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+              <Switch
+                id="include-graphs-toggle"
+                checked={includeGraphsInReport}
+                onCheckedChange={setIncludeGraphsInReport}
+              />
+              <Label
+                htmlFor="include-graphs-toggle"
+                className="text-xs font-semibold cursor-pointer flex items-center gap-1.5 text-slate-800 dark:text-slate-200"
+              >
+                <BarChart2 className="w-4 h-4 text-indigo-600" />
+                <span>{t.includeGraphsInReportLabel}</span>
+              </Label>
+            </div>
+
+            {includeGraphsInReport && (
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
+                <span className="text-slate-500 font-medium">
+                  {lang === "ar" ? "خلفية المبيانات :" : lang === "en" ? "Charts Background:" : "Fond des graphiques :"}
+                </span>
+                <div className="inline-flex rounded-md shadow-xs bg-slate-100 dark:bg-slate-800 p-0.5">
+                  <Button
+                    type="button"
+                    variant={chartBgTheme === "gray" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setChartBgTheme("gray")}
+                    className="h-6 text-[11px] px-2 rounded-sm"
+                  >
+                    {lang === "ar" ? "رمادي" : lang === "en" ? "Gray" : "Gris"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={chartBgTheme === "white" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setChartBgTheme("white")}
+                    className="h-6 text-[11px] px-2 rounded-sm"
+                  >
+                    {lang === "ar" ? "أبيض" : lang === "en" ? "White" : "Blanc"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2217,6 +2248,7 @@ export const DiagnosticEvaluation: React.FC = () => {
             lang={lang}
             includeGraphs={includeGraphsInReport}
             selectedClassesNames={reportClassesNames}
+            chartBackground={chartBgTheme}
           />
         </div>
       )}
