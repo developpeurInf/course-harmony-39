@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Users,
   Edit3,
@@ -35,7 +36,8 @@ import {
   Square,
   BarChart2,
   Layers,
-  Filter
+  Filter,
+  Zap
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -91,7 +93,7 @@ import { downloadExcelFile } from "@/lib/download";
 
 export const DiagnosticEvaluation: React.FC = () => {
   const { user } = useAuth();
-  const { rooms, addRoom } = useCourses();
+  const { rooms, addRoom, courses, exams } = useCourses();
   const { language, getDirection } = useLanguage();
 
   // Langue active et traductions
@@ -105,6 +107,11 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [dataSource, setDataSource] = useState<"supabase" | "sample">("supabase");
   const [loadingRealData, setLoadingRealData] = useState<boolean>(true);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+
+  // --- NOUVEAUX ÉTATS POUR LE MODE DE NOTATION (MANUEL vs QUIZ) ---
+  const [classGradingModes, setClassGradingModes] = useState<Record<string, "manual" | "quiz">>({});
+  const [classSelectedQuiz, setClassSelectedQuiz] = useState<Record<string, string>>({});
+  const [isSyncingQuiz, setIsSyncingQuiz] = useState<boolean>(false);
 
   // --- NOUVEAUX ÉTATS POUR LE PÉRIMÈTRE DU RAPPORT ET LES GRAPHES ---
   const [reportScope, setReportScope] = useState<"all" | "single" | "custom">("all");
@@ -220,6 +227,135 @@ export const DiagnosticEvaluation: React.FC = () => {
       setNotesDraft(initial);
     }
   }, [currentClass]);
+
+  // --- GESTION DU MODE DE SAISIE (MANUELLE vs QUIZ PLATEFORME) ---
+  const currentGradingMode = classGradingModes[activeClassId] || "manual";
+
+  // Quizz disponibles pour la classe active
+  const classCourses = useMemo(() => {
+    return courses.filter(c => c.room_id === activeClassId);
+  }, [courses, activeClassId]);
+
+  const classCourseIds = useMemo(() => classCourses.map(c => c.id), [classCourses]);
+
+  const availableQuizzes = useMemo(() => {
+    // 1. Quizz appartenant directement aux cours de cette classe
+    const direct = exams.filter(e => classCourseIds.includes(e.course_id));
+    // 2. Autres quizz disponibles du professeur
+    const other = exams.filter(e => !classCourseIds.includes(e.course_id));
+    return {
+      direct,
+      other,
+      all: [...direct, ...other]
+    };
+  }, [exams, classCourseIds]);
+
+  const currentSelectedQuizId = classSelectedQuiz[activeClassId] || availableQuizzes.direct[0]?.id || availableQuizzes.all[0]?.id || "";
+
+  // Synchronisation des notes d'un Quiz avec la classe active
+  const handleSyncNotesFromQuiz = async (quizIdOverride?: string) => {
+    const quizId = quizIdOverride || currentSelectedQuizId;
+    if (!quizId) {
+      toast.error(t.noQuizAvailableForClass);
+      return;
+    }
+
+    if (!currentClass) return;
+
+    setIsSyncingQuiz(true);
+    try {
+      const { data: submissions, error } = await supabase
+        .from("quiz_submissions")
+        .select("*")
+        .eq("exam_id", quizId);
+
+      if (error) {
+        console.error("Erreur récupération soumissions:", error);
+        toast.error(lang === "ar" ? "تعذر جلب نتائج الاختبار" : "Erreur lors de la récupération des notes du quiz");
+        return;
+      }
+
+      const submissionMap = new Map<string, any>();
+      (submissions || []).forEach(sub => {
+        if (!submissionMap.has(sub.student_id)) {
+          submissionMap.set(sub.student_id, sub);
+        } else {
+          const prev = submissionMap.get(sub.student_id);
+          if ((sub.score ?? 0) > (prev.score ?? 0)) {
+            submissionMap.set(sub.student_id, sub);
+          }
+        }
+      });
+
+      let presentCount = 0;
+      let absentCount = 0;
+      const newDraft = { ...notesDraft };
+
+      const updatedStudents = currentClass.students.map(student => {
+        const sub = submissionMap.get(String(student.id));
+        let finalNote: string | number;
+
+        if (sub && sub.score !== null && sub.score !== undefined) {
+          let numScore = Number(sub.score);
+          let totalPts = Number(sub.total_points || 0);
+          let note20: number;
+
+          if (totalPts > 0) {
+            note20 = (numScore / totalPts) * 20;
+          } else if (numScore <= 20) {
+            note20 = numScore;
+          } else {
+            note20 = (numScore / 100) * 20;
+          }
+
+          note20 = Math.round(note20 * 100) / 100;
+          note20 = Math.max(0, Math.min(20, note20));
+          finalNote = note20;
+          newDraft[String(student.id)] = String(note20);
+          presentCount++;
+        } else {
+          finalNote = "ABS";
+          newDraft[String(student.id)] = "ABS";
+          absentCount++;
+        }
+
+        return {
+          ...student,
+          note: finalNote
+        };
+      });
+
+      // Mettre à jour le draft
+      setNotesDraft(newDraft);
+
+      // Enregistrer dans le stockage local des notes
+      const storedNotes = getStoredStudentNotes();
+      updatedStudents.forEach(s => {
+        storedNotes[String(s.id)] = s.note;
+      });
+      saveStoredStudentNotes(storedNotes);
+
+      // Mettre à jour l'état appData
+      updateAppData(prev => ({
+        ...prev,
+        classes: prev.classes.map(c => c.id === currentClass.id ? { ...c, students: updatedStudents } : c)
+      }));
+
+      const targetQuiz = exams.find(e => e.id === quizId);
+      const quizName = targetQuiz?.title || "Quiz";
+
+      toast.success(
+        lang === "ar"
+          ? `✅ تم استيراد النقط من "${quizName}" : ${presentCount} حاضر(ة)، ${absentCount} غائب(ة) (ABS)`
+          : `✅ Notes synchronisées depuis "${quizName}" : ${presentCount} noté(s), ${absentCount} absent(s) (ABS)`
+      );
+    } catch (err) {
+      console.error("Erreur synchronisation quiz:", err);
+      toast.error("Erreur inattendue");
+    } finally {
+      setIsSyncingQuiz(false);
+    }
+  };
 
   // --- CALCUL DES CLASSES ET STATISTIQUES EN FONCTION DU PÉRIMÈTRE SÉLECTIONNÉ ---
   const classesForReport = useMemo(() => {
@@ -1127,6 +1263,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                           size="sm"
                           onClick={() => {
                             setActiveClassId(cls.id);
+                            setClassGradingModes(prev => ({ ...prev, [cls.id]: "manual" }));
                             setCurrentTab("notes");
                           }}
                           className="w-full h-9 px-2 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
@@ -1148,6 +1285,20 @@ export const DiagnosticEvaluation: React.FC = () => {
                           <span className="truncate">{t.importExcelBtn}</span>
                         </Button>
                       </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setActiveClassId(cls.id);
+                          setClassGradingModes(prev => ({ ...prev, [cls.id]: "quiz" }));
+                          setCurrentTab("notes");
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold gap-1.5 border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/60 shadow-2xs"
+                      >
+                        <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                        <span className="truncate">{t.importFromQuizBtn}</span>
+                      </Button>
 
                       <div className="flex items-center justify-between pt-1 text-slate-400 text-xs">
                         <button
@@ -1228,6 +1379,127 @@ export const DiagnosticEvaluation: React.FC = () => {
               </Button>
             </div>
           </div>
+
+          {/* SÉLECTION DU MODE D'ATTRIBUTION DES NOTES (MANUEL VS QUIZ) */}
+          <Card className="border-indigo-100 dark:border-indigo-900/60 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900 shadow-2xs">
+            <CardContent className="p-3.5 sm:p-4 space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                {/* Boutons de basculement de mode */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{t.gradingModeLabel}</span>
+                  </span>
+
+                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5 shadow-2xs">
+                    <Button
+                      type="button"
+                      variant={currentGradingMode === "manual" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setClassGradingModes(prev => ({ ...prev, [activeClassId]: "manual" }))}
+                      className="h-7 text-xs px-2.5 sm:px-3 rounded-md gap-1.5 font-medium"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>{t.manualModeLabel}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={currentGradingMode === "quiz" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setClassGradingModes(prev => ({ ...prev, [activeClassId]: "quiz" }))}
+                      className="h-7 text-xs px-2.5 sm:px-3 rounded-md gap-1.5 font-medium"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{t.quizModeLabel}</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Si mode Quiz actif : sélecteur de quiz et bouton de synchronisation */}
+                {currentGradingMode === "quiz" && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {availableQuizzes.all.length > 0 ? (
+                      <>
+                        <Select
+                          value={currentSelectedQuizId}
+                          onValueChange={(val) => {
+                            setClassSelectedQuiz(prev => ({ ...prev, [activeClassId]: val }));
+                          }}
+                        >
+                          <SelectTrigger className="w-[200px] sm:w-[240px] md:w-[280px] h-8 text-xs bg-white dark:bg-slate-900 border-indigo-200 dark:border-indigo-800 font-medium truncate">
+                            <SelectValue placeholder={t.selectQuizLabel} />
+                          </SelectTrigger>
+                          <SelectContent className="max-w-md">
+                            {availableQuizzes.direct.length > 0 && (
+                              <>
+                                <div className="px-2 py-1 text-[10px] font-bold uppercase text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40">
+                                  {lang === "ar" ? `اختبارات هذا الفصل (${currentClass?.nom})` : `Quiz de cette classe (${currentClass?.nom})`}
+                                </div>
+                                {availableQuizzes.direct.map(q => (
+                                  <SelectItem key={q.id} value={q.id} className="text-xs">
+                                    <span className="font-semibold">{q.title}</span>
+                                    <span className="text-[10px] text-muted-foreground ml-1.5">
+                                      ({new Date(q.exam_date).toLocaleDateString()})
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
+                            {availableQuizzes.other.length > 0 && (
+                              <>
+                                <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-500 bg-muted/40 mt-1">
+                                  {lang === "ar" ? "اختبارات المقررات الأخرى" : "Quiz d'autres cours"}
+                                </div>
+                                {availableQuizzes.other.map(q => (
+                                  <SelectItem key={q.id} value={q.id} className="text-xs">
+                                    <span>{q.title}</span>
+                                    <span className="text-[10px] text-muted-foreground ml-1.5">
+                                      ({new Date(q.exam_date).toLocaleDateString()})
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleSyncNotesFromQuiz()}
+                          disabled={isSyncingQuiz || !currentSelectedQuizId}
+                          className="h-8 text-xs gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-xs font-semibold"
+                        >
+                          <RefreshCw className={cn("w-3.5 h-3.5", isSyncingQuiz && "animate-spin")} />
+                          <span>{isSyncingQuiz ? t.syncingQuizMsg : t.syncQuizBtn}</span>
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="text-xs text-amber-600 dark:text-amber-400 italic">
+                        {t.noQuizAvailableForClass}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Bannière explicative */}
+              {currentGradingMode === "quiz" ? (
+                <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-900 dark:text-amber-200">
+                  <Zap className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>{t.quizModeDesc}</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                  <span>
+                    {lang === "ar" 
+                      ? "💡 مسك يدوي: يمكنك تعديل النقط مباشرة في خانات الجدول (0 إلى 20)، أو تعيين ABS للغائبين، أو استيراد ملف إكسيل."
+                      : "💡 Saisie manuelle : Vous pouvez saisir directement les notes dans le tableau (0 à 20), marquer ABS pour les absents, ou importer un fichier Excel."}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {currentClass && (
             (() => {

@@ -50,8 +50,17 @@ export interface DiagnosticI18n {
   deleteClassBtn: string;
   noClassesMessage: string;
 
-  // Tab 2 Notes
+  // Tab 2 Notes & Grading Modes
   selectClassLabel: string;
+  gradingModeLabel: string;
+  manualModeLabel: string;
+  quizModeLabel: string;
+  selectQuizLabel: string;
+  syncQuizBtn: string;
+  syncingQuizMsg: string;
+  quizModeDesc: string;
+  importFromQuizBtn: string;
+  noQuizAvailableForClass: string;
   addStudentBtn: string;
   saveNotesBtn: string;
   numCol: string;
@@ -202,6 +211,15 @@ export const DIAGNOSTIC_TRANSLATIONS: Record<DiagLang, DiagnosticI18n> = {
     noClassesMessage: "Aucune classe trouvée. Ajoutez une classe ou synchronisez depuis Class Management.",
 
     selectClassLabel: "Classe active :",
+    gradingModeLabel: "Mode d'attribution des notes :",
+    manualModeLabel: "Saisie manuelle & Gabarit Excel",
+    quizModeLabel: "Importer depuis un Quiz de la plateforme",
+    selectQuizLabel: "Sélectionner le Quiz :",
+    syncQuizBtn: "Synchroniser les notes du Quiz",
+    syncingQuizMsg: "Récupération des notes du quiz...",
+    quizModeDesc: "Les élèves ayant complété ce quiz recevront leur note sur 20 calculée automatiquement. Les élèves sans soumission seront marqués ABS (Absent).",
+    importFromQuizBtn: "Lier à un Quiz",
+    noQuizAvailableForClass: "Aucun quiz trouvé pour cette classe. Vous pouvez en sélectionner un autre ou créer un quiz dans la section Examens.",
     addStudentBtn: "Ajouter un élève",
     saveNotesBtn: "Enregistrer les notes",
     numCol: "N°",
@@ -359,6 +377,15 @@ export const DIAGNOSTIC_TRANSLATIONS: Record<DiagLang, DiagnosticI18n> = {
     noClassesMessage: "لم يتم العثور على فصول. أضف فصلاً أو قم بالمزامنة مع إدارة الأقسام.",
 
     selectClassLabel: "الفصل الحالي :",
+    gradingModeLabel: "طريقة مسك النقط :",
+    manualModeLabel: "مسك يدوي أو استيراد من ملف إكسيل",
+    quizModeLabel: "استيراد النقط تلقائياً من اختبار (Quiz) على المنصة",
+    selectQuizLabel: "اختر الاختبار :",
+    syncQuizBtn: "استيراد ومزامنة نقط الاختبار",
+    syncingQuizMsg: "جاري استيراد ومعالجة النقط...",
+    quizModeDesc: "التلاميذ الذين اجتازوا هذا الاختبار سيحصلون على نقطتهم على 20 تلقائياً. التلاميذ الذين لم يجتازوا الاختبار سيُسجلون كغائبين (ABS).",
+    importFromQuizBtn: "ربط باختبار (Quiz)",
+    noQuizAvailableForClass: "لم يتم العثور على اختبار مرتبط بهذا الفصل. يمكنك اختيار اختبار عام أو إنشاء اختبار في قسم الامتحانات.",
     addStudentBtn: "إضافة تلميذ",
     saveNotesBtn: "حفظ النقط",
     numCol: "ر.ت",
@@ -517,6 +544,15 @@ export const DIAGNOSTIC_TRANSLATIONS: Record<DiagLang, DiagnosticI18n> = {
     noClassesMessage: "No classes found. Add a class or synchronize from Class Management.",
 
     selectClassLabel: "Current Class:",
+    gradingModeLabel: "Grading Source Mode:",
+    manualModeLabel: "Manual Entry & Excel Template",
+    quizModeLabel: "Import from Platform Quiz",
+    selectQuizLabel: "Select Quiz:",
+    syncQuizBtn: "Sync Quiz Grades",
+    syncingQuizMsg: "Fetching quiz submissions...",
+    quizModeDesc: "Students who completed this quiz will automatically receive their grade out of 20. Students with no submissions will be marked as ABS (Absent).",
+    importFromQuizBtn: "Link to Quiz",
+    noQuizAvailableForClass: "No quizzes found for this class. You can select another quiz or create one in the Exams section.",
     addStudentBtn: "Add Student",
     saveNotesBtn: "Save Grades",
     numCol: "#",
