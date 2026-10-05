@@ -81,7 +81,10 @@ import {
   saveStoredStudentNotes,
   saveStoredRoomDates,
   getStoredStudentNotes,
-  getStoredRoomDates
+  getStoredRoomDates,
+  saveDiagnosticConfigToCloud,
+  fetchDiagnosticConfigFromCloud,
+  fetchCloudStudentNotes
 } from "@/lib/diagnosticSupabaseBridge";
 import {
   DiagLang,
@@ -160,10 +163,23 @@ export const DiagnosticEvaluation: React.FC = () => {
   const loadDynamicDataFromSupabase = useCallback(async (force = false) => {
     setLoadingRealData(true);
     try {
-      const realClasses = await fetchDiagnosticClassesFromSupabase(
+      const realClassesPromise = fetchDiagnosticClassesFromSupabase(
         user?.id,
         rooms && rooms.length > 0 ? rooms : undefined
       );
+      const cloudConfigPromise = fetchDiagnosticConfigFromCloud();
+
+      const [realClasses, cloudConfig] = await Promise.all([realClassesPromise, cloudConfigPromise]);
+
+      if (cloudConfig) {
+        setAppData(prev => ({
+          ...prev,
+          config: {
+            ...prev.config,
+            ...cloudConfig
+          }
+        }));
+      }
 
       if (realClasses.length > 0) {
         setAppData(prev => ({
@@ -331,12 +347,12 @@ export const DiagnosticEvaluation: React.FC = () => {
       // Mettre à jour le draft
       setNotesDraft(newDraft);
 
-      // Enregistrer dans le stockage local des notes
+      // Enregistrer dans le stockage local et synchroniser dans Supabase Cloud
       const storedNotes = getStoredStudentNotes();
       updatedStudents.forEach(s => {
         storedNotes[String(s.id)] = s.note;
       });
-      saveStoredStudentNotes(storedNotes);
+      await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
 
       // Mettre à jour l'état appData
       updateAppData(prev => ({
@@ -597,7 +613,7 @@ export const DiagnosticEvaluation: React.FC = () => {
           }
         });
 
-        saveStoredStudentNotes(storedNotes);
+        await saveStoredStudentNotes(storedNotes, importTargetClass.id, user?.id);
 
         updateAppData(prev => ({
           ...prev,
@@ -611,7 +627,7 @@ export const DiagnosticEvaluation: React.FC = () => {
             storedNotes[String(s.id)] = s.note;
           }
         });
-        saveStoredStudentNotes(storedNotes);
+        await saveStoredStudentNotes(storedNotes, importTargetClass.id, user?.id);
 
         updateAppData(prev => ({
           ...prev,
@@ -636,7 +652,7 @@ export const DiagnosticEvaluation: React.FC = () => {
     setNotesDraft(prev => ({ ...prev, [String(studentId)]: val }));
   };
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     if (!currentClass) return;
 
     const storedNotes = getStoredStudentNotes();
@@ -660,17 +676,23 @@ export const DiagnosticEvaluation: React.FC = () => {
       return { ...s, note: finalNote };
     });
 
-    saveStoredStudentNotes(storedNotes);
+    await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
 
     updateAppData(prev => ({
       ...prev,
       classes: prev.classes.map(c => c.id === currentClass.id ? { ...c, students: updatedStudents } : c)
     }));
 
-    toast.success(t.saveNotesBtn);
+    toast.success(
+      lang === "ar"
+        ? "✅ تم حفظ النقط ومزامنتها سحابياً بنجاح"
+        : lang === "en"
+        ? "✅ Grades saved and synchronized to Cloud"
+        : "✅ Notes enregistrées et synchronisées dans le Cloud"
+    );
   };
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (!currentClass || !newStudentName.trim()) return;
 
     const newId = `std_${Date.now().toString(36)}`;
@@ -688,7 +710,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
     const storedNotes = getStoredStudentNotes();
     storedNotes[newId] = finalNote;
-    saveStoredStudentNotes(storedNotes);
+    await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
 
     updateAppData(prev => ({
       ...prev,
@@ -845,6 +867,47 @@ export const DiagnosticEvaluation: React.FC = () => {
       }
     }));
     setExerciseToDeleteDiag(null);
+  };
+
+  const handleSaveConfig = async () => {
+    try {
+      await saveDiagnosticConfigToCloud(appData.config, user?.id);
+      toast.success(
+        lang === "ar"
+          ? "✅ تم حفظ التغييرات والإعدادات بنجاح ومزامنتها في السحابة"
+          : lang === "en"
+          ? "✅ Changes and settings saved successfully to Cloud"
+          : "✅ Modifications et paramètres enregistrés avec succès dans le Cloud"
+      );
+    } catch (e) {
+      toast.error(lang === "ar" ? "تعذر حفظ الإعدادات" : "Erreur d'enregistrement");
+    }
+  };
+
+  const handleLoadDefaultTemplatesForLang = (targetLang: DiagLang) => {
+    const tr = DIAGNOSTIC_TRANSLATIONS[targetLang] || DIAGNOSTIC_TRANSLATIONS.fr;
+    const defaultAppr = targetLang === "ar" ? "متوسطة" : targetLang === "en" ? "moderate" : "médiocres";
+    const numEx = targetLang === "ar" ? "أربعة" : targetLang === "en" ? "four" : "quatre";
+
+    updateAppData(prev => ({
+      ...prev,
+      config: {
+        ...prev.config,
+        appreciation_globale: defaultAppr,
+        nombre_exercices_texte: numEx,
+        exercices: tr.defaultExercises || prev.config.exercices,
+        observations: tr.defaultObservations || prev.config.observations,
+        propositions: tr.defaultPropositions || prev.config.propositions
+      }
+    }));
+
+    toast.success(
+      targetLang === "ar"
+        ? "✅ تم استيراد النماذج الافتراضية باللغة العربية"
+        : targetLang === "en"
+        ? "✅ Loaded default English templates"
+        : "✅ Modèles par défaut en Français chargés"
+    );
   };
 
   // Données graphiques basées sur classesForReport
@@ -1860,6 +1923,49 @@ export const DiagnosticEvaluation: React.FC = () => {
       {/* ========================================================================= */}
       {currentTab === "observations" && (
         <div className="space-y-6">
+          {/* Barre d'action supérieure */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                {t.tabObservations}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {lang === "ar"
+                  ? "تعديل الملاحظات البيداغوجية، مكونات الرائز التشخيصي، ومقترحات الدعم والمعالجة."
+                  : lang === "en"
+                  ? "Customize pedagogical findings, test structure, and remediation proposals."
+                  : "Personnalisez les observations pédagogiques, la composition du test et le plan de remédiation."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLoadDefaultTemplatesForLang(lang)}
+                className="text-xs gap-1.5 border-slate-200 dark:border-slate-800"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>
+                  {lang === "ar"
+                    ? "استيراد النماذج الافتراضية بالعربية"
+                    : lang === "en"
+                    ? "Load Default English Templates"
+                    : "Charger modèles par défaut en Français"}
+                </span>
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleSaveConfig}
+                className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>{lang === "ar" ? "حفظ التغييرات" : lang === "en" ? "Save Changes" : "Enregistrer les modifications"}</span>
+              </Button>
+            </div>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-bold">{t.globalAppreciationTitle}</CardTitle>
@@ -1873,7 +1979,8 @@ export const DiagnosticEvaluation: React.FC = () => {
                     ...prev,
                     config: { ...prev.config, appreciation_globale: e.target.value }
                   }))}
-                  className="max-w-md"
+                  placeholder={lang === "ar" ? "التقدير العام (مثال: مرضية ومشجعة...)" : lang === "en" ? "Global appreciation..." : "Appréciation globale (ex: satisfaisants...)"}
+                  className="max-w-md text-xs"
                 />
                 <Button
                   variant="outline"
@@ -1911,6 +2018,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                     ...prev,
                     config: { ...prev.config, nombre_exercices_texte: e.target.value }
                   }))}
+                  placeholder={lang === "ar" ? "أربعة" : lang === "en" ? "four" : "quatre"}
                   className="max-w-xs h-8 text-xs font-medium"
                 />
               </div>
@@ -1920,11 +2028,13 @@ export const DiagnosticEvaluation: React.FC = () => {
                   <Input
                     value={ex.titre}
                     onChange={(e) => handleUpdateExercise(idx, "titre", e.target.value)}
+                    placeholder={lang === "ar" ? `تمرين ${idx + 1}` : `Exercice ${idx + 1}`}
                     className="w-36 h-9 text-xs font-bold shrink-0"
                   />
                   <Input
                     value={ex.description}
                     onChange={(e) => handleUpdateExercise(idx, "description", e.target.value)}
+                    placeholder={lang === "ar" ? "موضوع التمرين والكفايات المستهدفة..." : "Description du contenu et des compétences évaluées..."}
                     className="flex-1 h-9 text-xs"
                   />
                   <Button
@@ -1958,6 +2068,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                   <Textarea
                     value={obs}
                     onChange={(e) => handleUpdateObservation(idx, e.target.value)}
+                    placeholder={lang === "ar" ? "أدخل الملاحظة البيداغوجية..." : "Entrez l'observation pédagogique constatée..."}
                     rows={2}
                     className="text-xs flex-1"
                   />
@@ -1992,6 +2103,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                   <Textarea
                     value={prop}
                     onChange={(e) => handleUpdateProposition(idx, e.target.value)}
+                    placeholder={lang === "ar" ? "أدخل مقترح الدعم والمعالجة..." : "Entrez la proposition de remédiation..."}
                     rows={2}
                     className="text-xs flex-1"
                   />
@@ -2007,6 +2119,18 @@ export const DiagnosticEvaluation: React.FC = () => {
               ))}
             </CardContent>
           </Card>
+
+          {/* Barre d'action inférieure */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button
+              size="sm"
+              onClick={handleSaveConfig}
+              className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span>{lang === "ar" ? "حفظ التغييرات" : lang === "en" ? "Save Changes" : "Enregistrer les modifications"}</span>
+            </Button>
+          </div>
         </div>
       )}
 
@@ -2162,8 +2286,8 @@ export const DiagnosticEvaluation: React.FC = () => {
 
             <Button
               size="sm"
-              onClick={() => toast.success(t.saveConfigBtn)}
-              className="text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleSaveConfig}
+              className="text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
             >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>{t.saveConfigBtn}</span>

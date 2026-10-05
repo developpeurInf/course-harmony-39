@@ -1,10 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { DiagnosticClass, DiagnosticStudent } from "./diagnosticStatsEngine";
+import { DiagnosticConfig, DEFAULT_DIAGNOSTIC_DATA } from "./diagnosticStorage";
 
 const NOTES_STORAGE_KEY = "diageval_real_student_notes_v1";
 const DATES_STORAGE_KEY = "diageval_real_room_dates_v1";
 const INCLUDED_ROOMS_KEY = "diageval_included_rooms_v1";
+const CONFIG_STORAGE_KEY = "diageval_pro_data_v1";
 
+/**
+ * Récupère les notes en cache local synchrone
+ */
 export function getStoredStudentNotes(): Record<string, number | string | null> {
   try {
     const raw = localStorage.getItem(NOTES_STORAGE_KEY);
@@ -14,11 +19,80 @@ export function getStoredStudentNotes(): Record<string, number | string | null> 
   }
 }
 
-export function saveStoredStudentNotes(notes: Record<string, number | string | null>): void {
+/**
+ * Sauvegarde les notes à la fois en LocalStorage et dans Supabase Cloud
+ */
+export async function saveStoredStudentNotes(
+  notes: Record<string, number | string | null>,
+  roomId?: string,
+  professorId?: string
+): Promise<void> {
+  // 1. Sauvegarde locale immédiate
   try {
     localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
   } catch (e) {
-    console.error("Erreur de sauvegarde des notes:", e);
+    console.error("Erreur de sauvegarde locale des notes:", e);
+  }
+
+  // 2. Synchronisation dans Supabase Cloud (student_activities)
+  try {
+    const targetUserId = professorId || "00000000-0000-0000-0000-000000000000";
+    await supabase.from("student_activities").insert({
+      room_id: roomId || null,
+      student_id: targetUserId,
+      activity_type: "diagnostic_notes_batch",
+      activity_data: {
+        notes,
+        room_id: roomId || null,
+        updated_at: new Date().toISOString()
+      } as any
+    });
+  } catch (err) {
+    console.warn("Avertissement synchronisation cloud des notes:", err);
+  }
+}
+
+/**
+ * Récupère les notes enregistrées depuis Supabase Cloud et fusionne avec le local
+ */
+export async function fetchCloudStudentNotes(): Promise<Record<string, number | string | null>> {
+  const localNotes = getStoredStudentNotes();
+
+  try {
+    const { data, error } = await supabase
+      .from("student_activities")
+      .select("activity_data, created_at")
+      .eq("activity_type", "diagnostic_notes_batch")
+      .order("created_at", { ascending: true })
+      .limit(100);
+
+    if (error || !data) {
+      return localNotes;
+    }
+
+    const merged: Record<string, number | string | null> = { ...localNotes };
+
+    // Fusionner chronologiquement : les écritures les plus récentes écrasent les anciennes
+    data.forEach((row: any) => {
+      const batch = row.activity_data?.notes;
+      if (batch && typeof batch === "object") {
+        Object.keys(batch).forEach(k => {
+          if (batch[k] !== undefined) {
+            merged[k] = batch[k];
+          }
+        });
+      }
+    });
+
+    // Mettre à jour le cache local avec les données cloud
+    try {
+      localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(merged));
+    } catch (_) {}
+
+    return merged;
+  } catch (err) {
+    console.warn("Impossible de charger les notes depuis Supabase:", err);
+    return localNotes;
   }
 }
 
@@ -31,11 +105,30 @@ export function getStoredRoomDates(): Record<string, string> {
   }
 }
 
-export function saveStoredRoomDates(dates: Record<string, string>): void {
+export async function saveStoredRoomDates(
+  dates: Record<string, string>,
+  roomId?: string,
+  professorId?: string
+): Promise<void> {
   try {
     localStorage.setItem(DATES_STORAGE_KEY, JSON.stringify(dates));
   } catch (e) {
     console.error("Erreur de sauvegarde des dates:", e);
+  }
+
+  try {
+    const targetUserId = professorId || "00000000-0000-0000-0000-000000000000";
+    await supabase.from("student_activities").insert({
+      room_id: roomId || null,
+      student_id: targetUserId,
+      activity_type: "diagnostic_room_dates",
+      activity_data: {
+        dates,
+        updated_at: new Date().toISOString()
+      } as any
+    });
+  } catch (err) {
+    console.warn("Avertissement synchronisation cloud des dates:", err);
   }
 }
 
@@ -57,8 +150,68 @@ export function saveStoredIncludedRooms(roomIds: string[]): void {
 }
 
 /**
+ * Sauvegarde la configuration diagnostic (exercices, observations, remédiation) dans Supabase Cloud
+ */
+export async function saveDiagnosticConfigToCloud(
+  config: DiagnosticConfig,
+  professorId?: string
+): Promise<void> {
+  // 1. Sauvegarde locale
+  try {
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const appData = raw ? JSON.parse(raw) : DEFAULT_DIAGNOSTIC_DATA;
+    appData.config = config;
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(appData));
+  } catch (e) {
+    console.error("Erreur de sauvegarde locale de la config:", e);
+  }
+
+  // 2. Synchronisation Supabase Cloud
+  try {
+    const targetUserId = professorId || "00000000-0000-0000-0000-000000000000";
+    await supabase.from("student_activities").insert({
+      student_id: targetUserId,
+      activity_type: "diagnostic_config_cloud",
+      activity_data: {
+        config,
+        updated_at: new Date().toISOString()
+      } as any
+    });
+  } catch (err) {
+    console.warn("Avertissement synchronisation cloud de la config:", err);
+  }
+}
+
+/**
+ * Récupère la configuration diagnostic depuis Supabase Cloud
+ */
+export async function fetchDiagnosticConfigFromCloud(): Promise<DiagnosticConfig | null> {
+  try {
+    const { data, error } = await supabase
+      .from("student_activities")
+      .select("activity_data, created_at")
+      .eq("activity_type", "diagnostic_config_cloud")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      return null;
+    }
+
+    const cloudConfig = data[0].activity_data?.config;
+    if (cloudConfig && typeof cloudConfig === "object") {
+      return cloudConfig as DiagnosticConfig;
+    }
+    return null;
+  } catch (err) {
+    console.warn("Impossible de charger la config cloud:", err);
+    return null;
+  }
+}
+
+/**
  * Récupère dynamiquement toutes les salles de cours (classes) créées dans Class Management
- * ainsi que tous les élèves associés (directs dans profiles + enrollments).
+ * ainsi que tous les élèves associés (directs dans profiles + enrollments) avec synchronisation Cloud.
  */
 export async function fetchDiagnosticClassesFromSupabase(
   professorId?: string,
@@ -93,8 +246,8 @@ export async function fetchDiagnosticClassesFromSupabase(
       return [];
     }
 
-    // Récupérer les notes et dates enregistrées
-    const storedNotes = getStoredStudentNotes();
+    // Récupérer les notes enregistrées (depuis le Cloud Supabase + LocalStorage)
+    const storedNotes = await fetchCloudStudentNotes();
     const storedDates = getStoredRoomDates();
 
     // 2. Pour chaque salle, récupérer ses élèves
