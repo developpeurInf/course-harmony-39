@@ -364,7 +364,7 @@ const RoomCourses = () => {
                       id="title"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : "e.g., Introduction to Computer Science"}
+                      placeholder={language === "ar" ? "مثال: الرياضيات المتقدمة" : language === "fr" ? "ex. : Introduction à l'informatique" : "e.g., Introduction to Computer Science"}
                     />
                   </div>
                   <div className="space-y-2">
@@ -373,7 +373,7 @@ const RoomCourses = () => {
                       id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder={language === "ar" ? "قدم وصفاً مفصلاً للمحتوى وأهداف الدرس..." : "Provide a detailed description of the course content, objectives, and what students will learn..."}
+                      placeholder={language === "ar" ? "قدم وصفاً مفصلاً للمحتوى وأهداف الدرس..." : language === "fr" ? "Fournissez une description détaillée du contenu du cours, des objectifs et de ce que les élèves apprendront..." : "Provide a detailed description of the course content, objectives, and what students will learn..."}
                       rows={4}
                     />
                   </div>
@@ -392,14 +392,14 @@ const RoomCourses = () => {
                       checked={isVisible}
                       onCheckedChange={setIsVisible}
                     />
-                    <Label htmlFor="visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : "Make course visible to students"}</Label>
+                    <Label htmlFor="visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : language === "fr" ? "Rendre le cours visible pour les élèves" : "Make course visible to students"}</Label>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={resetForm}>
-                    {language === "ar" ? "إلغاء" : "Cancel"}
+                    {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                   </Button>
-                  <Button onClick={handleAddCourse}>{language === "ar" ? "إنشاء الدرس" : "Create Course"}</Button>
+                  <Button onClick={handleAddCourse}>{language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

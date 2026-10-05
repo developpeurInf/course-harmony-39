@@ -41,25 +41,49 @@ const MultiPdfUpload = ({
     for (const file of fileArray) {
       // Check file type
       if (file.type !== 'application/pdf') {
-        toast.error(`${file.name} is not a PDF file`);
+        toast.error(
+          language === "ar"
+            ? `${file.name} ليس ملف PDF صالح`
+            : language === "fr"
+            ? `${file.name} n'est pas un fichier PDF`
+            : `${file.name} is not a PDF file`
+        );
         continue;
       }
 
       // Check file size (convert MB to bytes)
       if (file.size > maxSizeMB * 1024 * 1024) {
-        toast.error(`${file.name} is larger than ${maxSizeMB}MB`);
+        toast.error(
+          language === "ar"
+            ? `حجم الملف ${file.name} يتجاوز الحد المسموح (${maxSizeMB} ميغابايت)`
+            : language === "fr"
+            ? `${file.name} dépasse la taille limite de ${maxSizeMB} Mo`
+            : `${file.name} is larger than ${maxSizeMB}MB`
+        );
         continue;
       }
 
       // Check if file already exists
       if (selectedFiles.some(existingFile => existingFile.name === file.name)) {
-        toast.error(`${file.name} is already selected`);
+        toast.error(
+          language === "ar"
+            ? `تم تحديد الملف ${file.name} مسبقاً`
+            : language === "fr"
+            ? `${file.name} est déjà sélectionné`
+            : `${file.name} is already selected`
+        );
         continue;
       }
 
       // Check total file limit
       if (selectedFiles.length + existingFiles.length + filesToAdd.length >= maxFiles) {
-        toast.error(`Maximum ${maxFiles} files allowed`);
+        toast.error(
+          language === "ar"
+            ? `الحد الأقصى هو ${maxFiles} ملفات`
+            : language === "fr"
+            ? `Limite maximale de ${maxFiles} fichiers atteinte`
+            : `Maximum ${maxFiles} files allowed`
+        );
         break;
       }
 
@@ -125,7 +149,9 @@ const MultiPdfUpload = ({
       {/* Existing Files */}
       {existingFiles.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">Existing Files</h4>
+          <h4 className="text-sm font-medium text-muted-foreground">
+            {language === "ar" ? "الملفات الحالية" : language === "fr" ? "Fichiers existants" : "Existing Files"}
+          </h4>
           <div className="space-y-2">
             {existingFiles.map((file) => (
               <Card key={file.id} className="p-3">
@@ -192,17 +218,23 @@ const MultiPdfUpload = ({
       >
         <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
         <p className="text-sm text-muted-foreground mb-2">
-          {language === "ar" ? "اسحب وأفلت ملفات PDF هنا، أو انقر للاختيار" : "Drag and drop PDF files here, or click to select"}
+          {language === "ar"
+            ? "اسحب وأفلت ملفات PDF هنا، أو انقر للاختيار"
+            : language === "fr"
+            ? "Glissez-déposez des fichiers PDF ici, ou cliquez pour sélectionner"
+            : "Drag and drop PDF files here, or click to select"}
         </p>
         <p className="text-xs text-muted-foreground mb-3">
           {language === "ar"
             ? `الحد الأقصى ${maxFiles} ملفات، حتى ${maxSizeMB} ميغابايت لكل ملف (${selectedFiles.length + existingFiles.length}/${maxFiles})`
+            : language === "fr"
+            ? `Maximum ${maxFiles} fichiers, jusqu'à ${maxSizeMB} Mo chacun (${selectedFiles.length + existingFiles.length}/${maxFiles})`
             : `Maximum ${maxFiles} files, up to ${maxSizeMB}MB each (${selectedFiles.length + existingFiles.length}/${maxFiles})`}
         </p>
         <Button variant="outline" size="sm" asChild>
           <label className="cursor-pointer">
             <Plus className="h-4 w-4 mr-2" />
-            {language === "ar" ? "اختر ملفات PDF" : "Select PDF Files"}
+            {language === "ar" ? "اختر ملفات PDF" : language === "fr" ? "Sélectionner des fichiers PDF" : "Select PDF Files"}
             <input
               type="file"
               multiple
@@ -219,7 +251,11 @@ const MultiPdfUpload = ({
       {selectedFiles.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-medium">
-            New files to upload ({selectedFiles.length}):
+            {language === "ar"
+              ? `الملفات الجديدة للرفع (${selectedFiles.length}):`
+              : language === "fr"
+              ? `Nouveaux fichiers à téléverser (${selectedFiles.length}) :`
+              : `New files to upload (${selectedFiles.length}):`}
           </p>
           <div className="space-y-2">
             {selectedFiles.map((file, index) => (
@@ -238,7 +274,7 @@ const MultiPdfUpload = ({
                 </div>
                 <div className="flex items-center space-x-2 ml-2">
                   <Badge variant="secondary" className="text-xs">
-                    New
+                    {language === "ar" ? "جديد" : language === "fr" ? "Nouveau" : "New"}
                   </Badge>
                   <Button
                     variant="ghost"
