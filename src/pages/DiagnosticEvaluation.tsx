@@ -91,6 +91,7 @@ import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportP
 import { exportDiagnosticReportToPdf } from "@/lib/diagnosticPdfExporter";
 import * as XLSX from "xlsx";
 import { downloadExcelFile } from "@/lib/download";
+import { supabase } from "@/integrations/supabase/client";
 
 export const DiagnosticEvaluation: React.FC = () => {
   const { user } = useAuth();
