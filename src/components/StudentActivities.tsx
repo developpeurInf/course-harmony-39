@@ -106,10 +106,10 @@ function TrendChart({
           const area = valid.length > 1 ? `${d} L${valid[valid.length - 1][0]},${y(0)} L${valid[0][0]},${y(0)} Z` : "";
           return (
             <g key={s.name}>
-              {!s.dashed && area && <path d={area} fill={s.color} opacity="0.08" />}
-              {valid.length > 1 && <path d={d} fill="none" stroke={s.color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dashed ? "6 5" : undefined} />}
+              {!s.dashed && area && <path d={area} style={{ fill: s.color }} opacity="0.08" />}
+              {valid.length > 1 && <path d={d} fill="none" style={{ stroke: s.color }} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dashed ? "6 5" : undefined} />}
               {valid.map((p, i) => (
-                <circle key={i} cx={p[0]} cy={p[1]} r={s.dashed ? 3 : 4.2} fill="hsl(var(--card))" stroke={s.color} strokeWidth="2.2" />
+                <circle key={i} cx={p[0]} cy={p[1]} r={s.dashed ? 3 : 4.2} style={{ fill: "hsl(var(--card))", stroke: s.color }} strokeWidth="2.2" />
               ))}
             </g>
           );
@@ -541,48 +541,44 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   return (
     <div className="space-y-6" dir={isRtl ? "rtl" : "ltr"}>
-      {/* ── Bandeau ── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-indigo-600 to-violet-600 p-6 sm:p-7 text-white shadow-lg">
-        <div className="pointer-events-none absolute -top-20 -end-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 start-10 h-56 w-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-              {tr("Suivi pédagogique", "التتبع التربوي", "Learning analytics")}
-            </p>
-            <h2 className="mt-1 text-2xl sm:text-3xl font-extrabold leading-tight">
-              {room?.name || tr("Classe", "القسم", "Class")}
-            </h2>
-            <p className="mt-1.5 text-sm text-white/80">
-              {tr(
-                `${total} élève(s) · ${A.quizzes.length} quiz analysé(s) · note retenue : ${policyLabel}`,
-                `${total} تلميذ · ${A.quizzes.length} اختبار · النقطة المعتمدة: ${policyLabel}`,
-                `${total} student(s) · ${A.quizzes.length} quiz(zes) · grade kept: ${policyLabel}`
-              )}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={period} onValueChange={v => setPeriod(v as Period)}>
-              <SelectTrigger className="h-10 w-[180px] border-white/25 bg-white/10 text-white backdrop-blur hover:bg-white/15 [&>svg]:text-white">
-                <CalendarClock className="h-4 w-4 me-2 opacity-80" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{tr("Toute l'année", "طوال السنة", "All time")}</SelectItem>
-                <SelectItem value="90">{tr("3 derniers mois", "آخر 3 أشهر", "Last 3 months")}</SelectItem>
-                <SelectItem value="30">{tr("30 derniers jours", "آخر 30 يوماً", "Last 30 days")}</SelectItem>
-                <SelectItem value="7">{tr("7 derniers jours", "آخر 7 أيام", "Last 7 days")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="secondary" onClick={handleRefresh} disabled={refreshing} className="h-10 gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/25">
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {tr("Actualiser", "تحديث", "Refresh")}
-            </Button>
-            <Button onClick={exportCsv} disabled={loading || total === 0} className="h-10 gap-2 bg-white text-primary hover:bg-white/90 font-semibold">
-              <Download className="h-4 w-4" />
-              {tr("Exporter (Excel)", "تصدير (Excel)", "Export (Excel)")}
-            </Button>
-          </div>
+      {/* ── En-tête simple ── */}
+      <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-primary">
+            {tr("Suivi pédagogique", "التتبع التربوي", "Learning analytics")}
+          </p>
+          <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight">
+            {room?.name || tr("Classe", "القسم", "Class")}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tr(
+              `${total} élève(s) · ${A.quizzes.length} quiz analysé(s) · note retenue : ${policyLabel}`,
+              `${total} تلميذ · ${A.quizzes.length} اختبار · النقطة المعتمدة: ${policyLabel}`,
+              `${total} student(s) · ${A.quizzes.length} quiz(zes) · grade kept: ${policyLabel}`
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={period} onValueChange={v => setPeriod(v as Period)}>
+            <SelectTrigger className="h-10 w-[180px]">
+              <CalendarClock className="h-4 w-4 me-2 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{tr("Toute l'année", "طوال السنة", "All time")}</SelectItem>
+              <SelectItem value="90">{tr("3 derniers mois", "آخر 3 أشهر", "Last 3 months")}</SelectItem>
+              <SelectItem value="30">{tr("30 derniers jours", "آخر 30 يوماً", "Last 30 days")}</SelectItem>
+              <SelectItem value="7">{tr("7 derniers jours", "آخر 7 أيام", "Last 7 days")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-10 gap-2">
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {tr("Actualiser", "تحديث", "Refresh")}
+          </Button>
+          <Button onClick={exportCsv} disabled={loading || total === 0} className="h-10 gap-2">
+            <Download className="h-4 w-4" />
+            {tr("Exporter (Excel)", "تصدير (Excel)", "Export (Excel)")}
+          </Button>
         </div>
       </div>
 
@@ -671,7 +667,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                       labels={quizLabels}
                       emptyLabel={tr("Aucun quiz sur la période", "لا توجد اختبارات في هذه الفترة", "No quiz in this period")}
                       series={[
-                        { name: tr("Moyenne de la classe", "معدل القسم", "Class average"), color: "#4f46e5", values: A.quizzes.map(q => q.mean) },
+                        { name: tr("Moyenne de la classe", "معدل القسم", "Class average"), color: "hsl(var(--primary))", values: A.quizzes.map(q => q.mean) },
                         { name: tr("Participation", "المشاركة", "Participation"), color: "#10b981", values: A.quizzes.map(q => q.participation), dashed: true },
                       ]}
                     />
@@ -893,7 +889,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                       </div>
                       <div className="w-full md:w-64">
                         <div className="mb-1 flex justify-between text-[11px] text-muted-foreground"><span>{tr("Participation", "المشاركة", "Participation")}</span><span className="font-semibold tabular-nums text-foreground">{Math.round(q.participation)} %</span></div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500" style={{ width: `${q.participation}%` }} /></div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70" style={{ width: `${q.participation}%` }} /></div>
                       </div>
                     </div>
                   </CardHeader>
@@ -976,21 +972,20 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
             })();
             return (
               <>
-                <div className="relative overflow-hidden bg-gradient-to-br from-primary via-indigo-600 to-violet-600 p-6 text-white">
-                  <div className="pointer-events-none absolute -top-16 -end-10 h-44 w-44 rounded-full bg-white/10 blur-2xl" />
+                <div className="relative overflow-hidden border-b bg-primary/5 p-6">
                   <DialogHeader className="relative space-y-0 text-start">
                     <div className="flex items-center gap-4">
-                      <Avatar className="h-16 w-16 ring-4 ring-white/25">
+                      <Avatar className="h-16 w-16 ring-4 ring-background">
                         <AvatarImage src={s.student.avatar_url || undefined} />
-                        <AvatarFallback className="bg-white/20 text-lg font-bold text-white">{initials(s.student.name)}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-lg font-bold text-primary">{initials(s.student.name)}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
                         <DialogTitle className="truncate text-2xl font-extrabold">{s.student.name}</DialogTitle>
-                        <DialogDescription className="truncate text-white/75">{s.student.email || s.student.username}</DialogDescription>
+                        <DialogDescription className="truncate">{s.student.email || s.student.username}</DialogDescription>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-semibold">{levelLabel(s.level)}</span>
-                          {s.rank !== null && <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-semibold">{tr(`Rang ${s.rank} / ${A.evaluatedCount}`, `الرتبة ${s.rank} / ${A.evaluatedCount}`, `Rank ${s.rank} / ${A.evaluatedCount}`)}</span>}
-                          {s.online && <span className="rounded-full bg-emerald-400/30 px-2.5 py-0.5 text-xs font-semibold">● {tr("En ligne", "متصل", "Online")}</span>}
+                          <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${LEVEL_STYLE[s.level]}`}>{levelLabel(s.level)}</span>
+                          {s.rank !== null && <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">{tr(`Rang ${s.rank} / ${A.evaluatedCount}`, `الرتبة ${s.rank} / ${A.evaluatedCount}`, `Rank ${s.rank} / ${A.evaluatedCount}`)}</span>}
+                          {s.online && <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">● {tr("En ligne", "متصل", "Online")}</span>}
                         </div>
                       </div>
                     </div>
@@ -1030,7 +1025,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                         labels={s.results.map(r => r.quiz.title)}
                         emptyLabel=""
                         series={[
-                          { name: s.student.name, color: "#4f46e5", values: s.results.map(r => r.pct) },
+                          { name: s.student.name, color: "hsl(var(--primary))", values: s.results.map(r => r.pct) },
                           { name: tr("Moyenne de la classe", "معدل القسم", "Class average"), color: "#94a3b8", values: s.results.map(r => classByQuiz.get(r.quiz.id) ?? null), dashed: true },
                         ]}
                       />

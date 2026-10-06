@@ -9,10 +9,10 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePreferences, playNotificationSound, AttemptPolicy } from "@/contexts/PreferencesContext";
+import { usePreferences, playNotificationSound, AttemptPolicy, ACCENT_PRESETS, AccentColor } from "@/contexts/PreferencesContext";
 import {
   Globe, Moon, Sun, Monitor, Key, AlertCircle, Bell, Volume2, MonitorSmartphone, Type, Rows3, Sparkles,
-  GraduationCap, FileQuestion, ShieldCheck, Cloud, CloudOff, Loader2, Check, RotateCcw, Settings2, Clock
+  GraduationCap, FileQuestion, ShieldCheck, Cloud, CloudOff, Loader2, Check, RotateCcw, Clock, Palette
 } from "lucide-react";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 import { PasswordResetManager } from "@/components/PasswordResetManager";
@@ -191,11 +191,11 @@ const Settings = () => {
 
   const renderSyncBadge = () => {
     const map = {
-      idle: { icon: <Cloud className="h-3.5 w-3.5" />, text: tr("Synchronisé avec votre compte", "متزامن مع حسابك", "Synced with your account"), cls: "bg-white/15" },
-      saved: { icon: <Check className="h-3.5 w-3.5" />, text: tr("Enregistré", "تم الحفظ", "Saved"), cls: "bg-emerald-400/25" },
-      saving: { icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, text: tr("Enregistrement…", "جارٍ الحفظ…", "Saving…"), cls: "bg-white/15" },
-      local: { icon: <CloudOff className="h-3.5 w-3.5" />, text: tr("Enregistré sur cet appareil", "محفوظ على هذا الجهاز", "Saved on this device"), cls: "bg-amber-400/25" },
-      error: { icon: <CloudOff className="h-3.5 w-3.5" />, text: tr("Enregistré localement (synchronisation impossible)", "محفوظ محلياً (تعذرت المزامنة)", "Saved locally (sync failed)"), cls: "bg-rose-400/30" },
+      idle: { icon: <Cloud className="h-3.5 w-3.5" />, text: tr("Synchronisé avec votre compte", "متزامن مع حسابك", "Synced with your account"), cls: "bg-muted text-muted-foreground" },
+      saved: { icon: <Check className="h-3.5 w-3.5" />, text: tr("Enregistré", "تم الحفظ", "Saved"), cls: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+      saving: { icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, text: tr("Enregistrement…", "جارٍ الحفظ…", "Saving…"), cls: "bg-muted text-muted-foreground" },
+      local: { icon: <CloudOff className="h-3.5 w-3.5" />, text: tr("Enregistré sur cet appareil", "محفوظ على هذا الجهاز", "Saved on this device"), cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+      error: { icon: <CloudOff className="h-3.5 w-3.5" />, text: tr("Enregistré localement (synchronisation impossible)", "محفوظ محلياً (تعذرت المزامنة)", "Saved locally (sync failed)"), cls: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
     }[syncState];
     return <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${map.cls}`}>{map.icon}{map.text}</span>;
   };
@@ -216,19 +216,13 @@ const Settings = () => {
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 py-6" dir={isRtl ? "rtl" : "ltr"}>
-      {/* Bandeau */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-indigo-600 to-violet-600 p-6 sm:p-7 text-white shadow-lg">
-        <div className="pointer-events-none absolute -top-20 -end-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
-        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-4">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Settings2 className="h-6 w-6" /></span>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold">{tr("Paramètres", "الإعدادات", "Settings")}</h1>
-              <p className="text-sm text-white/80">{tr("Personnalisez l'application. Les changements sont appliqués et enregistrés automatiquement.", "خصص التطبيق. يتم تطبيق التغييرات وحفظها تلقائياً.", "Customise the app. Changes are applied and saved automatically.")}</p>
-            </div>
-          </div>
-          {renderSyncBadge()}
+      {/* En-tête simple */}
+      <div className="flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{tr("Paramètres", "الإعدادات", "Settings")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{tr("Personnalisez l'application. Les changements sont appliqués et enregistrés automatiquement.", "خصص التطبيق. يتم تطبيق التغييرات وحفظها تلقائياً.", "Customise the app. Changes are applied and saved automatically.")}</p>
         </div>
+        {renderSyncBadge()}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
@@ -274,6 +268,56 @@ const Settings = () => {
                 ]}
               />
             </Row>
+            <div className="py-4 last:pb-0">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><Palette className="h-4 w-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{tr("Couleur de l'application", "لون التطبيق", "App colour")}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                    {tr(
+                      "Couleur principale des boutons, menus et liens. Le rouge (supprimer), le vert (valider/enregistrer) et l'orange (avertissement) gardent toujours leur sens.",
+                      "اللون الرئيسي للأزرار والقوائم والروابط. يحتفظ الأحمر (حذف) والأخضر (حفظ/تأكيد) والبرتقالي (تنبيه) دائماً بمعناها.",
+                      "Main colour for buttons, menus and links. Red (delete), green (save/confirm) and orange (warning) always keep their meaning."
+                    )}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2.5">
+                    {(Object.keys(ACCENT_PRESETS) as AccentColor[]).map(key => {
+                      const c = ACCENT_PRESETS[key];
+                      const selected = prefs.accentColor === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => update({ accentColor: key })}
+                          title={language === "ar" ? c.ar : language === "fr" ? c.fr : c.en}
+                          aria-pressed={selected}
+                          className={`group flex flex-col items-center gap-1.5 rounded-2xl border-2 px-3 py-2.5 transition-all ${selected ? "border-foreground/70 bg-muted/60" : "border-transparent hover:bg-muted/50"}`}
+                        >
+                          <span
+                            className="flex h-9 w-9 items-center justify-center rounded-full shadow-sm ring-2 ring-background transition-transform group-hover:scale-110"
+                            style={{ background: `hsl(${c.h} ${c.s}% ${c.l}%)` }}
+                          >
+                            {selected && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
+                          </span>
+                          <span className={`text-[11px] ${selected ? "font-bold" : "font-medium text-muted-foreground"}`}>
+                            {language === "ar" ? c.ar : language === "fr" ? c.fr : c.en}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Aperçu en direct */}
+                  <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/30 p-3">
+                    <span className="text-[11px] font-semibold text-muted-foreground me-1">{tr("Aperçu :", "معاينة:", "Preview:")}</span>
+                    <Button size="sm">{tr("Bouton principal", "زر رئيسي", "Primary button")}</Button>
+                    <Button size="sm" variant="outline" className="text-primary border-primary/40">{tr("Lien", "رابط", "Link")}</Button>
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{tr("Badge", "شارة", "Badge")}</span>
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">{tr("Enregistrer", "حفظ", "Save")}</Button>
+                    <Button size="sm" variant="destructive">{tr("Supprimer", "حذف", "Delete")}</Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </SectionCard>
 
           {/* ── Affichage ── */}

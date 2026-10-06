@@ -314,7 +314,7 @@ const Dashboard = () => {
 
   const DateTile = ({ iso, tone }: { iso: string; tone: "indigo" | "emerald" }) => {
     const d = new Date(iso);
-    const c = tone === "indigo" ? "from-indigo-500 to-violet-500" : "from-emerald-500 to-teal-500";
+    const c = tone === "indigo" ? "from-primary to-primary/75" : "from-emerald-500 to-teal-500";
     return (
       <div className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-gradient-to-br ${c} text-white shadow-sm`}>
         <span className="text-lg font-extrabold leading-none">{d.getDate()}</span>
@@ -329,40 +329,36 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-8" dir={isRtl ? "rtl" : "ltr"}>
-      {/* ── Bandeau d'accueil ── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-indigo-600 to-violet-600 p-6 sm:p-8 text-white shadow-lg">
-        <div className="pointer-events-none absolute -top-24 -end-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 start-1/3 h-64 w-64 rounded-full bg-fuchsia-400/20 blur-3xl" />
-        <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/70 first-letter:uppercase">{today}</p>
-            <h1 className="mt-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight">
-              {t("dashboard.welcome")}, {user?.name} 👋
-            </h1>
-            <p className="mt-1.5 max-w-xl text-sm text-white/80">
-              {isProfessor
-                ? tr("Voici l'essentiel de vos classes : résultats, activité et échéances.", "إليك أهم مستجدات أقسامك: النتائج والنشاط والمواعيد.", "Here is the essentials of your classes: results, activity and deadlines.")
-                : tr("Suivez vos cours, vos résultats et vos prochaines échéances.", "تابع دروسك ونتائجك ومواعيدك القادمة.", "Track your courses, results and upcoming deadlines.")}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {isProfessor && professorRooms.length > 0 && (
-              <Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
-                <SelectTrigger className="h-10 w-[200px] border-white/25 bg-white/10 text-white backdrop-blur hover:bg-white/15 [&>svg]:text-white">
-                  <Building className="h-4 w-4 me-2 opacity-80" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{tr("Toutes les classes", "كل الأقسام", "All classes")}</SelectItem>
-                  {professorRooms.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-            <Button onClick={handleRefresh} disabled={loading} className="h-10 gap-2 border border-white/25 bg-white/15 text-white hover:bg-white/25">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{tr("Actualiser", "تحديث", "Refresh")}</span>
-            </Button>
-          </div>
+      {/* ── En-tête simple ── */}
+      <div className="flex flex-col gap-4 border-b pb-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground first-letter:uppercase">{today}</p>
+          <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight">
+            {t("dashboard.welcome")}, <span className="text-primary">{user?.name}</span>
+          </h1>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            {isProfessor
+              ? tr("Voici l'essentiel de vos classes : résultats, activité et échéances.", "إليك أهم مستجدات أقسامك: النتائج والنشاط والمواعيد.", "Here is the essentials of your classes: results, activity and deadlines.")
+              : tr("Suivez vos cours, vos résultats et vos prochaines échéances.", "تابع دروسك ونتائجك ومواعيدك القادمة.", "Track your courses, results and upcoming deadlines.")}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {isProfessor && professorRooms.length > 0 && (
+            <Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
+              <SelectTrigger className="h-10 w-[200px]">
+                <Building className="h-4 w-4 me-2 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{tr("Toutes les classes", "كل الأقسام", "All classes")}</SelectItem>
+                {professorRooms.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <Button variant="outline" onClick={handleRefresh} disabled={loading} className="h-10 gap-2">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">{tr("Actualiser", "تحديث", "Refresh")}</span>
+          </Button>
         </div>
       </div>
 
@@ -423,7 +419,7 @@ const Dashboard = () => {
                       <div className="pointer-events-none absolute -top-1 left-1/2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-popover px-2 py-1 text-[11px] shadow-md ring-1 ring-border opacity-0 transition-opacity group-hover:opacity-100">
                         <b>{d.activeStudents}</b> {tr("actifs", "نشطون", "active")} · <b>{d.submissions}</b> {tr("copies", "أوراق", "subs")}
                       </div>
-                      <div className="w-1/2 max-w-[22px] rounded-t-md bg-gradient-to-t from-blue-600 to-blue-400 transition-all duration-700 group-hover:opacity-90" style={{ height: `${(d.activeStudents / maxWeek) * 100}%`, minHeight: d.activeStudents ? 4 : 0 }} />
+                      <div className="w-1/2 max-w-[22px] rounded-t-md bg-gradient-to-t from-primary to-primary/60 transition-all duration-700 group-hover:opacity-90" style={{ height: `${(d.activeStudents / maxWeek) * 100}%`, minHeight: d.activeStudents ? 4 : 0 }} />
                       <div className="w-1/2 max-w-[22px] rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400 transition-all duration-700 group-hover:opacity-90" style={{ height: `${(d.submissions / maxWeek) * 100}%`, minHeight: d.submissions ? 4 : 0 }} />
                     </div>
                   </div>
@@ -435,7 +431,7 @@ const Dashboard = () => {
                 ))}
               </div>
               <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500" />{tr("Élèves actifs", "تلاميذ نشطون", "Active students")}</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" />{tr("Élèves actifs", "تلاميذ نشطون", "Active students")}</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />{tr("Copies de quiz", "أوراق الاختبارات", "Quiz submissions")}</span>
               </div>
             </CardContent>
@@ -563,16 +559,15 @@ const Dashboard = () => {
         <CardContent>
           {displayCourses.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {displayCourses.map((course, i) => {
+              {displayCourses.map((course) => {
                 const nStudents = enrollments.filter(e => e.course_id === course.id).length;
                 const nEx = exercises.filter(e => e.course_id === course.id).length;
                 const nExams = exams.filter(e => e.course_id === course.id).length;
-                const grads = ["from-blue-500 to-indigo-500", "from-violet-500 to-fuchsia-500", "from-emerald-500 to-teal-500", "from-amber-500 to-orange-500", "from-rose-500 to-pink-500", "from-cyan-500 to-sky-500"];
                 return (
                   <Card key={course.id} className="card-hover overflow-hidden cursor-pointer" onClick={() => navigate(isProfessor ? "/courses" : `/courses`)}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
-                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${grads[i % grads.length]} text-white shadow-sm`}>
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                           <BookOpen className="h-5 w-5" />
                         </div>
                         <div className="min-w-0 flex-1">

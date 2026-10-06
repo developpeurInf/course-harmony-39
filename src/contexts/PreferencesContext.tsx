@@ -13,6 +13,24 @@ export type AttemptPolicy = "latest" | "best" | "average";
 export type FontScale = "normal" | "large" | "xlarge";
 export type TableDensity = "comfortable" | "compact";
 
+/**
+ * Couleurs d'accent proposées. Volontairement SANS rouge ni vert « purs » :
+ * ces couleurs restent réservées à leur sens habituel (supprimer / valider).
+ * h s l = teinte, saturation, luminosité de la couleur principale (mode clair).
+ */
+export const ACCENT_PRESETS = {
+  blue:      { h: 217, s: 91, l: 60, fr: "Bleu",      ar: "أزرق",      en: "Blue" },
+  indigo:    { h: 239, s: 84, l: 62, fr: "Indigo",    ar: "نيلي",      en: "Indigo" },
+  violet:    { h: 262, s: 83, l: 60, fr: "Violet",    ar: "بنفسجي",    en: "Violet" },
+  pink:      { h: 330, s: 81, l: 56, fr: "Rose",      ar: "وردي",      en: "Pink" },
+  fuchsia:   { h: 292, s: 70, l: 52, fr: "Fuchsia",   ar: "فوشيا",     en: "Fuchsia" },
+  turquoise: { h: 187, s: 85, l: 38, fr: "Turquoise", ar: "فيروزي",    en: "Teal" },
+  orange:    { h: 24,  s: 94, l: 50, fr: "Orange",    ar: "برتقالي",   en: "Orange" },
+  brown:     { h: 27,  s: 45, l: 40, fr: "Chocolat",  ar: "بني",       en: "Brown" },
+  slate:     { h: 215, s: 25, l: 38, fr: "Ardoise",   ar: "رمادي",     en: "Slate" },
+} as const;
+export type AccentColor = keyof typeof ACCENT_PRESETS;
+
 export interface AppPreferences {
   // ── Évaluation (enseignant) ──
   /** Moyenne minimale de réussite, sur 20 */
@@ -37,6 +55,7 @@ export interface AppPreferences {
   notifyBrowser: boolean;
 
   // ── Affichage ──
+  accentColor: AccentColor;
   reduceMotion: boolean;
   fontScale: FontScale;
   tableDensity: TableDensity;
@@ -55,6 +74,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   notifyPopup: true,
   notifySound: false,
   notifyBrowser: false,
+  accentColor: "blue",
   reduceMotion: false,
   fontScale: "normal",
   tableDensity: "comfortable",
@@ -81,6 +101,7 @@ export function normalizePreferences(raw: Partial<AppPreferences> | null | undef
   if (!["latest", "best", "average"].includes(p.attemptPolicy)) p.attemptPolicy = "latest";
   if (!["normal", "large", "xlarge"].includes(p.fontScale)) p.fontScale = "normal";
   if (!["comfortable", "compact"].includes(p.tableDensity)) p.tableDensity = "comfortable";
+  if (!(p.accentColor in ACCENT_PRESETS)) p.accentColor = "blue";
   return p;
 }
 
@@ -164,7 +185,7 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
       } else if (section === "notifications") {
         next = { ...prev, notifyPopup: d.notifyPopup, notifySound: d.notifySound, notifyBrowser: d.notifyBrowser };
       } else if (section === "display") {
-        next = { ...prev, reduceMotion: d.reduceMotion, fontScale: d.fontScale, tableDensity: d.tableDensity };
+        next = { ...prev, reduceMotion: d.reduceMotion, fontScale: d.fontScale, tableDensity: d.tableDensity, accentColor: d.accentColor };
       } else {
         next = { ...d, quizDefaults: { ...d.quizDefaults } };
       }
@@ -183,6 +204,22 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
     if (prefs.fontScale === "xlarge") html.classList.add("pref-font-xlarge");
   }, [prefs.reduceMotion, prefs.tableDensity, prefs.fontScale]);
 
+  // Couleur d'accent : surcharge des variables du thème (clair + sombre)
+  useEffect(() => {
+    const id = "app-accent-theme";
+    let el = document.getElementById(id) as HTMLStyleElement | null;
+    if (prefs.accentColor === "blue") {
+      el?.remove(); // couleurs d'origine définies dans index.css
+      return;
+    }
+    if (!el) {
+      el = document.createElement("style");
+      el.id = id;
+      document.head.appendChild(el);
+    }
+    el.textContent = buildAccentCss(prefs.accentColor);
+  }, [prefs.accentColor]);
+
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   const value = useMemo(() => ({ prefs, update, reset, syncState }), [prefs, update, reset, syncState]);
@@ -195,6 +232,41 @@ export const usePreferences = (): PreferencesContextValue => {
   if (!ctx) return { prefs: DEFAULT_PREFERENCES, update: () => undefined, reset: () => undefined, syncState: "idle" };
   return ctx;
 };
+
+/** Variables CSS d'une couleur d'accent (mêmes jetons que index.css). */
+export function buildAccentCss(color: AccentColor): string {
+  const { h, s, l } = ACCENT_PRESETS[color];
+  const ds = Math.max(30, s - 6); // mode sombre : un peu moins saturé
+  const dl = Math.min(76, l + 16); // et plus clair pour rester lisible
+  const glowL = Math.min(85, l + 15);
+  return `
+:root {
+  --primary: ${h} ${s}% ${l}%;
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: ${h} ${Math.max(40, s - 6)}% ${glowL}%;
+  --ring: ${h} ${s}% ${l}%;
+  --secondary: ${h} 32% 96%;
+  --accent: ${h} 50% 92%;
+  --sidebar-background: ${h} ${Math.min(s, 35)}% 90%;
+  --sidebar-primary: ${h} ${s}% ${l}%;
+  --sidebar-accent: ${h} 40% 84%;
+  --sidebar-border: ${h} 25% 80%;
+  --sidebar-ring: ${h} ${s}% ${l}%;
+  --gradient-primary: linear-gradient(135deg, hsl(${h} ${s}% ${l}%), hsl(${h} ${Math.max(40, s - 6)}% ${glowL}%));
+  --gradient-accent: linear-gradient(135deg, hsl(${h} 50% 90%), hsl(${h} 40% 95%));
+}
+.dark {
+  --primary: ${h} ${ds}% ${dl}%;
+  --primary-foreground: 215 30% 8%;
+  --primary-glow: ${h} ${ds}% ${Math.min(88, dl + 10)}%;
+  --ring: ${h} ${ds}% ${dl}%;
+  --accent: ${h} 45% 25%;
+  --sidebar-primary: ${h} ${ds}% ${dl}%;
+  --sidebar-ring: ${h} ${ds}% ${dl}%;
+  --gradient-primary: linear-gradient(135deg, hsl(${h} ${ds}% ${dl}%), hsl(${h} ${ds}% ${Math.min(88, dl + 10)}%));
+  --gradient-accent: linear-gradient(135deg, hsl(${h} 45% 25%), hsl(${h} 35% 30%));
+}`;
+}
 
 /** Petit signal sonore discret (sans fichier audio). */
 export function playNotificationSound() {

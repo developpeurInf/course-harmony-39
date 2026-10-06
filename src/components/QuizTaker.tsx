@@ -711,7 +711,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300" dir={isRtl ? "rtl" : "ltr"}>
         <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
           {/* Bandeau */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-primary via-indigo-600 to-violet-600 px-6 py-8 sm:px-8 text-white">
+          <div className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/80 px-6 py-8 sm:px-8 text-primary-foreground">
             <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
             <div className="absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-fuchsia-400/20 blur-2xl" />
             <div className="relative flex items-start gap-4">
@@ -719,12 +719,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                 <Sparkles className="h-7 w-7" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.18em] font-semibold text-white/70">
+                <p className="text-xs uppercase tracking-[0.18em] font-semibold text-primary-foreground/70">
                   {tr("Quiz", "اختبار", "Quiz")}
                 </p>
                 <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight break-words">{exam.title}</h2>
                 {examDescription && (
-                  <p className="mt-2 text-sm text-white/80 line-clamp-3 whitespace-pre-line">{examDescription}</p>
+                  <p className="mt-2 text-sm text-primary-foreground/80 line-clamp-3 whitespace-pre-line">{examDescription}</p>
                 )}
               </div>
             </div>
@@ -803,7 +803,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               <Button
                 onClick={startQuiz}
                 disabled={items.length === 0}
-                className="h-12 rounded-xl px-8 text-base font-bold bg-gradient-to-r from-primary to-violet-600 hover:opacity-95 shadow-lg shadow-primary/25 gap-2"
+                className="h-12 rounded-xl px-8 text-base font-bold bg-primary hover:opacity-95 shadow-lg shadow-primary/25 gap-2"
               >
                 {tr("Commencer le quiz", "ابدأ الاختبار", "Start quiz")}
                 <ArrowRight className={`h-5 w-5 ${isRtl ? "rotate-180" : ""}`} />
@@ -832,12 +832,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     return (
       <div className="max-w-3xl mx-auto space-y-5 animate-in fade-in zoom-in-95 duration-300" dir={isRtl ? "rtl" : "ltr"}>
         <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
-          <div className="relative overflow-hidden bg-gradient-to-br from-primary via-indigo-600 to-violet-600 px-6 pt-8 pb-24 text-center text-white">
+          <div className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/80 px-6 pt-8 pb-24 text-center text-primary-foreground">
             <div className="absolute -top-20 left-1/2 -translate-x-1/2 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
             <h2 className="relative text-2xl sm:text-3xl font-extrabold">
               {tr("Quiz terminé !", "انتهى الاختبار!", "Quiz complete!")}
             </h2>
-            <p className="relative mt-1 text-sm text-white/75">
+            <p className="relative mt-1 text-sm text-primary-foreground/75">
               {autoSubmitted
                 ? tr("Envoyé automatiquement à la fin du temps.", "أُرسل تلقائياً عند انتهاء الوقت.", "Submitted automatically when time ran out.")
                 : tr("Vos réponses ont bien été enregistrées.", "تم حفظ إجاباتك بنجاح.", "Your answers have been saved.")}
@@ -1069,7 +1069,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         </div>
         <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500 transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -1090,7 +1090,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
           <div className="p-5 sm:p-7 space-y-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-xl bg-gradient-to-r from-primary to-violet-600 px-3 py-1 text-sm font-bold text-white shadow-sm">
+              <span className="inline-flex items-center rounded-xl bg-primary px-3 py-1 text-sm font-bold text-primary-foreground shadow-sm">
                 {tr("Question", "السؤال", "Question")} {index + 1}
               </span>
               <span className="inline-flex items-center rounded-xl border px-2.5 py-1 text-xs font-semibold text-muted-foreground">
@@ -1152,7 +1152,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                           item.multi ? "rounded-lg" : "rounded-full"
                         } ${
                           selected
-                            ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow"
+                            ? "bg-primary text-primary-foreground shadow"
                             : "bg-muted text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary"
                         }`}
                       >
@@ -1305,7 +1305,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                     title={`${tr("Question", "السؤال", "Question")} ${i + 1}`}
                     className={`relative h-10 w-10 shrink-0 rounded-xl text-sm font-bold transition-all ${
                       st === "current"
-                        ? "bg-gradient-to-br from-primary to-violet-600 text-white shadow-md scale-105"
+                        ? "bg-primary text-primary-foreground shadow-md scale-105"
                         : st === "answered"
                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                         : "bg-muted text-muted-foreground border border-transparent"
@@ -1321,7 +1321,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             </div>
             <div className="hidden lg:flex flex-col gap-1.5 text-[11px] text-muted-foreground border-t pt-3">
               <span className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded bg-gradient-to-br from-primary to-violet-600" />
+                <span className="h-3 w-3 rounded bg-primary" />
                 {tr("Question actuelle", "السؤال الحالي", "Current")}
               </span>
               <span className="flex items-center gap-2">
