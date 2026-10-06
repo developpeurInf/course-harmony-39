@@ -179,10 +179,20 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
               </div>
               <Switch
                 id="allow-review"
-                checked={settings.allowReview}
+                checked={settings.allowReview && settings.showResultsImmediately}
+                disabled={!settings.showResultsImmediately}
                 onCheckedChange={(checked) => updateSetting('allowReview', checked)}
               />
             </div>
+            {!settings.showResultsImmediately && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md px-2 py-1.5">
+                {language === "ar"
+                  ? "مراجعة التصحيح غير متاحة عندما تكون النتيجة مخفية (لأنها تكشف النقطة)."
+                  : language === "fr"
+                  ? "La relecture du corrigé est désactivée tant que la note est masquée (elle révélerait le résultat)."
+                  : "Answer review is disabled while the score is hidden (it would reveal the result)."}
+              </p>
+            )}
           </div>
         </div>
       </CardContent>

@@ -687,7 +687,12 @@ const Exams = () => {
       {/* Quiz Taker Modal */}
       {showQuizTaker && (
         <Dialog open={!!showQuizTaker} onOpenChange={() => setShowQuizTaker(null)}>
-          <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent
+            className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col"
+            // Évite de perdre le quiz en cours par un clic à l'extérieur ou la touche Échap
+            onInteractOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>{showQuizTaker.title}</DialogTitle>
               <DialogDescription>

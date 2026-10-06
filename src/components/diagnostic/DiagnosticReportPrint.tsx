@@ -293,6 +293,29 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
     ? (validAvgs.reduce((a, b) => a + b, 0) / validAvgs.length).toFixed(2)
     : "0.00";
 
+  // Dimensions des graphiques : plus hauts, mais adaptés au nombre de classes
+  // (plus le tableau des résultats est long, moins il reste de place sur la page)
+  const nbClassesStats = stats.classes_stats.length;
+  const barChart = React.useMemo(() => {
+    const vbH = nbClassesStats <= 4 ? 195 : nbClassesStats <= 6 ? 150 : 115; // hauteur du viewBox (largeur = 460)
+    const top = 14;
+    const baseline = vbH - 20;
+    const plotH = baseline - top;
+    return {
+      vbH,
+      baseline,
+      plotH,
+      yFor: (v: number) => baseline - (v / 100) * plotH,
+      bars: [
+        { x: 58, pct: pctT1, count: totalT1, color: "#dc2626", range: tranches.r1 },
+        { x: 158, pct: pctT2, count: totalT2, color: "#d97706", range: tranches.r2 },
+        { x: 258, pct: pctT3, count: totalT3, color: "#2563eb", range: tranches.r3 },
+        { x: 358, pct: pctT4, count: totalT4, color: "#059669", range: tranches.r4 }
+      ]
+    };
+  }, [nbClassesStats, pctT1, pctT2, pctT3, pctT4, totalT1, totalT2, totalT3, totalT4, tranches]);
+  const donutSize = nbClassesStats <= 4 ? 135 : nbClassesStats <= 6 ? 115 : 95;
+
   return (
     <div
       id="diagnostic-official-report"
@@ -375,7 +398,26 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           box-shadow: 0 4px 18px rgba(0,0,0,0.18);
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
+          justify-content: flex-start;
+        }
+
+        /* CORPS DE PAGE : les sections se répartissent l'espace vertical
+           au lieu de laisser un grand vide en bas de page */
+        .diag-page-body {
+          flex: 1 1 auto;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        .diag-section {
+          flex: 0 0 auto;
+        }
+        /* Espaceur élastique plafonné : absorbe l'espace libre entre sections
+           sans jamais créer de trou excessif */
+        .diag-gap {
+          flex: 1 1 0;
+          min-height: 4px;
+          max-height: 30px;
         }
 
         /* EN-TÊTE */
@@ -494,7 +536,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         }
         .diag-custom-table th, .diag-custom-table td {
           border: 1px solid #000000;
-          padding: 4.5px 7px;
+          padding: 5.5px 7px;
           font-size: 9.6pt;
         }
         .diag-custom-table th {
@@ -512,7 +554,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           font-size: 9.5pt;
           color: #334155;
           line-height: 1.35;
-          margin-top: 8px;
+          margin-top: 0;
         }
 
         .diag-stats-table {
@@ -591,8 +633,8 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           border: 1px solid ${chartBackground === "white" ? "#cbd5e1" : "#e2e8f0"};
           border-radius: 4px;
           background: ${chartBackground === "white" ? "#ffffff" : "#f8fafc"} !important;
-          padding: 5px 8px;
-          margin-bottom: 5px;
+          padding: 6px 10px 8px 10px;
+          margin-bottom: 0;
         }
         .diag-separate-graph-header {
           font-size: 8.8pt;
@@ -629,7 +671,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         }
 
         .diag-signature-section {
-          margin-top: 8px;
+          margin-top: 0;
           width: 100%;
           display: flex;
           justify-content: flex-end;
@@ -653,7 +695,8 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
       {/* ==================== PAGE 1 : CADRE RÉGLEMENTAIRE, OBJECTIFS, INFORMATIONS GÉNÉRALES & CONTENU DU TEST ==================== */}
       <div className="diag-a4-page">
-        <div>
+        <div className="diag-page-body">
+          <div className="diag-section">
           {/* En-tête officiel Royaume du Maroc */}
           <div className="diag-header-box">
             <img
@@ -682,9 +725,12 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
             <span>{t.reportSubjectPrefix} {displayedSubject}</span>
             <span>{t.reportLevelPrefix} {displayedLevel}</span>
           </div>
+          </div>
+
+          <div className="diag-gap" />
 
           {/* Texte introductif réglementaire */}
-          <div className="diag-intro-text">
+          <div className="diag-intro-text diag-section">
             {lang === "ar" ? (
               `تطبيقا لمقتضيات المادة 08 من المقرر الوزاري المنظم للسنة الدراسية ${config.annee_scolaire}، خُصصت الفترة الممتدة ${displayedPeriod} لتشخيص المكتسبات القبلية لدى المتعلمين. وفي هذا الإطار، وبغية التحقق من مدى جاهزية المتعلم وضبط الفوارق قبل الانطلاق في إرساء الموارد الجديدة، تم إنجاز هذا التقويم التشخيصي لفائدة ${classesText}.`
             ) : lang === "en" ? (
@@ -694,8 +740,11 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
             )}
           </div>
 
+          <div className="diag-gap" />
+
           {/* Objectifs du diagnostic */}
-          <div className="diag-heading-blue-dark">{t.reportObjectivesTitle}</div>
+          <div className="diag-section">
+          <div className="diag-heading-blue-dark" style={{ marginTop: 0 }}>{t.reportObjectivesTitle}</div>
           <ul className="diag-obj-list">
             {lang === "ar" ? (
               <>
@@ -720,9 +769,13 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               </>
             )}
           </ul>
+          </div>
+
+          <div className="diag-gap" />
 
           {/* Section I : Informations générales */}
-          <div className="diag-heading-blue-light">
+          <div className="diag-section">
+          <div className="diag-heading-blue-light" style={{ marginTop: 0 }}>
             {t.reportSection1Title} ({selectedClassesNames.length > 0 ? selectedClassesNames.join(", ") : config.classes_section_1}) :
           </div>
           <div style={{ fontSize: "9.8pt", marginBottom: "4px" }}>
@@ -758,9 +811,13 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
+
+          <div className="diag-gap" />
 
           {/* Composition du test */}
-          <div className="diag-sub-heading-blue">
+          <div className="diag-section">
+          <div className="diag-sub-heading-blue" style={{ marginTop: 0 }}>
             {t.reportCompositionPrefix} {displayedNumExercises} {lang === "ar" ? "تمارين" : lang === "en" ? "exercises" : "exercices"}
           </div>
           <table className="diag-custom-table" style={{ marginTop: "3px" }}>
@@ -773,10 +830,12 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
 
-        {/* Note de cadrage méthodologique en bas de page 1 */}
-        <div className="diag-modalities-box">
+          <div className="diag-gap" />
+
+        {/* Note de cadrage méthodologique : juste après le contenu (plus de grand vide) */}
+        <div className="diag-modalities-box diag-section">
           <strong>{lang === "ar" ? "المحددات البيداغوجية : " : lang === "en" ? "Pedagogical Framework: " : "Modalités pédagogiques : "}</strong>
           {lang === "ar"
             ? "تقويم تشخيصي كتابي فردي منجز وفق التوجيهات التربوية الرسمية، يروم رصد المكتسبات القبلية وتوجيه حصص الدعم."
@@ -784,13 +843,15 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
             ? "Individual written assessment aligned with official curriculum guidelines, aimed at assessing foundational competencies."
             : "Épreuve individuelle écrite conforme aux orientations pédagogiques officielles, visant à évaluer les prérequis fondamentaux et orienter le plan de soutien."}
         </div>
+        </div>
       </div>
 
       {includeGraphs ? (
         <>
           {/* ==================== PAGE 2 (AVEC GRAPHIQUES SÉPARÉS) ==================== */}
           <div className="diag-a4-page">
-            <div>
+            <div className="diag-page-body">
+              <div className="diag-section">
               {/* Section II : Tableau des résultats */}
               <div className="diag-heading-blue-light" style={{ marginTop: "0", marginBottom: "2px" }}>
                 {t.reportSection2Title}
@@ -841,8 +902,16 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                 </tbody>
               </table>
 
+              </div>
+
+
+              <div className="diag-gap" />
+
+
+              <div className="diag-section">
+
               {/* 1. TITRE RÉSULTATS ET ANALYSE STATISTIQUE */}
-              <div className="diag-section-title-red">
+              <div className="diag-section-title-red" style={{ marginTop: 0 }}>
                 {lang === "ar" ? "النتائج والتحليل الإحصائي :" : lang === "en" ? "Results & Statistical Analysis:" : "Résultats et analyse statistique :"}
               </div>
 
@@ -864,8 +933,14 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                 )}
               </div>
 
+              </div>
+
+
+              <div className="diag-gap" />
+
+
               {/* 4 CARTOUCHES KPI */}
-              <div className="diag-kpi-grid-large">
+              <div className="diag-kpi-grid-large diag-section" style={{ marginBottom: 0 }}>
                 <div className="diag-kpi-card-large">
                   <span className="diag-kpi-card-label">{t.statsKpiTotalPresents}</span>
                   <span className="diag-kpi-card-value text-indigo-700">{stats.total_presents}</span>
@@ -884,94 +959,69 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                 </div>
               </div>
 
-              {/* BOÎTE 1 SÉPARÉE : GRAPHE EN BARRES DES 4 TRANCHES */}
-              <div className="diag-separate-graph-block">
+              <div className="diag-gap" />
+
+              {/* BOÎTE 1 SÉPARÉE : GRAPHE EN BARRES DES 4 TRANCHES (hauteur augmentée) */}
+              <div className="diag-separate-graph-block diag-section">
                 <div className="diag-separate-graph-header">
                   <span>{t.chartColumnsTitle}</span>
                   <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>
                     {lang === "ar" ? `العدد الإجمالي : ${stats.total_presents} تلميذاً` : `Effectif : ${stats.total_presents} élèves`}
                   </span>
                 </div>
-                <svg viewBox="0 0 460 120" style={{ width: "100%", height: "115px", display: "block", overflow: "visible" }}>
-                  {/* Grille horizontale */}
-                  <line x1="38" y1="8"  x2="450" y2="8"  stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
-                  <line x1="38" y1="30" x2="450" y2="30" stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
-                  <line x1="38" y1="52" x2="450" y2="52" stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
-                  <line x1="38" y1="74" x2="450" y2="74" stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="0.8"/>
-                  <line x1="38" y1="96" x2="450" y2="96" stroke="#94a3b8" strokeWidth="1.2"/>
-
-                  {/* Axe Y labels */}
-                  <text x="34" y="11" textAnchor="end" fontSize="7" fill="#94a3b8">100</text>
-                  <text x="34" y="33" textAnchor="end" fontSize="7" fill="#94a3b8">75</text>
-                  <text x="34" y="55" textAnchor="end" fontSize="7" fill="#94a3b8">50</text>
-                  <text x="34" y="77" textAnchor="end" fontSize="7" fill="#94a3b8">25</text>
-                  <text x="34" y="98" textAnchor="end" fontSize="7" fill="#94a3b8">0</text>
-
-                  {/* Tranche 1 - Rouge */}
-                  {(() => {
-                    const h = Math.max(3, Math.round((pctT1 / 100) * 88));
-                    const y = 96 - h;
+                <svg
+                  viewBox={`0 0 460 ${barChart.vbH}`}
+                  preserveAspectRatio="xMidYMid meet"
+                  style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}
+                >
+                  {/* Grille horizontale + graduations de l'axe Y */}
+                  {[100, 75, 50, 25, 0].map((v) => {
+                    const y = barChart.yFor(v);
                     return (
-                      <g>
-                        <rect x="58" y={y} width="66" height={h} fill="#dc2626" rx="2.5"/>
-                        <text x="91" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#dc2626">{pctT1}% ({totalT1})</text>
-                        <text x="91" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r1}</text>
+                      <g key={v}>
+                        <line
+                          x1="38" y1={y} x2="450" y2={y}
+                          stroke={v === 0 ? "#94a3b8" : "#e2e8f0"}
+                          strokeDasharray={v === 0 ? undefined : "3 3"}
+                          strokeWidth={v === 0 ? 1.2 : 0.8}
+                        />
+                        <text x="34" y={y + 2.5} textAnchor="end" fontSize="7" fill="#94a3b8">{v}</text>
                       </g>
                     );
-                  })()}
+                  })}
 
-                  {/* Tranche 2 - Orange */}
-                  {(() => {
-                    const h = Math.max(3, Math.round((pctT2 / 100) * 88));
-                    const y = 96 - h;
+                  {/* Barres des 4 tranches */}
+                  {barChart.bars.map((bar) => {
+                    const h = Math.max(3, Math.round((bar.pct / 100) * barChart.plotH));
+                    const y = barChart.baseline - h;
                     return (
-                      <g>
-                        <rect x="158" y={y} width="66" height={h} fill="#d97706" rx="2.5"/>
-                        <text x="191" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#d97706">{pctT2}% ({totalT2})</text>
-                        <text x="191" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r2}</text>
+                      <g key={bar.x}>
+                        <rect x={bar.x} y={y} width="66" height={h} fill={bar.color} rx="2.5" />
+                        <text x={bar.x + 33} y={y - 4} textAnchor="middle" fontSize="8.5" fontWeight="bold" fill={bar.color}>
+                          {bar.pct}% ({bar.count})
+                        </text>
+                        <text x={bar.x + 33} y={barChart.baseline + 13} textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">
+                          {bar.range}
+                        </text>
                       </g>
                     );
-                  })()}
-
-                  {/* Tranche 3 - Bleu */}
-                  {(() => {
-                    const h = Math.max(3, Math.round((pctT3 / 100) * 88));
-                    const y = 96 - h;
-                    return (
-                      <g>
-                        <rect x="258" y={y} width="66" height={h} fill="#2563eb" rx="2.5"/>
-                        <text x="291" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#2563eb">{pctT3}% ({totalT3})</text>
-                        <text x="291" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r3}</text>
-                      </g>
-                    );
-                  })()}
-
-                  {/* Tranche 4 - Vert */}
-                  {(() => {
-                    const h = Math.max(3, Math.round((pctT4 / 100) * 88));
-                    const y = 96 - h;
-                    return (
-                      <g>
-                        <rect x="358" y={y} width="66" height={h} fill="#059669" rx="2.5"/>
-                        <text x="391" y={y - 3} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#059669">{pctT4}% ({totalT4})</text>
-                        <text x="391" y="109" textAnchor="middle" fontSize="7.5" fill="#334155" fontWeight="bold">{tranches.r4}</text>
-                      </g>
-                    );
-                  })()}
+                  })}
                 </svg>
               </div>
 
-              {/* BOÎTE 2 SÉPARÉE EN DESSOUS : GRAPHE DONUT */}
-              <div className="diag-separate-graph-block">
+              <div className="diag-gap" />
+
+              {/* BOÎTE 2 SÉPARÉE EN DESSOUS : GRAPHE DONUT (taille augmentée) */}
+              <div className="diag-separate-graph-block diag-section">
                 <div className="diag-separate-graph-header">
                   <span>{t.chartPieTitle}</span>
                   <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>
                     {lang === "ar" ? "النسب المئوية" : "Pourcentages"}
                   </span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "3px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "6px 12px" }}>
                   {/* Donut large */}
-                  <svg viewBox="0 0 100 100" style={{ width: "85px", height: "85px", flexShrink: 0 }}>
+                  <svg viewBox="0 0 100 100" style={{ width: `${donutSize}px`, height: `${donutSize}px`, flexShrink: 0 }}>
                     <circle cx="50" cy="50" r="36" fill="none" stroke="#dc2626" strokeWidth="13"
                       strokeDasharray={`${(pctT1 / 100) * 226.2} 226.2`} strokeDashoffset="0"/>
                     <circle cx="50" cy="50" r="36" fill="none" stroke="#d97706" strokeWidth="13"
@@ -988,7 +1038,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                     </text>
                   </svg>
                   {/* Légende */}
-                  <div style={{ fontSize: "8.5pt", display: "flex", flexDirection: "column", gap: "3px", marginLeft: "15px" }}>
+                  <div style={{ fontSize: "9.2pt", display: "flex", flexDirection: "column", gap: "6px", marginLeft: "15px" }}>
                     <span style={{ color: "#dc2626" }}>● <span style={{ fontWeight: 500 }}>{tranches.t1} {tranches.r1}</span> : <strong>{pctT1}% ({totalT1})</strong></span>
                     <span style={{ color: "#d97706" }}>● <span style={{ fontWeight: 500 }}>{tranches.t2} {tranches.r2}</span> : <strong>{pctT2}% ({totalT2})</strong></span>
                     <span style={{ color: "#2563eb" }}>● <span style={{ fontWeight: 500 }}>{tranches.t3} {tranches.r3}</span> : <strong>{pctT3}% ({totalT3})</strong></span>
@@ -1001,7 +1051,8 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
           {/* ==================== PAGE 3 (OBSERVATIONS, PROPOSITIONS & SIGNATURE) ==================== */}
           <div className="diag-a4-page">
-            <div>
+            <div className="diag-page-body">
+              <div className="diag-section">
               {/* Observations pédagogiques */}
               <div className="diag-section-title-green" style={{ marginTop: "0" }}>
                 {lang === "ar" ? "الملاحظات البيداغوجية المرصودة :" : lang === "en" ? "Pedagogical Observations:" : "Observations pédagogiques constatées :"}
@@ -1013,8 +1064,16 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                 ))}
               </ul>
 
+              </div>
+
+
+              <div className="diag-gap" />
+
+
+              <div className="diag-section">
+
               {/* Section III : Propositions */}
-              <div className="diag-heading-blue-light" style={{ marginTop: "14px", marginBottom: "4px" }}>
+              <div className="diag-heading-blue-light" style={{ marginTop: 0, marginBottom: "4px" }}>
                 {t.reportSection3Title}
               </div>
               <div style={{ fontSize: "9.8pt", marginBottom: "6px" }}>
@@ -1026,21 +1085,25 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                   <li key={idx}>{prop}</li>
                 ))}
               </ul>
-            </div>
+              </div>
 
-            {/* Signature de l'enseignant */}
-            <div className="diag-signature-section">
+              <div className="diag-gap" style={{ maxHeight: "40px" }} />
+
+              {/* Signature de l\'enseignant : juste après le contenu */}
+              <div className="diag-signature-section">
               <div className="diag-signature-box">
                 <div className="diag-signature-title">{t.reportSignatureTitle}</div>
                 <div className="diag-signature-name">{config.nom_enseignant}</div>
               </div>
             </div>
+              </div>
           </div>
         </>
       ) : (
         /* ==================== PAGE 2 (SANS GRAPHIQUES : RÉSULTATS, KPIS, OBSERVATIONS, PROPOSITIONS & SIGNATURE) ==================== */
         <div className="diag-a4-page">
-          <div>
+          <div className="diag-page-body">
+            <div className="diag-section">
             {/* Section II : Tableau des résultats */}
             <div className="diag-heading-blue-light" style={{ marginTop: "0", marginBottom: "2px" }}>
               {t.reportSection2Title}
@@ -1091,8 +1154,16 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               </tbody>
             </table>
 
+            </div>
+
+
+            <div className="diag-gap" />
+
+
+            <div className="diag-section">
+
             {/* 1. TITRE RÉSULTATS ET ANALYSE STATISTIQUE */}
-            <div className="diag-section-title-red">
+            <div className="diag-section-title-red" style={{ marginTop: 0 }}>
               {lang === "ar" ? "النتائج والتحليل الإحصائي :" : lang === "en" ? "Results & Statistical Analysis:" : "Résultats et analyse statistique :"}
             </div>
 
@@ -1114,8 +1185,14 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               )}
             </div>
 
+            </div>
+
+
+            <div className="diag-gap" />
+
+
             {/* 4 CARTOUCHES KPI */}
-            <div className="diag-kpi-grid-large">
+            <div className="diag-kpi-grid-large diag-section" style={{ marginBottom: 0 }}>
               <div className="diag-kpi-card-large">
                 <span className="diag-kpi-card-label">{t.statsKpiTotalPresents}</span>
                 <span className="diag-kpi-card-value text-indigo-700">{stats.total_presents}</span>
@@ -1134,8 +1211,13 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               </div>
             </div>
 
+            <div className="diag-gap" />
+
+
+            <div className="diag-section">
+
             {/* Observations pédagogiques */}
-            <div className="diag-section-title-green">
+            <div className="diag-section-title-green" style={{ marginTop: 0 }}>
               {lang === "ar" ? "الملاحظات البيداغوجية المرصودة :" : lang === "en" ? "Pedagogical Observations:" : "Observations pédagogiques constatées :"}
             </div>
 
@@ -1145,8 +1227,16 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               ))}
             </ul>
 
+            </div>
+
+
+            <div className="diag-gap" />
+
+
+            <div className="diag-section">
+
             {/* Section III : Propositions */}
-            <div className="diag-heading-blue-light" style={{ marginTop: "8px", marginBottom: "3px" }}>
+            <div className="diag-heading-blue-light" style={{ marginTop: 0, marginBottom: "3px" }}>
               {t.reportSection3Title}
             </div>
             <div style={{ fontSize: "9.8pt", marginBottom: "4px" }}>
@@ -1158,15 +1248,18 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                 <li key={idx}>{prop}</li>
               ))}
             </ul>
-          </div>
+            </div>
 
-          {/* Signature de l'enseignant */}
-          <div className="diag-signature-section">
+            <div className="diag-gap" style={{ maxHeight: "40px" }} />
+
+            {/* Signature de l\'enseignant : juste après le contenu */}
+            <div className="diag-signature-section">
             <div className="diag-signature-box">
               <div className="diag-signature-title">{t.reportSignatureTitle}</div>
               <div className="diag-signature-name">{config.nom_enseignant}</div>
             </div>
           </div>
+            </div>
         </div>
       )}
     </div>

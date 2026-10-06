@@ -102,9 +102,11 @@ export const parseExamAvailability = (exam: any): Exam & { quiz_mode?: string; q
   const matchSettings = desc.match(/<!--QUIZ_SETTINGS:([\s\S]+?)-->/);
 
   const available_until = matchUntil ? matchUntil[1].trim() : (exam.available_until || null);
-  let quiz_mode = matchMode ? matchMode[1].trim() : 'free';
+  // ⚠️ Idempotent : si l'examen a déjà été parsé (description nettoyée), on conserve
+  // le mode et les paramètres déjà extraits au lieu de retomber sur les valeurs par défaut.
+  let quiz_mode = matchMode ? matchMode[1].trim() : (exam.quiz_mode || 'free');
 
-  let quiz_settings: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS };
+  let quiz_settings: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS, ...(exam.quiz_settings || {}) };
   if (matchSettings) {
     try {
       quiz_settings = { ...DEFAULT_QUIZ_SETTINGS, ...JSON.parse(matchSettings[1].trim()) };
