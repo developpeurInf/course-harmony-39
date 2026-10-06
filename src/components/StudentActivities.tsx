@@ -683,12 +683,12 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table flat>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8">#</TableHead>
                         <TableHead>
-                          {language === "fr" ? "Étudiant" : language === "ar" ? "الطالب" : "Student"}
+                          {language === "fr" ? "Élève" : language === "ar" ? "التلميذ" : "Student"}
                         </TableHead>
                         <TableHead
                           className="cursor-pointer select-none whitespace-nowrap"
@@ -854,7 +854,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium leading-tight">
-                            {student?.name ?? (language === "fr" ? "Étudiant inconnu" : "Unknown student")}
+                            {student?.name ?? (language === "fr" ? "Élève inconnu" : language === "ar" ? "تلميذ غير معروف" : "Unknown student")}
                             <span className="font-normal text-muted-foreground ml-1.5">
                               — {activityLabel(act.activity_type, language)}
                             </span>
@@ -899,10 +899,10 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
-                  <Table>
+                  <Table flat>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{language === "fr" ? "Étudiant" : language === "ar" ? "الطالب" : "Student"}</TableHead>
+                        <TableHead>{language === "fr" ? "Élève" : language === "ar" ? "التلميذ" : "Student"}</TableHead>
                         <TableHead>{t("activities.session.started")}</TableHead>
                         <TableHead>{language === "fr" ? "Fin" : language === "ar" ? "النهاية" : "Ended"}</TableHead>
                         <TableHead>{t("activities.duration")}</TableHead>

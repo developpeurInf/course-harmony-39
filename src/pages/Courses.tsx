@@ -759,18 +759,18 @@ const Courses = () => {
             })}
           </div>
         ) : (
-          <div className="border rounded-xl overflow-x-auto shadow-xs bg-card">
-            <table className="w-full text-sm border-collapse min-w-[720px]">
-              <thead className="bg-muted/60 border-b">
+          <div className="app-table-wrap">
+            <table className="app-table w-full text-sm min-w-[720px]">
+              <thead>
                 <tr>
-                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
-                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الوثائق (PDF)" : language === "fr" ? "Supports (PDF)" : "Materials (PDF)"}</th>
-                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "القسم" : language === "fr" ? "Classe" : "Room"}</th>
-                  {isProfessor && <th className="p-3.5 text-left font-semibold">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>}
-                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
-                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
-                  <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الرؤية" : language === "fr" ? "Statut" : "Status"}</th>
-                  {isProfessor && <th className="p-3.5 text-left font-semibold">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>}
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الوثائق (PDF)" : language === "fr" ? "Supports (PDF)" : "Materials (PDF)"}</th>
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "القسم" : language === "fr" ? "Classe" : "Room"}</th>
+                  {isProfessor && <th className="p-3.5 text-start font-semibold">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>}
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الرؤية" : language === "fr" ? "Statut" : "Status"}</th>
+                  {isProfessor && <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -780,7 +780,7 @@ const Courses = () => {
                   const materials = courseMaterials[course.id] || [];
                   
                   return (
-                    <tr key={course.id} className="border-t hover:bg-muted/40 transition-colors">
+                    <tr key={course.id}>
                       <td className="p-3.5 max-w-[220px]">
                         <div>
                           <h3 className="font-semibold text-sm line-clamp-1">{course.title}</h3>

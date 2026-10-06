@@ -142,9 +142,43 @@
 
 /* Professional UI Enhancement Classes */
 @layer components {
+  /* Carte interactive (grilles de cours, exercices, examens, classes…) :
+     élévation douce, liseré dégradé en haut, bordure teintée au survol */
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-elegant hover:-translate-y-1 hover:scale-[1.02];
+    position: relative;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    animation: app-fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
+  .card-hover::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 3px;
+    border-start-start-radius: inherit;
+    border-start-end-radius: inherit;
+    background: linear-gradient(90deg, hsl(var(--primary)), #8b5cf6, #ec4899);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    border-color: hsl(var(--primary) / 0.35);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 18px 40px -16px hsl(var(--primary) / 0.35);
+  }
+  .card-hover:hover::before {
+    opacity: 1;
+  }
+  /* Apparition en cascade des cartes d'une grille */
+  .card-hover:nth-child(2) { animation-delay: 40ms; }
+  .card-hover:nth-child(3) { animation-delay: 80ms; }
+  .card-hover:nth-child(4) { animation-delay: 120ms; }
+  .card-hover:nth-child(5) { animation-delay: 160ms; }
+  .card-hover:nth-child(6) { animation-delay: 200ms; }
+  .card-hover:nth-child(7) { animation-delay: 240ms; }
+  .card-hover:nth-child(n + 8) { animation-delay: 280ms; }
   
   .gradient-primary {
     background: var(--gradient-primary);
@@ -268,4 +302,98 @@
   margin: 0.75rem auto;
   border-radius: 1rem;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+}
+
+
+/* ═════════════════════════ TABLEAUX PROFESSIONNELS ═════════════════════════
+   Appliqué à tous les tableaux (composant ui/table + tableaux HTML des pages
+   via les classes .app-table-wrap / .app-table). */
+.app-table-wrap {
+  position: relative;
+  width: 100%;
+  overflow: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+  animation: app-fade-up 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.app-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.app-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: auto;
+  padding: 0.8rem 1rem;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  background: linear-gradient(180deg, hsl(var(--muted)), hsl(var(--muted) / 0.75));
+  border-bottom: 1px solid hsl(var(--border));
+  backdrop-filter: blur(6px);
+}
+.app-table thead th:first-child { border-start-start-radius: 1rem; }
+.app-table thead th:last-child { border-start-end-radius: 1rem; }
+/* Alignement logique (gauche en FR/EN, droite en AR) ; une classe text-* explicite reste prioritaire */
+:where(.app-table th, .app-table td) { text-align: start; }
+/* L'arabe ne supporte pas les majuscules ni l'espacement des lettres */
+[dir="rtl"] .app-table thead th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8rem;
+}
+.app-table tbody td {
+  padding: 0.85rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.app-table tbody tr:last-child td { border-bottom: 0; }
+/* Zèbre + survol (spécificité nulle : les couleurs propres à une ligne restent prioritaires) */
+:where(.app-table tbody tr:nth-child(even)) { background-color: hsl(var(--muted) / 0.35); }
+:where(.app-table tbody tr) { transition: background-color 0.2s ease; }
+:where(.app-table tbody tr:hover) { background-color: hsl(var(--primary) / 0.07); }
+.app-table tbody tr:hover > td:first-child { box-shadow: inset 3px 0 0 hsl(var(--primary)); }
+[dir="rtl"] .app-table tbody tr:hover > td:first-child { box-shadow: inset -3px 0 0 hsl(var(--primary)); }
+/* Apparition des lignes */
+.app-table tbody tr { animation: app-row-in 0.35s ease backwards; }
+.app-table tbody tr:nth-child(2) { animation-delay: 25ms; }
+.app-table tbody tr:nth-child(3) { animation-delay: 50ms; }
+.app-table tbody tr:nth-child(4) { animation-delay: 75ms; }
+.app-table tbody tr:nth-child(5) { animation-delay: 100ms; }
+.app-table tbody tr:nth-child(6) { animation-delay: 125ms; }
+.app-table tbody tr:nth-child(7) { animation-delay: 150ms; }
+.app-table tbody tr:nth-child(n + 8) { animation-delay: 175ms; }
+/* Tableau dans une carte : pas de double cadre */
+.app-table-wrap.app-table-flat {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  overflow: visible;
+}
+.app-table-flat .app-table thead th { border-radius: 0; }
+
+@keyframes app-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes app-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-hover, .app-table-wrap, .app-table tbody tr { animation: none !important; }
+  .card-hover:hover { transform: none; }
+}
+@media print {
+  .app-table-wrap { box-shadow: none; animation: none; }
+  .app-table thead th { position: static; }
 }

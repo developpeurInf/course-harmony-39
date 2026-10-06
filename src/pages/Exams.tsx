@@ -937,24 +937,24 @@ const Exams = () => {
             })}
           </div>
         ) : (
-          <div className="border rounded-lg overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50">
+          <div className="app-table-wrap">
+            <table className="app-table w-full text-xs min-w-[760px]">
+              <thead>
                 <tr>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الامتحان" : language === "fr" ? "Examen" : "Exam"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "فترة الإتاحة" : language === "fr" ? "Disponibilité / Date" : "Availability"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "المدة" : language === "fr" ? "Durée" : "Duration"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الحالة" : language === "fr" ? "Statut" : "Status"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الامتحان" : language === "fr" ? "Examen" : "Exam"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "فترة الإتاحة" : language === "fr" ? "Disponibilité / Date" : "Availability"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "المدة" : language === "fr" ? "Durée" : "Duration"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الحالة" : language === "fr" ? "Statut" : "Status"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
                 </tr>
               </thead>
               <tbody>
                 {displayedExams.map((exam) => {
                   const quizStatus = getQuizStatus(exam);
                   return (
-                    <tr key={exam.id} className="border-t hover:bg-muted/30 transition-colors">
+                    <tr key={exam.id}>
                       <td className="p-3">
                         <div>
                           <h3 className="font-semibold text-sm">{exam.title}</h3>

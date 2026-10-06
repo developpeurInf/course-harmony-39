@@ -1317,7 +1317,7 @@ export const DiagnosticEvaluation: React.FC = () => {
               const stat = calculateClassStats(cls);
 
               return (
-                <Card key={cls.id} className="relative overflow-hidden border-slate-200 dark:border-slate-800 flex flex-col justify-between hover:shadow-md transition">
+                <Card key={cls.id} className="relative overflow-hidden flex flex-col justify-between card-hover">
                   <div className={`absolute top-0 left-0 right-0 h-1.5 ${cls.students.length > 0 ? "bg-indigo-500" : "bg-slate-300"}`} />
                   <CardHeader className="pb-3 pt-5">
                     <div className="flex items-start justify-between">

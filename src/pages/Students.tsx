@@ -45,7 +45,7 @@ const Students = () => {
   const { roomId } = useParams();
   const { user, getStudents, addStudent } = useAuth();
   const { courses, enrollments, enrollStudent, removeEnrollment, refreshData, rooms } = useCourses();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
 
   const [students, setStudents] = useState<any[]>([]);
@@ -360,14 +360,14 @@ const Students = () => {
         ) : (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <Table className="min-w-[620px]">
+              <Table flat className="min-w-[620px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t("student.name")}</TableHead>
-                    <TableHead>{t("student.email")}</TableHead>
-                    <TableHead>{t("nav.courses")}</TableHead>
-                    <TableHead>{t("students.enrolled.courses")}</TableHead>
-                    <TableHead>{t("nav.settings")}</TableHead>
+                    <TableHead>{language === "ar" ? "التلميذ" : language === "fr" ? "Élève" : "Student"}</TableHead>
+                    <TableHead>{language === "ar" ? "البريد الإلكتروني" : language === "fr" ? "E-mail" : "Email"}</TableHead>
+                    <TableHead>{language === "ar" ? "عدد الدروس" : language === "fr" ? "Nb de cours" : "Courses"}</TableHead>
+                    <TableHead>{language === "ar" ? "الدروس المسجلة" : language === "fr" ? "Cours inscrits" : "Enrolled courses"}</TableHead>
+                    <TableHead className="text-end">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

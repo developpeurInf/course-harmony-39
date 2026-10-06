@@ -907,7 +907,7 @@ const Reports = () => {
               ) : (
                 <div className="space-y-4">
                   {courseReports.map((course) => (
-                    <Card key={course.id} className="p-4 shadow-xs">
+                    <Card key={course.id} className="p-4 card-hover">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-semibold text-sm md:text-base">{course.title}</h4>
                         <Badge variant="outline" className="text-xs gap-1">

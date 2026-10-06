@@ -288,7 +288,7 @@ const RoomStudents = () => {
       ) : viewMode === 'cards' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredStudents.map((student) => (
-            <Card key={student.id} className="hover:shadow-md transition-shadow">
+            <Card key={student.id} className="card-hover">
               <CardHeader className="p-4 pb-2.5">
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-10 w-10 shrink-0">
@@ -308,7 +308,7 @@ const RoomStudents = () => {
               <CardContent className="p-4 pt-0">
                 <div className="flex items-center justify-between gap-2">
                   <Badge variant="outline" className="text-[11px] shrink-0">
-                    {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
+                    {student.role === "student" ? (language === "ar" ? "تلميذ" : language === "fr" ? "élève" : "student") : (language === "ar" ? "أستاذ" : student.role)}
                   </Badge>
                   <div className="flex items-center gap-1">
                     <Button 
@@ -344,7 +344,7 @@ const RoomStudents = () => {
                       </AlertDialogTrigger>
                       <AlertDialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
                         <AlertDialogHeader>
-                          <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : "Remove Student"}</AlertDialogTitle>
+                          <AlertDialogTitle>{language === "ar" ? "حذف التلميذ" : language === "fr" ? "Retirer l'élève" : "Remove Student"}</AlertDialogTitle>
                           <AlertDialogDescription>
                             {language === "ar" 
                               ? `هل أنت متأكد من رغبتك في حذف ${student.name} من هذا القسم؟ سيتم حذف حسابه وجميع بياناته بشكل نهائي.`
@@ -365,7 +365,7 @@ const RoomStudents = () => {
                   </div>
                 </div>
                 <div className="mt-2 text-[11px] text-muted-foreground">
-                  {language === "ar" ? "انضم في " : "Joined "} {new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}
+                  {language === "ar" ? "انضم في " : language === "fr" ? "Inscrit le " : "Joined "} {new Date(student.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : undefined)}
                 </div>
               </CardContent>
             </Card>
@@ -374,15 +374,15 @@ const RoomStudents = () => {
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <Table className="min-w-[640px]">
+            <Table flat className="min-w-[640px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>{language === "ar" ? "التلميذ" : "Student"}</TableHead>
+                  <TableHead>{language === "ar" ? "التلميذ" : language === "fr" ? "Élève" : "Student"}</TableHead>
                   <TableHead>{language === "ar" ? "رمز مسار" : language === "fr" ? "Code Massar" : "Code Massar"}</TableHead>
-                  <TableHead>{language === "ar" ? "البريد الإلكتروني" : "Email"}</TableHead>
-                  <TableHead>{language === "ar" ? "الصفة" : "Role"}</TableHead>
-                  <TableHead>{language === "ar" ? "تاريخ الانضمام" : "Joined"}</TableHead>
-                  <TableHead className="text-right">{language === "ar" ? "الإجراءات" : "Actions"}</TableHead>
+                  <TableHead>{language === "ar" ? "البريد الإلكتروني" : language === "fr" ? "E-mail" : "Email"}</TableHead>
+                  <TableHead>{language === "ar" ? "الصفة" : language === "fr" ? "Rôle" : "Role"}</TableHead>
+                  <TableHead>{language === "ar" ? "تاريخ الانضمام" : language === "fr" ? "Inscrit le" : "Joined"}</TableHead>
+                  <TableHead className="text-end">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -403,7 +403,7 @@ const RoomStudents = () => {
                     <TableCell className="text-xs truncate max-w-[150px]">{student.email || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {student.role === "student" ? (language === "ar" ? "تلميذ" : "student") : (language === "ar" ? "أستاذ" : student.role)}
+                        {student.role === "student" ? (language === "ar" ? "تلميذ" : language === "fr" ? "élève" : "student") : (language === "ar" ? "أستاذ" : student.role)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs">

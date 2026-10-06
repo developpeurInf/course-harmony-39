@@ -261,7 +261,7 @@ const ClassManagement = () => {
   if (user?.role !== 'professor') {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">{language === "ar" ? "الوصول مرفوض. إدارة الأقسام متاحة للأساتذة فقط." : "Access denied. Only professors can manage classes."}</p>
+        <p className="text-muted-foreground">{language === "ar" ? "الوصول مرفوض. إدارة الأقسام متاحة للأساتذة فقط." : language === "fr" ? "Accès refusé. Seuls les professeurs peuvent gérer les classes." : "Access denied. Only professors can manage classes."}</p>
       </div>
     );
   }
@@ -342,27 +342,27 @@ const ClassManagement = () => {
         <div className="flex items-center justify-center py-16">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-sm">{language === "ar" ? "جاري التحميل..." : "Loading..."}</p>
+            <p className="text-sm">{language === "ar" ? "جاري التحميل..." : language === "fr" ? "Chargement..." : "Loading..."}</p>
           </div>
         </div>
       ) : viewMode === "table" ? (
-        <div className="border rounded-lg overflow-x-auto">
-          <table className="w-full min-w-[650px]">
-            <thead className="bg-muted/50">
+        <div className="app-table-wrap">
+          <table className="app-table w-full text-sm min-w-[650px]">
+            <thead>
               <tr>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "اسم القسم" : language === "fr" ? "Nom de la classe" : "Class Name"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الدروس" : language === "fr" ? "Cours" : "Courses"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الرؤية" : language === "fr" ? "Visibilité" : "Visibility"}</th>
-                <th className="p-4 text-left font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "اسم القسم" : language === "fr" ? "Nom de la classe" : "Class Name"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "الدروس" : language === "fr" ? "Cours" : "Courses"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "الرؤية" : language === "fr" ? "Visibilité" : "Visibility"}</th>
+                <th className="p-4 text-start font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
               </tr>
             </thead>
             <tbody>
               {roomsWithCounts.map((room) => (
-                <tr key={room.id} className="border-t">
+                <tr key={room.id}>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-primary" />
@@ -490,13 +490,13 @@ const ClassManagement = () => {
           {roomsWithCounts.length === 0 && !loadingCounts && (
             <div className="p-8 text-center">
               <Building className="h-12 w-12 text-muted-foreground mb-4 mx-auto" />
-              <p className="text-lg font-medium mb-2">{language === "ar" ? "لم يتم إنشاء أي قسم بعد" : "No classes created yet"}</p>
+              <p className="text-lg font-medium mb-2">{language === "ar" ? "لم يتم إنشاء أي قسم بعد" : language === "fr" ? "Aucune classe créée pour l'instant" : "No classes created yet"}</p>
               <p className="text-muted-foreground text-center mb-4">
-                {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : "Create your first class to start organizing courses and students"}
+                {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : language === "fr" ? "Créez votre première classe pour organiser vos cours et vos élèves" : "Create your first class to start organizing courses and students"}
               </p>
               <Button onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
-                {language === "ar" ? "إنشاء أول قسم" : "Create Your First Class"}
+                {language === "ar" ? "إنشاء أول قسم" : language === "fr" ? "Créer ma première classe" : "Create Your First Class"}
               </Button>
             </div>
           )}
@@ -504,7 +504,7 @@ const ClassManagement = () => {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {roomsWithCounts.map((room) => (
-          <Card key={room.id} className="relative">
+          <Card key={room.id} className="relative card-hover">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
@@ -633,13 +633,13 @@ const ClassManagement = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8">
             <Building className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">{language === "ar" ? "لم يتم إنشاء أي قسم بعد" : "No classes created yet"}</p>
+            <p className="text-lg font-medium mb-2">{language === "ar" ? "لم يتم إنشاء أي قسم بعد" : language === "fr" ? "Aucune classe créée pour l'instant" : "No classes created yet"}</p>
             <p className="text-muted-foreground text-center mb-4">
-              {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : "Create your first class to start organizing courses and students"}
+              {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : language === "fr" ? "Créez votre première classe pour organiser vos cours et vos élèves" : "Create your first class to start organizing courses and students"}
             </p>
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
-              {language === "ar" ? "إنشاء أول قسم" : "Create Your First Class"}
+              {language === "ar" ? "إنشاء أول قسم" : language === "fr" ? "Créer ma première classe" : "Create Your First Class"}
             </Button>
         </CardContent>
       </Card>
@@ -651,29 +651,29 @@ const ClassManagement = () => {
       <Dialog open={!!editingRoom} onOpenChange={() => setEditingRoom(null)}>
         <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{language === "ar" ? "تعديل القسم" : "Edit Class"}</DialogTitle>
+            <DialogTitle>{language === "ar" ? "تعديل القسم" : language === "fr" ? "Modifier la classe" : "Edit Class"}</DialogTitle>
             <DialogDescription>
-              {language === "ar" ? "تحديث معلومات القسم" : "Update the class information"}
+              {language === "ar" ? "تحديث معلومات القسم" : language === "fr" ? "Mettre à jour les informations de la classe" : "Update the class information"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">{language === "ar" ? "اسم القسم *" : "Class Name *"}</Label>
+              <Label htmlFor="edit-name">{language === "ar" ? "اسم القسم *" : language === "fr" ? "Nom de la classe *" : "Class Name *"}</Label>
               <Input
                 id="edit-name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder={language === "ar" ? "أدخل اسم القسم..." : "Enter class name..."}
+                placeholder={language === "ar" ? "أدخل اسم القسم..." : language === "fr" ? "Saisissez le nom de la classe..." : "Enter class name..."}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : "Description"}</Label>
+              <Label htmlFor="edit-description">{language === "ar" ? "الوصف" : language === "fr" ? "Description" : "Description"}</Label>
               <Textarea
                 id="edit-description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder={language === "ar" ? "أدخل وصف القسم..." : "Enter class description..."}
+                placeholder={language === "ar" ? "أدخل وصف القسم..." : language === "fr" ? "Saisissez la description de la classe..." : "Enter class description..."}
                 rows={3}
               />
             </div>
@@ -683,16 +683,16 @@ const ClassManagement = () => {
                 checked={formData.is_visible}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_visible: checked }))}
               />
-              <Label htmlFor="edit-visibility">{language === "ar" ? "جعل القسم مرئيًا للتلاميذ" : "Make class visible to students"}</Label>
+              <Label htmlFor="edit-visibility">{language === "ar" ? "جعل القسم مرئيًا للتلاميذ" : language === "fr" ? "Rendre la classe visible pour les élèves" : "Make class visible to students"}</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingRoom(null)}>
-              {language === "ar" ? "إلغاء" : "Cancel"}
+              {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button onClick={handleEditRoom} disabled={loading}>
               <Edit className="mr-2 h-4 w-4" />
-              {language === "ar" ? "تحديث القسم" : "Update Class"}
+              {language === "ar" ? "تحديث القسم" : language === "fr" ? "Mettre à jour la classe" : "Update Class"}
             </Button>
           </DialogFooter>
         </DialogContent>

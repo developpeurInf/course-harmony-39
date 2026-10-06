@@ -414,7 +414,7 @@ const Exercises = () => {
           // Grid View
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleExercises.map((exercise) => (
-              <Card key={exercise.id} className="group hover:shadow-elegant transition-all duration-300 hover:-translate-y-1">
+              <Card key={exercise.id} className="group card-hover overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -507,7 +507,7 @@ const Exercises = () => {
           // List View
           <div className="space-y-4">
             {visibleExercises.map((exercise) => (
-              <Card key={exercise.id} className="group hover:shadow-elegant transition-all duration-300">
+              <Card key={exercise.id} className="group card-hover overflow-hidden">
                 <div className="flex flex-col md:flex-row">
                   <div className="flex-1 p-6">
                     <div className="flex items-start justify-between gap-4">
