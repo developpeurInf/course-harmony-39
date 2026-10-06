@@ -52,10 +52,12 @@ import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "sonner";
 
 const Exams = () => {
   const { t, language } = useLanguage();
+  const { prefs } = usePreferences();
   const { user } = useAuth();
   const { roomId } = useParams();
   const { 
@@ -86,7 +88,7 @@ const Exams = () => {
   const [examTime, setExamTime] = useState("");
   const [availableUntilDate, setAvailableUntilDate] = useState("");
   const [availableUntilTime, setAvailableUntilTime] = useState("");
-  const [duration, setDuration] = useState(60);
+  const [duration, setDuration] = useState(prefs.defaultExamDuration);
   const [isVisible, setIsVisible] = useState(true);
   const [examType, setExamType] = useState<"exam" | "quiz">("exam");
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
@@ -163,7 +165,7 @@ const Exams = () => {
     setExamTime("01:00");
     setAvailableUntilDate(todayStr);
     setAvailableUntilTime("03:00");
-    setDuration(60);
+    setDuration(prefs.defaultExamDuration);
     setIsVisible(true);
     setExamType("exam");
     setCurrentExam(null);
@@ -275,8 +277,9 @@ const Exams = () => {
         is_visible: isVisible,
         type: examType,
         available_from: startIso,
-        available_until: endIso
-      });
+        available_until: endIso,
+        ...(examType === "quiz" ? { quiz_settings: prefs.quizDefaults } : {})
+      } as any);
       
       if (newExam) {
         setIsAddDialogOpen(false);
@@ -522,7 +525,11 @@ const Exams = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="examType">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</Label>
-                    <Select value={examType} onValueChange={(value: "exam" | "quiz") => setExamType(value)}>
+                    <Select value={examType} onValueChange={(value: "exam" | "quiz") => {
+                      setExamType(value);
+                      // Durée par défaut selon le type (Paramètres → Nouveaux quiz)
+                      setDuration(value === "quiz" ? prefs.defaultQuizDuration : prefs.defaultExamDuration);
+                    }}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>

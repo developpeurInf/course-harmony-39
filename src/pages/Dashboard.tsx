@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useCourses } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePreferences, AttemptPolicy } from "@/contexts/PreferencesContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,12 +39,27 @@ const pctOf = (score: number | null, total: number | null) =>
   total && total > 0 ? Math.max(0, Math.min(100, ((score || 0) / total) * 100)) : 0;
 
 /** Couleurs du badge de note selon le pourcentage */
-const scoreTone = (pct: number) =>
-  pct >= 70
+const scoreTone = (pct: number, pass = 50) =>
+  pct >= Math.max(70, pass + 10)
     ? { pill: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/30", ring: "#059669" }
-    : pct >= 50
+    : pct >= pass
     ? { pill: "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/30", ring: "#d97706" }
     : { pill: "bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/30", ring: "#e11d48" };
+
+/** Pourcentages retenus par (élève, quiz) selon la règle de tentative choisie dans les paramètres. */
+function retainedPcts(
+  subs: { student_id: string; exam_id: string; score: number | null; total_points: number | null }[],
+  policy: AttemptPolicy
+): number[] {
+  const groups = new Map<string, number[]>(); // subs triées de la plus récente à la plus ancienne
+  subs.filter(s => (s.total_points || 0) > 0).forEach(s => {
+    const k = `${s.student_id}|${s.exam_id}`;
+    groups.set(k, [...(groups.get(k) || []), pctOf(s.score, s.total_points)]);
+  });
+  return Array.from(groups.values()).map(list =>
+    policy === "best" ? Math.max(...list) : policy === "average" ? list.reduce((a, b) => a + b, 0) / list.length : list[0]
+  );
+}
 
 const initials = (name: string) => {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -62,6 +78,9 @@ const Dashboard = () => {
   } = useCourses();
 
   const isRtl = language === "ar";
+  const { prefs } = usePreferences();
+  const passPct = prefs.passThreshold * 5;
+  const passLabel = String(prefs.passThreshold).replace(".", language === "en" ? "." : ",");
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en), [language]);
   const locale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
 
@@ -158,15 +177,10 @@ const Dashboard = () => {
         }
         setSubmissionsCount(subs.length);
 
-        // Moyenne = moyenne des POURCENTAGES (score / total), dernière tentative par élève et par quiz
-        const latest = new Map<string, (typeof subs)[number]>();
-        for (const s of subs) {
-          const k = `${s.student_id}|${s.exam_id}`;
-          if (!latest.has(k)) latest.set(k, s); // déjà triées du plus récent au plus ancien
-        }
-        const pcts = Array.from(latest.values()).filter(s => (s.total_points || 0) > 0).map(s => pctOf(s.score, s.total_points));
+        // Moyenne = moyenne des POURCENTAGES (score / total), une note retenue par élève et par quiz
+        const pcts = retainedPcts(subs, prefs.attemptPolicy);
         setAvgPct(pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null);
-        setPassRate(pcts.length ? (pcts.filter(p => p >= 50).length / pcts.length) * 100 : null);
+        setPassRate(pcts.length ? (pcts.filter(p => p >= passPct).length / pcts.length) * 100 : null);
 
         // 3. Dernières copies avec noms
         const recent = subs.slice(0, 6);
@@ -236,9 +250,9 @@ const Dashboard = () => {
         setSubmissionsCount(subs.length);
         const latest = new Map<string, (typeof subs)[number]>();
         subs.forEach(s => { if (!latest.has(s.exam_id)) latest.set(s.exam_id, s); });
-        const pcts = Array.from(latest.values()).filter(s => (s.total_points || 0) > 0).map(s => pctOf(s.score, s.total_points));
+        const pcts = retainedPcts(subs, prefs.attemptPolicy);
         setAvgPct(pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null);
-        setPassRate(pcts.length ? (pcts.filter(p => p >= 50).length / pcts.length) * 100 : null);
+        setPassRate(pcts.length ? (pcts.filter(p => p >= passPct).length / pcts.length) * 100 : null);
         setRecentSubmissions(Array.from(latest.values()).slice(0, 6).map(s => ({
           id: s.id,
           exam_id: s.exam_id,
@@ -257,7 +271,7 @@ const Dashboard = () => {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, isProfessor, selectedRoomId, examIdsKey, professorRooms.length, locale]);
+  }, [user?.id, isProfessor, selectedRoomId, examIdsKey, professorRooms.length, locale, prefs.attemptPolicy, passPct]);
 
   useEffect(() => {
     loadDynamicMetrics();
@@ -385,7 +399,7 @@ const Dashboard = () => {
           icon={<GraduationCap className="h-5 w-5" />}
           label={isProfessor ? tr("Moyenne aux quiz", "معدل الاختبارات", "Quiz average") : tr("Ma moyenne", "معدلي", "My average")}
           value={<span dir="ltr" className="inline-block">{fmtNote20(avgPct)}<span className="text-base font-bold text-muted-foreground"> /20</span></span>}
-          hint={passRate === null ? tr("aucune copie pour l'instant", "لا توجد أوراق بعد", "no submissions yet") : tr(`${Math.round(passRate)} % de copies ≥ 10/20`, `${Math.round(passRate)}% من الأوراق ≥ 10/20`, `${Math.round(passRate)}% of submissions ≥ 10/20`)}
+          hint={passRate === null ? tr("aucune copie pour l'instant", "لا توجد أوراق بعد", "no submissions yet") : tr(`${Math.round(passRate)} % de notes ≥ ${passLabel}/20`, `${Math.round(passRate)}% من النقط ≥ ${passLabel}/20`, `${Math.round(passRate)}% of grades ≥ ${passLabel}/20`)}
           progress={avgPct}
         />
       </div>
@@ -440,7 +454,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent className={isProfessor ? "space-y-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>
             {recentSubmissions.length > 0 ? recentSubmissions.map(sub => {
-              const tone = scoreTone(sub.pct);
+              const tone = scoreTone(sub.pct, passPct);
               return (
                 <div key={sub.id} className="group flex items-center gap-3 rounded-2xl border p-3 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md">
                   {isProfessor ? (

@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses } from "@/contexts/CourseContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import {
   computeClassAnalytics, formatMinutes, fmtNote,
   AStudent, AQuiz, ASubmission, AQuestion, AAnswer, ASession,
@@ -44,8 +45,9 @@ const LEVEL_STYLE: Record<Level, string> = {
 
 const BUCKET_COLORS = ["#e11d48", "#d97706", "#0284c7", "#059669"];
 
+let NOTE_T = { pass: 10, struggling: 8, good: 12, excellent: 14 };
 const noteColor = (n: number | null) =>
-  n === null ? "text-muted-foreground" : n >= 14 ? "text-emerald-600" : n >= 12 ? "text-sky-600" : n >= 10 ? "text-amber-600" : n >= 8 ? "text-orange-600" : "text-rose-600";
+  n === null ? "text-muted-foreground" : n >= NOTE_T.excellent ? "text-emerald-600" : n >= NOTE_T.good ? "text-sky-600" : n >= NOTE_T.pass ? "text-amber-600" : n >= NOTE_T.struggling ? "text-orange-600" : "text-rose-600";
 
 const barColor = (pct: number | null) =>
   pct === null ? "bg-muted" : pct >= 70 ? "bg-emerald-500" : pct >= 60 ? "bg-sky-500" : pct >= 50 ? "bg-amber-500" : pct >= 40 ? "bg-orange-500" : "bg-rose-500";
@@ -173,6 +175,17 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const { rooms } = useCourses();
+  const { prefs } = usePreferences();
+  const opts = useMemo(() => ({
+    passThreshold: prefs.passThreshold,
+    levelStruggling: prefs.levelStruggling,
+    levelGood: prefs.levelGood,
+    levelExcellent: prefs.levelExcellent,
+    attemptPolicy: prefs.attemptPolicy,
+    inactivityDays: prefs.inactivityDays,
+  }), [prefs.passThreshold, prefs.levelStruggling, prefs.levelGood, prefs.levelExcellent, prefs.attemptPolicy, prefs.inactivityDays]);
+  NOTE_T = { pass: opts.passThreshold, struggling: opts.levelStruggling, good: opts.levelGood, excellent: opts.levelExcellent };
+  const fmtN = (n: number) => String(n).replace(".", language === "en" ? "." : ",");
   const isRtl = language === "ar";
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en), [language]);
   const locale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
@@ -328,9 +341,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       : quizzes.filter(q => quizIdsWithSubs.has(q.id) || new Date(q.date).getTime() >= since);
     const sessP = sessions.filter(s => new Date(s.session_start).getTime() >= since);
     return computeClassAnalytics({
-      students, quizzes: quizzesP, submissions: subsP, questions, answers, sessions: sessP, activeSessions,
+      students, quizzes: quizzesP, submissions: subsP, questions, answers, sessions: sessP, activeSessions, options: opts,
     });
-  }, [students, quizzes, submissions, questions, answers, sessions, activeSessions, period]);
+  }, [students, quizzes, submissions, questions, answers, sessions, activeSessions, period, opts]);
 
   const levelLabel = (l: Level) =>
     ({
@@ -343,20 +356,26 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const alertLabel = (a: AlertReason) =>
     ({
-      low_average: tr("Moyenne < 10/20", "معدل أقل من 10/20", "Average < 10/20"),
+      low_average: tr(`Moyenne < ${fmtN(opts.passThreshold)}/20`, `معدل أقل من ${fmtN(opts.passThreshold)}/20`, `Average < ${fmtN(opts.passThreshold)}/20`),
       low_participation: tr("Participation faible", "مشاركة ضعيفة", "Low participation"),
       declining: tr("Résultats en baisse", "نتائج في تراجع", "Declining results"),
-      inactive: tr("Inactif depuis 7 j+", "غير نشط منذ 7 أيام+", "Inactive 7+ days"),
+      inactive: tr(`Inactif depuis ${opts.inactivityDays} j+`, `غير نشط منذ ${opts.inactivityDays} أيام+`, `Inactive ${opts.inactivityDays}+ days`),
       never_connected: tr("Jamais connecté", "لم يتصل أبداً", "Never connected"),
       no_quiz: tr("Aucun quiz passé", "لم يجتز أي اختبار", "No quiz taken"),
     })[a];
 
+  const [b1, b2, b3] = [fmtN(opts.levelStruggling), fmtN(opts.levelGood), fmtN(opts.levelExcellent)];
   const bucketLabels = [
-    tr("En difficulté  [0 – 8[", "متعثرون  [0 – 8[", "Struggling  [0 – 8["),
-    tr("En progression  [8 – 12[", "في تقدم  [8 – 12[", "Progressing  [8 – 12["),
-    tr("Satisfaisant  [12 – 14[", "جيد  [12 – 14[", "Good  [12 – 14["),
-    tr("Excellent  [14 – 20]", "ممتاز  [14 – 20]", "Excellent  [14 – 20]"),
+    tr(`En difficulté  [0 – ${b1}[`, `متعثرون  [0 – ${b1}[`, `Struggling  [0 – ${b1}[`),
+    tr(`En progression  [${b1} – ${b2}[`, `في تقدم  [${b1} – ${b2}[`, `Progressing  [${b1} – ${b2}[`),
+    tr(`Satisfaisant  [${b2} – ${b3}[`, `جيد  [${b2} – ${b3}[`, `Good  [${b2} – ${b3}[`),
+    tr(`Excellent  [${b3} – 20]`, `ممتاز  [${b3} – 20]`, `Excellent  [${b3} – 20]`),
   ];
+  const policyLabel = opts.attemptPolicy === "best"
+    ? tr("meilleure tentative", "أفضل محاولة", "best attempt")
+    : opts.attemptPolicy === "average"
+    ? tr("moyenne des tentatives", "معدل المحاولات", "average of attempts")
+    : tr("dernière tentative", "آخر محاولة", "latest attempt");
 
   const fmtDate = (iso: string | null, withTime = false) => {
     if (!iso) return "—";
@@ -536,9 +555,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
             </h2>
             <p className="mt-1.5 text-sm text-white/80">
               {tr(
-                `${total} élève(s) · ${A.quizzes.length} quiz analysé(s) · résultats de la dernière tentative`,
-                `${total} تلميذ · ${A.quizzes.length} اختبار · نتائج آخر محاولة`,
-                `${total} student(s) · ${A.quizzes.length} quiz(zes) · latest attempt results`
+                `${total} élève(s) · ${A.quizzes.length} quiz analysé(s) · note retenue : ${policyLabel}`,
+                `${total} تلميذ · ${A.quizzes.length} اختبار · النقطة المعتمدة: ${policyLabel}`,
+                `${total} student(s) · ${A.quizzes.length} quiz(zes) · grade kept: ${policyLabel}`
               )}
             </p>
           </div>
@@ -582,7 +601,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
           icon={<Target className="h-5 w-5" />}
           label={tr("Taux de réussite", "نسبة النجاح", "Pass rate")}
           value={pctTxt(A.successRate)}
-          hint={tr("élèves avec une moyenne ≥ 10/20", "تلاميذ بمعدل ≥ 10/20", "students averaging ≥ 10/20")}
+          hint={tr(`élèves avec une moyenne ≥ ${fmtN(opts.passThreshold)}/20`, `تلاميذ بمعدل ≥ ${fmtN(opts.passThreshold)}/20`, `students averaging ≥ ${fmtN(opts.passThreshold)}/20`)}
           progress={A.successRate}
         />
         <StatCard
@@ -853,9 +872,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               )}
               <p className="text-[11px] text-muted-foreground">
                 {tr(
-                  "Rang établi selon la moyenne aux quiz (dernière tentative de chaque quiz), puis la participation. Les élèves ex aequo partagent le même rang.",
-                  "الترتيب حسب معدل الاختبارات (آخر محاولة لكل اختبار) ثم المشاركة. التلاميذ المتساوون يتقاسمون نفس الرتبة.",
-                  "Rank based on quiz average (latest attempt per quiz), then participation. Ties share the same rank."
+                  `Rang établi selon la moyenne aux quiz (${policyLabel} de chaque quiz), puis la participation. Les élèves ex aequo partagent le même rang. Seuils modifiables dans Paramètres → Évaluation.`,
+                  `الترتيب حسب معدل الاختبارات (${policyLabel} لكل اختبار) ثم المشاركة. التلاميذ المتساوون يتقاسمون نفس الرتبة. يمكن تعديل العتبات في الإعدادات ← التقويم.`,
+                  `Rank based on quiz average (${policyLabel} per quiz), then participation. Ties share the same rank. Thresholds can be changed in Settings → Assessment.`
                 )}
               </p>
             </TabsContent>
@@ -885,7 +904,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                         { l: tr("Médiane", "الوسيط", "Median"), v: q.median === null ? "—" : `${fmtNote(q.median / 5, language)}/20`, c: "" },
                         { l: tr("Note min.", "أدنى نقطة", "Min"), v: q.min === null ? "—" : `${fmtNote(q.min / 5, language)}/20`, c: "text-rose-600" },
                         { l: tr("Note max.", "أعلى نقطة", "Max"), v: q.max === null ? "—" : `${fmtNote(q.max / 5, language)}/20`, c: "text-emerald-600" },
-                        { l: tr("Réussite (≥ 50 %)", "النجاح (≥ 50%)", "Pass (≥ 50%)"), v: pctTxt(q.successRate), c: "" },
+                        { l: tr(`Réussite (≥ ${fmtN(opts.passThreshold)}/20)`, `النجاح (≥ ${fmtN(opts.passThreshold)}/20)`, `Pass (≥ ${fmtN(opts.passThreshold)}/20)`), v: pctTxt(q.successRate), c: "" },
                         { l: tr("Durée moyenne", "متوسط المدة", "Avg time"), v: q.avgMinutes === null ? "—" : formatMinutes(q.avgMinutes), c: "" },
                       ].map((k, i) => (
                         <div key={i} className="rounded-xl border bg-muted/30 px-3 py-2.5">
@@ -944,10 +963,10 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
               if (s.note20 === null) return tr("Aucun quiz passé pour le moment : il est conseillé de relancer l'élève.", "لم يجتز أي اختبار بعد: يُنصح بتحفيز التلميذ.", "No quiz taken yet: consider following up.");
               const parts: string[] = [];
               parts.push(
-                s.note20 >= 14 ? tr("Excellents résultats", "نتائج ممتازة", "Excellent results")
-                : s.note20 >= 12 ? tr("Bons résultats", "نتائج جيدة", "Good results")
-                : s.note20 >= 10 ? tr("Résultats corrects mais fragiles", "نتائج مقبولة لكنها هشة", "Fair but fragile results")
-                : s.note20 >= 8 ? tr("Résultats insuffisants", "نتائج غير كافية", "Insufficient results")
+                s.note20 >= opts.levelExcellent ? tr("Excellents résultats", "نتائج ممتازة", "Excellent results")
+                : s.note20 >= opts.levelGood ? tr("Bons résultats", "نتائج جيدة", "Good results")
+                : s.note20 >= opts.passThreshold ? tr("Résultats corrects mais fragiles", "نتائج مقبولة لكنها هشة", "Fair but fragile results")
+                : s.note20 >= opts.levelStruggling ? tr("Résultats insuffisants", "نتائج غير كافية", "Insufficient results")
                 : tr("Grandes difficultés", "صعوبات كبيرة", "Serious difficulties")
               );
               if (s.trend === "up") parts.push(tr("en nette progression", "في تحسن واضح", "clearly improving"));

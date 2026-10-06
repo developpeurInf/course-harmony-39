@@ -13,6 +13,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import QuizSettings from "@/components/QuizSettings";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/RichTextEditor";
@@ -26,6 +27,7 @@ interface QuizBuilderProps {
 
 const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClose }) => {
   const { language } = useLanguage();
+  const { prefs } = usePreferences();
   const { refreshData } = useCourses();
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -163,7 +165,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
     if (data) {
       const parsed = parseExamAvailability(data) as any;
       setExamData(parsed);
-      const loadedSettings = parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS;
+      // Quiz jamais configuré : on part des paramètres par défaut de l'enseignant
+      const hasSaved = /<!--QUIZ_SETTINGS:/.test(data.description || "");
+      const loadedSettings = hasSaved ? (parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS) : { ...DEFAULT_QUIZ_SETTINGS, ...prefs.quizDefaults };
       setQuizSettings(loadedSettings);
       setIsSequentialMode(loadedSettings.sequentialQuestions || parsed.quiz_mode === 'sequential_timed');
     }

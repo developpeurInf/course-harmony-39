@@ -8,6 +8,7 @@ import { CourseProvider } from "@/contexts/CourseContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import { FirstLoginDialog } from "@/components/FirstLoginDialog";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -39,6 +40,7 @@ const App = () => {
       <ThemeProvider>
         <AuthProvider>
           <LanguageProvider>
+            <PreferencesProvider>
             <CourseProvider>
               <NotificationProvider>
                 <TooltipProvider>
@@ -73,6 +75,7 @@ const App = () => {
                 </TooltipProvider>
               </NotificationProvider>
             </CourseProvider>
+            </PreferencesProvider>
           </LanguageProvider>
         </AuthProvider>
       </ThemeProvider>
@@ -80,4 +83,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default App;

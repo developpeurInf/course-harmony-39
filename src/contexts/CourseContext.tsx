@@ -985,7 +985,13 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     try {
       const payload: any = {
         title: exam.title,
-        description: serializeExamDescription(exam.description || "", exam.available_until || null),
+        // Les quiz reçoivent dès leur création les paramètres par défaut choisis par l'enseignant
+        description: serializeExamDescription(
+          exam.description || "",
+          exam.available_until || null,
+          (exam as any).quiz_settings?.sequentialQuestions ? "sequential_timed" : null,
+          exam.type === "quiz" ? ((exam as any).quiz_settings || null) : null
+        ),
         course_id: exam.course_id,
         exam_date: exam.exam_date,
         duration_minutes: exam.duration_minutes,

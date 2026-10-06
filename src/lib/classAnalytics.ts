@@ -124,7 +124,24 @@ export interface ClassAnalytics {
 }
 
 const ONLINE_MS = 90 * 1000;
-const INACTIVE_DAYS = 7;
+/** Réglages pédagogiques (Paramètres → Évaluation). */
+export interface AnalyticsOptions {
+  passThreshold: number; // sur 20
+  levelStruggling: number;
+  levelGood: number;
+  levelExcellent: number;
+  attemptPolicy: "latest" | "best" | "average";
+  inactivityDays: number;
+}
+
+export const DEFAULT_ANALYTICS_OPTIONS: AnalyticsOptions = {
+  passThreshold: 10,
+  levelStruggling: 8,
+  levelGood: 12,
+  levelExcellent: 14,
+  attemptPolicy: "latest",
+  inactivityDays: 7,
+};
 
 export const pctOf = (s: { score: number | null; total_points: number | null }): number => {
   const total = s.total_points || 0;
@@ -141,15 +158,16 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-export const levelOf = (note20: number | null): Level => {
+export const levelOf = (note20: number | null, o: AnalyticsOptions = DEFAULT_ANALYTICS_OPTIONS): Level => {
   if (note20 === null) return "none";
-  if (note20 >= 14) return "excellent";
-  if (note20 >= 12) return "good";
-  if (note20 >= 8) return "progress";
+  if (note20 >= o.levelExcellent) return "excellent";
+  if (note20 >= o.levelGood) return "good";
+  if (note20 >= o.levelStruggling) return "progress";
   return "struggling";
 };
 
-const bucketOf = (note20: number) => (note20 < 8 ? 0 : note20 < 12 ? 1 : note20 < 14 ? 2 : 3);
+const bucketOf = (note20: number, o: AnalyticsOptions) =>
+  note20 < o.levelStruggling ? 0 : note20 < o.levelGood ? 1 : note20 < o.levelExcellent ? 2 : 3;
 
 export function computeClassAnalytics(input: {
   students: AStudent[];
@@ -160,21 +178,44 @@ export function computeClassAnalytics(input: {
   sessions: ASession[];
   activeSessions?: ASession[];
   now?: number;
+  options?: Partial<AnalyticsOptions>;
 }): ClassAnalytics {
   const now = input.now ?? Date.now();
+  const o: AnalyticsOptions = { ...DEFAULT_ANALYTICS_OPTIONS, ...(input.options || {}) };
+  const passPct = o.passThreshold * 5;
   const studentIds = new Set(input.students.map(s => s.id));
   const quizzes = [...input.quizzes].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const quizById = new Map(quizzes.map(q => [q.id, q]));
   const subs = input.submissions.filter(s => studentIds.has(s.student_id) && quizById.has(s.exam_id));
 
   // Dernière tentative par (élève, quiz) + nombre de tentatives
+  // Tentative retenue selon le réglage : dernière, meilleure ou moyenne des tentatives
   const latest = new Map<string, ASubmission>();
   const attempts = new Map<string, number>();
+  const allByKey = new Map<string, ASubmission[]>();
   for (const s of subs) {
     const key = `${s.student_id}|${s.exam_id}`;
     attempts.set(key, (attempts.get(key) || 0) + 1);
+    allByKey.set(key, [...(allByKey.get(key) || []), s]);
     const prev = latest.get(key);
     if (!prev || new Date(s.submitted_at) > new Date(prev.submitted_at)) latest.set(key, s);
+  }
+  const retainedPct = new Map<string, number>();
+  allByKey.forEach((list, key) => {
+    const pcts = list.map(pctOf);
+    retainedPct.set(
+      key,
+      o.attemptPolicy === "best" ? Math.max(...pcts)
+      : o.attemptPolicy === "average" ? pcts.reduce((a, b) => a + b, 0) / pcts.length
+      : pctOf(latest.get(key) as ASubmission)
+    );
+  });
+  if (o.attemptPolicy === "best") {
+    // La copie de référence (pour l'analyse des questions) devient la meilleure
+    allByKey.forEach((list, key) => {
+      const best = list.reduce((a, b) => (pctOf(b) > pctOf(a) ? b : a));
+      latest.set(key, best);
+    });
   }
   const retainedIds = new Set(Array.from(latest.values()).map(s => s.id));
 
@@ -190,7 +231,8 @@ export function computeClassAnalytics(input: {
     const results: QuizResult[] = [];
     for (const q of quizzes) {
       const s = latest.get(`${student.id}|${q.id}`);
-      if (s) results.push({ quiz: q, submission: s, pct: pctOf(s), attempts: attempts.get(`${student.id}|${q.id}`) || 1 });
+      const k = `${student.id}|${q.id}`;
+      if (s) results.push({ quiz: q, submission: s, pct: retainedPct.get(k) ?? pctOf(s), attempts: attempts.get(k) || 1 });
     }
     const pcts = results.map(r => r.pct);
     const avgPct = mean(pcts);
@@ -215,17 +257,17 @@ export function computeClassAnalytics(input: {
     ].filter(n => !isNaN(n));
     const lastSeen = times.length ? new Date(Math.max(...times)).toISOString() : null;
 
-    const level = levelOf(note20);
+    const level = levelOf(note20, o);
     const participation = totalQuizzes > 0 ? (results.length / totalQuizzes) * 100 : 0;
 
     const alerts: AlertReason[] = [];
-    if (note20 !== null && note20 < 10) alerts.push("low_average");
+    if (note20 !== null && note20 < o.passThreshold) alerts.push("low_average");
     if (totalQuizzes > 0 && results.length === 0) alerts.push("no_quiz");
     else if (totalQuizzes > 1 && participation < 50) alerts.push("low_participation");
     // Alerte seulement pour une baisse marquée (≥ 2 points sur 20)
     if (trendDelta !== null && trendDelta <= -10) alerts.push("declining");
     if (!lastSeen) alerts.push("never_connected");
-    else if (now - new Date(lastSeen).getTime() > INACTIVE_DAYS * 86400000) alerts.push("inactive");
+    else if (now - new Date(lastSeen).getTime() > o.inactivityDays * 86400000) alerts.push("inactive");
 
     return {
       student,
@@ -235,7 +277,7 @@ export function computeClassAnalytics(input: {
       participation,
       avgPct,
       note20,
-      successRate: results.length ? (results.filter(r => r.pct >= 50).length / results.length) * 100 : null,
+      successRate: results.length ? (results.filter(r => r.pct >= passPct).length / results.length) * 100 : null,
       bestPct: pcts.length ? Math.max(...pcts) : null,
       worstPct: pcts.length ? Math.min(...pcts) : null,
       trend,
@@ -277,10 +319,11 @@ export function computeClassAnalytics(input: {
   }
 
   const quizStats: QuizAnalytics[] = quizzes.map(q => {
-    const qSubs = Array.from(latest.values()).filter(s => s.exam_id === q.id);
-    const pcts = qSubs.map(pctOf);
+    const qKeys = Array.from(latest.keys()).filter(k => k.endsWith(`|${q.id}`));
+    const qSubs = qKeys.map(k => latest.get(k) as ASubmission);
+    const pcts = qKeys.map(k => retainedPct.get(k) as number);
     const dist: [number, number, number, number] = [0, 0, 0, 0];
-    pcts.forEach(p => dist[bucketOf(p / 5)]++);
+    pcts.forEach(p => dist[bucketOf(p / 5, o)]++);
     const mins = qSubs.map(s => s.time_taken_minutes).filter((m): m is number => typeof m === "number" && m > 0);
 
     const qQuestions = input.questions.filter(x => x.exam_id === q.id).sort((a, b) => a.question_order - b.question_order);
@@ -305,7 +348,7 @@ export function computeClassAnalytics(input: {
       median: median(pcts),
       min: pcts.length ? Math.min(...pcts) : null,
       max: pcts.length ? Math.max(...pcts) : null,
-      successRate: pcts.length ? (pcts.filter(p => p >= 50).length / pcts.length) * 100 : null,
+      successRate: pcts.length ? (pcts.filter(p => p >= passPct).length / pcts.length) * 100 : null,
       avgMinutes: mean(mins),
       distribution: dist,
       questions,
@@ -316,7 +359,7 @@ export function computeClassAnalytics(input: {
   const evaluated = students.filter(s => s.note20 !== null);
   const classAvgPct = mean(evaluated.map(s => s.avgPct as number));
   const distribution: [number, number, number, number] = [0, 0, 0, 0];
-  evaluated.forEach(s => distribution[bucketOf(s.note20 as number)]++);
+  evaluated.forEach(s => distribution[bucketOf(s.note20 as number, o)]++);
   const participationRate = students.length && totalQuizzes
     ? (students.reduce((a, s) => a + s.quizzesTaken, 0) / (students.length * totalQuizzes)) * 100
     : 0;
@@ -338,7 +381,7 @@ export function computeClassAnalytics(input: {
     classAvgPct,
     classNote20: classAvgPct === null ? null : classAvgPct / 5,
     participationRate,
-    successRate: evaluated.length ? (evaluated.filter(s => (s.note20 as number) >= 10).length / evaluated.length) * 100 : null,
+    successRate: evaluated.length ? (evaluated.filter(s => (s.note20 as number) >= o.passThreshold).length / evaluated.length) * 100 : null,
     evaluatedCount: evaluated.length,
     distribution,
     toSupport,

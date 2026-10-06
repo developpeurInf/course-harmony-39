@@ -406,3 +406,20 @@
 .stat-card-in:nth-child(5) { animation-delay: 200ms; }
 .stat-card-in:nth-child(6) { animation-delay: 250ms; }
 @media (prefers-reduced-motion: reduce) { .stat-card-in { animation: none !important; } }
+
+/* ═════════ Préférences d'affichage (Paramètres → Affichage) ═════════ */
+html.pref-font-large { font-size: 106.25%; }
+html.pref-font-xlarge { font-size: 112.5%; }
+html.pref-reduce-motion *,
+html.pref-reduce-motion *::before,
+html.pref-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html.pref-reduce-motion .card-hover:hover,
+html.pref-reduce-motion .stat-card-in:hover { transform: none !important; }
+html.pref-density-compact .app-table thead th { padding: 0.5rem 0.75rem; }
+html.pref-density-compact .app-table tbody td { padding: 0.45rem 0.75rem; }
