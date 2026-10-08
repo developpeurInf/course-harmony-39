@@ -398,6 +398,7 @@ const Exercises = () => {
                     selectedFiles={selectedFiles}
                     maxFiles={3}
                     maxSizeMB={20}
+                    pdfOnly
                   />
                 </div>
               </div>
@@ -735,6 +736,7 @@ const Exercises = () => {
                 selectedFiles={selectedFiles}
                 maxFiles={3}
                 maxSizeMB={20}
+                pdfOnly
                 existingFiles={exerciseMaterials[formData.id] || []}
               />
             </div>

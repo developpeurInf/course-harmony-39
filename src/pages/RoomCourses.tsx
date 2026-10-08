@@ -32,6 +32,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import CourseMaterials from "@/components/CourseMaterials";
+import { CourseCover, CourseViewerDialog } from "@/components/CourseMediaGallery";
+import { saveCourseMaterials, deleteCourseMaterial } from "@/lib/courseMedia";
+import type { VideoLinkDraft } from "@/components/MultiPdfUpload";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface CourseMaterial {
@@ -64,6 +67,9 @@ const RoomCourses = () => {
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [videoLinks, setVideoLinks] = useState<VideoLinkDraft[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const [viewerCourse, setViewerCourse] = useState<Course | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
   const submitLockRef = useRef(false);
@@ -101,7 +107,7 @@ const RoomCourses = () => {
         .from('course_materials')
         .select('*')
         .in('course_id', courseIds)
-        .order('uploaded_at', { ascending: false });
+        .order('uploaded_at', { ascending: true });
 
       if (error) throw error;
 
@@ -121,11 +127,14 @@ const RoomCourses = () => {
   };
 
   // Load course materials when room courses change
+  // (dépendance = liste des ids : évite un rechargement à chaque rendu)
+  const roomCourseIdsKey = roomCourses.map(c => c.id).join(',');
   useEffect(() => {
     if (roomCourses.length > 0) {
       loadCourseMaterials();
     }
-  }, [roomCourses]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCourseIdsKey]);
 
   // Load specific course materials
   const loadCourseSpecificMaterials = async (courseId: string) => {
@@ -134,7 +143,7 @@ const RoomCourses = () => {
         .from('course_materials')
         .select('*')
         .eq('course_id', courseId)
-        .order('uploaded_at', { ascending: false });
+        .order('uploaded_at', { ascending: true });
 
       if (error) throw error;
       return materials || [];
@@ -162,7 +171,7 @@ const RoomCourses = () => {
         is_visible: isVisible
       });
 
-      if (newCourse && selectedFiles.length > 0) {
+      if (newCourse && (selectedFiles.length > 0 || videoLinks.length > 0)) {
         await uploadFiles(newCourse.id);
       }
 
@@ -175,53 +184,23 @@ const RoomCourses = () => {
     }
   };
 
-  // Upload files
+  // Upload files (PDF, images, videos) + video links
   const uploadFiles = async (courseId: string) => {
-    for (const file of selectedFiles) {
-      try {
-        // Upload file to storage with proper courses/<course_id>/ path for RLS
-        const fileExt = file.name.split('.').pop();
-        const safeName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `courses/${courseId}/${safeName}`;
-        
-        const { data, error: uploadError } = await supabase.storage
-          .from('course-materials')
-          .upload(filePath, file, { upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('course-materials')
-          .getPublicUrl(filePath);
-
-        // Save file info to database
-        const { error: dbError } = await supabase
-          .from('course_materials')
-          .insert({
-            course_id: courseId,
-            file_name: file.name,
-            file_path: filePath,
-            file_size: file.size,
-            uploaded_by: user?.id
-          });
-
-        if (dbError) throw dbError;
-
-        // Also update course pdf_url for fast direct access
-        await supabase
-          .from('courses')
-          .update({ pdf_url: publicUrlData.publicUrl })
-          .eq('id', courseId);
-
-      } catch (error: any) {
-        console.error('Error uploading file:', error);
-        toast.error(`Failed to upload ${file.name}: ${error.message || ''}`);
-      }
-    }
-    
-    // Reload materials after upload
+    const { saved, failed } = await saveCourseMaterials({
+      courseId,
+      files: selectedFiles,
+      links: videoLinks,
+      userId: user?.id,
+      onProgress: (done, total) => setUploadProgress({ done, total }),
+    });
+    setUploadProgress(null);
     await loadCourseMaterials();
-    toast.success('Course materials uploaded successfully');
+    if (failed.length > 0) {
+      toast.error((language === "ar" ? "تعذر رفع: " : language === "fr" ? "Échec du téléversement : " : "Upload failed: ") + failed.join(", "));
+    }
+    if (saved > 0) {
+      toast.success(language === "ar" ? "تم رفع مواد الدرس" : language === "fr" ? "Supports du cours ajoutés" : "Course materials uploaded");
+    }
   };
 
   // Reset form
@@ -230,6 +209,8 @@ const RoomCourses = () => {
     setDescription("");
     setIsVisible(true);
     setSelectedFiles([]);
+    setVideoLinks([]);
+    setUploadProgress(null);
     setExistingFiles([]);
     setIsAddDialogOpen(false);
     setIsEditDialogOpen(false);
@@ -255,7 +236,7 @@ const RoomCourses = () => {
       });
 
       // Upload new files if any
-      if (success && selectedFiles.length > 0) {
+      if (success && (selectedFiles.length > 0 || videoLinks.length > 0)) {
         await uploadFiles(currentCourse.id);
       }
 
@@ -296,22 +277,17 @@ const RoomCourses = () => {
     setIsEditDialogOpen(true);
   };
 
-  // Remove existing file
+  // Remove existing file (row + storage object)
   const removeExistingFile = async (fileId: string) => {
-    try {
-      const { error } = await supabase
-        .from('course_materials')
-        .delete()
-        .eq('id', fileId);
-
-      if (error) throw error;
-
+    const material = existingFiles.find(f => f.id === fileId);
+    if (!material) return;
+    const ok = await deleteCourseMaterial(material);
+    if (ok) {
       setExistingFiles(prev => prev.filter(file => file.id !== fileId));
       loadCourseMaterials();
-      toast.success('File removed successfully');
-    } catch (error) {
-      console.error('Error removing file:', error);
-      toast.error('Failed to remove file');
+      toast.success(language === "ar" ? "تم حذف المادة" : language === "fr" ? "Support supprimé" : "Material removed");
+    } else {
+      toast.error(language === "ar" ? "تعذر الحذف" : language === "fr" ? "Suppression impossible" : "Could not remove");
     }
   };
   
@@ -396,11 +372,13 @@ const RoomCourses = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
+                    <Label>{language === "ar" ? "مواد الدرس (PDF، صور، فيديوهات)" : language === "fr" ? "Supports de cours (PDF, images, vidéos)" : "Course materials (PDF, images, videos)"}</Label>
                     <MultiPdfUpload
                       selectedFiles={selectedFiles}
                       onFilesChange={setSelectedFiles}
-                      maxFiles={10}
+                      videoLinks={videoLinks}
+                      onVideoLinksChange={setVideoLinks}
+                      maxFiles={20}
                       maxSizeMB={50}
                     />
                   </div>
@@ -419,7 +397,7 @@ const RoomCourses = () => {
                   </Button>
                   <Button onClick={handleAddCourse} disabled={isSubmitting || !title.trim()}>
                     {isSubmitting
-                      ? (language === "ar" ? "جارٍ الإنشاء…" : language === "fr" ? "Création…" : "Creating…")
+                      ? (uploadProgress && uploadProgress.total > 0 ? `${language === "ar" ? "رفع" : language === "fr" ? "Téléversement" : "Uploading"} ${Math.min(uploadProgress.done + 1, uploadProgress.total)}/${uploadProgress.total}…` : (language === "ar" ? "جارٍ الإنشاء…" : language === "fr" ? "Création…" : "Creating…"))
                       : (language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course")}
                   </Button>
                 </DialogFooter>
@@ -436,6 +414,11 @@ const RoomCourses = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {roomCourses.map((course) => (
               <Card key={course.id} className="group card-hover overflow-hidden">
+                <CourseCover
+                  materials={courseMaterials[course.id] || []}
+                  title={course.title}
+                  onClick={() => setViewerCourse(course)}
+                />
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -465,6 +448,8 @@ const RoomCourses = () => {
                       <CourseMaterials 
                         materials={courseMaterials[course.id]} 
                         compact={true}
+                        title={course.title}
+                        description={course.description}
                       />
                     </div>
                   )}
@@ -657,13 +642,15 @@ const RoomCourses = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
+              <Label>{language === "ar" ? "مواد الدرس (PDF، صور، فيديوهات)" : language === "fr" ? "Supports de cours (PDF, images, vidéos)" : "Course materials (PDF, images, videos)"}</Label>
               <MultiPdfUpload
                 selectedFiles={selectedFiles}
                 onFilesChange={setSelectedFiles}
+                videoLinks={videoLinks}
+                onVideoLinksChange={setVideoLinks}
                 existingFiles={existingFiles}
                 onRemoveExisting={removeExistingFile}
-                maxFiles={10}
+                maxFiles={20}
                 maxSizeMB={50}
               />
             </div>
@@ -682,7 +669,7 @@ const RoomCourses = () => {
             </Button>
             <Button onClick={handleEditCourse} disabled={isSubmitting || !title.trim()}>
               {isSubmitting
-                ? (language === "ar" ? "جارٍ الحفظ…" : language === "fr" ? "Enregistrement…" : "Saving…")
+                ? (uploadProgress && uploadProgress.total > 0 ? `${language === "ar" ? "رفع" : language === "fr" ? "Téléversement" : "Uploading"} ${Math.min(uploadProgress.done + 1, uploadProgress.total)}/${uploadProgress.total}…` : (language === "ar" ? "جارٍ الحفظ…" : language === "fr" ? "Enregistrement…" : "Saving…"))
                 : (language === "ar" ? "تحديث الدرس" : language === "fr" ? "Mettre à jour" : "Update Course")}
             </Button>
           </DialogFooter>
@@ -714,6 +701,15 @@ const RoomCourses = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CourseViewerDialog
+        open={!!viewerCourse}
+        onOpenChange={(o) => { if (!o) setViewerCourse(null); }}
+        title={viewerCourse?.title || ""}
+        description={viewerCourse?.description}
+        subtitle={currentRoom?.name}
+        materials={viewerCourse ? (courseMaterials[viewerCourse.id] || []) : []}
+      />
     </div>
   );
 };

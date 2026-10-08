@@ -5,6 +5,9 @@ import { useCourses, Course } from "@/contexts/CourseContext";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import { iosCompatibleDownload } from "@/lib/download";
 import CourseMaterials from "@/components/CourseMaterials";
+import { CourseCover, CourseViewerDialog } from "@/components/CourseMediaGallery";
+import { saveCourseMaterials, deleteCourseMaterial } from "@/lib/courseMedia";
+import type { VideoLinkDraft } from "@/components/MultiPdfUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -83,6 +86,9 @@ const Courses = () => {
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [selectedPdfFiles, setSelectedPdfFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<{[courseId: string]: any[]}>({});
+  const [videoLinks, setVideoLinks] = useState<VideoLinkDraft[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const [viewerCourse, setViewerCourse] = useState<Course | null>(null);
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -150,16 +156,23 @@ const Courses = () => {
     return data || [];
   };
 
-  // Load course materials for all courses
+  // Load course materials for all courses (one request instead of one per course)
   const loadCourseMaterials = async () => {
-    if (!courses) return;
-    
-    const materialsMap: {[courseId: string]: any[]} = {};
-    
-    for (const course of courses) {
-      materialsMap[course.id] = await fetchCourseMaterials(course.id);
+    if (!courses || courses.length === 0) return;
+    const ids = courses.map(c => c.id);
+    const { data, error } = await supabase
+      .from('course_materials')
+      .select('*')
+      .in('course_id', ids)
+      .order('uploaded_at', { ascending: true });
+    if (error) {
+      console.error('Error fetching course materials:', error);
+      return;
     }
-    
+    const materialsMap: {[courseId: string]: any[]} = {};
+    (data || []).forEach((m: any) => {
+      (materialsMap[m.course_id] = materialsMap[m.course_id] || []).push(m);
+    });
     setCourseMaterials(materialsMap);
   };
 
@@ -176,6 +189,38 @@ const Courses = () => {
     setCurrentCourse(null);
     setSelectedStudentId("");
     setSelectedPdfFiles([]);
+    setVideoLinks([]);
+    setUploadProgress(null);
+  };
+
+  const uploadMaterialsFor = async (courseId: string) => {
+    if (!user || (selectedPdfFiles.length === 0 && videoLinks.length === 0)) return;
+    const { failed } = await saveCourseMaterials({
+      courseId,
+      files: selectedPdfFiles,
+      links: videoLinks,
+      userId: user.id,
+      onProgress: (done, total) => setUploadProgress({ done, total }),
+    });
+    if (failed.length > 0) {
+      toast.error(
+        (language === "ar" ? "تعذر رفع: " : language === "fr" ? "Échec du téléversement : " : "Upload failed: ") + failed.join(", ")
+      );
+    }
+  };
+
+  const handleRemoveExistingMaterial = async (materialId: string) => {
+    const courseId = currentCourse?.id;
+    if (!courseId) return;
+    const material = (courseMaterials[courseId] || []).find((m: any) => m.id === materialId);
+    if (!material) return;
+    const ok = await deleteCourseMaterial(material);
+    if (ok) {
+      setCourseMaterials(prev => ({ ...prev, [courseId]: (prev[courseId] || []).filter((m: any) => m.id !== materialId) }));
+      toast.success(language === "ar" ? "تم حذف المادة" : language === "fr" ? "Support supprimé" : "Material removed");
+    } else {
+      toast.error(language === "ar" ? "تعذر الحذف" : language === "fr" ? "Suppression impossible" : "Could not remove");
+    }
   };
 
   // Add new course
@@ -201,56 +246,8 @@ const Courses = () => {
         return;
       }
 
-      // Upload PDFs if selected
-      if (selectedPdfFiles.length > 0 && user) {
-        for (const file of selectedPdfFiles) {
-          try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const filePath = `courses/${newCourse.id}/${fileName}`;
-            
-            const { error: uploadError } = await supabase.storage
-              .from('course-materials')
-              .upload(filePath, file, { upsert: true });
-            
-            if (uploadError) {
-              console.error('Upload error:', uploadError);
-              toast.error(`Failed to upload ${file.name}`);
-              continue;
-            }
-
-            const { data: publicUrlData } = supabase.storage
-              .from('course-materials')
-              .getPublicUrl(filePath);
-            
-            // Save file info to course_materials table
-            const { error: dbError } = await supabase
-              .from('course_materials')
-              .insert({
-                course_id: newCourse.id,
-                file_name: file.name,
-                file_path: filePath,
-                file_size: file.size,
-                uploaded_by: user.id
-              });
-
-            if (dbError) {
-              console.error('DB error:', dbError);
-              toast.error(`Failed to save ${file.name} info`);
-            }
-
-            // Also set pdf_url on course for fast direct viewing
-            await supabase
-              .from('courses')
-              .update({ pdf_url: publicUrlData.publicUrl })
-              .eq('id', newCourse.id);
-
-          } catch (error) {
-            console.error('Error uploading PDF:', error);
-            toast.error(`Failed to upload ${file.name}`);
-          }
-        }
-      }
+      // Upload PDFs, images, videos and video links
+      await uploadMaterialsFor(newCourse.id);
 
       setIsAddDialogOpen(false);
       resetForm();
@@ -281,56 +278,10 @@ const Courses = () => {
         is_visible: isVisible
       });
 
-      // Upload new PDFs if selected
-      if (selectedPdfFiles.length > 0 && user && success) {
-        for (const file of selectedPdfFiles) {
-          try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const filePath = `courses/${currentCourse.id}/${fileName}`;
-            
-            const { error: uploadError } = await supabase.storage
-              .from('course-materials')
-              .upload(filePath, file, { upsert: true });
-            
-            if (uploadError) {
-              console.error('Upload error:', uploadError);
-              toast.error(`Failed to upload ${file.name}`);
-              continue;
-            }
-
-            const { data: publicUrlData } = supabase.storage
-              .from('course-materials')
-              .getPublicUrl(filePath);
-            
-            // Save file info to course_materials table
-            const { error: dbError } = await supabase
-              .from('course_materials')
-              .insert({
-                course_id: currentCourse.id,
-                file_name: file.name,
-                file_path: filePath,
-                file_size: file.size,
-                uploaded_by: user.id
-              });
-
-            if (dbError) {
-              console.error('DB error:', dbError);
-              toast.error(`Failed to save ${file.name} info`);
-            }
-
-            // Also update pdf_url on course
-            await supabase
-              .from('courses')
-              .update({ pdf_url: publicUrlData.publicUrl })
-              .eq('id', currentCourse.id);
-
-          } catch (error) {
-            console.error('Error uploading PDF:', error);
-            toast.error(`Failed to upload ${file.name}`);
-          }
-        }
-        await loadCourseMaterials(); // Refresh materials
+      // Upload new materials
+      if (success) {
+        await uploadMaterialsFor(currentCourse.id);
+        await loadCourseMaterials();
       }
 
       if (success) {
@@ -362,6 +313,7 @@ const Courses = () => {
     setRoomId(course.room_id || "");
     setIsVisible(course.is_visible);
     setSelectedPdfFiles([]); // Reset selected files for edit
+    setVideoLinks([]);
     setIsEditDialogOpen(true);
   };
 
@@ -559,11 +511,13 @@ const Courses = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
+                    <Label>{language === "ar" ? "مواد الدرس (PDF، صور، فيديوهات)" : language === "fr" ? "Supports de cours (PDF, images, vidéos)" : "Course materials (PDF, images, videos)"}</Label>
                     <MultiPdfUpload
                       onFilesChange={setSelectedPdfFiles}
                       selectedFiles={selectedPdfFiles}
-                      maxFiles={5}
+                      videoLinks={videoLinks}
+                      onVideoLinksChange={setVideoLinks}
+                      maxFiles={20}
                       maxSizeMB={50}
                     />
                   </div>
@@ -584,7 +538,9 @@ const Courses = () => {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        {language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création en cours..." : "Creating..."}
+                        {uploadProgress && uploadProgress.total > 0
+                          ? `${language === "ar" ? "رفع" : language === "fr" ? "Téléversement" : "Uploading"} ${Math.min(uploadProgress.done + 1, uploadProgress.total)}/${uploadProgress.total}…`
+                          : (language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création en cours..." : "Creating...")}
                       </>
                     ) : (
                       language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course"
@@ -655,6 +611,11 @@ const Courses = () => {
               
               return (
                 <Card key={course.id} className="overflow-hidden card-hover flex flex-col justify-between">
+                  <CourseCover
+                    materials={courseMaterials[course.id] || []}
+                    title={course.title}
+                    onClick={() => setViewerCourse(course)}
+                  />
                   <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3">
                     <div className="flex justify-between items-start gap-2">
                       <CardTitle className="text-base sm:text-lg font-bold truncate" title={course.title}>
@@ -708,6 +669,8 @@ const Courses = () => {
                             <CourseMaterials 
                               materials={courseMaterials[course.id]} 
                               compact={true}
+                              title={course.title}
+                              description={course.description}
                             />
                           ) : course.pdf_url ? (
                             <Button 
@@ -784,7 +747,7 @@ const Courses = () => {
               <thead>
                 <tr>
                   <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
-                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الوثائق (PDF)" : language === "fr" ? "Supports (PDF)" : "Materials (PDF)"}</th>
+                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "المواد" : language === "fr" ? "Supports" : "Materials"}</th>
                   <th className="p-3.5 text-start font-semibold">{language === "ar" ? "القسم" : language === "fr" ? "Classe" : "Room"}</th>
                   {isProfessor && <th className="p-3.5 text-start font-semibold">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>}
                   <th className="p-3.5 text-start font-semibold">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
@@ -803,7 +766,7 @@ const Courses = () => {
                     <tr key={course.id}>
                       <td className="p-3.5 max-w-[220px]">
                         <div>
-                          <h3 className="font-semibold text-sm line-clamp-1">{course.title}</h3>
+                          <button type="button" onClick={() => setViewerCourse(course)} className="text-start font-semibold text-sm line-clamp-1 hover:text-primary hover:underline">{course.title}</button>
                           {course.description && (
                             <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{course.description}</p>
                           )}
@@ -811,10 +774,10 @@ const Courses = () => {
                       </td>
                       <td className="p-3.5">
                         {materials.length > 0 ? (
-                          <CourseMaterials materials={materials} compact={true} />
+                          <CourseMaterials materials={materials} compact={true} title={course.title} description={course.description} />
                         ) : (
                           <span className="text-xs text-muted-foreground italic">
-                            {language === "ar" ? "لا توجد ملفات" : language === "fr" ? "Aucun PDF" : "No files"}
+                            {language === "ar" ? "لا توجد مواد" : language === "fr" ? "Aucun support" : "No materials"}
                           </span>
                         )}
                       </td>
@@ -1014,13 +977,16 @@ const Courses = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>{language === "ar" ? "مواد الدرس (ملفات PDF)" : language === "fr" ? "Supports de cours (PDFs)" : "Course Materials (PDFs)"}</Label>
+              <Label>{language === "ar" ? "مواد الدرس (PDF، صور، فيديوهات)" : language === "fr" ? "Supports de cours (PDF, images, vidéos)" : "Course materials (PDF, images, videos)"}</Label>
               <MultiPdfUpload
                 onFilesChange={setSelectedPdfFiles}
                 selectedFiles={selectedPdfFiles}
-                maxFiles={5}
+                videoLinks={videoLinks}
+                onVideoLinksChange={setVideoLinks}
+                maxFiles={20}
                 maxSizeMB={50}
                 existingFiles={courseMaterials[currentCourse?.id || ''] || []}
+                onRemoveExisting={handleRemoveExistingMaterial}
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -1040,7 +1006,9 @@ const Courses = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  {language === "ar" ? "جاري الحفظ..." : language === "fr" ? "Enregistrement..." : "Saving..."}
+                  {uploadProgress && uploadProgress.total > 0
+                    ? `${language === "ar" ? "رفع" : language === "fr" ? "Téléversement" : "Uploading"} ${Math.min(uploadProgress.done + 1, uploadProgress.total)}/${uploadProgress.total}…`
+                    : (language === "ar" ? "جاري الحفظ..." : language === "fr" ? "Enregistrement..." : "Saving...")}
                 </>
               ) : (
                 language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Enregistrer les modifications" : "Save Changes"
@@ -1150,6 +1118,15 @@ const Courses = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CourseViewerDialog
+        open={!!viewerCourse}
+        onOpenChange={(o) => { if (!o) setViewerCourse(null); }}
+        title={viewerCourse?.title || ""}
+        description={viewerCourse?.description}
+        subtitle={viewerCourse?.room_id ? getRoomName(viewerCourse.room_id) : undefined}
+        materials={viewerCourse ? (courseMaterials[viewerCourse.id] || []) : []}
+      />
     </div>
   );
 };

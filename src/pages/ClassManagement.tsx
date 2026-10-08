@@ -9,12 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, BellOff } from "lucide-react";
+import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, Eraser, Pencil, Check, X } from "lucide-react";
+import ClearRoomDialog from "@/components/ClearRoomDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useNotifications } from "@/contexts/NotificationContext";
 
 interface Room {
   id: string;
@@ -34,8 +34,11 @@ interface Room {
 const ClassManagement = () => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
-  const { rooms, addRoom, updateRoom, deleteRoom } = useCourses();
-  const { clearRoomStudentsNotifications } = useNotifications();
+  const { rooms, addRoom, updateRoom, deleteRoom, refreshData } = useCourses();
+  const [clearTarget, setClearTarget] = useState<Room | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [roomsWithCounts, setRoomsWithCounts] = useState<Room[]>([]);
@@ -157,13 +160,14 @@ const ClassManagement = () => {
 
     setLoading(true);
     try {
-      await updateRoom(editingRoom.id, {
-        name: formData.name,
+      const ok = await updateRoom(editingRoom.id, {
+        name: formData.name.trim(),
         description: formData.description || null,
         is_visible: formData.is_visible
       });
+      if (!ok) return;
       
-      toast.success("Class updated successfully!");
+      toast.success(language === "ar" ? "تم تحديث القسم" : language === "fr" ? "Classe mise à jour" : "Class updated");
       setEditingRoom(null);
       setFormData({ name: "", description: "", is_visible: true });
     } catch (error) {
@@ -235,7 +239,7 @@ const ClassManagement = () => {
       // Update local state
       await deleteRoom(roomId);
       
-      toast.success("Class and all related data deleted successfully!");
+      toast.success(language === "ar" ? "تم حذف القسم وكل محتواه" : language === "fr" ? "Classe et contenu supprimés" : "Class and all related data deleted");
     } catch (error) {
       toast.error("Failed to delete class");
       console.error("Error deleting room:", error);
@@ -243,6 +247,78 @@ const ClassManagement = () => {
       setLoading(false);
     }
   };
+
+  // Inline rename
+  const startRename = (room: Room) => {
+    setRenamingId(room.id);
+    setRenameValue(room.name);
+  };
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameValue("");
+  };
+  const submitRename = async (room: Room) => {
+    const name = renameValue.trim().replace(/\s+/g, " ");
+    if (!name) {
+      toast.error(language === "ar" ? "اسم القسم مطلوب" : language === "fr" ? "Le nom de la classe est obligatoire" : "Class name is required");
+      return;
+    }
+    if (name === room.name) { cancelRename(); return; }
+    if (rooms.some(r => r.id !== room.id && r.name.trim().toLowerCase() === name.toLowerCase())) {
+      toast.error(language === "ar" ? "يوجد قسم بهذا الاسم" : language === "fr" ? "Une classe porte déjà ce nom" : "A class with this name already exists");
+      return;
+    }
+    if (renaming) return;
+    setRenaming(true);
+    try {
+      const ok = await updateRoom(room.id, { name });
+      if (ok) {
+        setRoomsWithCounts(prev => prev.map(r => (r.id === room.id ? { ...r, name } : r)));
+        toast.success(language === "ar" ? `تمت إعادة التسمية إلى « ${name} »` : language === "fr" ? `Classe renommée en « ${name} »` : `Class renamed to "${name}"`);
+        cancelRename();
+      }
+    } finally {
+      setRenaming(false);
+    }
+  };
+
+  const renderRoomName = (room: Room, big = false) =>
+    renamingId === room.id ? (
+      <form
+        className="flex items-center gap-1 min-w-0"
+        onSubmit={e => { e.preventDefault(); submitRename(room); }}
+        onClick={e => e.stopPropagation()}
+      >
+        <Input
+          autoFocus
+          value={renameValue}
+          onChange={e => setRenameValue(e.target.value)}
+          onKeyDown={e => { if (e.key === "Escape") cancelRename(); }}
+          className={big ? "h-9 text-base font-semibold" : "h-8 text-sm"}
+          disabled={renaming}
+          maxLength={80}
+        />
+        <Button type="submit" size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-emerald-600" disabled={renaming} title={language === "ar" ? "حفظ" : language === "fr" ? "Enregistrer" : "Save"}>
+          <Check className="h-4 w-4" />
+        </Button>
+        <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={cancelRename} disabled={renaming} title={language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}>
+          <X className="h-4 w-4" />
+        </Button>
+      </form>
+    ) : (
+      <span className="group/name inline-flex items-center gap-1.5 min-w-0">
+        <span className={`truncate ${big ? "" : "font-medium"}`}>{room.name}</span>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); startRename(room); }}
+          className="shrink-0 rounded p-1 text-muted-foreground opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100 group-hover/name:opacity-100"
+          title={language === "ar" ? "إعادة التسمية" : language === "fr" ? "Renommer" : "Rename"}
+          aria-label={language === "ar" ? "إعادة التسمية" : language === "fr" ? "Renommer" : "Rename"}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    );
 
   const openCreateDialog = () => {
     setFormData({ name: "", description: "", is_visible: true });
@@ -364,9 +440,9 @@ const ClassManagement = () => {
               {roomsWithCounts.map((room) => (
                 <tr key={room.id}>
                   <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <Building className="h-4 w-4 text-primary" />
-                      <span className="font-medium">{room.name}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Building className="h-4 w-4 text-primary shrink-0" />
+                      {renderRoomName(room)}
                     </div>
                   </td>
                   <td className="p-4 text-muted-foreground">
@@ -412,41 +488,14 @@ const ClassManagement = () => {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title={language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
-                          >
-                            <BellOff className="h-4 w-4 text-amber-500 hover:text-amber-600" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2">
-                              <BellOff className="h-5 w-5 text-amber-500" />
-                              {language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {language === "ar"
-                                ? `هل أنت متأكد من رغبتك في مسح جميع الإشعارات لدى تلاميذ قسم "${room.name}"؟ ستتم إعادة تعيين واجهاتهم وتفريغ شريط الإشعارات لديهم.`
-                                : language === "fr"
-                                ? `Êtes-vous sûr de vouloir supprimer toutes les notifications des élèves de la classe "${room.name}" ? Leurs interfaces seront réinitialisées et leurs alertes vidées.`
-                                : `Are you sure you want to clear all notifications for students in class "${room.name}"? Their notification feeds will be reset.`}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => clearRoomStudentsNotifications(room.id)}
-                              className="bg-amber-600 text-white hover:bg-amber-700"
-                            >
-                              {language === "ar" ? "مسح الإشعارات" : language === "fr" ? "Vider les notifications" : "Clear Notifications"}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setClearTarget(room)}
+                        title={language === "ar" ? "إفراغ القسم" : language === "fr" ? "Vider la classe" : "Clear class"}
+                      >
+                        <Eraser className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="sm">
@@ -460,18 +509,18 @@ const ClassManagement = () => {
                               {language === "ar" ? "حذف القسم" : language === "fr" ? "Supprimer la classe" : "Delete Class"}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              This will permanently delete the class "{room.name}" and ALL related content including:
+                              {language === "ar" ? `سيتم حذف القسم "${room.name}" وكل محتواه نهائياً:` : language === "fr" ? `La classe « ${room.name} » et tout son contenu seront supprimés définitivement :` : `This will permanently delete the class "${room.name}" and ALL related content:`}
                               <ul className="mt-2 list-disc list-inside space-y-1">
-                                <li>{room._count?.courses} courses</li>
-                                <li>{room._count?.exercises} exercises</li>
-                                <li>{room._count?.exams} exams</li>
-                                <li>{room._count?.students} student enrollments</li>
+                                <li>{room._count?.courses} {language === "ar" ? "دروس" : language === "fr" ? "cours" : "courses"}</li>
+                                <li>{room._count?.exercises} {language === "ar" ? "تمارين" : language === "fr" ? "exercices" : "exercises"}</li>
+                                <li>{room._count?.exams} {language === "ar" ? "امتحانات واختبارات" : language === "fr" ? "examens et quiz" : "exams & quizzes"}</li>
+                                <li>{room._count?.students} {language === "ar" ? "تسجيلات التلاميذ" : language === "fr" ? "inscriptions d'élèves" : "student enrollments"}</li>
                               </ul>
-                              This action cannot be undone.
+                              {language === "ar" ? "لا يمكن التراجع عن هذا الإجراء." : language === "fr" ? "Cette action est irréversible." : "This action cannot be undone."}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleDeleteRoom(room.id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -506,11 +555,11 @@ const ClassManagement = () => {
         {roomsWithCounts.map((room) => (
           <Card key={room.id} className="relative card-hover">
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building className="h-5 w-5 text-primary" />
-                    {room.name}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="flex items-center gap-2 min-w-0">
+                    <Building className="h-5 w-5 text-primary shrink-0" />
+                    {renderRoomName(room, true)}
                   </CardTitle>
                   <CardDescription className="mt-1">
                     {room.description || (language === "ar" ? "لا يوجد وصف" : language === "fr" ? "Aucune description" : "No description")}
@@ -524,41 +573,14 @@ const ClassManagement = () => {
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title={language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
-                      >
-                        <BellOff className="h-4 w-4 text-amber-500 hover:text-amber-600" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                          <BellOff className="h-5 w-5 text-amber-500" />
-                          {language === "ar" ? "مسح إشعارات تلاميذ القسم" : language === "fr" ? "Vider les notifications des élèves" : "Clear Students' Notifications"}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {language === "ar"
-                            ? `هل أنت متأكد من رغبتك في مسح جميع الإشعارات لدى تلاميذ قسم "${room.name}"؟ ستتم إعادة تعيين واجهاتهم وتفريغ شريط الإشعارات لديهم.`
-                            : language === "fr"
-                            ? `Êtes-vous sûr de vouloir supprimer toutes les notifications des élèves de la classe "${room.name}" ? Leurs interfaces seront réinitialisées et leurs alertes vidées.`
-                            : `Are you sure you want to clear all notifications for students in class "${room.name}"? Their notification feeds will be reset.`}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => clearRoomStudentsNotifications(room.id)}
-                          className="bg-amber-600 text-white hover:bg-amber-700"
-                        >
-                          {language === "ar" ? "مسح الإشعارات" : language === "fr" ? "Vider les notifications" : "Clear Notifications"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setClearTarget(room)}
+                    title={language === "ar" ? "إفراغ القسم" : language === "fr" ? "Vider la classe" : "Clear class"}
+                  >
+                    <Eraser className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="sm">
@@ -572,18 +594,18 @@ const ClassManagement = () => {
                           {language === "ar" ? "حذف القسم" : language === "fr" ? "Supprimer la classe" : "Delete Class"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete the class "{room.name}" and ALL related content including:
+                          {language === "ar" ? `سيتم حذف القسم "${room.name}" وكل محتواه نهائياً:` : language === "fr" ? `La classe « ${room.name} » et tout son contenu seront supprimés définitivement :` : `This will permanently delete the class "${room.name}" and ALL related content:`}
                           <ul className="mt-2 list-disc list-inside space-y-1">
-                            <li>{room._count?.courses} courses</li>
-                            <li>{room._count?.exercises} exercises</li>
-                            <li>{room._count?.exams} exams</li>
-                            <li>{room._count?.students} student enrollments</li>
+                            <li>{room._count?.courses} {language === "ar" ? "دروس" : language === "fr" ? "cours" : "courses"}</li>
+                            <li>{room._count?.exercises} {language === "ar" ? "تمارين" : language === "fr" ? "exercices" : "exercises"}</li>
+                            <li>{room._count?.exams} {language === "ar" ? "امتحانات واختبارات" : language === "fr" ? "examens et quiz" : "exams & quizzes"}</li>
+                            <li>{room._count?.students} {language === "ar" ? "تسجيلات التلاميذ" : language === "fr" ? "inscriptions d'élèves" : "student enrollments"}</li>
                           </ul>
-                          This action cannot be undone.
+                          {language === "ar" ? "لا يمكن التراجع عن هذا الإجراء." : language === "fr" ? "Cette action est irréversible." : "This action cannot be undone."}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => handleDeleteRoom(room.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -646,6 +668,16 @@ const ClassManagement = () => {
     )}
 
     {/* Add missing imports at the top if needed */}
+
+      <ClearRoomDialog
+        open={!!clearTarget}
+        onOpenChange={(o) => { if (!o) setClearTarget(null); }}
+        room={clearTarget}
+        onDone={async () => {
+          await refreshData();
+          await fetchRoomsWithCounts();
+        }}
+      />
 
       {/* Edit Dialog */}
       <Dialog open={!!editingRoom} onOpenChange={() => setEditingRoom(null)}>
