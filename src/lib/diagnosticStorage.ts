@@ -1,4 +1,5 @@
 import { DiagnosticClass, DiagnosticStudent } from "./diagnosticStatsEngine";
+import { DIAGNOSTIC_TRANSLATIONS, type DiagLang } from "./diagnosticTranslations";
 
 export interface DiagnosticExercise {
   titre: string;
@@ -26,6 +27,84 @@ export interface DiagnosticConfig {
   rapport2_intro?: string;
   rapport2_soutien?: string;
   rapport2_remarque?: string;
+  /**
+   * Contenu pédagogique propre à chaque langue (onglet « 4. Résultats et remédiation ») :
+   * modifier un champ en arabe met à jour le rapport arabe, en français le rapport français…
+   */
+  contenu_par_langue?: Partial<Record<DiagLang, DiagnosticLangContent>>;
+}
+
+export interface DiagnosticLangContent {
+  observations: string[];
+  propositions: string[];
+  exercices: DiagnosticExercise[];
+  appreciation_globale: string;
+  nombre_exercices_texte: string;
+}
+
+const NUM_WORDS: Record<DiagLang, string[]> = {
+  fr: ["zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix"],
+  ar: ["صفر", "تمرين واحد", "تمرينين", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة"],
+  en: ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
+};
+
+/** Nombre d'exercices en lettres dans la langue demandée */
+export function numberToWords(n: number, lang: DiagLang): string {
+  return NUM_WORDS[lang]?.[n] ?? String(n);
+}
+
+const hasArabic = (txt: string) => /[\u0600-\u06FF]/.test(txt || "");
+
+/** Langue dans laquelle sont écrits les anciens champs (avant le contenu par langue) */
+function legacyContentLang(config: DiagnosticConfig): DiagLang {
+  const sample = [...(config.observations || []), ...(config.propositions || []), ...(config.exercices || []).map(e => e.description)].join(" ");
+  return hasArabic(sample) ? "ar" : "fr";
+}
+
+/** Contenu (observations, propositions, exercices, appréciation) pour une langue */
+export function getLangContent(config: DiagnosticConfig, lang: DiagLang): DiagnosticLangContent {
+  const stored = config.contenu_par_langue?.[lang];
+  if (stored) return stored;
+  if (legacyContentLang(config) === lang) {
+    return {
+      observations: config.observations || [],
+      propositions: config.propositions || [],
+      exercices: config.exercices || [],
+      appreciation_globale: config.appreciation_globale || "",
+      nombre_exercices_texte: config.nombre_exercices_texte || numberToWords((config.exercices || []).length, lang),
+    };
+  }
+  const tr = DIAGNOSTIC_TRANSLATIONS[lang] || DIAGNOSTIC_TRANSLATIONS.fr;
+  const exercices = (tr.defaultExercises || []).map(e => ({ ...e }));
+  return {
+    observations: [...(tr.defaultObservations || [])],
+    propositions: [...(tr.defaultPropositions || [])],
+    exercices,
+    appreciation_globale: "",
+    nombre_exercices_texte: numberToWords(exercices.length, lang),
+  };
+}
+
+/** Met à jour le contenu d'une langue (les anciens champs suivent la langue d'origine) */
+export function setLangContent(
+  config: DiagnosticConfig,
+  lang: DiagLang,
+  patch: Partial<DiagnosticLangContent>
+): DiagnosticConfig {
+  const next: DiagnosticLangContent = { ...getLangContent(config, lang), ...patch };
+  const out: DiagnosticConfig = {
+    ...config,
+    contenu_par_langue: { ...(config.contenu_par_langue || {}), [lang]: next },
+  };
+  // Compatibilité : les anciens champs restent synchronisés avec leur langue d'origine
+  if (legacyContentLang(config) === lang) {
+    out.observations = next.observations;
+    out.propositions = next.propositions;
+    out.exercices = next.exercices;
+    out.appreciation_globale = next.appreciation_globale;
+    out.nombre_exercices_texte = next.nombre_exercices_texte;
+  }
+  return out;
 }
 
 export interface DiagnosticAppData {

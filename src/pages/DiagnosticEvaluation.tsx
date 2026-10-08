@@ -63,7 +63,11 @@ import {
   loadDiagnosticData,
   saveDiagnosticData,
   resetDiagnosticDataToDefaults,
-  DEFAULT_DIAGNOSTIC_DATA
+  DEFAULT_DIAGNOSTIC_DATA,
+  getLangContent,
+  setLangContent,
+  numberToWords,
+  type DiagnosticLangContent
 } from "@/lib/diagnosticStorage";
 import {
   DiagnosticClass,
@@ -88,7 +92,8 @@ import {
 } from "@/lib/diagnosticSupabaseBridge";
 import {
   DiagLang,
-  DIAGNOSTIC_TRANSLATIONS
+  DIAGNOSTIC_TRANSLATIONS,
+  translateAppreciation
 } from "@/lib/diagnosticTranslations";
 import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportPrint";
 import {
@@ -402,6 +407,9 @@ export const DiagnosticEvaluation: React.FC = () => {
     }
     return appData.classes; // "all"
   }, [appData.classes, reportScope, selectedSingleClassId, selectedClassIds]);
+
+  // Contenu pédagogique (observations, propositions, exercices…) de la langue affichée
+  const langContent = useMemo(() => getLangContent(appData.config, lang), [appData.config, lang]);
 
   const reportStats = useMemo(() => {
     return computeAllStats(classesForReport);
@@ -772,21 +780,25 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   // --- ACTIONS OBSERVATIONS & PROPOSITIONS ---
-  const handleAddObservation = () => {
+  // Contenu propre à la langue affichée : modifier en arabe met à jour le rapport arabe, etc.
+  const updateLangContent = (fn: (c: DiagnosticLangContent) => Partial<DiagnosticLangContent>) => {
     updateAppData(prev => ({
       ...prev,
-      config: {
-        ...prev.config,
-        observations: [...prev.config.observations, lang === "ar" ? "ملاحظة بيداغوجية جديدة..." : "Nouvelle observation pédagogique..."]
-      }
+      config: setLangContent(prev.config, lang, fn(getLangContent(prev.config, lang))),
+    }));
+  };
+
+  const handleAddObservation = () => {
+    updateLangContent(c => ({
+      observations: [...c.observations, lang === "ar" ? "ملاحظة بيداغوجية جديدة..." : lang === "en" ? "New pedagogical observation..." : "Nouvelle observation pédagogique..."]
     }));
   };
 
   const handleUpdateObservation = (index: number, val: string) => {
-    updateAppData(prev => {
-      const nextObs = [...prev.config.observations];
-      nextObs[index] = val;
-      return { ...prev, config: { ...prev.config, observations: nextObs } };
+    updateLangContent(c => {
+      const next = [...c.observations];
+      next[index] = val;
+      return { observations: next };
     });
   };
 
@@ -796,31 +808,21 @@ export const DiagnosticEvaluation: React.FC = () => {
 
   const confirmDeleteObservation = () => {
     if (observationToDelete === null) return;
-    updateAppData(prev => ({
-      ...prev,
-      config: {
-        ...prev.config,
-        observations: prev.config.observations.filter((_, i) => i !== observationToDelete)
-      }
-    }));
+    updateLangContent(c => ({ observations: c.observations.filter((_, i) => i !== observationToDelete) }));
     setObservationToDelete(null);
   };
 
   const handleAddProposition = () => {
-    updateAppData(prev => ({
-      ...prev,
-      config: {
-        ...prev.config,
-        propositions: [...prev.config.propositions, lang === "ar" ? "مقترح دعم ومعالجة جديد..." : "Nouvelle proposition de soutien..."]
-      }
+    updateLangContent(c => ({
+      propositions: [...c.propositions, lang === "ar" ? "مقترح دعم ومعالجة جديد..." : lang === "en" ? "New support proposal..." : "Nouvelle proposition de soutien..."]
     }));
   };
 
   const handleUpdateProposition = (index: number, val: string) => {
-    updateAppData(prev => {
-      const nextProps = [...prev.config.propositions];
-      nextProps[index] = val;
-      return { ...prev, config: { ...prev.config, propositions: nextProps } };
+    updateLangContent(c => {
+      const next = [...c.propositions];
+      next[index] = val;
+      return { propositions: next };
     });
   };
 
@@ -830,40 +832,29 @@ export const DiagnosticEvaluation: React.FC = () => {
 
   const confirmDeleteProposition = () => {
     if (propositionToDelete === null) return;
-    updateAppData(prev => ({
-      ...prev,
-      config: {
-        ...prev.config,
-        propositions: prev.config.propositions.filter((_, i) => i !== propositionToDelete)
-      }
-    }));
+    updateLangContent(c => ({ propositions: c.propositions.filter((_, i) => i !== propositionToDelete) }));
     setPropositionToDelete(null);
   };
 
   const handleAddExercise = () => {
-    updateAppData(prev => {
-      const exNum = prev.config.exercices.length + 1;
-      return {
-        ...prev,
-        config: {
-          ...prev.config,
-          exercices: [
-            ...prev.config.exercices,
-            {
-              titre: lang === "ar" ? `تمرين ${exNum}` : `Exercice ${exNum}`,
-              description: lang === "ar" ? "وصف المفاهيم والكفايات المستهدفة" : "Description des compétences évaluées"
-            }
-          ]
+    updateLangContent(c => {
+      const exNum = c.exercices.length + 1;
+      const exercices = [
+        ...c.exercices,
+        {
+          titre: lang === "ar" ? `تمرين ${exNum}` : lang === "en" ? `Exercise ${exNum}` : `Exercice ${exNum}`,
+          description: lang === "ar" ? "وصف المفاهيم والكفايات المستهدفة" : lang === "en" ? "Description of the assessed skills" : "Description des compétences évaluées"
         }
-      };
+      ];
+      return { exercices, nombre_exercices_texte: numberToWords(exercices.length, lang) };
     });
   };
 
   const handleUpdateExercise = (index: number, field: "titre" | "description", val: string) => {
-    updateAppData(prev => {
-      const nextEx = [...prev.config.exercices];
-      nextEx[index] = { ...nextEx[index], [field]: val };
-      return { ...prev, config: { ...prev.config, exercices: nextEx } };
+    updateLangContent(c => {
+      const next = [...c.exercices];
+      next[index] = { ...next[index], [field]: val };
+      return { exercices: next };
     });
   };
 
@@ -873,13 +864,10 @@ export const DiagnosticEvaluation: React.FC = () => {
 
   const confirmDeleteExerciseDiag = () => {
     if (exerciseToDeleteDiag === null) return;
-    updateAppData(prev => ({
-      ...prev,
-      config: {
-        ...prev.config,
-        exercices: prev.config.exercices.filter((_, i) => i !== exerciseToDeleteDiag)
-      }
-    }));
+    updateLangContent(c => {
+      const exercices = c.exercices.filter((_, i) => i !== exerciseToDeleteDiag);
+      return { exercices, nombre_exercices_texte: numberToWords(exercices.length, lang) };
+    });
     setExerciseToDeleteDiag(null);
   };
 
@@ -901,18 +889,17 @@ export const DiagnosticEvaluation: React.FC = () => {
   const handleLoadDefaultTemplatesForLang = (targetLang: DiagLang) => {
     const tr = DIAGNOSTIC_TRANSLATIONS[targetLang] || DIAGNOSTIC_TRANSLATIONS.fr;
     const defaultAppr = targetLang === "ar" ? "متوسطة" : targetLang === "en" ? "moderate" : "médiocres";
-    const numEx = targetLang === "ar" ? "أربعة" : targetLang === "en" ? "four" : "quatre";
+    const exercices = (tr.defaultExercises || []).map(e => ({ ...e }));
 
     updateAppData(prev => ({
       ...prev,
-      config: {
-        ...prev.config,
+      config: setLangContent(prev.config, targetLang, {
         appreciation_globale: defaultAppr,
-        nombre_exercices_texte: numEx,
-        exercices: tr.defaultExercises || prev.config.exercices,
-        observations: tr.defaultObservations || prev.config.observations,
-        propositions: tr.defaultPropositions || prev.config.propositions
-      }
+        nombre_exercices_texte: numberToWords(exercices.length, targetLang),
+        exercices,
+        observations: [...(tr.defaultObservations || [])],
+        propositions: [...(tr.defaultPropositions || [])],
+      })
     }));
 
     toast.success(
@@ -1988,25 +1975,20 @@ export const DiagnosticEvaluation: React.FC = () => {
             <CardContent className="space-y-3">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <Input
-                  value={appData.config.appreciation_globale}
-                  onChange={(e) => updateAppData(prev => ({
-                    ...prev,
-                    config: { ...prev.config, appreciation_globale: e.target.value }
-                  }))}
+                  value={langContent.appreciation_globale}
+                  dir="auto"
+                  onChange={(e) => { const v = e.target.value; updateLangContent(() => ({ appreciation_globale: v })); }}
                   placeholder={lang === "ar" ? "التقدير العام (مثال: مرضية ومشجعة...)" : lang === "en" ? "Global appreciation..." : "Appréciation globale (ex: satisfaisants...)"}
                   className="max-w-md text-xs"
                 />
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => updateAppData(prev => ({
-                    ...prev,
-                    config: { ...prev.config, appreciation_globale: reportStats.default_appreciation }
-                  }))}
+                  onClick={() => updateLangContent(() => ({ appreciation_globale: translateAppreciation(reportStats.default_appreciation, lang) }))}
                   className="text-xs gap-1.5"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>{t.useCalculatedAppreciationBtn} ({reportStats.default_appreciation})</span>
+                  <span>{t.useCalculatedAppreciationBtn} ({translateAppreciation(reportStats.default_appreciation, lang)})</span>
                 </Button>
               </div>
             </CardContent>
@@ -2027,27 +2009,27 @@ export const DiagnosticEvaluation: React.FC = () => {
               <div className="flex items-center gap-3 mb-2">
                 <Label className="text-xs font-semibold whitespace-nowrap">{t.numExercisesLabel}</Label>
                 <Input
-                  value={appData.config.nombre_exercices_texte}
-                  onChange={(e) => updateAppData(prev => ({
-                    ...prev,
-                    config: { ...prev.config, nombre_exercices_texte: e.target.value }
-                  }))}
+                  value={langContent.nombre_exercices_texte}
+                  dir="auto"
+                  onChange={(e) => { const v = e.target.value; updateLangContent(() => ({ nombre_exercices_texte: v })); }}
                   placeholder={lang === "ar" ? "أربعة" : lang === "en" ? "four" : "quatre"}
                   className="max-w-xs h-8 text-xs font-medium"
                 />
               </div>
 
-              {appData.config.exercices.map((ex, idx) => (
+              {langContent.exercices.map((ex, idx) => (
                 <div key={idx} className="flex items-start gap-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
                   <Input
                     value={ex.titre}
                     onChange={(e) => handleUpdateExercise(idx, "titre", e.target.value)}
+                    dir="auto"
                     placeholder={lang === "ar" ? `تمرين ${idx + 1}` : `Exercice ${idx + 1}`}
                     className="w-36 h-9 text-xs font-bold shrink-0"
                   />
                   <Input
                     value={ex.description}
                     onChange={(e) => handleUpdateExercise(idx, "description", e.target.value)}
+                    dir="auto"
                     placeholder={lang === "ar" ? "موضوع التمرين والكفايات المستهدفة..." : "Description du contenu et des compétences évaluées..."}
                     className="flex-1 h-9 text-xs"
                   />
@@ -2076,12 +2058,13 @@ export const DiagnosticEvaluation: React.FC = () => {
               </Button>
             </CardHeader>
             <CardContent className="space-y-2">
-              {appData.config.observations.map((obs, idx) => (
+              {langContent.observations.map((obs, idx) => (
                 <div key={idx} className="flex items-start gap-2">
                   <span className="font-bold text-slate-400 mt-2 text-sm">➢</span>
                   <Textarea
                     value={obs}
                     onChange={(e) => handleUpdateObservation(idx, e.target.value)}
+                    dir="auto"
                     placeholder={lang === "ar" ? "أدخل الملاحظة البيداغوجية..." : "Entrez l'observation pédagogique constatée..."}
                     rows={2}
                     className="text-xs flex-1"
@@ -2111,12 +2094,13 @@ export const DiagnosticEvaluation: React.FC = () => {
               </Button>
             </CardHeader>
             <CardContent className="space-y-2">
-              {appData.config.propositions.map((prop, idx) => (
+              {langContent.propositions.map((prop, idx) => (
                 <div key={idx} className="flex items-start gap-2">
                   <span className="font-bold text-slate-400 mt-2 text-sm">➢</span>
                   <Textarea
                     value={prop}
                     onChange={(e) => handleUpdateProposition(idx, e.target.value)}
+                    dir="auto"
                     placeholder={lang === "ar" ? "أدخل مقترح الدعم والمعالجة..." : "Entrez la proposition de remédiation..."}
                     rows={2}
                     className="text-xs flex-1"
@@ -2237,29 +2221,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">{t.gradeLevelLabel}</Label>
-                <Input
-                  value={appData.config.niveau}
-                  onChange={(e) => updateAppData(prev => ({
-                    ...prev,
-                    config: { ...prev.config, niveau: e.target.value }
-                  }))}
-                  className="text-xs"
-                />
-              </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">{t.titleHeaderLabel}</Label>
-                <Input
-                  value={appData.config.niveau_titre}
-                  onChange={(e) => updateAppData(prev => ({
-                    ...prev,
-                    config: { ...prev.config, niveau_titre: e.target.value }
-                  }))}
-                  className="text-xs"
-                />
-              </div>
 
               <div className="space-y-1.5">
                 <Label className="text-xs">{t.diagnosticPeriodLabel}</Label>
@@ -2273,17 +2235,6 @@ export const DiagnosticEvaluation: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">{t.section1ClassesLabel}</Label>
-                <Input
-                  value={appData.config.classes_section_1}
-                  onChange={(e) => updateAppData(prev => ({
-                    ...prev,
-                    config: { ...prev.config, classes_section_1: e.target.value }
-                  }))}
-                  className="text-xs"
-                />
-              </div>
             </CardContent>
           </Card>
 
@@ -2863,23 +2814,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium">{t.gradeLevelLabel} :</Label>
-                  <Input
-                    value={editConfigDraft.niveau || ""}
-                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, niveau: e.target.value })}
-                    className="text-xs"
-                  />
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-medium">{t.titleHeaderLabel} :</Label>
-                  <Input
-                    value={editConfigDraft.niveau_titre || ""}
-                    onChange={(e) => setEditConfigDraft({ ...editConfigDraft, niveau_titre: e.target.value })}
-                    className="text-xs"
-                  />
-                </div>
               </div>
             </div>
           )}

@@ -1,5 +1,5 @@
 import React from "react";
-import { DiagnosticConfig } from "@/lib/diagnosticStorage";
+import { DiagnosticConfig, getLangContent } from "@/lib/diagnosticStorage";
 import { GlobalDiagnosticStats } from "@/lib/diagnosticStatsEngine";
 import {
   DiagLang,
@@ -212,68 +212,50 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
     return formatDiagnosticPeriod(config.periode_diagnostic, lang);
   }, [config.periode_diagnostic, lang]);
 
+  // Contenu pédagogique saisi dans la langue du rapport (onglet 4)
+  const content = React.useMemo(() => getLangContent(config, lang), [config, lang]);
+
   // Nombre d'exercices en lettres
   const displayedNumExercises = React.useMemo(() => {
-    const raw = (config.nombre_exercices_texte || "quatre").trim().toLowerCase();
+    const raw = (content.nombre_exercices_texte || "").trim();
+    const low = raw.toLowerCase();
     if (lang === "ar") {
-      if (raw === "quatre" || raw === "4") return "أربعة";
-      if (raw === "trois" || raw === "3") return "ثلاثة";
-      if (raw === "cinq" || raw === "5") return "خمسة";
-      if (raw === "six" || raw === "6") return "ستة";
-      if (raw === "deux" || raw === "2") return "تمرينين";
-      return raw;
+      if (low === "quatre" || low === "4") return "أربعة";
+      if (low === "trois" || low === "3") return "ثلاثة";
+      if (low === "cinq" || low === "5") return "خمسة";
+      if (low === "six" || low === "6") return "ستة";
+      if (low === "deux" || low === "2") return "تمرينين";
+      return raw || "أربعة";
     }
     if (lang === "en") {
-      if (raw === "quatre" || raw === "4") return "four";
-      if (raw === "trois" || raw === "3") return "three";
-      if (raw === "cinq" || raw === "5") return "five";
-      if (raw === "six" || raw === "6") return "six";
-      return raw;
+      if (low === "quatre" || low === "4") return "four";
+      if (low === "trois" || low === "3") return "three";
+      if (low === "cinq" || low === "5") return "five";
+      if (low === "six" || low === "6") return "six";
+      return raw || "four";
     }
-    return config.nombre_exercices_texte || "quatre";
-  }, [config.nombre_exercices_texte, lang]);
+    return raw || "quatre";
+  }, [content.nombre_exercices_texte, lang]);
 
-  // Appréciation traduite
+  // Appréciation (saisie dans la langue du rapport, sinon calculée puis traduite)
   const displayedAppreciation = React.useMemo(() => {
-    const raw = config.appreciation_globale || stats.default_appreciation;
+    const raw = (content.appreciation_globale || "").trim() || stats.default_appreciation;
     return translateAppreciation(raw, lang);
-  }, [config.appreciation_globale, stats.default_appreciation, lang]);
+  }, [content.appreciation_globale, stats.default_appreciation, lang]);
 
-  // Listes dynamiques d'observations, propositions et exercices
-  const displayedObservations = React.useMemo(() => {
-    if (lang === "ar") {
-      const hasCustomArabic = config.observations.some(obs => /[\u0600-\u06FF]/.test(obs));
-      return hasCustomArabic ? config.observations : t.defaultObservations;
-    }
-    if (lang === "en") {
-      const hasCustomEnglish = config.observations.some(obs => /[a-zA-Z]/.test(obs) && !obs.includes("apprenants"));
-      return hasCustomEnglish ? config.observations : t.defaultObservations;
-    }
-    return config.observations && config.observations.length > 0 ? config.observations : t.defaultObservations;
-  }, [config.observations, lang, t]);
-
-  const displayedPropositions = React.useMemo(() => {
-    if (lang === "ar") {
-      const hasCustomArabic = config.propositions.some(p => /[\u0600-\u06FF]/.test(p));
-      return hasCustomArabic ? config.propositions : t.defaultPropositions;
-    }
-    if (lang === "en") {
-      const hasCustomEnglish = config.propositions.some(p => /[a-zA-Z]/.test(p) && !p.includes("apprenants"));
-      return hasCustomEnglish ? config.propositions : t.defaultPropositions;
-    }
-    return config.propositions && config.propositions.length > 0 ? config.propositions : t.defaultPropositions;
-  }, [config.propositions, lang, t]);
-
-  const displayedExercises = React.useMemo(() => {
-    if (lang === "ar") {
-      const hasCustomArabic = config.exercices.some(ex => /[\u0600-\u06FF]/.test(ex.description));
-      return hasCustomArabic ? config.exercices : t.defaultExercises;
-    }
-    if (lang === "en") {
-      return t.defaultExercises;
-    }
-    return config.exercices && config.exercices.length > 0 ? config.exercices : t.defaultExercises;
-  }, [config.exercices, lang, t]);
+  // Listes dynamiques d'observations, propositions et exercices (langue du rapport)
+  const displayedObservations = React.useMemo(
+    () => (content.observations.length > 0 ? content.observations : t.defaultObservations),
+    [content.observations, t]
+  );
+  const displayedPropositions = React.useMemo(
+    () => (content.propositions.length > 0 ? content.propositions : t.defaultPropositions),
+    [content.propositions, t]
+  );
+  const displayedExercises = React.useMemo(
+    () => (content.exercices.length > 0 ? content.exercices : t.defaultExercises),
+    [content.exercices, t]
+  );
 
   // Totaux des tranches
   const totalPresentsNum = parseInt(stats.total_presents || "0", 10);
