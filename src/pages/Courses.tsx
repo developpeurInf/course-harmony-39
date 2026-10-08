@@ -51,6 +51,8 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import SearchInput from "@/components/SearchInput";
+import { matchesText } from "@/lib/search";
 
 const Courses = () => {
   const { user, getStudents } = useAuth();
@@ -120,14 +122,18 @@ const Courses = () => {
     }
   };
   
+  const [courseSearch, setCourseSearch] = useState("");
   // Filter courses based on user role and selected room
   const userCourses = isProfessor 
     ? courses 
     : (user ? getVisibleCoursesForStudent(user.id) : []);
   
-  const displayedCourses = selectedRoomFilter === "all" 
+  const roomFilteredCourses = selectedRoomFilter === "all" 
     ? userCourses 
     : userCourses.filter(course => course.room_id === selectedRoomFilter);
+  const displayedCourses = roomFilteredCourses.filter(course =>
+    matchesText(courseSearch, course.title, course.description, (rooms.find(r => r.id === course.room_id) || {} as any).name)
+  );
 
   // Fetch course materials
   const fetchCourseMaterials = async (courseId: string) => {
@@ -590,6 +596,14 @@ const Courses = () => {
           )}
         </div>
       </div>
+
+      {/* Recherche */}
+      <SearchInput
+        value={courseSearch}
+        onChange={setCourseSearch}
+        placeholder={language === "ar" ? "ابحث عن درس بالعنوان أو الوصف أو القسم…" : language === "fr" ? "Rechercher un cours (titre, description, classe)…" : "Search a course (title, description, class)…"}
+        className="sm:max-w-xl"
+      />
 
       {/* Room filter - Only for professors */}
       {isProfessor && (

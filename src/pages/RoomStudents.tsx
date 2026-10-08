@@ -19,6 +19,8 @@ import { EditStudentDialog } from "@/components/EditStudentDialog";
 import { StudentInfoDialog } from "@/components/StudentInfoDialog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNotifications } from "@/contexts/NotificationContext";
+import StudentSearchBar from "@/components/StudentSearchBar";
+import { matchesStudent, type StudentSearchMode } from "@/lib/search";
 
 interface Student {
   id: string;
@@ -39,6 +41,7 @@ const RoomStudents = () => {
   const { clearRoomStudentsNotifications } = useNotifications();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchMode, setSearchMode] = useState<StudentSearchMode>("all");
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('list');
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -149,11 +152,7 @@ const RoomStudents = () => {
     }
   };
 
-  const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (student.username && student.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    student.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = students.filter(student => matchesStudent(student, searchTerm, searchMode));
 
   if (!roomId) {
     return <Navigate to="/dashboard" replace />;
@@ -237,15 +236,15 @@ const RoomStudents = () => {
 
       {/* Search and View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="relative flex-1 w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={language === "ar" ? "البحث عن التلاميذ..." : language === "fr" ? "Rechercher des élèves..." : "Search students..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 w-full"
-          />
-        </div>
+        <StudentSearchBar
+          query={searchTerm}
+          onQueryChange={setSearchTerm}
+          mode={searchMode}
+          onModeChange={setSearchMode}
+          resultCount={filteredStudents.length}
+          totalCount={students.length}
+          className="flex-1 w-full sm:max-w-2xl"
+        />
         <div className="flex items-center gap-1.5 self-end sm:self-auto bg-muted/50 rounded-lg p-1">
           <Button
             variant={viewMode === 'cards' ? 'default' : 'ghost'}

@@ -20,6 +20,8 @@ import { format, parseISO } from "date-fns";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import PdfInfo from "@/components/PdfInfo";
 import { toast } from "sonner";
+import SearchInput from "@/components/SearchInput";
+import { matchesText } from "@/lib/search";
 
 const Exercises = () => {
   const { user } = useAuth();
@@ -53,13 +55,22 @@ const Exercises = () => {
     }
   }, [user, roomId, refreshData]);
   
+  const [exerciseSearch, setExerciseSearch] = useState("");
   const userExercises = isProfessor 
     ? exercises 
     : (user ? getVisibleExercisesForStudent(user.id) : []);
 
-  const visibleExercises = isProfessor
+  const allVisibleExercises = isProfessor
     ? userExercises
     : userExercises.filter((exercise) => exercise.is_visible);
+  const visibleExercises = allVisibleExercises.filter((exercise) =>
+    matchesText(
+      exerciseSearch,
+      exercise.title,
+      exercise.description,
+      (courses.find((c) => c.id === exercise.course_id) || ({} as any)).title
+    )
+  );
 
   const formatDueDate = (dateStr: string) => {
     try {
@@ -413,6 +424,14 @@ const Exercises = () => {
           )}
         </div>
       </div>
+
+      {/* Recherche */}
+      <SearchInput
+        value={exerciseSearch}
+        onChange={setExerciseSearch}
+        placeholder={language === "ar" ? "ابحث عن تمرين (العنوان، الوصف، الدرس…)" : language === "fr" ? "Rechercher un exercice (titre, description, cours…)" : "Search an exercise (title, description, course…)"}
+        className="sm:max-w-xl"
+      />
 
       {/* Exercises Display */}
       {visibleExercises.length > 0 ? (

@@ -55,6 +55,8 @@ import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "sonner";
+import SearchInput from "@/components/SearchInput";
+import { matchesText } from "@/lib/search";
 
 const Exams = () => {
   const { t, language } = useLanguage();
@@ -129,11 +131,15 @@ const Exams = () => {
     }
   };
   
+  const [examSearch, setExamSearch] = useState("");
   // Filter exams based on user role and selected course
   const userExams = isProfessor ? exams : (user ? getVisibleExamsForStudent(user.id) : []);
-  const displayedExams = selectedCourseFilter === "all" 
+  const courseFilteredExams = selectedCourseFilter === "all" 
     ? userExams 
     : userExams.filter(exam => exam.course_id === selectedCourseFilter);
+  const displayedExams = courseFilteredExams.filter(exam =>
+    matchesText(examSearch, exam.title, (exam.description || "").replace(/<!--[\s\S]*?-->/g, ""), (courses.find(c => c.id === exam.course_id) || ({} as any)).title, exam.type === "quiz" ? "quiz" : "examen exam امتحان")
+  );
 
   // Filter courses based on user role for the course dropdown (both room & enrollments)
   const availableCourses = isProfessor 
@@ -747,6 +753,14 @@ const Exams = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Recherche */}
+      <SearchInput
+        value={examSearch}
+        onChange={setExamSearch}
+        placeholder={language === "ar" ? "ابحث عن امتحان أو اختبار (العنوان، الدرس…)" : language === "fr" ? "Rechercher un examen ou un quiz (titre, cours…)" : "Search an exam or quiz (title, course…)"}
+        className="sm:max-w-xl"
+      />
 
       {/* Course filter */}
       <div className="flex flex-col sm:flex-row gap-4 sm:items-center">

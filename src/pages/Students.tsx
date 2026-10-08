@@ -40,6 +40,8 @@ import ViewToggle from "@/components/ViewToggle";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
+import StudentSearchBar from "@/components/StudentSearchBar";
+import { matchesStudent, type StudentSearchMode } from "@/lib/search";
 
 const Students = () => {
   const { roomId } = useParams();
@@ -51,6 +53,7 @@ const Students = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchMode, setSearchMode] = useState<StudentSearchMode>("all");
   const [selectedCourse, setSelectedCourse] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
@@ -109,8 +112,7 @@ const Students = () => {
 
   // Filter students based on search and course selection
   const filteredStudents = professorStudents.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = matchesStudent(student as any, searchTerm, searchMode);
     
     if (selectedCourse === "all") return matchesSearch;
     
@@ -264,15 +266,15 @@ const Students = () => {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder={t("students.search")}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+        <StudentSearchBar
+          query={searchTerm}
+          onQueryChange={setSearchTerm}
+          mode={searchMode}
+          onModeChange={setSearchMode}
+          resultCount={filteredStudents.length}
+          totalCount={professorStudents.length}
+          className="flex-1"
+        />
         
         <Select value={selectedCourse} onValueChange={setSelectedCourse}>
           <SelectTrigger className="w-full sm:w-[200px]">
