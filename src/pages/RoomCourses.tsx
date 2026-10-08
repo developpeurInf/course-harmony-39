@@ -70,6 +70,7 @@ const RoomCourses = () => {
   const [videoLinks, setVideoLinks] = useState<VideoLinkDraft[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [viewerCourse, setViewerCourse] = useState<Course | null>(null);
+  const roomCoursesRef = useRef<Course[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
   const submitLockRef = useRef(false);
@@ -96,13 +97,14 @@ const RoomCourses = () => {
   
   // Filter courses for current room
   const roomCourses = courses.filter(course => course.room_id === roomId);
+  roomCoursesRef.current = roomCourses;
 
   // Load course materials
-  const loadCourseMaterials = async () => {
+  const loadCourseMaterials = async (extraCourseId?: string) => {
     try {
-      if (roomCourses.length === 0) return;
-      
-      const courseIds = roomCourses.map(course => course.id);
+      // Toujours la liste la plus récente (évite une closure périmée juste après une création)
+      const courseIds = Array.from(new Set([...roomCoursesRef.current.map(course => course.id), ...(extraCourseId ? [extraCourseId] : [])]));
+      if (courseIds.length === 0) return;
       const { data: materials, error } = await supabase
         .from('course_materials')
         .select('*')
@@ -194,7 +196,7 @@ const RoomCourses = () => {
       onProgress: (done, total) => setUploadProgress({ done, total }),
     });
     setUploadProgress(null);
-    await loadCourseMaterials();
+    await loadCourseMaterials(courseId);
     if (failed.length > 0) {
       toast.error((language === "ar" ? "تعذر رفع: " : language === "fr" ? "Échec du téléversement : " : "Upload failed: ") + failed.join(", "));
     }
@@ -440,7 +442,7 @@ const RoomCourses = () => {
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <FileText className="h-4 w-4" />
-                    <span>Created {new Date(course.created_at).toLocaleDateString()}</span>
+                    <span>{language === "ar" ? "أُنشئ في " : language === "fr" ? "Créé le " : "Created "}{new Date(course.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US")}</span>
                   </div>
                   
                   {courseMaterials[course.id] && courseMaterials[course.id].length > 0 && (
@@ -509,11 +511,11 @@ const RoomCourses = () => {
                             <BookOpen className="h-5 w-5 text-primary" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">
+                            <button type="button" onClick={() => setViewerCourse(course)} className="text-start text-xl font-semibold group-hover:text-primary hover:underline transition-colors">
                               {course.title}
-                            </h3>
+                            </button>
                             <p className="text-sm text-muted-foreground mt-1">
-                              Created {new Date(course.created_at).toLocaleDateString()}
+                              {language === "ar" ? "أُنشئ في " : language === "fr" ? "Créé le " : "Created "}{new Date(course.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US")}
                             </p>
                           </div>
                           <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">

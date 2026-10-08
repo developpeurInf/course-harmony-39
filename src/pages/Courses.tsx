@@ -89,6 +89,8 @@ const Courses = () => {
   const [videoLinks, setVideoLinks] = useState<VideoLinkDraft[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [viewerCourse, setViewerCourse] = useState<Course | null>(null);
+  const coursesRef = useRef<Course[]>([]);
+  coursesRef.current = courses;
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -157,9 +159,10 @@ const Courses = () => {
   };
 
   // Load course materials for all courses (one request instead of one per course)
-  const loadCourseMaterials = async () => {
-    if (!courses || courses.length === 0) return;
-    const ids = courses.map(c => c.id);
+  const loadCourseMaterials = async (extraCourseId?: string) => {
+    // Toujours la liste la plus récente (évite une closure périmée juste après une création)
+    const ids = Array.from(new Set([...(coursesRef.current || []).map(c => c.id), ...(extraCourseId ? [extraCourseId] : [])]));
+    if (ids.length === 0) return;
     const { data, error } = await supabase
       .from('course_materials')
       .select('*')
@@ -251,7 +254,7 @@ const Courses = () => {
 
       setIsAddDialogOpen(false);
       resetForm();
-      await loadCourseMaterials(); // Refresh materials
+      await loadCourseMaterials(newCourse.id); // Refresh materials
     } catch (err) {
       console.error('Error in handleAddCourse:', err);
     } finally {
@@ -281,7 +284,7 @@ const Courses = () => {
       // Upload new materials
       if (success) {
         await uploadMaterialsFor(currentCourse.id);
-        await loadCourseMaterials();
+        await loadCourseMaterials(currentCourse.id);
       }
 
       if (success) {

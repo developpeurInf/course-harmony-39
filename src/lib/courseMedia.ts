@@ -34,7 +34,9 @@ export const ACCEPT_ATTRIBUTE =
 export const isExternalUrl = (path: string) => /^https?:\/\//i.test(path || "");
 
 const extOf = (name: string) => {
-  const clean = (name || "").split("?")[0].split("#")[0];
+  // Only URLs carry ?query / #fragment — a file name may legitimately contain "#" or "?"
+  const raw = name || "";
+  const clean = /^https?:\/\//i.test(raw) ? raw.split("?")[0].split("#")[0] : raw;
   const idx = clean.lastIndexOf(".");
   return idx >= 0 ? clean.slice(idx + 1).toLowerCase() : "";
 };
@@ -239,7 +241,12 @@ export const saveCourseMaterials = async ({
     try {
       const kind = getFileKind(original.name, original.type);
       const file = kind === "image" ? await compressImage(original) : original;
-      const ext = extOf(file.name) || (kind === "pdf" ? "pdf" : "bin");
+      const MIME_EXT: Record<string, string> = {
+        "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp",
+        "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-m4v": "m4v", "video/ogg": "ogv",
+      };
+      const nameExt = extOf(file.name);
+      const ext = (nameExt && /^[a-z0-9]{2,5}$/.test(nameExt) ? nameExt : "") || MIME_EXT[file.type] || (kind === "pdf" ? "pdf" : "bin");
       const storageName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const filePath = `courses/${courseId}/${storageName}`;
 
