@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useLayoutEffect } from "react";
 import { translateToArabic } from "@/lib/arabic-translations";
 import { translateToFrench } from "@/lib/french-translations";
 
@@ -1498,18 +1498,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     return (savedLanguage as Language) || "ar";
   });
 
+  // Changement de langue instantané, sans rechargement de la page
+  // (avant : la page s'affichait traduite, puis se rechargeait et s'affichait une 2e fois).
   const setLanguage = (newLang: Language) => {
     if (newLang === language) return;
-    localStorage.setItem("maataoui-language", newLang);
+    try { localStorage.setItem("maataoui-language", newLang); } catch { /* stockage indisponible */ }
     setLanguageState(newLang);
-    setTimeout(() => {
-      window.location.reload();
-    }, 50);
   };
 
   // Save language to localStorage and handle RTL and Arabic translation
-  useEffect(() => {
-    localStorage.setItem("maataoui-language", language);
+  // useLayoutEffect : la traduction / restauration du DOM se fait avant l'affichage (pas de flash)
+  useLayoutEffect(() => {
+    try { localStorage.setItem("maataoui-language", language); } catch { /* stockage indisponible */ }
     
     // Set the dir attribute on the document for RTL support
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
@@ -1526,6 +1526,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
     if (language === "ar") {
       const translator = language === "ar" ? translateToArabic : translateToFrench;
+      // Textes d'origine des nœuds traduits, pour pouvoir revenir au français / à l'anglais
+      // sans recharger la page.
+      const originals = new WeakMap<Node, { original: string; translated: string }>();
+      const attrOriginals = new WeakMap<Element, Record<string, { original: string; translated: string }>>();
+      const rememberAttr = (el: Element, attr: string, original: string, translated: string) => {
+        const rec = attrOriginals.get(el) || {};
+        rec[attr] = { original, translated };
+        attrOriginals.set(el, rec);
+      };
 
       const translateNode = (node: Node) => {
         if (node.nodeType === Node.TEXT_NODE) {
@@ -1534,7 +1543,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             const trimmed = val.trim();
             const translated = translator(trimmed);
             if (translated && translated !== trimmed) {
-              node.nodeValue = val.replace(trimmed, translated);
+              const next = val.replace(trimmed, translated);
+              originals.set(node, { original: val, translated: next });
+              node.nodeValue = next;
             }
           }
         } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -1545,6 +1556,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             if (el.placeholder) {
               const transPh = translator(el.placeholder);
               if (transPh && transPh !== el.placeholder) {
+                rememberAttr(el, "placeholder", el.placeholder, transPh);
                 el.placeholder = transPh;
               }
             }
@@ -1552,6 +1564,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           if (el.title) {
             const transTitle = translator(el.title);
             if (transTitle && transTitle !== el.title) {
+              rememberAttr(el, "title", el.title, transTitle);
               el.title = transTitle;
             }
           }
@@ -1576,7 +1589,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
               const trimmed = val.trim();
               const translated = translator(trimmed);
               if (translated && translated !== trimmed) {
-                node.nodeValue = val.replace(trimmed, translated);
+                const next = val.replace(trimmed, translated);
+                originals.set(node, { original: val, translated: next });
+                node.nodeValue = next;
               }
             }
           }
@@ -1591,6 +1606,31 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
       return () => {
         observer.disconnect();
+        // Restaurer les textes d'origine encore affichés (React mettra ensuite à jour
+        // les textes qui dépendent de la langue).
+        try {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+          let n: Node | null = walker.currentNode;
+          while (n) {
+            if (n.nodeType === Node.TEXT_NODE) {
+              const rec = originals.get(n);
+              if (rec && n.nodeValue === rec.translated) n.nodeValue = rec.original;
+            } else {
+              const el = n as HTMLElement;
+              const rec = attrOriginals.get(el);
+              if (rec) {
+                if (rec.title && el.title === rec.title.translated) el.title = rec.title.original;
+                if (rec.placeholder && (el as HTMLInputElement).placeholder === rec.placeholder.translated) {
+                  (el as HTMLInputElement).placeholder = rec.placeholder.original;
+                }
+              }
+            }
+            n = walker.nextNode();
+          }
+        } catch {
+          /* en dernier recours : recharger pour repartir d'un DOM propre */
+          window.location.reload();
+        }
       };
     }
   }, [language]);
