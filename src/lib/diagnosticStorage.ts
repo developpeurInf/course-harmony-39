@@ -22,6 +22,10 @@ export interface DiagnosticConfig {
   appreciation_globale: string;
   observations: string[];
   propositions: string[];
+  /** Modèle 2 (rapport multi-classes) : textes personnalisés — vides = texte automatique */
+  rapport2_intro?: string;
+  rapport2_soutien?: string;
+  rapport2_remarque?: string;
 }
 
 export interface DiagnosticAppData {

@@ -91,6 +91,11 @@ import {
   DIAGNOSTIC_TRANSLATIONS
 } from "@/lib/diagnosticTranslations";
 import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportPrint";
+import {
+  DiagnosticReportTemplate2,
+  defaultTemplate2Intro,
+  defaultTemplate2Support,
+} from "@/components/diagnostic/DiagnosticReportTemplate2";
 import { exportDiagnosticReportToPdf } from "@/lib/diagnosticPdfExporter";
 import * as XLSX from "xlsx";
 import { downloadExcelFile } from "@/lib/download";
@@ -124,6 +129,15 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [includeGraphsInReport, setIncludeGraphsInReport] = useState<boolean>(false);
   const [chartBgTheme, setChartBgTheme] = useState<"gray" | "white">("gray");
+  // Modèle de rapport officiel : 1 = rapport détaillé (existant), 2 = rapport multi-classes par tranches
+  const [reportTemplate, setReportTemplateState] = useState<"t1" | "t2">(() => {
+    try { return localStorage.getItem("diag_report_template") === "t2" ? "t2" : "t1"; } catch { return "t1"; }
+  });
+  const setReportTemplate = (v: "t1" | "t2") => {
+    setReportTemplateState(v);
+    try { localStorage.setItem("diag_report_template", v); } catch { /* stockage indisponible */ }
+  };
+  const [showTemplate2Texts, setShowTemplate2Texts] = useState(false);
 
   // Modals state
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -414,7 +428,7 @@ export const DiagnosticEvaluation: React.FC = () => {
       const scopeName = reportClassesNames.length === 1
         ? reportClassesNames[0]
         : (reportScope === "all" ? "Toutes_Classes" : "Selection");
-      const filename = `Rapport_Evaluation_Diagnostique_${scopeName}_${lang}.pdf`;
+      const filename = `Rapport_Evaluation_Diagnostique_${reportTemplate === "t2" ? "Modele2_" : ""}${scopeName}_${lang}.pdf`;
 
       if (currentTab !== "preview") {
         setCurrentTab("preview");
@@ -2365,15 +2379,114 @@ export const DiagnosticEvaluation: React.FC = () => {
             </div>
           </div>
 
+          {/* Choix du modèle de rapport */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm no-print print:hidden space-y-3">
+            <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              {lang === "ar" ? "نموذج التقرير" : lang === "en" ? "Report template" : "Modèle de rapport"}
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {([
+                {
+                  id: "t1" as const,
+                  title: lang === "ar" ? "النموذج 1 : تقرير مفصل" : lang === "en" ? "Template 1: Detailed report" : "Modèle 1 : Rapport détaillé",
+                  desc: lang === "ar"
+                    ? "الإطار التنظيمي، محتوى الاختبار، 4 فئات (المتعثرون … المتميزون)، الملاحظات والمقترحات، المبيانات."
+                    : lang === "en"
+                    ? "Regulatory framework, test content, 4 levels (struggling … exemplary), observations, proposals, charts."
+                    : "Cadre réglementaire, contenu du test, 4 tranches (en difficulté … excellents), observations, propositions, graphiques.",
+                },
+                {
+                  id: "t2" as const,
+                  title: lang === "ar" ? "النموذج 2 : تقرير التقويمات التشخيصية (حسب الأقسام)" : lang === "en" ? "Template 2: Diagnostic report by class" : "Modèle 2 : Rapport par classes",
+                  desc: lang === "ar"
+                    ? "معطيات عامة (العدد الإجمالي والحاضرون)، تفييئ المتعلمين لكل قسم (أقل من 5، 5-10، 10-15، 15-20)، أساليب الدعم، التوقيعات."
+                    : lang === "en"
+                    ? "General data (enrolled / present), students grouped per class (<5, 5-10, 10-15, 15-20), support methods, signatures."
+                    : "Données générales (effectif / présents), répartition par classe (<5, 5-10, 10-15, 15-20), méthodes de soutien, signatures.",
+                },
+              ]).map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setReportTemplate(opt.id)}
+                  className={`text-start rounded-xl border-2 p-3 transition-colors ${
+                    reportTemplate === opt.id
+                      ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40"
+                      : "border-slate-200 dark:border-slate-800 hover:border-indigo-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm text-slate-900 dark:text-white">
+                    <span className={`h-4 w-4 rounded-full border-2 shrink-0 ${reportTemplate === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"}`} />
+                    {opt.title}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            {reportTemplate === "t2" && (
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTemplate2Texts(v => !v)}
+                  className="text-xs gap-1.5"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  {lang === "ar" ? "تخصيص نصوص النموذج 2" : lang === "en" ? "Customise template 2 texts" : "Personnaliser les textes du modèle 2"}
+                </Button>
+                {showTemplate2Texts && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-[11px] text-slate-500">
+                      {lang === "ar"
+                        ? "اترك الحقل فارغا لاستعمال النص التلقائي (يُحدَّث حسب السنة الدراسية والفترة والأقسام ونسبة الغياب)."
+                        : lang === "en"
+                        ? "Leave a field empty to use the automatic text (updated from the school year, period, classes and absence rate)."
+                        : "Laissez un champ vide pour utiliser le texte automatique (mis à jour selon l'année, la période, les classes et le taux d'absence)."}
+                    </p>
+                    {([
+                      { key: "rapport2_intro" as const, label: lang === "ar" ? "النص التمهيدي" : lang === "en" ? "Introduction" : "Introduction", ph: defaultTemplate2Intro(appData.config, classesForReport, lang) },
+                      { key: "rapport2_remarque" as const, label: lang === "ar" ? "ملاحظة (الغياب)" : lang === "en" ? "Note (absences)" : "Remarque (absences)", ph: lang === "ar" ? "نص تلقائي حسب نسبة الغياب" : lang === "en" ? "Automatic text based on the absence rate" : "Texte automatique selon le taux d'absence" },
+                      { key: "rapport2_soutien" as const, label: lang === "ar" ? "أساليب الدعم وطرق المعالجة" : lang === "en" ? "Support and remediation methods" : "Méthodes de soutien et de remédiation", ph: defaultTemplate2Support(lang) },
+                    ]).map(f => (
+                      <div key={f.key} className="space-y-1">
+                        <Label className="text-xs font-semibold">{f.label}</Label>
+                        <Textarea
+                          rows={3}
+                          value={(appData.config as any)[f.key] || ""}
+                          placeholder={f.ph}
+                          dir={getDirection()}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            updateAppData(prev => ({ ...prev, config: { ...prev.config, [f.key]: v } }));
+                          }}
+                          className="text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Rendu 1:1 du rapport officiel avec la langue, la classe et les graphiques */}
-          <DiagnosticReportPrint
-            config={appData.config}
-            stats={reportStats}
-            lang={lang}
-            includeGraphs={includeGraphsInReport}
-            selectedClassesNames={reportClassesNames}
-            chartBackground={chartBgTheme}
-          />
+          {reportTemplate === "t2" ? (
+            <DiagnosticReportTemplate2
+              config={appData.config}
+              classes={classesForReport}
+              lang={lang}
+            />
+          ) : (
+            <DiagnosticReportPrint
+              config={appData.config}
+              stats={reportStats}
+              lang={lang}
+              includeGraphs={includeGraphsInReport}
+              selectedClassesNames={reportClassesNames}
+              chartBackground={chartBgTheme}
+            />
+          )}
         </div>
       )}
 
