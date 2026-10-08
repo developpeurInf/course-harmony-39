@@ -29,8 +29,17 @@ export type CheatEventType =
 
 export interface CheatEvent {
   type: CheatEventType;
+  /** Moment de l'incident (pour une sortie : moment où l'élève a quitté le quiz) */
   at: string; // ISO
   detail?: string;
+  /** Sortie du quiz : durée d'absence en millisecondes */
+  durationMs?: number;
+  /** Sortie du quiz : moment du retour (absent si l'élève n'est pas revenu) */
+  returnedAt?: string;
+  /** Sortie prise en compte dans la limite d'envoi automatique */
+  counted?: boolean;
+  /** Numéro de la question affichée au moment de l'incident (1, 2, …) */
+  question?: number;
 }
 
 interface Options {
@@ -40,12 +49,14 @@ interface Options {
   onBlocked: (type: CheatEventType) => void;
   onFocusLoss: (count: number) => void;
   onLimitReached: () => void;
+  /** Numéro de la question affichée (pour situer chaque incident) */
+  getQuestionNumber?: () => number | undefined;
 }
 
 /** Sorties plus courtes que ce délai : pas comptées (bannière de notification, etc.). */
 const AWAY_GRACE_MS = 1500;
 
-export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLoss, onLimitReached }: Options) {
+export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLoss, onLimitReached, getQuestionNumber }: Options) {
   const [isAway, setIsAway] = useState(false);
   const [focusLosses, setFocusLosses] = useState(0);
   const [warningOpen, setWarningOpen] = useState(false);
@@ -54,12 +65,16 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
   const lossesRef = useRef(0);
 
   // Callbacks toujours à jour sans réinstaller les écouteurs
-  const cbRef = useRef({ onBlocked, onFocusLoss, onLimitReached, maxFocusLosses });
-  cbRef.current = { onBlocked, onFocusLoss, onLimitReached, maxFocusLosses };
+  const cbRef = useRef({ onBlocked, onFocusLoss, onLimitReached, maxFocusLosses, getQuestionNumber });
+  cbRef.current = { onBlocked, onFocusLoss, onLimitReached, maxFocusLosses, getQuestionNumber };
+  const awayQuestionRef = useRef<number | undefined>(undefined);
 
-  const record = useCallback((type: CheatEventType, detail?: string) => {
+  const record = useCallback((type: CheatEventType, detail?: string, extra?: Partial<CheatEvent>) => {
     const list = eventsRef.current;
-    if (list.length < 200) list.push({ type, at: new Date().toISOString(), detail });
+    if (list.length >= 300) return;
+    let question: number | undefined;
+    try { question = cbRef.current.getQuestionNumber?.(); } catch { /* ignore */ }
+    list.push({ type, at: new Date().toISOString(), detail, question, ...(extra || {}) });
   }, []);
 
   const reset = useCallback(() => {
@@ -153,18 +168,32 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
     const goAway = () => {
       if (awaySinceRef.current !== null) return;
       awaySinceRef.current = Date.now();
+      try { awayQuestionRef.current = cbRef.current.getQuestionNumber?.(); } catch { awayQuestionRef.current = undefined; }
       setIsAway(true);
     };
     const comeBack = () => {
       if (awaySinceRef.current === null) return;
       if (document.visibilityState === "hidden") return;
-      const duration = Date.now() - awaySinceRef.current;
+      const leftAt = awaySinceRef.current;
+      const duration = Date.now() - leftAt;
       awaySinceRef.current = null;
       setIsAway(false);
-      if (duration < AWAY_GRACE_MS) return;
+      const counted = duration >= AWAY_GRACE_MS;
+      // Toutes les sorties sont enregistrées pour l'enseignant ; seules celles ≥ 1,5 s comptent
+      if (eventsRef.current.length < 300) {
+        eventsRef.current.push({
+          type: "left_quiz",
+          at: new Date(leftAt).toISOString(),
+          returnedAt: new Date().toISOString(),
+          durationMs: duration,
+          counted,
+          question: awayQuestionRef.current,
+          detail: `${Math.round(duration / 1000)} s`,
+        });
+      }
+      if (!counted) return;
       lossesRef.current += 1;
       const n = lossesRef.current;
-      record("left_quiz", `${Math.round(duration / 1000)} s`);
       setFocusLosses(n);
       const { maxFocusLosses: max } = cbRef.current;
       if (max > 0 && n >= max) {
@@ -229,7 +258,22 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
     focusLosses,
     warningOpen,
     closeWarning: () => setWarningOpen(false),
-    getEvents: () => eventsRef.current.slice(),
+    /** Incidents de la tentative, y compris une sortie en cours (élève pas encore revenu) */
+    getEvents: (): CheatEvent[] => {
+      const list = eventsRef.current.slice();
+      if (awaySinceRef.current !== null) {
+        const d = Date.now() - awaySinceRef.current;
+        list.push({
+          type: "left_quiz",
+          at: new Date(awaySinceRef.current).toISOString(),
+          durationMs: d,
+          counted: d >= AWAY_GRACE_MS,
+          question: awayQuestionRef.current,
+          detail: "non revenu avant l'envoi",
+        });
+      }
+      return list;
+    },
     /** Saisie anormalement longue d'un coup (presse-papiers du clavier Android, etc.) */
     recordSuspiciousInput: (detail: string) => {
       record("paste", detail);

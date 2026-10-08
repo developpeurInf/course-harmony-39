@@ -219,6 +219,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       toast.warning(blockedMessage(type));
     },
     onFocusLoss: () => undefined,
+    getQuestionNumber: () => indexRef.current + 1,
     onLimitReached: () => {
       toast.error(
         tr(

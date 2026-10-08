@@ -48,6 +48,7 @@ import {
 import QuizBuilder from "@/components/QuizBuilder";
 import QuizTaker from "@/components/QuizTaker";
 import QuizResults from "@/components/QuizResults";
+import QuizDetails from "@/components/QuizDetails";
 import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
@@ -723,7 +724,7 @@ const Exams = () => {
       {/* Quiz Results Modal */}
       {showQuizResults && (
         <Dialog open={!!showQuizResults} onOpenChange={() => setShowQuizResults(null)}>
-          <DialogContent className="w-[96vw] max-w-4xl max-h-[92vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent className={`w-[96vw] ${isProfessor ? "max-w-6xl" : "max-w-4xl"} max-h-[92vh] overflow-hidden p-0 flex flex-col`}>
             <DialogHeader className="sr-only">
               <DialogTitle>{language === "fr" ? "Résultats du quiz" : language === "ar" ? "نتائج الاختبار" : "Quiz Results"}</DialogTitle>
               <DialogDescription>
@@ -731,7 +732,11 @@ const Exams = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-              <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
+              {isProfessor ? (
+                <QuizDetails examId={showQuizResults} />
+              ) : (
+                <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -774,7 +779,17 @@ const Exams = () => {
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <CardTitle className="text-base font-semibold truncate" title={exam.title}>
-                          {exam.title}
+                          {isProfessor && exam.type === 'quiz' ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowQuizResults(exam.id)}
+                              className="truncate max-w-full text-start hover:text-primary hover:underline underline-offset-4"
+                            >
+                              {exam.title}
+                            </button>
+                          ) : (
+                            exam.title
+                          )}
                         </CardTitle>
                         <CardDescription className="mt-1 text-xs">
                           {getCourseName(exam.course_id)}
@@ -866,7 +881,7 @@ const Exams = () => {
                                  size="icon"
                                  className="h-8 w-8 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
                                  onClick={() => setShowQuizResults(exam.id)}
-                                 title={language === "ar" ? "عرض النتائج" : language === "fr" ? "Voir les résultats" : "View Results"}
+                                 title={language === "ar" ? "التفاصيل والنتائج" : language === "fr" ? "Détails et résultats" : "Details & results"}
                                >
                                  <Trophy className="h-4 w-4" />
                                </Button>
@@ -971,7 +986,19 @@ const Exams = () => {
                     <tr key={exam.id}>
                       <td className="p-3">
                         <div>
-                          <h3 className="font-semibold text-sm">{exam.title}</h3>
+                          <h3 className="font-semibold text-sm">
+                            {isProfessor && exam.type === 'quiz' ? (
+                              <button
+                                type="button"
+                                onClick={() => setShowQuizResults(exam.id)}
+                                className="text-start hover:text-primary hover:underline underline-offset-4"
+                              >
+                                {exam.title}
+                              </button>
+                            ) : (
+                              exam.title
+                            )}
+                          </h3>
                           {exam.description && <p className="text-xs text-muted-foreground line-clamp-1">{exam.description}</p>}
                         </div>
                       </td>
@@ -1058,7 +1085,7 @@ const Exams = () => {
                                 size="icon"
                                 className="h-7 w-7 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
                                 onClick={() => setShowQuizResults(exam.id)}
-                                title={language === "ar" ? "عرض النتائج" : language === "fr" ? "Voir les résultats" : "View Results"}
+                                title={language === "ar" ? "التفاصيل والنتائج" : language === "fr" ? "Détails et résultats" : "Details & results"}
                               >
                                 <Trophy className="h-3.5 w-3.5" />
                               </Button>
