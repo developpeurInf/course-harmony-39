@@ -12,6 +12,7 @@ import { downloadExcelFile } from '@/lib/download';
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadBlob } from "@/lib/download";
 
 interface StudentData {
   prenom: string;
@@ -482,14 +483,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `liste_identifiants_eleves_${timestamp}.xlsx`;
 
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadBlob(blob, filename);
 
       toast.success(
         language === "ar"

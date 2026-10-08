@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CourseProvider } from "@/contexts/CourseContext";
@@ -14,25 +15,35 @@ import { FirstLoginDialog } from "@/components/FirstLoginDialog";
 import MainLayout from "@/components/layout/MainLayout";
 import Index from "@/pages/Index";
 import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import CreateRoom from "@/pages/CreateRoom";
-import ClassManagement from "@/pages/ClassManagement";
-import Courses from "@/pages/Courses";
-import RoomStudents from "@/pages/RoomStudents";
-import RoomCourses from "@/pages/RoomCourses";
-import RoomExercises from "@/pages/RoomExercises";
-import Exercises from "@/pages/Exercises";
-import Exams from "@/pages/Exams";
-import Students from "@/pages/Students";
-import StudentsActivities from "@/pages/StudentsActivities";
-import Profile from "@/pages/Profile";
-import RoomExams from "@/pages/RoomExams";
-import Settings from "@/pages/Settings";
-import Reports from "@/pages/Reports";
-import DiagnosticEvaluation from "@/pages/DiagnosticEvaluation";
-import NotFound from "@/pages/NotFound";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
+
+// Chargement des pages à la demande : le premier écran se charge beaucoup plus
+// vite et consomme moins de mémoire (iPad Air / mini 2-3 sous iOS 12 = 1 Go de RAM).
+const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
+const CreateRoom = lazyWithRetry(() => import("@/pages/CreateRoom"));
+const ClassManagement = lazyWithRetry(() => import("@/pages/ClassManagement"));
+const Courses = lazyWithRetry(() => import("@/pages/Courses"));
+const RoomStudents = lazyWithRetry(() => import("@/pages/RoomStudents"));
+const RoomCourses = lazyWithRetry(() => import("@/pages/RoomCourses"));
+const RoomExercises = lazyWithRetry(() => import("@/pages/RoomExercises"));
+const Exercises = lazyWithRetry(() => import("@/pages/Exercises"));
+const Exams = lazyWithRetry(() => import("@/pages/Exams"));
+const Students = lazyWithRetry(() => import("@/pages/Students"));
+const StudentsActivities = lazyWithRetry(() => import("@/pages/StudentsActivities"));
+const Profile = lazyWithRetry(() => import("@/pages/Profile"));
+const RoomExams = lazyWithRetry(() => import("@/pages/RoomExams"));
+const Settings = lazyWithRetry(() => import("@/pages/Settings"));
+const Reports = lazyWithRetry(() => import("@/pages/Reports"));
+const DiagnosticEvaluation = lazyWithRetry(() => import("@/pages/DiagnosticEvaluation"));
+const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[50vh] w-full">
+    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary" />
+  </div>
+);
 
 const App = () => {
   return (
@@ -48,6 +59,7 @@ const App = () => {
                   <Sonner />
                   <BrowserRouter>
                     <FirstLoginDialog />
+                    <Suspense fallback={<PageLoader />}>
                     <Routes>
                       <Route path="/" element={<Index />} />
                       <Route path="/login" element={<Login />} />
@@ -71,6 +83,7 @@ const App = () => {
                       </Route>
                       <Route path="*" element={<NotFound />} />
                     </Routes>
+                    </Suspense>
                   </BrowserRouter>
                 </TooltipProvider>
               </NotificationProvider>
@@ -83,4 +96,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default App;

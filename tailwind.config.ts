@@ -10,6 +10,11 @@ export default {
 		"./src/**/*.{ts,tsx}",
 	],
 	prefix: "",
+	// Tablettes / mobiles : les effets hover: ne s'appliquent qu'avec une vraie souris.
+	// Évite les états "survol bloqué" et le double-tap sur iPad / Android.
+	future: {
+		hoverOnlyWhenSupported: true,
+	},
 	theme: {
 		container: {
 			center: true,

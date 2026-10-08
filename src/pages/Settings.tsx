@@ -145,13 +145,29 @@ const Settings = () => {
       toast.error(tr("Votre navigateur ne prend pas en charge les notifications.", "متصفحك لا يدعم الإشعارات.", "Your browser does not support notifications."));
       return;
     }
-    const res = await window.Notification.requestPermission();
+    // Anciennes versions de Safari : requestPermission() fonctionne par callback (pas de Promise)
+    let res: NotificationPermission;
+    try {
+      res = await new Promise<NotificationPermission>((resolve) => {
+        const maybe = window.Notification.requestPermission((p) => resolve(p));
+        if (maybe && typeof (maybe as Promise<NotificationPermission>).then === "function") {
+          (maybe as Promise<NotificationPermission>).then(resolve, () => resolve("denied"));
+        }
+      });
+    } catch {
+      res = "denied";
+    }
     setNotifPermission(res);
     if (res === "granted") {
       update({ notifyBrowser: true });
-      new window.Notification(tr("Notifications activées", "تم تفعيل الإشعارات", "Notifications enabled"), {
-        body: tr("Vous serez prévenu même quand l'onglet est en arrière-plan.", "ستتوصل بالإشعارات حتى عندما تكون الصفحة في الخلفية.", "You'll be notified even when the tab is in the background."),
-      });
+      try {
+        // Chrome Android interdit `new Notification()` hors Service Worker (TypeError)
+        new window.Notification(tr("Notifications activées", "تم تفعيل الإشعارات", "Notifications enabled"), {
+          body: tr("Vous serez prévenu même quand l'onglet est en arrière-plan.", "ستتوصل بالإشعارات حتى عندما تكون الصفحة في الخلفية.", "You'll be notified even when the tab is in the background."),
+        });
+      } catch {
+        toast.success(tr("Notifications activées", "تم تفعيل الإشعارات", "Notifications enabled"));
+      }
     } else {
       update({ notifyBrowser: false });
       toast.info(tr("Autorisation refusée par le navigateur.", "رفض المتصفح الإذن.", "Permission denied by the browser."));

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, User, Clock, Target } from "lucide-react";
+import { Trophy, User, Clock, Target, ShieldAlert } from "lucide-react";
 import { useCourses } from "@/contexts/CourseContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -21,7 +21,21 @@ interface QuizSubmission {
   is_completed: boolean;
   student_name?: string;
   attempts?: number;
+  anti_cheat_events?: number | null;
+  anti_cheat_log?: { type: string; at: string; detail?: string }[] | null;
 }
+
+const CHEAT_LABELS: Record<string, [string, string, string]> = {
+  copy: ["copie", "نسخ", "copy"],
+  cut: ["couper", "قص", "cut"],
+  paste: ["collage", "لصق", "paste"],
+  drop: ["glisser-déposer", "سحب وإفلات", "drag & drop"],
+  context_menu: ["clic droit", "نقر أيمن", "right-click"],
+  shortcut: ["raccourci clavier", "اختصار لوحة المفاتيح", "keyboard shortcut"],
+  screenshot_key: ["capture d'écran", "لقطة شاشة", "screenshot"],
+  print: ["impression", "طباعة", "print"],
+  left_quiz: ["sortie du quiz", "مغادرة الاختبار", "left the quiz"],
+};
 
 interface QuizResultsProps {
   examId: string;
@@ -277,7 +291,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                   <Progress value={percentage} className="h-2" />
                   
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
                         <span>
@@ -288,6 +302,30 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                             : `Time: ${submission.time_taken_minutes} minutes`}
                         </span>
                       </div>
+                      {isProfessor && (submission.anti_cheat_events || 0) > 0 && (() => {
+                        const counts: Record<string, number> = {};
+                        (submission.anti_cheat_log || []).forEach(ev => { counts[ev.type] = (counts[ev.type] || 0) + 1; });
+                        const idx = language === "ar" ? 1 : language === "fr" ? 0 : 2;
+                        const details = Object.entries(counts)
+                          .map(([k, n]) => `${(CHEAT_LABELS[k] || [k, k, k])[idx]} ×${n}`)
+                          .join(", ");
+                        return (
+                          <div
+                            className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-0.5 font-semibold text-rose-600 dark:text-rose-400"
+                            title={details}
+                          >
+                            <ShieldAlert className="h-4 w-4" />
+                            <span>
+                              {language === "ar"
+                                ? `${submission.anti_cheat_events} مخالفة`
+                                : language === "fr"
+                                ? `${submission.anti_cheat_events} incident(s)`
+                                : `${submission.anti_cheat_events} incident(s)`}
+                              {details ? ` — ${details}` : ""}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center gap-1">
                         <Target className="h-4 w-4" />
                         <span>

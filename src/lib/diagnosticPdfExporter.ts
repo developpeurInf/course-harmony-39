@@ -141,7 +141,8 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
       filename: cleanFilename,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: {
-        scale: 2,
+        // iPad iOS 12 (1 Go de RAM) : un canvas trop grand donne un PDF blanc ou fait planter l'onglet
+        scale: /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? 1.5 : 2,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",

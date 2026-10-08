@@ -194,6 +194,13 @@ const Exams = () => {
   // Combine date and time to ISO string
   const combineDateTime = (date: string, time: string) => {
     const timeVal = time || "00:00";
+    // Construction par composants (heure locale) : Safari ≤ 13 (iPad iOS 12) lit
+    // "AAAA-MM-JJTHH:mm:ss" comme de l'UTC, ce qui décalait l'heure des examens.
+    const [y, mo, d] = date.split("-").map(Number);
+    const [h, mi] = timeVal.split(":").map(Number);
+    if ([y, mo, d].every((n) => Number.isFinite(n))) {
+      return new Date(y, mo - 1, d, h || 0, mi || 0, 0).toISOString();
+    }
     return new Date(`${date}T${timeVal}:00`).toISOString();
   };
 

@@ -1,5 +1,13 @@
 // Polyfills for iOS 12 / Safari 12 compatibility
 import { ResizeObserver } from '@juggle/resize-observer';
+import { installPointerEventsPolyfill } from './lib/pointer-events-polyfill';
+
+// 0. Pointer Events (absents sur iOS 12) : nécessaires aux menus / fenêtres Radix UI
+try {
+  installPointerEventsPolyfill();
+} catch (e) {
+  /* ne doit jamais bloquer le démarrage */
+}
 
 if (typeof window !== 'undefined') {
   // 1. globalThis
@@ -119,3 +127,54 @@ if (typeof HTMLAnchorElement !== 'undefined' && !('download' in HTMLAnchorElemen
     configurable: true
   });
 }
+
+// 10. Intl.RelativeTimeFormat (Safari < 14 / iOS 12) — utilisé par le tableau de bord
+//     et le suivi des élèves ("il y a 5 minutes"). Sans ce polyfill : écran blanc
+//     "undefined is not a constructor" sur iPad iOS 12.
+if (typeof Intl !== 'undefined' && typeof (Intl as any).RelativeTimeFormat === 'undefined') {
+  type Unit = 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
+  const WORDS: Record<string, Record<Unit, [string, string]>> = {
+    fr: { second: ['seconde', 'secondes'], minute: ['minute', 'minutes'], hour: ['heure', 'heures'], day: ['jour', 'jours'], week: ['semaine', 'semaines'], month: ['mois', 'mois'], year: ['an', 'ans'] },
+    en: { second: ['second', 'seconds'], minute: ['minute', 'minutes'], hour: ['hour', 'hours'], day: ['day', 'days'], week: ['week', 'weeks'], month: ['month', 'months'], year: ['year', 'years'] },
+    ar: { second: ['ثانية', 'ثوانٍ'], minute: ['دقيقة', 'دقائق'], hour: ['ساعة', 'ساعات'], day: ['يوم', 'أيام'], week: ['أسبوع', 'أسابيع'], month: ['شهر', 'أشهر'], year: ['سنة', 'سنوات'] },
+  };
+  const AUTO: Record<string, Partial<Record<Unit, Record<string, string>>>> = {
+    fr: { day: { '-1': 'hier', '0': "aujourd’hui", '1': 'demain' }, minute: { '0': 'cette minute-ci' }, hour: { '0': 'cette heure-ci' } },
+    en: { day: { '-1': 'yesterday', '0': 'today', '1': 'tomorrow' }, minute: { '0': 'this minute' }, hour: { '0': 'this hour' } },
+    ar: { day: { '-1': 'أمس', '0': 'اليوم', '1': 'غدًا' }, minute: { '0': 'هذه الدقيقة' }, hour: { '0': 'الساعة الحالية' } },
+  };
+  class RelativeTimeFormatPolyfill {
+    private lang: string;
+    private numeric: string;
+    constructor(locale?: string | string[], options?: { numeric?: string }) {
+      const l = String((Array.isArray(locale) ? locale[0] : locale) || 'fr').toLowerCase().slice(0, 2);
+      this.lang = WORDS[l] ? l : 'fr';
+      this.numeric = (options && options.numeric) || 'always';
+    }
+    format(value: number, unitIn: string): string {
+      const unit = String(unitIn).replace(/s$/, '') as Unit;
+      const v = Number(value);
+      const n = Math.abs(v);
+      if (this.numeric === 'auto') {
+        const special = AUTO[this.lang][unit];
+        if (special && special[String(v)]) return special[String(v)];
+      }
+      const words = WORDS[this.lang][unit] || WORDS[this.lang].day;
+      const isPast = v < 0 || (v === 0 && 1 / v < 0);
+      if (this.lang === 'ar') {
+        const w = n === 1 ? words[0] : words[1];
+        return isPast ? 'قبل ' + n + ' ' + w : 'خلال ' + n + ' ' + w;
+      }
+      const w = n < 2 && this.lang === 'fr' ? words[0] : n === 1 ? words[0] : words[1];
+      if (this.lang === 'fr') return isPast ? 'il y a ' + n + ' ' + w : 'dans ' + n + ' ' + w;
+      return isPast ? n + ' ' + w + ' ago' : 'in ' + n + ' ' + w;
+    }
+    resolvedOptions() {
+      return { locale: this.lang, numeric: this.numeric, style: 'long', numberingSystem: 'latn' };
+    }
+  }
+  try {
+    (Intl as any).RelativeTimeFormat = RelativeTimeFormatPolyfill;
+  } catch (e) { /* ignore */ }
+}
+

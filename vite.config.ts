@@ -13,8 +13,10 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     legacy({
-      targets: ['defaults', 'not IE 11', 'iOS >= 11', 'Safari >= 11'],
-      modernTargets: ['safari >= 12', 'iOS >= 12'],
+      // legacy : navigateurs sans modules ES (vieux Android / WebView, iOS 10-11)
+      targets: ['defaults', 'not IE 11', 'iOS >= 10', 'Safari >= 10', 'Android >= 5', 'Chrome >= 49', 'Samsung >= 5'],
+      // moderne : iPad iOS 12.5.x (Safari 12.1) et tous les navigateurs récents
+      modernTargets: ['safari >= 12', 'iOS >= 12', 'chrome >= 64', 'edge >= 79', 'firefox >= 67', 'samsung >= 9'],
       modernPolyfills: true,
     }),
     mode === 'development' &&

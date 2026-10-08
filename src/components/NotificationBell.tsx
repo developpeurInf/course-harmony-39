@@ -513,7 +513,7 @@ export const NotificationBell = () => {
 
                         {/* Quick hover actions */}
                         <div
-                          className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                          className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity flex items-center gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Button

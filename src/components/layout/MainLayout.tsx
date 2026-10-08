@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSessionTracking } from "@/hooks/useSessionTracking";
@@ -70,7 +70,7 @@ const MainLayout = () => {
   }
 
   return (
-    <div className="flex h-screen h-[100dvh] bg-background overflow-hidden">
+    <div className="flex app-viewport bg-background overflow-hidden">
       <aside className="hidden lg:flex lg:w-72 h-full max-h-screen overflow-hidden bg-background border-r border-border/70 shadow-xs flex-shrink-0 z-20">
         <Sidebar />
       </aside>
@@ -81,7 +81,15 @@ const MainLayout = () => {
           className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-28 md:pb-12 touch-auto"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-[40vh]">
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary" />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
 
         {/* Floating Quick Scroll to Top / Bottom Buttons (Haut / Bas) */}

@@ -168,6 +168,11 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
 
   const handleDownload = async () => {
     if (!user?.avatar_url) return;
+    // iPad / iPhone : pas d'attribut download → on ouvre l'image (appui long → « Enregistrer l'image »)
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+      window.open(user.avatar_url, "_blank");
+      return;
+    }
     try {
       const response = await fetch(user.avatar_url);
       const blob = await response.blob();
@@ -178,7 +183,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
       toast.success(
         language === "ar"
           ? "تم تنزيل الصورة"

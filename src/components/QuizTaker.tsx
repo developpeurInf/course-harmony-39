@@ -36,7 +36,8 @@ import {
   Loader2,
   Layers,
   MinusCircle,
-  PenLine
+  PenLine,
+  ShieldAlert
 } from "lucide-react";
 import {
   useCourses,
@@ -52,6 +53,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQuizAntiCheat, type CheatEventType } from "@/hooks/useQuizAntiCheat";
 
 interface QuizTakerProps {
   exam: Exam;
@@ -169,6 +171,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   const [attemptsCount, setAttemptsCount] = useState(0);
   const [showReview, setShowReview] = useState(false);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
+  const [autoReason, setAutoReason] = useState<"time" | "cheat" | null>(null);
 
   // Refs pour éviter les closures périmées dans les minuteurs
   const answersRef = useRef(answers);
@@ -182,6 +185,53 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   indexRef.current = index;
 
   const isSequential = settings.sequentialQuestions;
+
+  /* ───────────── Anti-triche ───────────── */
+
+  const antiCheatOn = phase === "running" && settings.antiCheat !== false;
+  const maxFocusLosses = typeof settings.maxFocusLosses === "number" ? settings.maxFocusLosses : 3;
+  const submitRef = useRef<(auto?: boolean, reason?: "time" | "cheat") => void>(() => undefined);
+  const lastBlockToastRef = useRef(0);
+  const blockedMessage = (type: CheatEventType) => {
+    switch (type) {
+      case "copy":
+      case "cut":
+        return tr("La copie est désactivée pendant le quiz.", "النسخ معطل أثناء الاختبار.", "Copying is disabled during the quiz.");
+      case "paste":
+      case "drop":
+        return tr("Le collage est désactivé : écrivez votre réponse vous-même.", "اللصق معطل: اكتب إجابتك بنفسك.", "Pasting is disabled: type your answer yourself.");
+      case "screenshot_key":
+        return tr("Capture d'écran détectée et signalée à l'enseignant.", "تم رصد لقطة شاشة وإبلاغ الأستاذ.", "Screenshot detected and reported to the teacher.");
+      case "print":
+        return tr("L'impression est désactivée pendant le quiz.", "الطباعة معطلة أثناء الاختبار.", "Printing is disabled during the quiz.");
+      default:
+        return tr("Action non autorisée pendant le quiz.", "إجراء غير مسموح به أثناء الاختبار.", "Action not allowed during the quiz.");
+    }
+  };
+  const antiCheat = useQuizAntiCheat({
+    active: antiCheatOn,
+    maxFocusLosses,
+    onBlocked: (type) => {
+      // un seul message toutes les 2 s (évite une avalanche de notifications)
+      const t = Date.now();
+      if (t - lastBlockToastRef.current < 2000) return;
+      lastBlockToastRef.current = t;
+      toast.warning(blockedMessage(type));
+    },
+    onFocusLoss: () => undefined,
+    onLimitReached: () => {
+      toast.error(
+        tr(
+          "Vous avez quitté le quiz trop de fois : il a été envoyé automatiquement.",
+          "غادرت الاختبار عدة مرات: تم إرساله تلقائياً.",
+          "You left the quiz too many times: it was submitted automatically."
+        )
+      );
+      submitRef.current(true, "cheat");
+    },
+  });
+  const antiCheatRef = useRef(antiCheat);
+  antiCheatRef.current = antiCheat;
   const totalPoints = useMemo(() => baseItems.reduce((s, it) => s + (it.question.points || 1), 0), [baseItems]);
 
   /* ───────────── Chargement ───────────── */
@@ -294,6 +344,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     setFinalScore(null);
     setShowReview(false);
     setAutoSubmitted(false);
+    setAutoReason(null);
+    antiCheatRef.current.reset();
     submittingRef.current = false;
 
     const start = Date.now();
@@ -398,13 +450,21 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   const setTextAnswer = (item: QuizItem, text: string) => {
     const qid = item.question.id;
     if (locked[qid]) return;
+    // Anti-triche : un bloc de texte inséré d'un coup = collage (presse-papiers du clavier Android…)
+    if (antiCheatOn) {
+      const prevLen = (answersRef.current[qid]?.text || "").length;
+      if (text.length - prevLen > 40) {
+        antiCheatRef.current.recordSuspiciousInput(`+${text.length - prevLen} caractères`);
+        return;
+      }
+    }
     setAnswers(prev => ({ ...prev, [qid]: { selected: [], text } }));
   };
 
   /* ───────────── Soumission ───────────── */
 
   const handleSubmit = useCallback(
-    async (auto = false) => {
+    async (auto = false, reason: "time" | "cheat" = "time") => {
       if (submittingRef.current || phaseRef.current !== "running") return;
       if (!user) {
         toast.error(tr("Vous devez être connecté.", "يجب تسجيل الدخول.", "You must be logged in."));
@@ -451,8 +511,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             score: earned,
             total_points: total,
             time_taken_minutes: minutes,
-            is_completed: true
-          },
+            is_completed: true,
+            ...(() => {
+              const events = antiCheatRef.current.getEvents();
+              return events.length > 0 ? { anti_cheat_events: events.length, anti_cheat_log: events } : {};
+            })()
+          } as any,
           answerRecords as any
         );
 
@@ -462,6 +526,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           setPreviousSubmission({ score: earned, total_points: total, submitted_at: new Date().toISOString() });
           setAttemptsCount(c => c + 1);
           setAutoSubmitted(auto);
+          setAutoReason(auto ? reason : null);
           setDeadline(null);
           setQuestionDeadline(null);
           setPhase("result");
@@ -479,6 +544,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     },
     [user, exam.id, submitQuiz, tr]
   );
+  submitRef.current = (auto = false, reason: "time" | "cheat" = "time") => {
+    void handleSubmit(auto, reason);
+  };
 
   // Fin du temps global → envoi automatique
   useEffect(() => {
@@ -838,7 +906,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               {tr("Quiz terminé !", "انتهى الاختبار!", "Quiz complete!")}
             </h2>
             <p className="relative mt-1 text-sm text-primary-foreground/75">
-              {autoSubmitted
+              {autoSubmitted && autoReason === "cheat"
+                ? tr("Envoyé automatiquement : vous avez quitté le quiz trop de fois.", "أُرسل تلقائياً: غادرت الاختبار عدة مرات.", "Submitted automatically: you left the quiz too many times.")
+                : autoSubmitted
                 ? tr("Envoyé automatiquement à la fin du temps.", "أُرسل تلقائياً عند انتهاء الوقت.", "Submitted automatically when time ran out.")
                 : tr("Vos réponses ont bien été enregistrées.", "تم حفظ إجاباتك بنجاح.", "Your answers have been saved.")}
             </p>
@@ -1036,8 +1106,76 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     return "empty";
   };
 
+  const watermarkText = `${user?.name || ""} · ${user?.email || ""} · ${new Date(startTimeRef.current || Date.now()).toLocaleString(isRtl ? "ar-MA" : "fr-FR")}`;
+
   return (
-    <div className="max-w-5xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
+    <div
+      className={`max-w-5xl mx-auto ${antiCheatOn ? "quiz-protected" : ""}`}
+      dir={isRtl ? "rtl" : "ltr"}
+      onCopy={antiCheatOn ? e => e.preventDefault() : undefined}
+      onPaste={antiCheatOn ? e => e.preventDefault() : undefined}
+    >
+      {antiCheatOn && (
+        <>
+          {/* Questions masquées dès que l'élève quitte l'onglet / l'application */}
+          {antiCheat.isAway && (
+            <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-6 text-center">
+              <div className="max-w-sm space-y-3">
+                <ShieldAlert className="h-12 w-12 mx-auto text-rose-500" />
+                <p className="text-lg font-bold">{tr("Quiz masqué", "الاختبار مخفي", "Quiz hidden")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {tr(
+                    "Revenez sur cette page pour continuer. Chaque sortie est enregistrée.",
+                    "عد إلى هذه الصفحة للمتابعة. كل مغادرة يتم تسجيلها.",
+                    "Come back to this page to continue. Every exit is recorded."
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Avertissement après une sortie */}
+          <AlertDialog open={antiCheat.warningOpen} onOpenChange={o => { if (!o) antiCheat.closeWarning(); }}>
+            <AlertDialogContent className="rounded-3xl max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  {tr("Vous avez quitté le quiz", "لقد غادرت الاختبار", "You left the quiz")}
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      {tr(
+                        "Changer d'onglet ou d'application pendant le quiz est interdit et signalé à votre enseignant.",
+                        "تغيير الصفحة أو التطبيق أثناء الاختبار ممنوع ويتم إبلاغ أستاذك.",
+                        "Switching tabs or apps during the quiz is forbidden and reported to your teacher."
+                      )}
+                    </p>
+                    <p className="font-semibold text-foreground">
+                      {maxFocusLosses > 0
+                        ? tr(
+                            `Sortie ${antiCheat.focusLosses} sur ${maxFocusLosses} : à la ${maxFocusLosses}e, le quiz sera envoyé automatiquement.`,
+                            `المغادرة ${antiCheat.focusLosses} من ${maxFocusLosses}: عند المرة ${maxFocusLosses} سيُرسل الاختبار تلقائياً.`,
+                            `Exit ${antiCheat.focusLosses} of ${maxFocusLosses}: at ${maxFocusLosses}, the quiz will be submitted automatically.`
+                          )
+                        : tr(
+                            `Sorties enregistrées : ${antiCheat.focusLosses}`,
+                            `عدد المغادرات المسجلة: ${antiCheat.focusLosses}`,
+                            `Recorded exits: ${antiCheat.focusLosses}`
+                          )}
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction className="rounded-xl" onClick={() => antiCheat.closeWarning()}>
+                  {tr("Reprendre le quiz", "متابعة الاختبار", "Resume the quiz")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
       {/* Barre supérieure */}
       <div className="sticky top-0 z-20 -mx-3 sm:-mx-6 -mt-3 sm:-mt-6 mb-5 px-3 sm:px-6 pt-3 sm:pt-4 pb-3 bg-background/85 backdrop-blur-md border-b">
         <div className="flex items-center justify-between gap-3">
@@ -1077,7 +1215,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_250px]">
         {/* Carte question */}
-        <div key={qid} className="rounded-3xl border bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div key={qid} className="relative rounded-3xl border bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {/* Filigrane nominatif : une capture d'écran partagée reste identifiable */}
+          {antiCheatOn && (
+            <div className="quiz-watermark" aria-hidden="true">
+              {Array.from({ length: 18 }).map((_, i) => (
+                <span key={i}>{watermarkText}</span>
+              ))}
+            </div>
+          )}
           {/* Minuteur de question (mode séquentiel) */}
           {qPct !== null && (
             <div className="h-1.5 bg-muted">

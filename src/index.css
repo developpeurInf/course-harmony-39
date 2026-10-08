@@ -152,11 +152,12 @@
   .card-hover::before {
     content: "";
     position: absolute;
-    inset-inline: 0;
+    left: 0; /* repli Safari < 14.1 (inset-inline) */
+    right: 0;
     top: 0;
     height: 3px;
-    border-start-start-radius: inherit;
-    border-start-end-radius: inherit;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
     background: linear-gradient(90deg, hsl(var(--primary)), #8b5cf6, #ec4899);
     opacity: 0;
     transition: opacity 0.3s ease;
@@ -291,8 +292,8 @@
 .quiz-question-html p:last-child { margin-bottom: 0; }
 .quiz-question-html strong, .quiz-question-html b { font-weight: 800; }
 .quiz-question-html u { text-underline-offset: 3px; }
-.quiz-question-html ul { list-style: disc; padding-inline-start: 1.5em; margin: 0.5em 0; }
-.quiz-question-html ol { list-style: decimal; padding-inline-start: 1.5em; margin: 0.5em 0; }
+.quiz-question-html ul { list-style: disc; -webkit-padding-start: 1.5em; padding-inline-start: 1.5em; margin: 0.5em 0; }
+.quiz-question-html ol { list-style: decimal; -webkit-padding-start: 1.5em; padding-inline-start: 1.5em; margin: 0.5em 0; }
 .quiz-question-html a { color: hsl(var(--primary)); text-decoration: underline; }
 .quiz-question-html img {
   display: block;
@@ -339,10 +340,17 @@
   border-bottom: 1px solid hsl(var(--border));
   backdrop-filter: blur(6px);
 }
-.app-table thead th:first-child { border-start-start-radius: 1rem; }
-.app-table thead th:last-child { border-start-end-radius: 1rem; }
+.app-table thead th:first-child { border-top-left-radius: 1rem; border-start-start-radius: 1rem; }
+.app-table thead th:last-child { border-top-right-radius: 1rem; border-start-end-radius: 1rem; }
+[dir="rtl"] .app-table thead th:first-child { border-top-left-radius: 0; border-top-right-radius: 1rem; }
+[dir="rtl"] .app-table thead th:last-child { border-top-right-radius: 0; border-top-left-radius: 1rem; }
 /* Alignement logique (gauche en FR/EN, droite en AR) ; une classe text-* explicite reste prioritaire */
 :where(.app-table th, .app-table td) { text-align: start; }
+/* Repli iPad iOS 12 (Safari < 14 ignore :where) : sans lui les en-têtes sont centrés */
+.app-table th:not([class*="text-left"]):not([class*="text-right"]):not([class*="text-center"]):not([class*="text-start"]):not([class*="text-end"]) {
+  text-align: left;
+  text-align: start;
+}
 /* L'arabe ne supporte pas les majuscules ni l'espacement des lettres */
 [dir="rtl"] .app-table thead th {
   text-transform: none;
@@ -360,6 +368,9 @@
 :where(.app-table tbody tr:nth-child(even)) { background-color: hsl(var(--muted) / 0.35); }
 :where(.app-table tbody tr) { transition: background-color 0.2s ease; }
 :where(.app-table tbody tr:hover) { background-color: hsl(var(--primary) / 0.07); }
+/* Repli iOS 12 du zèbre (lignes sans couleur propre uniquement) */
+.app-table tbody tr:nth-child(even):not([class*="bg-"]) { background-color: hsl(var(--muted) / 0.35); }
+.app-table tbody tr:hover:not([class*="bg-"]) { background-color: hsl(var(--primary) / 0.07); }
 .app-table tbody tr:hover > td:first-child { box-shadow: inset 3px 0 0 hsl(var(--primary)); }
 [dir="rtl"] .app-table tbody tr:hover > td:first-child { box-shadow: inset -3px 0 0 hsl(var(--primary)); }
 /* Apparition des lignes */
@@ -423,3 +434,71 @@ html.pref-reduce-motion .card-hover:hover,
 html.pref-reduce-motion .stat-card-in:hover { transform: none !important; }
 html.pref-density-compact .app-table thead th { padding: 0.5rem 0.75rem; }
 html.pref-density-compact .app-table tbody td { padding: 0.45rem 0.75rem; }
+
+/* ═════════ Compatibilité tablettes / mobiles (iPad iOS 12, Android) ═════════ */
+
+/* Hauteur réelle de l'écran : 100vh inclut la barre d'adresse sur iOS/Android,
+   ce qui cachait le bas de l'application. --app-vh est mis à jour par index.html. */
+.app-viewport {
+  height: 100vh;
+  height: var(--app-vh, 100vh);
+}
+@supports (height: 100dvh) {
+  .app-viewport { height: 100dvh; }
+}
+
+/* Les boutons/cartes cliquables n'affichent plus le rectangle gris au toucher */
+a, button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], label, summary {
+  -webkit-tap-highlight-color: transparent;
+}
+/* Supprime le délai de 300 ms au toucher sur les anciens navigateurs */
+html { touch-action: manipulation; }
+
+/* ═════════ Quiz protégé (anti-triche) ═════════ */
+.quiz-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none; /* iPad / iPhone : pas de menu Copier / Enregistrer l'image */
+}
+/* La zone de réponse doit rester utilisable (sinon iOS empêche la saisie) */
+.quiz-protected textarea,
+.quiz-protected input {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+.quiz-protected img {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.quiz-watermark {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+  display: -webkit-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: space-around;
+  justify-content: space-around;
+  opacity: 0.09;
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.quiz-watermark span {
+  display: block;
+  margin: 28px 18px;
+  -webkit-transform: rotate(-24deg);
+  transform: rotate(-24deg);
+}
+@media print {
+  .quiz-protected { visibility: hidden !important; }
+}

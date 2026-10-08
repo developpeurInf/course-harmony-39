@@ -15,7 +15,9 @@
     <meta property="og:description" content="Professional Learning Management System" />
     <meta property="og:type" content="website" />
 
-    <!-- Icône (PWA iOS/Android base) -->
+    <!-- Tablettes / mobiles (iPad iOS 12, Android) -->
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" href="/assets/header_logo.png" />
     <!-- Early compatibility polyfills & error inspector -->
     <script>
       // 1. Error Inspector (displays errors directly on screen if any script fails)
@@ -40,6 +42,29 @@
         var reason = e.reason ? (e.reason.stack || e.reason.message || e.reason) : e;
         box.innerHTML += '<b>[Promise Rejection]</b> ' + reason + '<br/><br/>';
       });
+
+      // 1b. Compatibilité mise en page (avant le premier affichage)
+      (function () {
+        var html = document.documentElement;
+        // Flexbox "gap" (Safari >= 14.1 seulement) : sinon on active le repli CSS .no-flex-gap
+        try {
+          var flex = document.createElement('div');
+          flex.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+          flex.appendChild(document.createElement('div'));
+          flex.appendChild(document.createElement('div'));
+          html.appendChild(flex);
+          var supported = flex.scrollHeight === 1;
+          html.removeChild(flex);
+          if (!supported) html.className += ' no-flex-gap';
+        } catch (eGap) {}
+        // Hauteur visible réelle (barre d'adresse iOS / Android) -> variable CSS --app-vh
+        function setAppHeight() {
+          try { html.style.setProperty('--app-vh', window.innerHeight + 'px'); } catch (eVh) {}
+        }
+        setAppHeight();
+        window.addEventListener('resize', setAppHeight);
+        window.addEventListener('orientationchange', function () { setTimeout(setAppHeight, 250); });
+      })();
 
       // 2. globalThis
       if (typeof globalThis === 'undefined') {

@@ -64,6 +64,10 @@ export interface QuizSettings {
   timeLimit: number | null;
   showResultsImmediately: boolean;
   allowReview: boolean;
+  /** Protection anti-triche : copier/coller bloqués, sorties de l'onglet détectées, filigrane */
+  antiCheat: boolean;
+  /** Nombre de sorties de l'onglet tolérées avant envoi automatique (0 = jamais) */
+  maxFocusLosses: number;
 }
 
 export const DEFAULT_QUIZ_SETTINGS: QuizSettings = {
@@ -75,6 +79,8 @@ export const DEFAULT_QUIZ_SETTINGS: QuizSettings = {
   timeLimit: null,
   showResultsImmediately: true,
   allowReview: true,
+  antiCheat: true,
+  maxFocusLosses: 3,
 };
 
 export const serializeExamDescription = (
@@ -180,6 +186,9 @@ export interface QuizSubmission {
   total_points?: number;
   is_completed: boolean;
   time_taken_minutes?: number;
+  /** Nombre d'incidents anti-triche (copier/coller, sorties de l'onglet…) */
+  anti_cheat_events?: number;
+  anti_cheat_log?: { type: string; at: string; detail?: string }[] | null;
 }
 
 export interface QuizAnswer {
@@ -1478,11 +1487,21 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const submitQuiz = async (submission: Omit<QuizSubmission, "id" | "submitted_at">, answers: Omit<QuizAnswer, "id" | "submission_id" | "created_at">[]): Promise<boolean> => {
     try {
       // Insert submission
-      const { data: submissionData, error: submissionError } = await supabase
+      let { data: submissionData, error: submissionError } = await supabase
         .from('quiz_submissions')
-        .insert([submission])
+        .insert([submission as any])
         .select()
         .single();
+
+      // Colonnes anti-triche absentes (migration pas encore appliquée) : on réessaie sans
+      if (submissionError && /anti_cheat/i.test(`${submissionError.message || ""} ${(submissionError as any).details || ""}`)) {
+        const { anti_cheat_events, anti_cheat_log, ...plain } = submission as any;
+        ({ data: submissionData, error: submissionError } = await supabase
+          .from('quiz_submissions')
+          .insert([plain])
+          .select()
+          .single());
+      }
 
       if (submissionError) {
         console.error("Supabase insert quiz_submissions error:", submissionError);

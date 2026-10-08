@@ -1,3 +1,4 @@
+import { downloadBlob } from "@/lib/download";
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -472,14 +473,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     });
     const csv = "﻿" + [header, ...lines].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `suivi-${(room?.name || "classe").replace(/[^\w-]+/g, "_")}-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    void downloadBlob(blob, `suivi-${(room?.name || "classe").replace(/[^\w-]+/g, "_")}-${new Date().toISOString().slice(0, 10)}.csv`);
     toast.success(tr("Export réussi (ouvrable dans Excel)", "تم التصدير بنجاح", "Exported successfully"));
   };
 
