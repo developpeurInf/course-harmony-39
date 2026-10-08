@@ -48,10 +48,14 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
   const parsed = kind === "youtube" || kind === "vimeo" ? parseVideoUrl(material.file_path) : null;
   const [playing, setPlaying] = useState(false);
   const src = getMaterialUrl(material);
+  // Hauteur / largeur réelle de la vidéo (16:9 par défaut, 9:16 pour les YouTube Shorts)
+  const [ratio, setRatio] = useState(() => (/youtube\.com\/shorts\//i.test(material.file_path) ? 16 / 9 : 9 / 16));
+  // Le lecteur épouse la vidéo : jamais plus haut que 70 % de l'écran, centré
+  const maxWidth = `calc(70vh / ${ratio.toFixed(4)})`;
 
   return (
-    <div className="group overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div className="relative w-full bg-black" style={{ paddingTop: "56.25%" }}>
+    <div className="group mx-auto w-full overflow-hidden rounded-2xl border bg-card shadow-sm" style={{ maxWidth }}>
+      <div className="relative w-full bg-black" style={{ paddingTop: `${(ratio * 100).toFixed(3)}%` }}>
         {parsed ? (
           playing ? (
             <iframe
@@ -90,6 +94,10 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
             controls
             playsInline
             preload="metadata"
+            onLoadedMetadata={e => {
+              const v = e.currentTarget;
+              if (v.videoWidth > 0 && v.videoHeight > 0) setRatio(v.videoHeight / v.videoWidth);
+            }}
           >
             {tr("المتصفح لا يدعم تشغيل الفيديو", "Votre navigateur ne peut pas lire cette vidéo", "Your browser cannot play this video")}
           </video>
@@ -292,7 +300,7 @@ export const CourseMediaGallery = ({
       {show("video") && videos.length > 0 && (
         <section>
           <SectionTitle icon={<Film className="h-4 w-4 text-violet-600" />} color="bg-violet-500/10" label={tr("فيديوهات", "Vidéos", "Videos")} count={videos.length} />
-          <div className={`grid gap-4 ${videos.length > 1 ? "md:grid-cols-2" : ""}`}>
+          <div className={`grid items-start gap-4 ${videos.length > 1 ? "md:grid-cols-2" : ""}`}>
             {videos.map(v => <VideoPlayer key={v.id} material={v} />)}
           </div>
         </section>
