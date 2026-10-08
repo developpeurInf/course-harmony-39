@@ -236,7 +236,7 @@ const Sidebar = () => {
                         <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
                           <Activity size={14} />
                         </div>
-                        <span className="truncate">{t("Activités & Présence", "الأنشطة والحضور", "Activities")}</span>
+                        <span className="truncate">{t("Suivi & Classement", "التتبع والترتيب", "Tracking & Ranking")}</span>
                       </NavLink>
                       
                       {/* Cours */}

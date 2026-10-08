@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import { usePreferences, playNotificationSound } from "@/contexts/PreferencesContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 
@@ -119,6 +120,10 @@ const setLastClearTimestamp = (userId: string, ts: number) => {
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { prefs } = usePreferences();
+  // Référence à jour pour le gestionnaire temps réel (évite une closure périmée)
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const reminderCheckedRef = useRef(false);
@@ -372,10 +377,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 { ...newNotif, type: (newNotif.type as NotificationType) || 'info' },
                 ...prev
               ]);
-              toast.info(newNotif.title, {
-                description: newNotif.message,
-                duration: 5000,
-              });
+              // Préférences de notification (Paramètres → Notifications)
+              const p = prefsRef.current;
+              if (p.notifyPopup) {
+                toast.info(newNotif.title, {
+                  description: newNotif.message,
+                  duration: 5000,
+                });
+              }
+              if (p.notifySound) playNotificationSound();
+              if (
+                p.notifyBrowser &&
+                typeof window !== "undefined" &&
+                "Notification" in window &&
+                window.Notification.permission === "granted" &&
+                document.visibilityState !== "visible"
+              ) {
+                try {
+                  new window.Notification(newNotif.title, { body: newNotif.message || "", tag: newNotif.id, icon: "/favicon.ico" });
+                } catch { /* non supporté */ }
+              }
             }
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as Notification;
@@ -823,4 +844,4 @@ export function useNotifications() {
     throw new Error("useNotifications must be used within a NotificationProvider");
   }
   return context;
-}
+}

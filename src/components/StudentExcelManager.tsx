@@ -82,7 +82,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     if (!file) return;
 
     if (!file.name.match(/\.(xlsx|xls)$/)) {
-      toast.error(language === "ar" ? "يرجى اختيار ملف بصيغة Excel (.xlsx أو .xls)" : "Please select an Excel file (.xlsx or .xls)");
+      toast.error(language === "ar" ? "يرجى اختيار ملف بصيغة Excel (.xlsx أو .xls)" : language === "fr" ? "Veuillez sélectionner un fichier Excel (.xlsx ou .xls)" : "Please select an Excel file (.xlsx or .xls)");
       return;
     }
 
@@ -142,7 +142,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       await downloadExcelFile(wb, "Modele_Eleves.xlsx");
     } catch (e: any) {
       console.error('Template download error:', e);
-      toast.error(language === "ar" ? "فشل تحميل نموذج Excel" : "Failed to download template");
+      toast.error(language === "ar" ? "فشل تحميل نموذج Excel" : language === "fr" ? "Échec du téléchargement du modèle" : "Failed to download template");
     }
   };
 
@@ -155,7 +155,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const data = await readFileAsArrayBuffer(selectedFile);
       const workbook = XLSX.read(data, { type: 'array' });
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-        throw new Error(language === "ar" ? "الملف فارغ أو غير صالح" : "Empty or invalid Excel file");
+        throw new Error(language === "ar" ? "الملف فارغ أو غير صالح" : language === "fr" ? "Fichier Excel vide ou invalide" : "Empty or invalid Excel file");
       }
 
       const sheetName = workbook.SheetNames[0];
@@ -163,7 +163,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
 
       if (!jsonData || jsonData.length === 0) {
-        toast.error(language === "ar" ? "ملف Excel فارغ أو لا يحتوي على صفوف بيانات" : "Excel file is empty or has no data rows");
+        toast.error(language === "ar" ? "ملف Excel فارغ أو لا يحتوي على صفوف بيانات" : language === "fr" ? "Le fichier Excel est vide ou ne contient aucune ligne de données" : "Excel file is empty or has no data rows");
         return;
       }
 
@@ -275,7 +275,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
         if (functionError) {
           console.error('Edge function error:', functionError);
-          toast.error((language === "ar" ? "فشل إنشاء حسابات التلاميذ: " : "Failed to create students: ") + functionError.message);
+          toast.error((language === "ar" ? "فشل إنشاء حسابات التلاميذ: " : language === "fr" ? "Échec de la création des élèves : " : "Failed to create students: ") + functionError.message);
           return;
         }
 
@@ -304,7 +304,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         }
       } catch (error: any) {
         console.error('Error calling create-student function:', error);
-        toast.error((language === "ar" ? "خطأ في إنشاء التلاميذ: " : "Failed to import students: ") + (error?.message || ''));
+        toast.error((language === "ar" ? "خطأ في إنشاء التلاميذ: " : language === "fr" ? "Échec de l'importation des élèves : " : "Failed to import students: ") + (error?.message || ''));
         return;
       }
 
@@ -571,10 +571,10 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                 </div>
 
                 <div className="text-sm text-muted-foreground space-y-2">
-                  <p className="font-medium text-foreground">{language === "ar" ? "الأعمدة المدعومة (اختر لغة واحدة):" : "Supported column headers:"}</p>
+                  <p className="font-medium text-foreground">{language === "ar" ? "الأعمدة المدعومة (اختر لغة واحدة):" : language === "fr" ? "En-têtes de colonnes acceptés :" : "Supported column headers:"}</p>
                   <div className="space-y-2 text-xs bg-muted/50 p-3 rounded-md border">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground">{language === "ar" ? "بالعربية:" : "Arabic:"}</span>
+                      <span className="font-semibold text-foreground">{language === "ar" ? "بالعربية:" : language === "fr" ? "Arabe :" : "Arabic:"}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono bg-background px-2 py-0.5 rounded border">الاسم</span>
                         <span>+</span>
@@ -582,7 +582,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground">{language === "ar" ? "بالفرنسية:" : "French:"}</span>
+                      <span className="font-semibold text-foreground">{language === "ar" ? "بالفرنسية:" : language === "fr" ? "Français :" : "French:"}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono bg-background px-2 py-0.5 rounded border">Prénom</span>
                         <span>+</span>
@@ -590,7 +590,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground">{language === "ar" ? "بالإنجليزية:" : "English:"}</span>
+                      <span className="font-semibold text-foreground">{language === "ar" ? "بالإنجليزية:" : language === "fr" ? "Anglais :" : "English:"}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono bg-background px-2 py-0.5 rounded border">First name</span>
                         <span>+</span>
@@ -598,7 +598,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t pt-2 mt-1">
-                      <span className="font-semibold text-foreground text-primary">{language === "ar" ? "رمز مسار (مُعرِّف):" : "Identifier:"}</span>
+                      <span className="font-semibold text-foreground text-primary">{language === "ar" ? "رمز مسار (مُعرِّف):" : language === "fr" ? "Identifiant :" : "Identifier:"}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/30">Code Massar</span>
                       </div>
@@ -617,7 +617,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                   onClick={handleImportStudents}
                   disabled={!selectedFile || importing}
                 >
-                  {importing ? (language === "ar" ? "جاري الاستيراد..." : "Importing...") : (language === "ar" ? "استيراد التلاميذ" : "Import Students")}
+                  {importing ? (language === "ar" ? "جاري الاستيراد..." : language === "fr" ? "Importation..." : "Importing...") : (language === "ar" ? "استيراد التلاميذ" : language === "fr" ? "Importer les élèves" : "Import Students")}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -13,6 +13,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import QuizSettings from "@/components/QuizSettings";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/RichTextEditor";
@@ -26,6 +27,7 @@ interface QuizBuilderProps {
 
 const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClose }) => {
   const { language } = useLanguage();
+  const { prefs } = usePreferences();
   const { refreshData } = useCourses();
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -64,6 +66,93 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(DEFAULT_QUIZ_SETTINGS);
 
+  const emptyMcqOptions = () => [
+    { option_text: "", is_correct: false, option_order: 1 },
+    { option_text: "", is_correct: false, option_order: 2 },
+    { option_text: "", is_correct: false, option_order: 3 },
+    { option_text: "", is_correct: false, option_order: 4 }
+  ];
+  const emptyTfOptions = () => [
+    { option_text: "True", is_correct: false, option_order: 1 },
+    { option_text: "False", is_correct: false, option_order: 2 }
+  ];
+
+  // Changer de type réinitialise des options cohérentes (avant : options QCM vides
+  // conservées pour un Vrai/Faux → question V/F sans bonne réponse enregistrée)
+  const handleTypeChange = (val: 'multiple_choice' | 'true_false' | 'short_answer') => {
+    setCurrentQuestion(prev => ({ ...prev, question_type: val }));
+    if (val === 'true_false') setCurrentOptions(emptyTfOptions());
+    else if (val === 'multiple_choice') setCurrentOptions(emptyMcqOptions());
+    else setCurrentOptions([]);
+  };
+
+  /** Vérifie la question en cours. Retourne false (avec message) si elle est incomplète. */
+  const validateCurrentQuestion = (): boolean => {
+    const plain = currentQuestion.question.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    const hasImage = /<img\b/i.test(currentQuestion.question);
+    if (!plain && !hasImage) {
+      toast.error(
+        language === "ar" ? "يرجى كتابة نص السؤال"
+        : language === "fr" ? "Veuillez saisir le texte de la question"
+        : "Please enter a question"
+      );
+      return false;
+    }
+    if (!currentQuestion.points || currentQuestion.points < 1) {
+      toast.error(language === "fr" ? "Le barème doit être d'au moins 1 point" : language === "ar" ? "يجب أن تكون النقطة 1 على الأقل" : "Points must be at least 1");
+      return false;
+    }
+    if (currentQuestion.question_type === 'multiple_choice') {
+      const validOptions = currentOptions.filter(opt => opt.option_text.trim());
+      if (validOptions.length < 2) {
+        toast.error(
+          language === "ar" ? "يرجى إضافة خيارين على الأقل"
+          : language === "fr" ? "Veuillez ajouter au moins 2 options"
+          : "Please add at least 2 options"
+        );
+        return false;
+      }
+      if (!validOptions.some(opt => opt.is_correct)) {
+        toast.error(
+          language === "ar" ? "يرجى تحديد إجابة صحيحة واحدة على الأقل"
+          : language === "fr" ? "Veuillez cocher au moins une réponse correcte"
+          : "Please mark at least one correct answer"
+        );
+        return false;
+      }
+      if (currentOptions.some(opt => opt.is_correct && !opt.option_text.trim())) {
+        toast.error(
+          language === "ar" ? "خيار محدد كصحيح لكنه فارغ"
+          : language === "fr" ? "Une option cochée comme correcte est vide"
+          : "An option marked as correct is empty"
+        );
+        return false;
+      }
+    }
+    if (currentQuestion.question_type === 'true_false' && !currentOptions.some(opt => opt.is_correct)) {
+      toast.error(
+        language === "ar" ? "يرجى اختيار الإجابة الصحيحة (صحيح أو خطأ)"
+        : language === "fr" ? "Veuillez choisir la bonne réponse (Vrai ou Faux)"
+        : "Please choose the correct answer (True or False)"
+      );
+      return false;
+    }
+    return true;
+  };
+
+  /** Options à enregistrer pour la question en cours */
+  const buildOptionsPayload = (questionId: string) => {
+    if (currentQuestion.question_type === 'short_answer') return [];
+    return currentOptions
+      .filter(opt => opt.option_text.trim())
+      .map((opt, idx) => ({
+        question_id: questionId,
+        option_text: opt.option_text.trim(),
+        is_correct: opt.is_correct,
+        option_order: idx + 1
+      }));
+  };
+
   useEffect(() => {
     if (examId) {
       loadQuestions();
@@ -76,7 +165,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
     if (data) {
       const parsed = parseExamAvailability(data) as any;
       setExamData(parsed);
-      const loadedSettings = parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS;
+      // Quiz jamais configuré : on part des paramètres par défaut de l'enseignant
+      const hasSaved = /<!--QUIZ_SETTINGS:/.test(data.description || "");
+      const loadedSettings = hasSaved ? (parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS) : { ...DEFAULT_QUIZ_SETTINGS, ...prefs.quizDefaults };
       setQuizSettings(loadedSettings);
       setIsSequentialMode(loadedSettings.sequentialQuestions || parsed.quiz_mode === 'sequential_timed');
     }
@@ -140,52 +231,19 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       timeMins: 0,
       timeSecs: 0,
     });
-    setCurrentOptions([
-      { option_text: "", is_correct: false, option_order: 1 },
-      { option_text: "", is_correct: false, option_order: 2 },
-      { option_text: "", is_correct: false, option_order: 3 },
-      { option_text: "", is_correct: false, option_order: 4 }
-    ]);
+    setCurrentOptions(emptyMcqOptions());
     setEditingQuestionId(null);
   };
 
-  const handleAddQuestion = async () => {
-    if (!currentQuestion.question.trim()) {
-      toast.error(
-        language === "ar" ? "يرجى كتابة نص السؤال"
-        : language === "fr" ? "Veuillez saisir le texte de la question"
-        : "Please enter a question"
-      );
-      return;
-    }
-
-    if (currentQuestion.question_type === 'multiple_choice') {
-      const validOptions = currentOptions.filter(opt => opt.option_text.trim());
-      const correctOptions = validOptions.filter(opt => opt.is_correct);
-      
-      if (validOptions.length < 2) {
-        toast.error(
-          language === "ar" ? "يرجى إضافة خيارين على الأقل"
-          : language === "fr" ? "Veuillez ajouter au moins 2 options"
-          : "Please add at least 2 options"
-        );
-        return;
-      }
-      
-      if (correctOptions.length === 0) {
-        toast.error(
-          language === "ar" ? "يرجى تحديد إجابة صحيحة واحدة على الأقل"
-          : language === "fr" ? "Veuillez cocher au moins une réponse correcte"
-          : "Please mark at least one correct answer"
-        );
-        return;
-      }
-    }
+  const handleAddQuestion = async (): Promise<boolean> => {
+    if (!validateCurrentQuestion()) return false;
 
     setSaving(true);
     try {
       const timeLimitSeconds = currentQuestion.timeMins * 60 + currentQuestion.timeSecs;
       const serializedQuestion = serializeQuestionText(currentQuestion.question, timeLimitSeconds > 0 ? timeLimitSeconds : null);
+      // Ordre = max + 1 (après une suppression, questions.length + 1 pouvait créer des doublons)
+      const nextOrder = questions.reduce((m, q) => Math.max(m, q.question_order || 0), 0) + 1;
 
       const { data: newQuestion, error: qError } = await supabase
         .from('quiz_questions')
@@ -194,46 +252,17 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
           question: serializedQuestion,
           question_type: currentQuestion.question_type,
           points: currentQuestion.points,
-          question_order: questions.length + 1
+          question_order: nextOrder
         }])
         .select()
         .single();
 
       if (qError || !newQuestion) throw qError;
 
-      // Add options
-      if (currentQuestion.question_type === 'multiple_choice') {
-        const validOptions = currentOptions
-          .filter(opt => opt.option_text.trim())
-          .map((opt, idx) => ({
-            question_id: newQuestion.id,
-            option_text: opt.option_text.trim(),
-            is_correct: opt.is_correct,
-            option_order: idx + 1
-          }));
-
-        if (validOptions.length > 0) {
-          const { error: optError } = await supabase
-            .from('quiz_options')
-            .insert(validOptions);
-          if (optError) throw optError;
-        }
-      } else if (currentQuestion.question_type === 'true_false') {
-        const tfOptions = currentOptions
-          .filter(opt => opt.option_text)
-          .map((opt, idx) => ({
-            question_id: newQuestion.id,
-            option_text: opt.option_text,
-            is_correct: opt.is_correct,
-            option_order: idx + 1
-          }));
-
-        if (tfOptions.length > 0) {
-          const { error: optError } = await supabase
-            .from('quiz_options')
-            .insert(tfOptions);
-          if (optError) throw optError;
-        }
+      const optionsPayload = buildOptionsPayload(newQuestion.id);
+      if (optionsPayload.length > 0) {
+        const { error: optError } = await supabase.from('quiz_options').insert(optionsPayload);
+        if (optError) throw optError;
       }
 
       await loadQuestions();
@@ -244,6 +273,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         : language === "fr" ? "Question ajoutée avec succès"
         : "Question added successfully"
       );
+      return true;
     } catch (error) {
       console.error('Error adding question:', error);
       toast.error(
@@ -251,13 +281,15 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         : language === "fr" ? "Échec de l'enregistrement de la question"
         : "Failed to add question"
       );
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleUpdateQuestion = async () => {
-    if (!editingQuestionId || !currentQuestion.question.trim()) return;
+  const handleUpdateQuestion = async (): Promise<boolean> => {
+    if (!editingQuestionId) return false;
+    if (!validateCurrentQuestion()) return false;
 
     setSaving(true);
     try {
@@ -275,22 +307,15 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
       if (qError) throw qError;
 
-      // Update options: delete old, insert new
-      if (currentQuestion.question_type === 'multiple_choice' || currentQuestion.question_type === 'true_false') {
-        await supabase.from('quiz_options').delete().eq('question_id', editingQuestionId);
+      // Options : on supprime toujours les anciennes (y compris si la question devient
+      // « réponse directe »), puis on réinsère les nouvelles
+      const { error: delError } = await supabase.from('quiz_options').delete().eq('question_id', editingQuestionId);
+      if (delError) throw delError;
 
-        const optionsToInsert = currentOptions
-          .filter(opt => opt.option_text.trim())
-          .map((opt, idx) => ({
-            question_id: editingQuestionId,
-            option_text: opt.option_text.trim(),
-            is_correct: opt.is_correct,
-            option_order: idx + 1
-          }));
-
-        if (optionsToInsert.length > 0) {
-          await supabase.from('quiz_options').insert(optionsToInsert);
-        }
+      const optionsPayload = buildOptionsPayload(editingQuestionId);
+      if (optionsPayload.length > 0) {
+        const { error: insError } = await supabase.from('quiz_options').insert(optionsPayload);
+        if (insError) throw insError;
       }
 
       await loadQuestions();
@@ -301,6 +326,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         : language === "fr" ? "Question mise à jour avec succès"
         : "Question updated successfully"
       );
+      return true;
     } catch (error) {
       console.error('Error updating question:', error);
       toast.error(
@@ -308,6 +334,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         : language === "fr" ? "Échec de la mise à jour"
         : "Failed to update question"
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -329,7 +356,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
     const questionOptions = getQuestionOptions(question.id);
     if (question.question_type === 'multiple_choice') {
-      const editOptions = [...Array(4)].map((_, index) => {
+      const editOptions = [...Array(Math.max(4, questionOptions.length))].map((_, index) => {
         const existingOption = questionOptions[index];
         return existingOption 
           ? { option_text: existingOption.option_text, is_correct: existingOption.is_correct, option_order: index + 1 }
@@ -338,9 +365,11 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       setCurrentOptions(editOptions);
     } else if (question.question_type === 'true_false') {
       setCurrentOptions([
-        { option_text: "True", is_correct: questionOptions.find(opt => opt.option_text === "True")?.is_correct || false, option_order: 1 },
-        { option_text: "False", is_correct: questionOptions.find(opt => opt.option_text === "False")?.is_correct || false, option_order: 2 }
+        { option_text: "True", is_correct: questionOptions.find(opt => /^(true|vrai)$/i.test(opt.option_text.trim()))?.is_correct || false, option_order: 1 },
+        { option_text: "False", is_correct: questionOptions.find(opt => /^(false|faux)$/i.test(opt.option_text.trim()))?.is_correct || false, option_order: 2 }
       ]);
+    } else {
+      setCurrentOptions([]);
     }
 
     setEditingQuestionId(question.id);
@@ -384,16 +413,15 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const previewTimeSecs = currentQuestion.timeMins * 60 + currentQuestion.timeSecs;
 
   const handleSaveAllAndClose = async () => {
-    // Auto-save in-progress question if filled
-    if (currentQuestion.question.trim()) {
-      if (editingQuestionId) {
-        await handleUpdateQuestion();
-      } else if (currentQuestion.question_type !== 'multiple_choice' || currentOptions.some(o => o.is_correct && o.option_text.trim())) {
-        await handleAddQuestion();
-      }
+    // Enregistre la question en cours si elle a été commencée ; en cas d'erreur
+    // on NE ferme PAS la fenêtre (avant : la question était perdue silencieusement)
+    const hasDraft = currentQuestion.question.replace(/<[^>]*>/g, "").trim() || /<img\b/i.test(currentQuestion.question);
+    if (hasDraft) {
+      const ok = editingQuestionId ? await handleUpdateQuestion() : await handleAddQuestion();
+      if (!ok) return;
     }
 
-    // Save sequential mode & full quiz_settings to exam description
+    // Enregistre le mode séquentiel et TOUS les paramètres du quiz dans la description de l'examen
     if (examData) {
       const finalSettings: QuizSettingsType = {
         ...quizSettings,
@@ -409,6 +437,12 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       const { error } = await supabase.from('exams').update({ description: newDesc }).eq('id', examId);
       if (error) {
         console.error("Error updating exam description/settings:", error);
+        toast.error(
+          language === "ar" ? "فشل حفظ إعدادات الاختبار"
+          : language === "fr" ? "Échec de l'enregistrement des paramètres du quiz"
+          : "Failed to save quiz settings"
+        );
+        return;
       }
       await refreshData();
     }
@@ -590,7 +624,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                   {qOpts.find(o => o.is_correct)?.option_text && (
                                     <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                      {qOpts.find(o => o.is_correct)?.option_text === 'True' 
+                                      {/^(true|vrai)$/i.test(qOpts.find(o => o.is_correct)?.option_text || '') 
                                         ? (language === 'ar' ? 'صحيح' : 'Vrai') 
                                         : (language === 'ar' ? 'خطأ' : 'Faux')}
                                     </span>
@@ -658,7 +692,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     </Label>
                     <Select
                       value={currentQuestion.question_type}
-                      onValueChange={(val: any) => setCurrentQuestion(prev => ({ ...prev, question_type: val }))}
+                      onValueChange={(val: any) => handleTypeChange(val)}
                     >
                       <SelectTrigger className="h-9 text-xs">
                         <SelectValue />
@@ -770,8 +804,8 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                         {language === "ar" 
                           ? "خيارات الإجابة (حدد الإجابة الصحيحة)" 
                           : language === "fr" 
-                          ? "Options de réponse (Cochez la bonne réponse)" 
-                          : "Answer Options (Check the correct answer)"}
+                          ? "Options de réponse (cochez la ou les bonnes réponses)" 
+                          : "Answer Options (check the correct answer(s))"}
                       </Label>
                     </div>
 
@@ -872,7 +906,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     type="button"
                     size="sm"
                     disabled={saving}
-                    onClick={editingQuestionId ? handleUpdateQuestion : handleAddQuestion}
+                    onClick={() => { editingQuestionId ? handleUpdateQuestion() : handleAddQuestion(); }}
                     className="text-xs gap-1.5 bg-primary hover:bg-primary/90 font-semibold px-4"
                   >
                     <Plus className="h-3.5 w-3.5" />

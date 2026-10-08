@@ -84,7 +84,7 @@ const TopNav = () => {
     }
     if (path.includes("/students-activities")) {
       return {
-        title: language === "ar" ? "أنشطة التلاميذ" : language === "fr" ? "Activités des élèves" : "Student Activities",
+        title: language === "ar" ? "التتبع التربوي والترتيب" : language === "fr" ? "Suivi pédagogique & classement" : "Learning analytics & ranking",
         icon: BarChart3,
         color: "text-amber-500 bg-amber-500/10"
       };

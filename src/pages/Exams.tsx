@@ -52,10 +52,12 @@ import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "sonner";
 
 const Exams = () => {
   const { t, language } = useLanguage();
+  const { prefs } = usePreferences();
   const { user } = useAuth();
   const { roomId } = useParams();
   const { 
@@ -86,7 +88,7 @@ const Exams = () => {
   const [examTime, setExamTime] = useState("");
   const [availableUntilDate, setAvailableUntilDate] = useState("");
   const [availableUntilTime, setAvailableUntilTime] = useState("");
-  const [duration, setDuration] = useState(60);
+  const [duration, setDuration] = useState(prefs.defaultExamDuration);
   const [isVisible, setIsVisible] = useState(true);
   const [examType, setExamType] = useState<"exam" | "quiz">("exam");
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
@@ -163,7 +165,7 @@ const Exams = () => {
     setExamTime("01:00");
     setAvailableUntilDate(todayStr);
     setAvailableUntilTime("03:00");
-    setDuration(60);
+    setDuration(prefs.defaultExamDuration);
     setIsVisible(true);
     setExamType("exam");
     setCurrentExam(null);
@@ -275,8 +277,9 @@ const Exams = () => {
         is_visible: isVisible,
         type: examType,
         available_from: startIso,
-        available_until: endIso
-      });
+        available_until: endIso,
+        ...(examType === "quiz" ? { quiz_settings: prefs.quizDefaults } : {})
+      } as any);
       
       if (newExam) {
         setIsAddDialogOpen(false);
@@ -522,7 +525,11 @@ const Exams = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="examType">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</Label>
-                    <Select value={examType} onValueChange={(value: "exam" | "quiz") => setExamType(value)}>
+                    <Select value={examType} onValueChange={(value: "exam" | "quiz") => {
+                      setExamType(value);
+                      // Durée par défaut selon le type (Paramètres → Nouveaux quiz)
+                      setDuration(value === "quiz" ? prefs.defaultQuizDuration : prefs.defaultExamDuration);
+                    }}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -687,7 +694,12 @@ const Exams = () => {
       {/* Quiz Taker Modal */}
       {showQuizTaker && (
         <Dialog open={!!showQuizTaker} onOpenChange={() => setShowQuizTaker(null)}>
-          <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col">
+          <DialogContent
+            className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col"
+            // Évite de perdre le quiz en cours par un clic à l'extérieur ou la touche Échap
+            onInteractOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>{showQuizTaker.title}</DialogTitle>
               <DialogDescription>
@@ -932,24 +944,24 @@ const Exams = () => {
             })}
           </div>
         ) : (
-          <div className="border rounded-lg overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50">
+          <div className="app-table-wrap">
+            <table className="app-table w-full text-xs min-w-[760px]">
+              <thead>
                 <tr>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الامتحان" : language === "fr" ? "Examen" : "Exam"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "فترة الإتاحة" : language === "fr" ? "Disponibilité / Date" : "Availability"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "المدة" : language === "fr" ? "Durée" : "Duration"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الحالة" : language === "fr" ? "Statut" : "Status"}</th>
-                  <th className="p-3 text-left font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الامتحان" : language === "fr" ? "Examen" : "Exam"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الدرس" : language === "fr" ? "Cours" : "Course"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "فترة الإتاحة" : language === "fr" ? "Disponibilité / Date" : "Availability"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "المدة" : language === "fr" ? "Durée" : "Duration"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "النوع" : language === "fr" ? "Type" : "Type"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الحالة" : language === "fr" ? "Statut" : "Status"}</th>
+                  <th className="p-3 text-start font-medium">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>
                 </tr>
               </thead>
               <tbody>
                 {displayedExams.map((exam) => {
                   const quizStatus = getQuizStatus(exam);
                   return (
-                    <tr key={exam.id} className="border-t hover:bg-muted/30 transition-colors">
+                    <tr key={exam.id}>
                       <td className="p-3">
                         <div>
                           <h3 className="font-semibold text-sm">{exam.title}</h3>

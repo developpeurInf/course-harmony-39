@@ -127,7 +127,7 @@ const CreateRoom = () => {
               <Button type="submit" className="flex-1" disabled={loading}>
                 <Building className="mr-2 h-4 w-4" />
                 {loading 
-                  ? (language === "ar" ? "جاري الإنشاء..." : "Creating...")
+                  ? (language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création..." : "Creating...")
                   : (language === "ar" ? "إنشاء قسم" : t("Create Class"))}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/class-management')}>

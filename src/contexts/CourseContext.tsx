@@ -102,9 +102,11 @@ export const parseExamAvailability = (exam: any): Exam & { quiz_mode?: string; q
   const matchSettings = desc.match(/<!--QUIZ_SETTINGS:([\s\S]+?)-->/);
 
   const available_until = matchUntil ? matchUntil[1].trim() : (exam.available_until || null);
-  let quiz_mode = matchMode ? matchMode[1].trim() : 'free';
+  // ⚠️ Idempotent : si l'examen a déjà été parsé (description nettoyée), on conserve
+  // le mode et les paramètres déjà extraits au lieu de retomber sur les valeurs par défaut.
+  let quiz_mode = matchMode ? matchMode[1].trim() : (exam.quiz_mode || 'free');
 
-  let quiz_settings: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS };
+  let quiz_settings: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS, ...(exam.quiz_settings || {}) };
   if (matchSettings) {
     try {
       quiz_settings = { ...DEFAULT_QUIZ_SETTINGS, ...JSON.parse(matchSettings[1].trim()) };
@@ -983,7 +985,13 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     try {
       const payload: any = {
         title: exam.title,
-        description: serializeExamDescription(exam.description || "", exam.available_until || null),
+        // Les quiz reçoivent dès leur création les paramètres par défaut choisis par l'enseignant
+        description: serializeExamDescription(
+          exam.description || "",
+          exam.available_until || null,
+          (exam as any).quiz_settings?.sequentialQuestions ? "sequential_timed" : null,
+          exam.type === "quiz" ? ((exam as any).quiz_settings || null) : null
+        ),
         course_id: exam.course_id,
         exam_date: exam.exam_date,
         duration_minutes: exam.duration_minutes,

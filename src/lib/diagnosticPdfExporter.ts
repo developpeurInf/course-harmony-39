@@ -31,6 +31,83 @@ function loadHtml2PdfScript(): Promise<any> {
   });
 }
 
+/**
+ * html2canvas dessine mal les <svg> inline (taille intrinsèque ignorée → graphiques
+ * agrandis/coupés ou vides dans le PDF téléchargé, alors que l'aperçu est correct).
+ * Solution : juste avant la capture, chaque SVG est converti en image PNG haute
+ * résolution de la même taille, puis le SVG d'origine est remis après l'export.
+ */
+async function rasterizeSvgs(root: HTMLElement, scale = 3): Promise<() => void> {
+  const swaps: Array<{ svg: SVGSVGElement; img: HTMLImageElement }> = [];
+  const svgs = Array.from(root.querySelectorAll("svg")) as SVGSVGElement[];
+
+  await Promise.all(
+    svgs.map(async (svg) => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return;
+
+      const clone = svg.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", String(rect.width));
+      clone.setAttribute("height", String(rect.height));
+      clone.removeAttribute("style");
+      clone.removeAttribute("class");
+      // Police identique à l'aperçu (l'image SVG n'hérite pas du CSS de la page)
+      const computed = window.getComputedStyle(svg);
+      clone.setAttribute("font-family", computed.fontFamily || "Times New Roman, serif");
+      if (!clone.getAttribute("viewBox")) {
+        clone.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+      }
+
+      const svgText = new XMLSerializer().serializeToString(clone);
+      const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+
+      const pngUrl = await new Promise<string | null>((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(rect.width * scale);
+            canvas.height = Math.round(rect.height * scale);
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(null);
+            ctx.scale(scale, scale);
+            ctx.drawImage(image, 0, 0, rect.width, rect.height);
+            resolve(canvas.toDataURL("image/png"));
+          } catch {
+            resolve(null);
+          }
+        };
+        image.onerror = () => resolve(null);
+        image.src = url;
+      });
+      if (!pngUrl) return;
+
+      const img = document.createElement("img");
+      img.src = pngUrl;
+      img.alt = "";
+      img.style.width = `${rect.width}px`;
+      img.style.height = `${rect.height}px`;
+      img.style.display = computed.display === "inline" ? "inline-block" : computed.display || "block";
+      img.style.flexShrink = "0";
+      img.style.maxWidth = "none";
+      swaps.push({ svg, img });
+    })
+  );
+
+  // Remplacement synchrone, une fois toutes les images prêtes
+  swaps.forEach(({ svg, img }) => svg.replaceWith(img));
+  await Promise.all(
+    swaps.map(({ img }) => (img.decode ? img.decode().catch(() => undefined) : Promise.resolve()))
+  );
+
+  return () => {
+    swaps.forEach(({ svg, img }) => {
+      if (img.parentNode) img.replaceWith(svg);
+    });
+  };
+}
+
 export async function exportDiagnosticReportToPdf(elementId: string, filename: string): Promise<boolean> {
   const element = document.getElementById(elementId);
   if (!element) {
@@ -50,8 +127,14 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
   // Activer le mode export strict : supprime les paddings d'aperçu web, marges et ombres
   element.classList.add("pdf-export-mode");
 
+  let restoreSvgs: () => void = () => {};
+
   try {
     const html2pdf = await loadHtml2PdfScript();
+
+    // Laisser le navigateur appliquer le mode export avant de mesurer les graphiques
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    restoreSvgs = await rasterizeSvgs(element);
 
     const opt = {
       margin: 0,
@@ -87,7 +170,8 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
     }, 1500);
     return true;
   } finally {
-    // Restaurer le mode aperçu et la position de défilement
+    // Restaurer les graphiques SVG, le mode aperçu et la position de défilement
+    restoreSvgs();
     element.classList.remove("pdf-export-mode");
     window.scrollTo(prevScrollX, prevScrollY);
   }
