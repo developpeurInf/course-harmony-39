@@ -473,6 +473,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async (): Promise<void> => {
+    // Déconnexion immédiate côté interface : on vide l'état tout de suite (la page de
+    // connexion ne renvoie plus vers le tableau de bord), puis on termine en arrière-plan
+    // (clôture des sessions élève + déconnexion Supabase).
+    const leavingUser = user;
+    setUser(null);
+    setSession(null);
+    setIsLoggedIn(false);
+    setIsFirstLogin(false);
+    void finishLogout(leavingUser);
+  };
+
+  const finishLogout = async (user: UserProfile | null): Promise<void> => {
     try {
       // Close any active sessions before logging out
       if (user && user.role === 'student') {
@@ -528,13 +540,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Now sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
-        toast.error("Logout failed");
-      } else {
-        toast.info("You have been logged out");
+        console.error('Supabase signOut error:', error);
+        // Au minimum, supprimer la session locale pour ne pas être reconnecté au rechargement
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
       }
     } catch (error) {
       console.error('Error during logout:', error);
-      toast.error("Logout failed");
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     }
   };
 

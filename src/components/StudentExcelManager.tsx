@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Upload, Download, FileSpreadsheet, Users } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, Users, UserPlus, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
@@ -41,6 +41,15 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
   const [generatedStudents, setGeneratedStudents] = useState<StudentData[]>([]);
   const [allStudentsForDownload, setAllStudentsForDownload] = useState<StudentData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Manual (single) student creation
+  const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
+  const [manualPrenom, setManualPrenom] = useState('');
+  const [manualNom, setManualNom] = useState('');
+  const [manualMassar, setManualMassar] = useState('');
+  const [manualCreating, setManualCreating] = useState(false);
+  const [manualCreated, setManualCreated] = useState<StudentData | null>(null);
+  const [manualCopied, setManualCopied] = useState(false);
+  const manualLockRef = useRef(false);
 
   // Arabic to Latin mapping for username generation
   const arabicToLatinMap: Record<string, string> = {
@@ -322,6 +331,116 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       );
     } finally {
       setImporting(false);
+    }
+  };
+
+  const tr = (ar: string, fr: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+
+  const resetManualForm = () => {
+    setManualPrenom('');
+    setManualNom('');
+    setManualMassar('');
+    setManualCreated(null);
+    setManualCopied(false);
+  };
+
+  // Create one student manually (same pipeline as the Excel import)
+  const handleCreateManualStudent = async () => {
+    if (manualLockRef.current) return;
+    const prenom = manualPrenom.trim().replace(/\s+/g, ' ');
+    const nom = manualNom.trim().replace(/\s+/g, ' ');
+    const codeMassar = manualMassar.trim().replace(/\s+/g, '').toUpperCase();
+
+    if (!prenom || !nom) {
+      toast.error(tr("يرجى إدخال الاسم والنسب", "Veuillez saisir le prénom et le nom", "Please enter first and last name"));
+      return;
+    }
+    if (codeMassar && !/^[A-Z0-9]{4,20}$/.test(codeMassar)) {
+      toast.error(tr("رمز مسار غير صالح (حروف وأرقام فقط)", "Code Massar invalide (lettres et chiffres uniquement)", "Invalid Massar code (letters and digits only)"));
+      return;
+    }
+
+    manualLockRef.current = true;
+    setManualCreating(true);
+    try {
+      let username = codeMassar || generateUsername(prenom, nom);
+
+      // Never overwrite an existing account: the edge function recreates existing users.
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .eq('username', username)
+        .maybeSingle();
+      const inRoom = existingStudents.some(s => (s.username || '').toLowerCase() === username.toLowerCase());
+      if (existing || inRoom) {
+        if (codeMassar) {
+          toast.error(tr(
+            `رمز مسار ${codeMassar} مستعمل مسبقاً${existing?.name ? ` (${existing.name})` : ''}`,
+            `Le code Massar ${codeMassar} existe déjà${existing?.name ? ` (${existing.name})` : ''}`,
+            `Massar code ${codeMassar} already exists${existing?.name ? ` (${existing.name})` : ''}`
+          ));
+          return;
+        }
+        username = `${username}${Math.floor(100 + Math.random() * 900)}`;
+      }
+
+      const student: StudentData = {
+        prenom,
+        nom,
+        codeMassar: codeMassar || undefined,
+        username,
+        temporaryPassword: generateTempPassword(),
+      };
+
+      const { data: result, error: functionError } = await supabase.functions.invoke('create-student', {
+        body: { students: [student], roomId }
+      });
+      if (functionError) throw functionError;
+      if (!result?.success || (result.errors && result.errors.length > 0) || !result.created) {
+        const msg = result?.errors?.[0]?.error || result?.error || 'Unknown error';
+        throw new Error(msg);
+      }
+
+      const created: StudentData = { ...student, ...(result.createdStudents?.[0] || {}) };
+      setManualCreated(created);
+      setAllStudentsForDownload(prev => [...prev, created]);
+      toast.success(tr(
+        `تم إنشاء حساب ${prenom} ${nom}`,
+        `Compte de ${prenom} ${nom} créé`,
+        `Account for ${prenom} ${nom} created`
+      ));
+      onStudentsImported?.();
+    } catch (error: any) {
+      console.error('Manual student creation failed:', error);
+      toast.error(tr("فشل إنشاء التلميذ: ", "Échec de la création de l'élève : ", "Failed to create student: ") + (error?.message || ''));
+    } finally {
+      manualLockRef.current = false;
+      setManualCreating(false);
+    }
+  };
+
+  const copyManualCredentials = async () => {
+    if (!manualCreated) return;
+    const text = `${manualCreated.prenom} ${manualCreated.nom}\n${tr("اسم المستخدم", "Identifiant", "Username")}: ${manualCreated.username}\n${tr("كلمة المرور", "Mot de passe", "Password")}: ${manualCreated.temporaryPassword}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setManualCopied(true);
+      setTimeout(() => setManualCopied(false), 2000);
+    } catch {
+      toast.error(tr("تعذر النسخ", "Copie impossible", "Copy failed"));
     }
   };
 
@@ -614,6 +733,100 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                   {importing ? (language === "ar" ? "جاري الاستيراد..." : language === "fr" ? "Importation..." : "Importing...") : (language === "ar" ? "استيراد التلاميذ" : language === "fr" ? "Importer les élèves" : "Import Students")}
                 </Button>
               </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isManualDialogOpen} onOpenChange={(open) => {
+            if (manualCreating) return;
+            setIsManualDialogOpen(open);
+            if (!open) resetManualForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="secondary" className="font-semibold text-xs sm:text-sm">
+                <UserPlus className="h-4 w-4 mr-2" />
+                {tr("إضافة تلميذ يدوياً", "Ajouter un élève", "Add a student")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{tr("إضافة تلميذ جديد", "Ajouter un nouvel élève", "Add a new student")}</DialogTitle>
+                <DialogDescription>
+                  {tr(
+                    "سيتم إنشاء الحساب تلقائياً (اسم المستخدم = رمز مسار) مع كلمة مرور مؤقتة، وإضافته إلى هذا القسم.",
+                    "Le compte est créé automatiquement (identifiant = code Massar) avec un mot de passe temporaire, puis ajouté à cette classe.",
+                    "The account is created automatically (username = Massar code) with a temporary password and added to this class."
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+
+              {manualCreated ? (
+                <div className="space-y-3 py-2">
+                  <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-4 space-y-2">
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                      {manualCreated.prenom} {manualCreated.nom}
+                    </p>
+                    <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
+                      <span className="text-muted-foreground">{tr("اسم المستخدم", "Identifiant", "Username")}</span>
+                      <span className="font-mono font-semibold break-all" dir="ltr">{manualCreated.username}</span>
+                      <span className="text-muted-foreground">{tr("كلمة المرور", "Mot de passe", "Password")}</span>
+                      <span className="font-mono font-semibold break-all" dir="ltr">{manualCreated.temporaryPassword}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tr(
+                      "سيُقترح على التلميذ تغيير كلمة المرور عند أول تسجيل دخول.",
+                      "À la première connexion, l'élève pourra changer son mot de passe.",
+                      "At first login, the student will be offered to change the password."
+                    )}
+                  </p>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={copyManualCredentials}>
+                      {manualCopied ? <Check className="h-4 w-4 mr-2 text-emerald-600" /> : <Copy className="h-4 w-4 mr-2" />}
+                      {manualCopied ? tr("تم النسخ", "Copié", "Copied") : tr("نسخ البيانات", "Copier les identifiants", "Copy credentials")}
+                    </Button>
+                    <Button variant="outline" onClick={resetManualForm}>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      {tr("إضافة آخر", "Ajouter un autre", "Add another")}
+                    </Button>
+                    <Button onClick={() => { setIsManualDialogOpen(false); resetManualForm(); }}>
+                      {tr("إغلاق", "Fermer", "Close")}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <form
+                  className="space-y-4 py-2"
+                  onSubmit={(e) => { e.preventDefault(); handleCreateManualStudent(); }}
+                >
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manual-prenom">{tr("الاسم", "Prénom", "First name")} *</Label>
+                    <Input id="manual-prenom" value={manualPrenom} onChange={(e) => setManualPrenom(e.target.value)} disabled={manualCreating} autoComplete="off" autoFocus />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manual-nom">{tr("النسب", "Nom", "Last name")} *</Label>
+                    <Input id="manual-nom" value={manualNom} onChange={(e) => setManualNom(e.target.value)} disabled={manualCreating} autoComplete="off" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="manual-massar">Code Massar</Label>
+                    <Input id="manual-massar" value={manualMassar} onChange={(e) => setManualMassar(e.target.value)} disabled={manualCreating} autoComplete="off" autoCapitalize="characters" placeholder="M130012345" dir="ltr" className="font-mono" />
+                    <p className="text-xs text-muted-foreground">
+                      {tr(
+                        "اختياري — إن تُرك فارغاً يُنشأ اسم المستخدم من الاسم والنسب.",
+                        "Facultatif — si vide, l'identifiant est généré à partir du prénom et du nom.",
+                        "Optional — if empty, the username is generated from the name."
+                      )}
+                    </p>
+                  </div>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button type="button" variant="outline" onClick={() => setIsManualDialogOpen(false)} disabled={manualCreating}>
+                      {tr("إلغاء", "Annuler", "Cancel")}
+                    </Button>
+                    <Button type="submit" disabled={manualCreating || !manualPrenom.trim() || !manualNom.trim()}>
+                      {manualCreating ? tr("جاري الإنشاء...", "Création...", "Creating...") : tr("إنشاء الحساب", "Créer le compte", "Create account")}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
             </DialogContent>
           </Dialog>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -135,10 +135,66 @@ const Settings = () => {
     { id: "security", icon: <ShieldCheck className="h-4 w-4" />, label: tr("Sécurité", "الأمان", "Security"), show: true },
   ];
 
+  // Clic sur le menu : on fige la section active le temps du défilement animé
+  const clickLockUntil = useRef(0);
+  const navRef = useRef<HTMLDivElement>(null);
   const goTo = (id: SectionId) => {
     setActive(id);
+    clickLockUntil.current = Date.now() + 900;
     document.getElementById(`settings-${id}`)?.scrollIntoView({ behavior: prefs.reduceMotion ? "auto" : "smooth", block: "start" });
   };
+
+  // Suivi du défilement : la section visible devient active dans le menu
+  useEffect(() => {
+    const ids = sections.filter(x => x.show).map(x => x.id);
+    const firstEl = document.getElementById(`settings-${ids[0]}`);
+    // Le contenu défile dans <main> (MainLayout), pas dans la fenêtre
+    let scroller: HTMLElement | Window = window;
+    let el: HTMLElement | null = firstEl ? firstEl.parentElement : null;
+    while (el) {
+      const oy = window.getComputedStyle(el).overflowY;
+      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) { scroller = el; break; }
+      el = el.parentElement;
+    }
+    let frame = 0;
+    const compute = () => {
+      frame = 0;
+      if (Date.now() < clickLockUntil.current) return;
+      const isWin = scroller === window;
+      const top = isWin ? 0 : (scroller as HTMLElement).getBoundingClientRect().top;
+      const viewH = isWin ? window.innerHeight : (scroller as HTMLElement).clientHeight;
+      const atBottom = isWin
+        ? window.innerHeight + window.pageYOffset >= document.documentElement.scrollHeight - 4
+        : (scroller as HTMLElement).scrollTop + viewH >= (scroller as HTMLElement).scrollHeight - 4;
+      let current = ids[0];
+      if (atBottom) current = ids[ids.length - 1];
+      else {
+        for (const id of ids) {
+          const sec = document.getElementById(`settings-${id}`);
+          if (sec && sec.getBoundingClientRect().top - top <= Math.min(160, viewH * 0.3)) current = id;
+        }
+      }
+      setActive(prev => (prev === current ? prev : current));
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(compute); };
+    scroller.addEventListener("scroll", onScroll, { passive: true } as any);
+    window.addEventListener("resize", onScroll);
+    compute();
+    return () => {
+      scroller.removeEventListener("scroll", onScroll as any);
+      window.removeEventListener("resize", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProfessor]);
+
+  // Menu horizontal (mobile) : garder le bouton actif visible sans faire défiler la page
+  useEffect(() => {
+    const nav = navRef.current;
+    const btn = nav?.querySelector<HTMLElement>(`[data-section="${active}"]`);
+    if (!nav || !btn || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollLeft = btn.offsetLeft - nav.clientWidth / 2 + btn.clientWidth / 2;
+  }, [active]);
 
   const requestBrowserPermission = async () => {
     if (!("Notification" in window)) {
@@ -243,11 +299,13 @@ const Settings = () => {
 
       <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
         {/* Navigation */}
-        <nav className="lg:sticky lg:top-20 lg:self-start">
-          <div className="flex gap-1 overflow-x-auto rounded-2xl border bg-card p-1.5 lg:flex-col">
+        <nav className="sticky top-0 z-10 -mx-1 px-1 py-1 bg-background/95 lg:mx-0 lg:px-0 lg:py-0 lg:bg-transparent lg:top-4 lg:self-start">
+          <div ref={navRef} className="flex gap-1 overflow-x-auto rounded-2xl border bg-card p-1.5 lg:flex-col" style={{ WebkitOverflowScrolling: "touch" }}>
             {sections.filter(s => s.show).map(s => (
               <button
                 key={s.id}
+                data-section={s.id}
+                aria-current={active === s.id ? "true" : undefined}
                 onClick={() => goTo(s.id)}
                 className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   active === s.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -263,7 +321,7 @@ const Settings = () => {
         <div className="space-y-6">
           {/* ── Général ── */}
           <SectionCard id="general" icon={<Globe className="h-5 w-5" />} title={tr("Général", "عام", "General")} desc={tr("Langue et apparence de l'interface.", "لغة ومظهر الواجهة.", "Interface language and appearance.")}>
-            <Row icon={<Globe className="h-4 w-4" />} title={tr("Langue", "اللغة", "Language")} desc={tr("La page se recharge pour appliquer la langue.", "يتم إعادة تحميل الصفحة لتطبيق اللغة.", "The page reloads to apply the language.")}>
+            <Row icon={<Globe className="h-4 w-4" />} title={tr("Langue", "اللغة", "Language")} desc={tr("La langue change immédiatement.", "تتغير اللغة فوراً.", "The language changes instantly.")}>
               <Select value={language} onValueChange={v => setLanguage(v as "en" | "fr" | "ar")}>
                 <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
