@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
@@ -158,6 +158,8 @@ const Courses = () => {
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
+  const submitLockRef = useRef(false);
 
   // Reset form
   const resetForm = () => {
@@ -172,12 +174,13 @@ const Courses = () => {
 
   // Add new course
   const handleAddCourse = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || submitLockRef.current) return;
     if (!title.trim()) {
       toast.error(language === "ar" ? "يرجى إدخال عنوان الدرس" : "Veuillez entrer un titre de cours");
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       // Create the course first
@@ -249,18 +252,20 @@ const Courses = () => {
     } catch (err) {
       console.error('Error in handleAddCourse:', err);
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   // Edit course
   const handleEditCourse = async () => {
-    if (isSubmitting || !currentCourse) return;
+    if (isSubmitting || submitLockRef.current || !currentCourse) return;
     if (!title.trim()) {
       toast.error(language === "ar" ? "يرجى إدخال عنوان الدرس" : "Veuillez entrer un titre de cours");
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       const success = await updateCourse(currentCourse.id, {
@@ -329,6 +334,7 @@ const Courses = () => {
     } catch (err) {
       console.error('Error in handleEditCourse:', err);
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };

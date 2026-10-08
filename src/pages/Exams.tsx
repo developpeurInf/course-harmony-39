@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Exam } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,8 @@ const Exams = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
+  const submitLockRef = useRef(false);
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -252,7 +254,7 @@ const Exams = () => {
 
   // Add new exam
   const handleAddExam = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || submitLockRef.current) return;
 
     if (!title.trim()) {
       toast.error(language === "ar" ? "يرجى إدخال عنوان الامتحان" : "Veuillez entrer un titre pour l'examen");
@@ -269,6 +271,7 @@ const Exams = () => {
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       const startIso = combineDateTime(examDate, examTime);
@@ -300,13 +303,14 @@ const Exams = () => {
       console.error("Error adding exam:", err);
       toast.error(language === "ar" ? "فشل إنشاء الامتحان" : "Échec de création de l'examen");
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   // Edit exam
   const handleEditExam = async () => {
-    if (isSubmitting || !currentExam) return;
+    if (isSubmitting || submitLockRef.current || !currentExam) return;
 
     if (!title.trim()) {
       toast.error(language === "ar" ? "يرجى إدخال عنوان الامتحان" : "Veuillez entrer un titre pour l'examen");
@@ -323,6 +327,7 @@ const Exams = () => {
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       const startIso = combineDateTime(examDate, examTime);
@@ -350,6 +355,7 @@ const Exams = () => {
       console.error("Error updating exam:", err);
       toast.error(language === "ar" ? "فشل تعديل الامتحان" : "Échec de modification de l'examen");
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };

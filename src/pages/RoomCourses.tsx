@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course, Room } from "@/contexts/CourseContext";
@@ -64,6 +64,9 @@ const RoomCourses = () => {
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
+  const submitLockRef = useRef(false);
   const [courseMaterials, setCourseMaterials] = useState<Record<string, CourseMaterial[]>>({});
   const [existingFiles, setExistingFiles] = useState<CourseMaterial[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -143,24 +146,32 @@ const RoomCourses = () => {
   
   // Handle form submission
   const handleAddCourse = async () => {
+    if (submitLockRef.current) return;
     if (!title.trim()) {
       toast.error("Course title is required");
       return;
     }
 
-    const newCourse = await addCourse({
-      title: title.trim(),
-      description: description.trim(),
-      room_id: roomId,
-      is_visible: isVisible
-    });
+    submitLockRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const newCourse = await addCourse({
+        title: title.trim(),
+        description: description.trim(),
+        room_id: roomId,
+        is_visible: isVisible
+      });
 
-    if (newCourse && selectedFiles.length > 0) {
-      await uploadFiles(newCourse.id);
-    }
+      if (newCourse && selectedFiles.length > 0) {
+        await uploadFiles(newCourse.id);
+      }
 
-    if (newCourse) {
-      resetForm();
+      if (newCourse) {
+        resetForm();
+      }
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -227,26 +238,33 @@ const RoomCourses = () => {
   
   // Handle edit submission
   const handleEditCourse = async () => {
-    if (!currentCourse) return;
+    if (!currentCourse || submitLockRef.current) return;
     
     if (!title.trim()) {
       toast.error("Course title is required");
       return;
     }
 
-    const success = await updateCourse(currentCourse.id, {
-      title: title.trim(),
-      description: description.trim(),
-      is_visible: isVisible
-    });
+    submitLockRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const success = await updateCourse(currentCourse.id, {
+        title: title.trim(),
+        description: description.trim(),
+        is_visible: isVisible
+      });
 
-    // Upload new files if any
-    if (success && selectedFiles.length > 0) {
-      await uploadFiles(currentCourse.id);
-    }
+      // Upload new files if any
+      if (success && selectedFiles.length > 0) {
+        await uploadFiles(currentCourse.id);
+      }
 
-    if (success) {
-      resetForm();
+      if (success) {
+        resetForm();
+      }
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
     }
   };
   
@@ -399,7 +417,11 @@ const RoomCourses = () => {
                   <Button variant="outline" onClick={resetForm}>
                     {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                   </Button>
-                  <Button onClick={handleAddCourse}>{language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course"}</Button>
+                  <Button onClick={handleAddCourse} disabled={isSubmitting || !title.trim()}>
+                    {isSubmitting
+                      ? (language === "ar" ? "جارٍ الإنشاء…" : language === "fr" ? "Création…" : "Creating…")
+                      : (language === "ar" ? "إنشاء الدرس" : language === "fr" ? "Créer le cours" : "Create Course")}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -658,7 +680,11 @@ const RoomCourses = () => {
             <Button variant="outline" onClick={resetForm}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button onClick={handleEditCourse}>{language === "ar" ? "تحديث الدرس" : language === "fr" ? "Mettre à jour" : "Update Course"}</Button>
+            <Button onClick={handleEditCourse} disabled={isSubmitting || !title.trim()}>
+              {isSubmitting
+                ? (language === "ar" ? "جارٍ الحفظ…" : language === "fr" ? "Enregistrement…" : "Saving…")
+                : (language === "ar" ? "تحديث الدرس" : language === "fr" ? "Mettre à jour" : "Update Course")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

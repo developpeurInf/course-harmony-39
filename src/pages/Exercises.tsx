@@ -1,6 +1,6 @@
 
 import { iosCompatibleDownload } from "@/lib/download";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses, Exercise, Course } from "@/contexts/CourseContext";
@@ -74,6 +74,8 @@ const Exercises = () => {
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
+  const submitLockRef = useRef(false);
 
   const resetForm = () => {
     // Determine default course_id if available
@@ -105,7 +107,7 @@ const Exercises = () => {
   };
 
   const handleAddExercise = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || submitLockRef.current) return;
 
     if (!formData.title.trim()) {
       toast.error(language === "ar" ? "يرجى إدخال عنوان التمرين" : "Veuillez entrer un titre pour l'exercice");
@@ -122,6 +124,7 @@ const Exercises = () => {
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       const newExercise = await addExercise({
@@ -149,12 +152,13 @@ const Exercises = () => {
       console.error("Error in handleAddExercise:", err);
       toast.error(language === "ar" ? "فشل إنشاء التمرين" : "Échec de création de l'exercice");
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   const handleEditExercise = async () => {
-    if (isSubmitting || !formData.id) return;
+    if (isSubmitting || submitLockRef.current || !formData.id) return;
 
     if (!formData.title.trim()) {
       toast.error(language === "ar" ? "يرجى إدخال عنوان التمرين" : "Veuillez entrer un titre pour l'exercice");
@@ -171,6 +175,7 @@ const Exercises = () => {
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       const success = await updateExercise(formData.id, {
@@ -200,6 +205,7 @@ const Exercises = () => {
       console.error("Error in handleEditExercise:", err);
       toast.error(language === "ar" ? "فشل تحديث التمرين" : "Échec de la mise à jour");
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };

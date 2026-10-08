@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -278,6 +278,19 @@ interface CourseContextType {
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
 export function CourseProvider({ children }: { children: React.ReactNode }) {
+  // Créations identiques en cours (double-clic, double envoi…) : on renvoie la même promesse
+  // au lieu d'insérer plusieurs fois le même cours / exercice / examen.
+  const inFlightCreations = useRef(new Map<string, Promise<any>>());
+  const dedupeCreation = <T,>(key: string, run: () => Promise<T>): Promise<T> => {
+    const existing = inFlightCreations.current.get(key);
+    if (existing) return existing as Promise<T>;
+    const p = run().finally(() => {
+      // petite marge : un clic arrivé juste après la réponse est aussi ignoré
+      setTimeout(() => inFlightCreations.current.delete(key), 1500);
+    });
+    inFlightCreations.current.set(key, p);
+    return p;
+  };
   const { user } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -546,7 +559,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Course operations
-  const addCourse = async (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">): Promise<Course | null> => {
+  const addCourseImpl = async (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">): Promise<Course | null> => {
     if (!user || user.role !== "professor") {
       toast.error("Only professors can add courses");
       return null;
@@ -816,7 +829,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Exercise operations
-  const addExercise = async (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">): Promise<Exercise | null> => {
+  const addExerciseImpl = async (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">): Promise<Exercise | null> => {
     try {
       const { data, error } = await supabase
         .from('exercises')
@@ -990,7 +1003,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Exam operations
-  const addExam = async (exam: Omit<Exam, "id" | "created_at" | "updated_at">): Promise<Exam | null> => {
+  const addExamImpl = async (exam: Omit<Exam, "id" | "created_at" | "updated_at">): Promise<Exam | null> => {
     try {
       const payload: any = {
         title: exam.title,
@@ -1690,6 +1703,13 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to notify students:', error);
     }
   };
+
+  const addCourse = (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">) =>
+    dedupeCreation(`course:${JSON.stringify(course)}`, () => addCourseImpl(course));
+  const addExercise = (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">) =>
+    dedupeCreation(`exercise:${JSON.stringify(exercise)}`, () => addExerciseImpl(exercise));
+  const addExam = (exam: Omit<Exam, "id" | "created_at" | "updated_at">) =>
+    dedupeCreation(`exam:${JSON.stringify(exam)}`, () => addExamImpl(exam));
 
   return (
     <CourseContext.Provider value={{
