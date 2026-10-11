@@ -38,8 +38,11 @@ import {
   BarChart2,
   Layers,
   Filter,
-  Zap
+  Zap,
+  Languages,
+  Loader2
 } from "lucide-react";
+import { translateTexts } from "@/lib/translate";
 import { toast } from "sonner";
 import {
   BarChart,
@@ -67,6 +70,9 @@ import {
   getLangContent,
   setLangContent,
   numberToWords,
+  setTranslatedLangContent,
+  getTranslationPlan,
+  getManualSourceLang,
   type DiagnosticLangContent
 } from "@/lib/diagnosticStorage";
 import {
@@ -787,6 +793,96 @@ export const DiagnosticEvaluation: React.FC = () => {
       config: setLangContent(prev.config, lang, fn(getLangContent(prev.config, lang))),
     }));
   };
+
+  // --- TRADUCTION AUTOMATIQUE DU CONTENU (onglet 4) ---
+  const [translatingFrom, setTranslatingFrom] = useState<DiagLang | null>(null);
+  const appDataRef = useRef(appData);
+  appDataRef.current = appData;
+  const autoTranslateKeyRef = useRef<string>("");
+
+  const LANG_LABELS: Record<DiagLang, Record<DiagLang, string>> = {
+    ar: { ar: "العربية", fr: "الفرنسية", en: "الإنجليزية" },
+    fr: { ar: "l'arabe", fr: "le français", en: "l'anglais" },
+    en: { ar: "Arabic", fr: "French", en: "English" },
+  };
+  const langLabel = (l: DiagLang) => LANG_LABELS[lang][l];
+  const LANG_BUTTON: Record<DiagLang, string> = { ar: "العربية", fr: "Français", en: "English" };
+
+  /** Traduit tout le contenu de l'onglet 4 de `from` vers `to` */
+  const translateLangContent = async (from: DiagLang, to: DiagLang, opts: { sourceAt?: number; silent?: boolean } = {}) => {
+    if (from === to || translatingFrom) return;
+    const startConfig = appDataRef.current.config;
+    const src = getLangContent(startConfig, from);
+    const previous = getLangContent(startConfig, to);
+    const startOwnManual = startConfig.contenu_meta?.[to]?.manualAt || 0;
+    const sourceAt = opts.sourceAt ?? (startConfig.contenu_meta?.[from]?.manualAt || Date.now());
+
+    const nEx = src.exercices.length;
+    const texts = [
+      src.appreciation_globale,
+      ...src.exercices.map(e => e.titre),
+      ...src.exercices.map(e => e.description),
+      ...src.observations,
+      ...src.propositions,
+    ];
+
+    setTranslatingFrom(from);
+    try {
+      const tr = await translateTexts(texts, from, to);
+      let k = 0;
+      const appreciation = tr[k++];
+      const titres = tr.slice(k, k + nEx); k += nEx;
+      const descs = tr.slice(k, k + nEx); k += nEx;
+      const observations = tr.slice(k, k + src.observations.length); k += src.observations.length;
+      const propositions = tr.slice(k, k + src.propositions.length);
+      const content: DiagnosticLangContent = {
+        appreciation_globale: appreciation,
+        exercices: titres.map((titre, i) => ({ titre, description: descs[i] })),
+        observations,
+        propositions,
+        nombre_exercices_texte: numberToWords(nEx, to),
+      };
+
+      // Le professeur a modifié la langue cible pendant la traduction : on ne l'écrase pas
+      const applied = (appDataRef.current.config.contenu_meta?.[to]?.manualAt || 0) <= startOwnManual;
+      if (applied) {
+        const nextConfig = setTranslatedLangContent(appDataRef.current.config, to, content, from, sourceAt);
+        updateAppData(prev => ({ ...prev, config: setTranslatedLangContent(prev.config, to, content, from, sourceAt) }));
+        saveDiagnosticConfigToCloud(nextConfig, user?.id).catch(() => undefined);
+        if (!opts.silent) {
+          toast.success(
+            to === "ar" ? `تمت الترجمة من ${LANG_LABELS.ar[from]}` : to === "en" ? `Translated from ${LANG_LABELS.en[from]}` : `Contenu traduit depuis ${LANG_LABELS.fr[from]}`,
+            {
+              action: {
+                label: to === "ar" ? "تراجع" : to === "en" ? "Undo" : "Annuler",
+                onClick: () => updateAppData(prev => ({ ...prev, config: setLangContent(prev.config, to, previous) })),
+              },
+            }
+          );
+        }
+      }
+    } catch (e) {
+      console.error("Translation failed", e);
+      toast.error(lang === "ar" ? "تعذرت الترجمة التلقائية، تحقق من الاتصال بالإنترنت" : lang === "en" ? "Automatic translation failed, check your connection" : "La traduction automatique a échoué, vérifiez la connexion Internet");
+    } finally {
+      setTranslatingFrom(null);
+    }
+  };
+
+  // Changement de langue : si cette langue n'a jamais été modifiée à la main,
+  // on la traduit automatiquement depuis la langue modifiée le plus récemment.
+  const translationPlan = useMemo(() => getTranslationPlan(appData.config, lang), [appData.config, lang]);
+  useEffect(() => {
+    if (translationPlan.action !== "auto" || translatingFrom) return;
+    const key = `${lang}:${translationPlan.from}:${translationPlan.sourceAt}`;
+    if (autoTranslateKeyRef.current === key) return;
+    autoTranslateKeyRef.current = key;
+    translateLangContent(translationPlan.from, lang, { sourceAt: translationPlan.sourceAt, silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, translationPlan]);
+
+  const currentLangMeta = appData.config.contenu_meta?.[lang];
+  const otherLangs = (["ar", "fr", "en"] as DiagLang[]).filter(l => l !== lang);
 
   const handleAddObservation = () => {
     updateLangContent(c => ({
@@ -1964,6 +2060,70 @@ export const DiagnosticEvaluation: React.FC = () => {
                 <CheckCircle className="w-3.5 h-3.5" />
                 <span>{lang === "ar" ? "حفظ التغييرات" : lang === "en" ? "Save Changes" : "Enregistrer les modifications"}</span>
               </Button>
+            </div>
+          </div>
+
+          {/* Traduction automatique */}
+          <div className={cn(
+            "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border text-xs",
+            translatingFrom
+              ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-900"
+              : translationPlan.action === "suggest"
+              ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900"
+              : "bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-800"
+          )}>
+            <div className="flex items-start gap-2.5 min-w-0">
+              {translatingFrom
+                ? <Loader2 className="w-4 h-4 mt-0.5 shrink-0 animate-spin text-indigo-600" />
+                : <Languages className={cn("w-4 h-4 mt-0.5 shrink-0", translationPlan.action === "suggest" ? "text-amber-600" : "text-indigo-600")} />}
+              <p className="leading-relaxed text-slate-700 dark:text-slate-300">
+                {translatingFrom
+                  ? (lang === "ar" ? `جارٍ الترجمة التلقائية من ${langLabel(translatingFrom)}…` : lang === "en" ? `Translating automatically from ${langLabel(translatingFrom)}…` : `Traduction automatique depuis ${langLabel(translatingFrom)}…`)
+                  : translationPlan.action === "suggest"
+                  ? (lang === "ar"
+                      ? `تم تعديل المحتوى بـ${langLabel(translationPlan.from)} بعد آخر تعديل لك هنا. هل تريد تحديث الترجمة؟`
+                      : lang === "en"
+                      ? `The ${langLabel(translationPlan.from)} content changed after your last edit here. Update the translation?`
+                      : `Le contenu en ${translationPlan.from === "ar" ? "arabe" : translationPlan.from === "en" ? "anglais" : "français"} a été modifié après votre dernière modification ici. Mettre à jour la traduction ?`)
+                  : currentLangMeta?.translatedFrom
+                  ? (lang === "ar"
+                      ? `هذا المحتوى مترجم تلقائياً من ${langLabel(currentLangMeta.translatedFrom)}. يمكنك تصحيح أي حقل، وسيُحدَّث التقرير مباشرة.`
+                      : lang === "en"
+                      ? `This content was translated automatically from ${langLabel(currentLangMeta.translatedFrom)}. You can correct any field; the report updates instantly.`
+                      : `Ce contenu a été traduit automatiquement depuis ${langLabel(currentLangMeta.translatedFrom)}. Vous pouvez corriger chaque champ, le rapport se met à jour aussitôt.`)
+                  : (lang === "ar"
+                      ? "اكتب المحتوى بلغة واحدة، وسيُترجم تلقائياً عند التبديل إلى لغة أخرى."
+                      : lang === "en"
+                      ? "Write the content in one language: it is translated automatically when you switch language."
+                      : "Rédigez le contenu dans une seule langue : il est traduit automatiquement quand vous changez de langue.")}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {translationPlan.action === "suggest" && (
+                <Button
+                  size="sm"
+                  disabled={!!translatingFrom}
+                  onClick={() => translateLangContent(translationPlan.from, lang, { sourceAt: translationPlan.sourceAt })}
+                  className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  {lang === "ar" ? "تحديث الترجمة" : lang === "en" ? "Update translation" : "Mettre à jour"}
+                </Button>
+              )}
+              {otherLangs.map(l => (
+                <Button
+                  key={l}
+                  size="sm"
+                  variant="outline"
+                  disabled={!!translatingFrom}
+                  onClick={() => translateLangContent(l, lang)}
+                  className="h-8 text-xs gap-1.5"
+                  title={lang === "ar" ? `استبدال المحتوى بترجمة من ${langLabel(l)}` : lang === "en" ? `Replace content with a translation from ${langLabel(l)}` : `Remplacer le contenu par la traduction depuis ${langLabel(l)}`}
+                >
+                  <Languages className="w-3.5 h-3.5" />
+                  {lang === "ar" ? `ترجمة من ${LANG_BUTTON[l]}` : lang === "en" ? `From ${LANG_BUTTON[l]}` : `Traduire depuis ${LANG_BUTTON[l]}`}
+                </Button>
+              ))}
             </div>
           </div>
 

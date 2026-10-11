@@ -32,6 +32,17 @@ export interface DiagnosticConfig {
    * modifier un champ en arabe met à jour le rapport arabe, en français le rapport français…
    */
   contenu_par_langue?: Partial<Record<DiagLang, DiagnosticLangContent>>;
+  /** Suivi des modifications par langue (traduction automatique) */
+  contenu_meta?: Partial<Record<DiagLang, DiagnosticLangMeta>>;
+}
+
+export interface DiagnosticLangMeta {
+  /** Dernière modification faite à la main par le professeur dans cette langue */
+  manualAt?: number;
+  /** Contenu traduit automatiquement depuis cette langue… */
+  translatedFrom?: DiagLang;
+  /** …à partir de la version source datée de ce manualAt */
+  sourceAt?: number;
 }
 
 export interface DiagnosticLangContent {
@@ -95,6 +106,8 @@ export function setLangContent(
   const out: DiagnosticConfig = {
     ...config,
     contenu_par_langue: { ...(config.contenu_par_langue || {}), [lang]: next },
+    // Modification manuelle : cette langue devient la référence pour la traduction automatique
+    contenu_meta: { ...(config.contenu_meta || {}), [lang]: { manualAt: Date.now() } },
   };
   // Compatibilité : les anciens champs restent synchronisés avec leur langue d'origine
   if (legacyContentLang(config) === lang) {
@@ -230,4 +243,78 @@ export function resetDiagnosticDataToDefaults(): DiagnosticAppData {
   const defaults = JSON.parse(JSON.stringify(DEFAULT_DIAGNOSTIC_DATA));
   saveDiagnosticData(defaults);
   return defaults;
+}
+
+
+const ALL_LANGS: DiagLang[] = ["ar", "fr", "en"];
+
+/** Enregistre un contenu traduit automatiquement (n'est pas une modification manuelle) */
+export function setTranslatedLangContent(
+  config: DiagnosticConfig,
+  lang: DiagLang,
+  content: DiagnosticLangContent,
+  from: DiagLang,
+  sourceAt: number
+): DiagnosticConfig {
+  const out: DiagnosticConfig = {
+    ...config,
+    contenu_par_langue: { ...(config.contenu_par_langue || {}), [lang]: content },
+    contenu_meta: { ...(config.contenu_meta || {}), [lang]: { translatedFrom: from, sourceAt } },
+  };
+  if (legacyContentLang(config) === lang) {
+    out.observations = content.observations;
+    out.propositions = content.propositions;
+    out.exercices = content.exercices;
+    out.appreciation_globale = content.appreciation_globale;
+    out.nombre_exercices_texte = content.nombre_exercices_texte;
+  }
+  return out;
+}
+
+/** Date de dernière modification manuelle d'une langue (données anciennes comprises) */
+function manualStamp(config: DiagnosticConfig, l: DiagLang): number {
+  const m = config.contenu_meta?.[l];
+  if (m?.manualAt) return m.manualAt;
+  // Données d'avant le suivi : une seule langue personnalisée → c'est la source
+  const anyMeta = ALL_LANGS.some(x => config.contenu_meta?.[x]);
+  if (!anyMeta) {
+    const stored = ALL_LANGS.filter(x => config.contenu_par_langue?.[x]);
+    if (stored.length === 1 && stored[0] === l) return 1;
+  }
+  return 0;
+}
+
+export type TranslationPlan =
+  | { action: "none" }
+  /** La langue n'a jamais été modifiée à la main : traduction automatique */
+  | { action: "auto"; from: DiagLang; sourceAt: number }
+  /** La langue a des modifications manuelles plus anciennes que la source : proposer une mise à jour */
+  | { action: "suggest"; from: DiagLang; sourceAt: number };
+
+/** Faut-il (re)traduire la langue `lang` ? Source = langue modifiée le plus récemment à la main. */
+export function getTranslationPlan(config: DiagnosticConfig, lang: DiagLang): TranslationPlan {
+  let from: DiagLang | null = null;
+  let best = 0;
+  for (const l of ALL_LANGS) {
+    if (l === lang) continue;
+    const st = manualStamp(config, l);
+    if (st > best) { best = st; from = l; }
+  }
+  if (!from || best === 0) return { action: "none" };
+  const own = manualStamp(config, lang);
+  if (own >= best) return { action: "none" };
+  const meta = config.contenu_meta?.[lang];
+  if (meta?.translatedFrom === from && meta.sourceAt === best) return { action: "none" };
+  return own > 0 ? { action: "suggest", from, sourceAt: best } : { action: "auto", from, sourceAt: best };
+}
+
+/** Langue de référence actuelle (la plus récemment modifiée à la main), hors `exclude` */
+export function getManualSourceLang(config: DiagnosticConfig, exclude?: DiagLang): { lang: DiagLang; at: number } | null {
+  let res: { lang: DiagLang; at: number } | null = null;
+  for (const l of ALL_LANGS) {
+    if (l === exclude) continue;
+    const st = manualStamp(config, l);
+    if (st > 0 && (!res || st > res.at)) res = { lang: l, at: st };
+  }
+  return res;
 }
