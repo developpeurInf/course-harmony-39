@@ -388,7 +388,9 @@
   border-radius: 0;
   box-shadow: none;
   animation: none;
-  overflow: visible;
+  /* défilement horizontal du tableau sur téléphone (et non coupé) */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .app-table-flat .app-table thead th { border-radius: 0; }
 
@@ -501,4 +503,49 @@ html { touch-action: manipulation; }
 }
 @media print {
   .quiz-protected { visibility: hidden !important; }
+}
+
+
+/* ═════════ Tous appareils : PC, Android, iPhone X → 18, iPad ═════════ */
+
+/* Pas d'agrandissement automatique du texte en paysage (iPhone / iPad) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* Fenêtres (dialogues, confirmations, panneaux) : jamais plus hautes que l'écran visible,
+   même avec la barre d'adresse iOS / Android affichée */
+.fixed[role="dialog"],
+.fixed[role="alertdialog"] {
+  max-height: 90vh;
+  max-height: calc(var(--app-vh, 100vh) - 1.5rem);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+@supports (height: 100dvh) {
+  .fixed[role="dialog"],
+  .fixed[role="alertdialog"] { max-height: calc(100dvh - 1.5rem); }
+}
+/* Panneaux latéraux (menu mobile) : pleine hauteur visible */
+.fixed[role="dialog"].h-full { max-height: none; height: var(--app-vh, 100vh); }
+@supports (height: 100dvh) {
+  .fixed[role="dialog"].h-full { height: 100dvh; }
+}
+/* Les longs mots / liens / identifiants ne débordent plus de l'écran */
+.break-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+/* Médias et graphiques toujours contenus dans leur carte */
+img, video, iframe, canvas { max-width: 100%; }
+.recharts-responsive-container, .recharts-wrapper { max-width: 100%; }
+
+/* Rapport diagnostique : l'aperçu réduit à l'écran est imprimé en taille réelle */
+@media print {
+  .report-scaler { height: auto !important; overflow: visible !important; border: 0 !important; }
+  .report-scaler-inner { -webkit-transform: none !important; transform: none !important; width: auto !important; min-width: 0 !important; }
+}
+
+/* Les colonnes de grille ne s'élargissent plus au-delà de l'écran à cause d'un contenu
+   trop large (tableau, menu défilant, texte long) — cause n°1 de débordement sur téléphone.
+   Dans @layer base : une classe min-w-* explicite reste prioritaire. */
+@layer base {
+  .grid > * { min-width: 0; }
 }

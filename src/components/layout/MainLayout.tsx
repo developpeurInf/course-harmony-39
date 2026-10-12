@@ -78,7 +78,7 @@ const MainLayout = () => {
         <TopNav />
         <main
           ref={mainRef}
-          className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-28 md:pb-12 touch-auto"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 pb-28 md:pb-12 touch-auto"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <Suspense

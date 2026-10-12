@@ -56,6 +56,7 @@ import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
+import { isSmallScreen } from "@/lib/device";
 
 const Courses = () => {
   const { user, getStudents } = useAuth();
@@ -82,7 +83,7 @@ const Courses = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
+  const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [selectedPdfFiles, setSelectedPdfFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<{[courseId: string]: any[]}>({});

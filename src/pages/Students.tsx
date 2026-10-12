@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
 import StudentSearchBar from "@/components/StudentSearchBar";
 import { matchesStudent, type StudentSearchMode } from "@/lib/search";
+import { isSmallScreen } from "@/lib/device";
 
 const Students = () => {
   const { roomId } = useParams();
@@ -55,7 +56,7 @@ const Students = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchMode, setSearchMode] = useState<StudentSearchMode>("all");
   const [selectedCourse, setSelectedCourse] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
+  const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [enrollCourseId, setEnrollCourseId] = useState("");

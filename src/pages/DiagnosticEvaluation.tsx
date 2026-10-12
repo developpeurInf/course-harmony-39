@@ -38,11 +38,8 @@ import {
   BarChart2,
   Layers,
   Filter,
-  Zap,
-  Languages,
-  Loader2
+  Zap
 } from "lucide-react";
-import { translateTexts } from "@/lib/translate";
 import { toast } from "sonner";
 import {
   BarChart,
@@ -70,9 +67,6 @@ import {
   getLangContent,
   setLangContent,
   numberToWords,
-  setTranslatedLangContent,
-  getTranslationPlan,
-  getManualSourceLang,
   type DiagnosticLangContent
 } from "@/lib/diagnosticStorage";
 import {
@@ -102,6 +96,7 @@ import {
   translateAppreciation
 } from "@/lib/diagnosticTranslations";
 import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportPrint";
+import ReportScaler from "@/components/diagnostic/ReportScaler";
 import {
   DiagnosticReportTemplate2,
   defaultTemplate2Intro,
@@ -149,6 +144,8 @@ export const DiagnosticEvaluation: React.FC = () => {
     try { localStorage.setItem("diag_report_template", v); } catch { /* stockage indisponible */ }
   };
   const [showTemplate2Texts, setShowTemplate2Texts] = useState(false);
+  // Aperçu du rapport : ajusté à la largeur de l'écran (téléphone / iPad) ou taille réelle
+  const [previewFit, setPreviewFit] = useState(true);
 
   // Modals state
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -448,6 +445,8 @@ export const DiagnosticEvaluation: React.FC = () => {
         setCurrentTab("preview");
         await new Promise(r => setTimeout(r, 450));
       }
+      // L'aperçu repasse en taille réelle (sans réduction) le temps de la capture
+      await new Promise(r => setTimeout(r, 250));
 
       const ok = await exportDiagnosticReportToPdf("diagnostic-official-report", filename);
       if (ok) {
@@ -794,96 +793,6 @@ export const DiagnosticEvaluation: React.FC = () => {
     }));
   };
 
-  // --- TRADUCTION AUTOMATIQUE DU CONTENU (onglet 4) ---
-  const [translatingFrom, setTranslatingFrom] = useState<DiagLang | null>(null);
-  const appDataRef = useRef(appData);
-  appDataRef.current = appData;
-  const autoTranslateKeyRef = useRef<string>("");
-
-  const LANG_LABELS: Record<DiagLang, Record<DiagLang, string>> = {
-    ar: { ar: "العربية", fr: "الفرنسية", en: "الإنجليزية" },
-    fr: { ar: "l'arabe", fr: "le français", en: "l'anglais" },
-    en: { ar: "Arabic", fr: "French", en: "English" },
-  };
-  const langLabel = (l: DiagLang) => LANG_LABELS[lang][l];
-  const LANG_BUTTON: Record<DiagLang, string> = { ar: "العربية", fr: "Français", en: "English" };
-
-  /** Traduit tout le contenu de l'onglet 4 de `from` vers `to` */
-  const translateLangContent = async (from: DiagLang, to: DiagLang, opts: { sourceAt?: number; silent?: boolean } = {}) => {
-    if (from === to || translatingFrom) return;
-    const startConfig = appDataRef.current.config;
-    const src = getLangContent(startConfig, from);
-    const previous = getLangContent(startConfig, to);
-    const startOwnManual = startConfig.contenu_meta?.[to]?.manualAt || 0;
-    const sourceAt = opts.sourceAt ?? (startConfig.contenu_meta?.[from]?.manualAt || Date.now());
-
-    const nEx = src.exercices.length;
-    const texts = [
-      src.appreciation_globale,
-      ...src.exercices.map(e => e.titre),
-      ...src.exercices.map(e => e.description),
-      ...src.observations,
-      ...src.propositions,
-    ];
-
-    setTranslatingFrom(from);
-    try {
-      const tr = await translateTexts(texts, from, to);
-      let k = 0;
-      const appreciation = tr[k++];
-      const titres = tr.slice(k, k + nEx); k += nEx;
-      const descs = tr.slice(k, k + nEx); k += nEx;
-      const observations = tr.slice(k, k + src.observations.length); k += src.observations.length;
-      const propositions = tr.slice(k, k + src.propositions.length);
-      const content: DiagnosticLangContent = {
-        appreciation_globale: appreciation,
-        exercices: titres.map((titre, i) => ({ titre, description: descs[i] })),
-        observations,
-        propositions,
-        nombre_exercices_texte: numberToWords(nEx, to),
-      };
-
-      // Le professeur a modifié la langue cible pendant la traduction : on ne l'écrase pas
-      const applied = (appDataRef.current.config.contenu_meta?.[to]?.manualAt || 0) <= startOwnManual;
-      if (applied) {
-        const nextConfig = setTranslatedLangContent(appDataRef.current.config, to, content, from, sourceAt);
-        updateAppData(prev => ({ ...prev, config: setTranslatedLangContent(prev.config, to, content, from, sourceAt) }));
-        saveDiagnosticConfigToCloud(nextConfig, user?.id).catch(() => undefined);
-        if (!opts.silent) {
-          toast.success(
-            to === "ar" ? `تمت الترجمة من ${LANG_LABELS.ar[from]}` : to === "en" ? `Translated from ${LANG_LABELS.en[from]}` : `Contenu traduit depuis ${LANG_LABELS.fr[from]}`,
-            {
-              action: {
-                label: to === "ar" ? "تراجع" : to === "en" ? "Undo" : "Annuler",
-                onClick: () => updateAppData(prev => ({ ...prev, config: setLangContent(prev.config, to, previous) })),
-              },
-            }
-          );
-        }
-      }
-    } catch (e) {
-      console.error("Translation failed", e);
-      toast.error(lang === "ar" ? "تعذرت الترجمة التلقائية، تحقق من الاتصال بالإنترنت" : lang === "en" ? "Automatic translation failed, check your connection" : "La traduction automatique a échoué, vérifiez la connexion Internet");
-    } finally {
-      setTranslatingFrom(null);
-    }
-  };
-
-  // Changement de langue : si cette langue n'a jamais été modifiée à la main,
-  // on la traduit automatiquement depuis la langue modifiée le plus récemment.
-  const translationPlan = useMemo(() => getTranslationPlan(appData.config, lang), [appData.config, lang]);
-  useEffect(() => {
-    if (translationPlan.action !== "auto" || translatingFrom) return;
-    const key = `${lang}:${translationPlan.from}:${translationPlan.sourceAt}`;
-    if (autoTranslateKeyRef.current === key) return;
-    autoTranslateKeyRef.current = key;
-    translateLangContent(translationPlan.from, lang, { sourceAt: translationPlan.sourceAt, silent: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang, translationPlan]);
-
-  const currentLangMeta = appData.config.contenu_meta?.[lang];
-  const otherLangs = (["ar", "fr", "en"] as DiagLang[]).filter(l => l !== lang);
-
   const handleAddObservation = () => {
     updateLangContent(c => ({
       observations: [...c.observations, lang === "ar" ? "ملاحظة بيداغوجية جديدة..." : lang === "en" ? "New pedagogical observation..." : "Nouvelle observation pédagogique..."]
@@ -1224,8 +1133,8 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       {/* TOP HEADER & TITLE BANNER */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-print print:hidden">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900 rounded-2xl flex items-center justify-center p-2 shadow-inner shrink-0">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="w-11 h-11 sm:w-14 sm:h-14 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900 rounded-2xl flex items-center justify-center p-2 shadow-inner shrink-0">
             <img
               src="/assets/header_logo.png"
               alt="Armoiries du Royaume du Maroc"
@@ -1255,13 +1164,13 @@ export const DiagnosticEvaluation: React.FC = () => {
                 </Badge>
               )}
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {t.appSubtitle}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:flex-wrap md:items-center">
           <Button
             variant="outline"
             size="sm"
@@ -1290,15 +1199,24 @@ export const DiagnosticEvaluation: React.FC = () => {
             onClick={() => handleDownloadExcelForClass(currentClass || appData.classes[0])}
             className="text-xs gap-1.5 border-slate-200 dark:border-slate-700"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>{t.downloadClassTemplateBtn} {currentClass ? `(${currentClass.nom})` : ""}</span>
+            <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-600" />
+            <span className="truncate">{t.downloadClassTemplateBtn} {currentClass ? `(${currentClass.nom})` : ""}</span>
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => setCurrentTab("preview")}
+            className="md:hidden text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+          >
+            <Eye className="w-4 h-4" />
+            <span>{lang === "ar" ? "التقرير" : lang === "en" ? "Report" : "Rapport"}</span>
           </Button>
 
           <Button
             size="sm"
             onClick={handleDownloadPdf}
             disabled={isExportingPdf}
-            className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100 dark:shadow-none font-semibold"
+            className="hidden md:inline-flex text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100 dark:shadow-none font-semibold"
           >
             {isExportingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             <span>{isExportingPdf ? t.downloadingPdfMsg : t.downloadPdfBtn}</span>
@@ -1307,7 +1225,7 @@ export const DiagnosticEvaluation: React.FC = () => {
           <Button
             size="sm"
             onClick={handlePrintReport}
-            className="text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 dark:shadow-none font-semibold"
+            className="hidden md:inline-flex text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 dark:shadow-none font-semibold"
           >
             <Printer className="w-4 h-4" />
             <span>{t.printPdfBtn}</span>
@@ -2063,70 +1981,6 @@ export const DiagnosticEvaluation: React.FC = () => {
             </div>
           </div>
 
-          {/* Traduction automatique */}
-          <div className={cn(
-            "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border text-xs",
-            translatingFrom
-              ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-900"
-              : translationPlan.action === "suggest"
-              ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900"
-              : "bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-800"
-          )}>
-            <div className="flex items-start gap-2.5 min-w-0">
-              {translatingFrom
-                ? <Loader2 className="w-4 h-4 mt-0.5 shrink-0 animate-spin text-indigo-600" />
-                : <Languages className={cn("w-4 h-4 mt-0.5 shrink-0", translationPlan.action === "suggest" ? "text-amber-600" : "text-indigo-600")} />}
-              <p className="leading-relaxed text-slate-700 dark:text-slate-300">
-                {translatingFrom
-                  ? (lang === "ar" ? `جارٍ الترجمة التلقائية من ${langLabel(translatingFrom)}…` : lang === "en" ? `Translating automatically from ${langLabel(translatingFrom)}…` : `Traduction automatique depuis ${langLabel(translatingFrom)}…`)
-                  : translationPlan.action === "suggest"
-                  ? (lang === "ar"
-                      ? `تم تعديل المحتوى بـ${langLabel(translationPlan.from)} بعد آخر تعديل لك هنا. هل تريد تحديث الترجمة؟`
-                      : lang === "en"
-                      ? `The ${langLabel(translationPlan.from)} content changed after your last edit here. Update the translation?`
-                      : `Le contenu en ${translationPlan.from === "ar" ? "arabe" : translationPlan.from === "en" ? "anglais" : "français"} a été modifié après votre dernière modification ici. Mettre à jour la traduction ?`)
-                  : currentLangMeta?.translatedFrom
-                  ? (lang === "ar"
-                      ? `هذا المحتوى مترجم تلقائياً من ${langLabel(currentLangMeta.translatedFrom)}. يمكنك تصحيح أي حقل، وسيُحدَّث التقرير مباشرة.`
-                      : lang === "en"
-                      ? `This content was translated automatically from ${langLabel(currentLangMeta.translatedFrom)}. You can correct any field; the report updates instantly.`
-                      : `Ce contenu a été traduit automatiquement depuis ${langLabel(currentLangMeta.translatedFrom)}. Vous pouvez corriger chaque champ, le rapport se met à jour aussitôt.`)
-                  : (lang === "ar"
-                      ? "اكتب المحتوى بلغة واحدة، وسيُترجم تلقائياً عند التبديل إلى لغة أخرى."
-                      : lang === "en"
-                      ? "Write the content in one language: it is translated automatically when you switch language."
-                      : "Rédigez le contenu dans une seule langue : il est traduit automatiquement quand vous changez de langue.")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {translationPlan.action === "suggest" && (
-                <Button
-                  size="sm"
-                  disabled={!!translatingFrom}
-                  onClick={() => translateLangContent(translationPlan.from, lang, { sourceAt: translationPlan.sourceAt })}
-                  className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  {lang === "ar" ? "تحديث الترجمة" : lang === "en" ? "Update translation" : "Mettre à jour"}
-                </Button>
-              )}
-              {otherLangs.map(l => (
-                <Button
-                  key={l}
-                  size="sm"
-                  variant="outline"
-                  disabled={!!translatingFrom}
-                  onClick={() => translateLangContent(l, lang)}
-                  className="h-8 text-xs gap-1.5"
-                  title={lang === "ar" ? `استبدال المحتوى بترجمة من ${langLabel(l)}` : lang === "en" ? `Replace content with a translation from ${langLabel(l)}` : `Remplacer le contenu par la traduction depuis ${langLabel(l)}`}
-                >
-                  <Languages className="w-3.5 h-3.5" />
-                  {lang === "ar" ? `ترجمة من ${LANG_BUTTON[l]}` : lang === "en" ? `From ${LANG_BUTTON[l]}` : `Traduire depuis ${LANG_BUTTON[l]}`}
-                </Button>
-              ))}
-            </div>
-          </div>
-
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-bold">{t.globalAppreciationTitle}</CardTitle>
@@ -2422,184 +2276,315 @@ export const DiagnosticEvaluation: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* ONGLET 6 : APERÇU 1:1 & EXPORT PDF */}
+      {/* ONGLET 6 : RAPPORT — réglages à gauche, aperçu A4 à droite                  */}
       {/* ========================================================================= */}
-      {currentTab === "preview" && (
-        <div className="space-y-4">
-          {/* Barre de sélection de la classe pour le PDF et des graphes */}
-          {renderReportScopeControls()}
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print print:hidden">
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                <span>{t.previewHeaderTitle}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {classesForReport.length} {t.selectedClassesCount} • {reportStats.total_presents} {t.presentCountLabel}
-                </Badge>
-              </h3>
-              <p className="text-xs text-slate-500">
-                {t.previewHeaderSubtitle}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentTab("classes")}
-                className="text-xs gap-1"
-              >
-                <span>{t.backToEditBtn}</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setEditConfigDraft({ ...appData.config });
-                  setIsQuickEditConfigOpen(true);
-                }}
-                className="text-xs gap-1.5 border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
-                <span>{lang === "ar" ? "تعديل الفترة والمعلومات" : "Modifier la période & informations"}</span>
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={handleDownloadPdf}
-                disabled={isExportingPdf}
-                className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100 font-semibold"
-              >
-                {isExportingPdf ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>{isExportingPdf ? t.downloadingPdfMsg : t.downloadPdfBtn}</span>
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={handlePrintReport}
-                className="text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 font-semibold"
-              >
-                <Printer className="w-4 h-4" />
-                <span>{t.printPdfBtn}</span>
-              </Button>
-            </div>
+      {currentTab === "preview" && (() => {
+        const L = (ar: string, fr: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : fr);
+        const sectionTitle = (n: number, label: string) => (
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">{n}</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">{label}</span>
           </div>
+        );
+        const actionButtons = (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={handleDownloadPdf}
+              disabled={isExportingPdf || classesForReport.length === 0}
+              className="h-10 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm"
+            >
+              {isExportingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span className="truncate">{isExportingPdf ? L("جارٍ التحميل…", "Génération…", "Generating…") : L("تحميل PDF", "Télécharger PDF", "Download PDF")}</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handlePrintReport}
+              disabled={classesForReport.length === 0}
+              className="h-10 gap-1.5 font-semibold text-xs sm:text-sm"
+            >
+              <Printer className="w-4 h-4" />
+              <span className="truncate">{L("طباعة", "Imprimer", "Print")}</span>
+            </Button>
+          </div>
+        );
+        const infoRows: { label: string; value: string }[] = [
+          { label: L("المؤسسة", "Établissement", "School"), value: appData.config.lycee },
+          { label: L("الأستاذ(ة)", "Enseignant(e)", "Teacher"), value: appData.config.nom_enseignant },
+          { label: L("السنة الدراسية", "Année scolaire", "School year"), value: appData.config.annee_scolaire },
+          { label: L("الفترة", "Période", "Period"), value: appData.config.periode_diagnostic },
+        ];
 
-          {/* Choix du modèle de rapport */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm no-print print:hidden space-y-3">
-            <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              {lang === "ar" ? "نموذج التقرير" : lang === "en" ? "Report template" : "Modèle de rapport"}
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {([
-                {
-                  id: "t1" as const,
-                  title: lang === "ar" ? "النموذج 1 : تقرير مفصل" : lang === "en" ? "Template 1: Detailed report" : "Modèle 1 : Rapport détaillé",
-                  desc: lang === "ar"
-                    ? "الإطار التنظيمي، محتوى الاختبار، 4 فئات (المتعثرون … المتميزون)، الملاحظات والمقترحات، المبيانات."
-                    : lang === "en"
-                    ? "Regulatory framework, test content, 4 levels (struggling … exemplary), observations, proposals, charts."
-                    : "Cadre réglementaire, contenu du test, 4 tranches (en difficulté … excellents), observations, propositions, graphiques.",
-                },
-                {
-                  id: "t2" as const,
-                  title: lang === "ar" ? "النموذج 2 : تقرير التقويمات التشخيصية (حسب الأقسام)" : lang === "en" ? "Template 2: Diagnostic report by class" : "Modèle 2 : Rapport par classes",
-                  desc: lang === "ar"
-                    ? "معطيات عامة (العدد الإجمالي والحاضرون)، تفييئ المتعلمين لكل قسم (أقل من 5، 5-10، 10-15، 15-20)، أساليب الدعم، التوقيعات."
-                    : lang === "en"
-                    ? "General data (enrolled / present), students grouped per class (<5, 5-10, 10-15, 15-20), support methods, signatures."
-                    : "Données générales (effectif / présents), répartition par classe (<5, 5-10, 10-15, 15-20), méthodes de soutien, signatures.",
-                },
-              ]).map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setReportTemplate(opt.id)}
-                  className={`text-start rounded-xl border-2 p-3 transition-colors ${
-                    reportTemplate === opt.id
-                      ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40"
-                      : "border-slate-200 dark:border-slate-800 hover:border-indigo-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-semibold text-sm text-slate-900 dark:text-white">
-                    <span className={`h-4 w-4 rounded-full border-2 shrink-0 ${reportTemplate === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"}`} />
-                    {opt.title}
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{opt.desc}</p>
-                </button>
-              ))}
-            </div>
+        return (
+          <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)] items-start">
+            {/* ---------------- Panneau de gestion du rapport ---------------- */}
+            <aside className="space-y-3 no-print print:hidden lg:sticky lg:top-2">
+              {/* Résumé + actions */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">{L("التقرير الرسمي", "Rapport officiel", "Official report")}</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {classesForReport.length} {t.selectedClassesCount} • {reportStats.total_presents} {t.presentCountLabel}
+                  </p>
+                </div>
+                {actionButtons}
+              </div>
 
-            {reportTemplate === "t2" && (
-              <div className="pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTemplate2Texts(v => !v)}
-                  className="text-xs gap-1.5"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  {lang === "ar" ? "تخصيص نصوص النموذج 2" : lang === "en" ? "Customise template 2 texts" : "Personnaliser les textes du modèle 2"}
-                </Button>
-                {showTemplate2Texts && (
-                  <div className="mt-3 space-y-3">
-                    <p className="text-[11px] text-slate-500">
-                      {lang === "ar"
-                        ? "اترك الحقل فارغا لاستعمال النص التلقائي (يُحدَّث حسب السنة الدراسية والفترة والأقسام ونسبة الغياب)."
-                        : lang === "en"
-                        ? "Leave a field empty to use the automatic text (updated from the school year, period, classes and absence rate)."
-                        : "Laissez un champ vide pour utiliser le texte automatique (mis à jour selon l'année, la période, les classes et le taux d'absence)."}
-                    </p>
-                    {([
-                      { key: "rapport2_intro" as const, label: lang === "ar" ? "النص التمهيدي" : lang === "en" ? "Introduction" : "Introduction", ph: defaultTemplate2Intro(appData.config, classesForReport, lang) },
-                      { key: "rapport2_remarque" as const, label: lang === "ar" ? "ملاحظة (الغياب)" : lang === "en" ? "Note (absences)" : "Remarque (absences)", ph: lang === "ar" ? "نص تلقائي حسب نسبة الغياب" : lang === "en" ? "Automatic text based on the absence rate" : "Texte automatique selon le taux d'absence" },
-                      { key: "rapport2_soutien" as const, label: lang === "ar" ? "أساليب الدعم وطرق المعالجة" : lang === "en" ? "Support and remediation methods" : "Méthodes de soutien et de remédiation", ph: defaultTemplate2Support(lang) },
-                    ]).map(f => (
-                      <div key={f.key} className="space-y-1">
-                        <Label className="text-xs font-semibold">{f.label}</Label>
-                        <Textarea
-                          rows={3}
-                          value={(appData.config as any)[f.key] || ""}
-                          placeholder={f.ph}
-                          dir={getDirection()}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            updateAppData(prev => ({ ...prev, config: { ...prev.config, [f.key]: v } }));
-                          }}
-                          className="text-xs"
-                        />
+              {/* 1. Modèle */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                {sectionTitle(1, L("نموذج التقرير", "Modèle", "Template"))}
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: "t1" as const, title: L("النموذج 1", "Modèle 1", "Template 1"), desc: L("تقرير مفصل مع الفئات والملاحظات", "Rapport détaillé : tranches, observations, propositions", "Detailed: levels, observations, proposals") },
+                    { id: "t2" as const, title: L("النموذج 2", "Modèle 2", "Template 2"), desc: L("تقرير حسب الأقسام", "Rapport par classes (<5, 5-10, 10-15, 15-20)", "By class (<5, 5-10, 10-15, 15-20)") },
+                  ]).map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setReportTemplate(opt.id)}
+                      className={`text-start rounded-lg border-2 p-2.5 transition-colors ${
+                        reportTemplate === opt.id
+                          ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40"
+                          : "border-slate-200 dark:border-slate-800 hover:border-indigo-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                        <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${reportTemplate === opt.id ? "border-indigo-600 bg-indigo-600" : "border-slate-300"}`} />
+                        {opt.title}
                       </div>
-                    ))}
+                      <p className="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Classes */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                {sectionTitle(2, L("الأقسام المعنية", "Classes du rapport", "Classes"))}
+                <div className="grid grid-cols-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-0.5">
+                  {([
+                    { id: "all" as const, label: t.scopeAllClasses },
+                    { id: "single" as const, label: t.scopeSingleClass },
+                    { id: "custom" as const, label: t.scopeCustom },
+                  ]).map(o => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setReportScope(o.id)}
+                      className={`rounded-md px-1.5 py-1.5 text-[11px] font-semibold leading-tight transition-colors ${
+                        reportScope === o.id ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+
+                {appData.classes.length === 0 ? (
+                  <p className="mt-3 text-xs text-slate-500">{t.noClassesMessage}</p>
+                ) : reportScope === "all" ? (
+                  <p className="mt-3 text-xs text-slate-500 leading-relaxed">{reportClassesNames.join(" • ")}</p>
+                ) : (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {appData.classes.map(c => {
+                      const checked = reportScope === "single" ? c.id === selectedSingleClassId : selectedClassIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            if (reportScope === "single") setSelectedSingleClassId(c.id);
+                            else setSelectedClassIds(prev => (prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]));
+                          }}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                            checked
+                              ? "border-indigo-400 bg-indigo-50 text-indigo-900 dark:border-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200"
+                              : "border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                          }`}
+                        >
+                          {checked && <Check className="h-3 w-3" />}
+                          {c.nom}
+                          <span className="text-[10px] opacity-60">({c.students.length})</span>
+                        </button>
+                      );
+                    })}
+                    {reportScope === "custom" && (
+                      <div className="flex w-full gap-1 pt-1">
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedClassIds(appData.classes.map(c => c.id))} className="h-7 px-2 text-[11px] text-indigo-600">{t.selectAllBtn}</Button>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedClassIds([])} className="h-7 px-2 text-[11px] text-slate-500">{t.deselectAllBtn}</Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Rendu 1:1 du rapport officiel avec la langue, la classe et les graphiques */}
-          {reportTemplate === "t2" ? (
-            <DiagnosticReportTemplate2
-              config={appData.config}
-              classes={classesForReport}
-              lang={lang}
-            />
-          ) : (
-            <DiagnosticReportPrint
-              config={appData.config}
-              stats={reportStats}
-              lang={lang}
-              includeGraphs={includeGraphsInReport}
-              selectedClassesNames={reportClassesNames}
-              chartBackground={chartBgTheme}
-            />
-          )}
-        </div>
-      )}
+              {/* 3. Contenu */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
+                {sectionTitle(3, L("المحتوى", "Contenu", "Content"))}
+                {reportTemplate === "t1" ? (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="include-graphs-toggle-r" className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
+                        <BarChart2 className="w-4 h-4 text-indigo-600" />
+                        {t.includeGraphsInReportLabel}
+                      </Label>
+                      <Switch id="include-graphs-toggle-r" checked={includeGraphsInReport} onCheckedChange={setIncludeGraphsInReport} />
+                    </div>
+                    {includeGraphsInReport && (
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-500">{L("خلفية المبيانات", "Fond des graphiques", "Charts background")}</span>
+                        <div className="inline-flex rounded-md bg-slate-100 dark:bg-slate-800 p-0.5">
+                          {(["gray", "white"] as const).map(bg => (
+                            <button
+                              key={bg}
+                              type="button"
+                              onClick={() => setChartBgTheme(bg)}
+                              className={`rounded px-2.5 py-1 text-[11px] font-semibold ${chartBgTheme === bg ? "bg-white dark:bg-slate-900 shadow-sm text-slate-900 dark:text-white" : "text-slate-500"}`}
+                            >
+                              {bg === "gray" ? L("رمادي", "Gris", "Gray") : L("أبيض", "Blanc", "White")}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => setCurrentTab("observations")} className="w-full justify-start gap-1.5 text-xs">
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                      {L("تعديل الملاحظات والمقترحات (4)", "Modifier observations & propositions (onglet 4)", "Edit observations & proposals (tab 4)")}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setShowTemplate2Texts(v => !v)} className="w-full justify-start gap-1.5 text-xs">
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                      {L("تخصيص نصوص النموذج 2", "Personnaliser les textes du modèle 2", "Customise template 2 texts")}
+                    </Button>
+                    {showTemplate2Texts && (
+                      <div className="space-y-3">
+                        <p className="text-[11px] text-slate-500">
+                          {L(
+                            "اترك الحقل فارغا لاستعمال النص التلقائي.",
+                            "Laissez un champ vide pour utiliser le texte automatique.",
+                            "Leave a field empty to use the automatic text."
+                          )}
+                        </p>
+                        {([
+                          { key: "rapport2_intro" as const, label: L("النص التمهيدي", "Introduction", "Introduction"), ph: defaultTemplate2Intro(appData.config, classesForReport, lang) },
+                          { key: "rapport2_remarque" as const, label: L("ملاحظة (الغياب)", "Remarque (absences)", "Note (absences)"), ph: L("نص تلقائي حسب نسبة الغياب", "Texte automatique selon le taux d'absence", "Automatic text based on the absence rate") },
+                          { key: "rapport2_soutien" as const, label: L("أساليب الدعم وطرق المعالجة", "Méthodes de soutien et de remédiation", "Support and remediation methods"), ph: defaultTemplate2Support(lang) },
+                        ]).map(f => (
+                          <div key={f.key} className="space-y-1">
+                            <Label className="text-xs font-semibold">{f.label}</Label>
+                            <Textarea
+                              rows={3}
+                              value={(appData.config as any)[f.key] || ""}
+                              placeholder={f.ph}
+                              dir={getDirection()}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                updateAppData(prev => ({ ...prev, config: { ...prev.config, [f.key]: v } }));
+                              }}
+                              className="text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* 4. Informations */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+                {sectionTitle(4, L("معلومات التقرير", "Informations", "Information"))}
+                <dl className="space-y-1.5 text-xs">
+                  {infoRows.map(r => (
+                    <div key={r.label} className="flex items-start justify-between gap-3">
+                      <dt className="shrink-0 text-slate-500">{r.label}</dt>
+                      <dd className={`text-end font-medium break-words min-w-0 ${r.value ? "text-slate-900 dark:text-slate-100" : "text-amber-600"}`}>
+                        {r.value || L("غير محدد", "À compléter", "Missing")}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditConfigDraft({ ...appData.config });
+                      setIsQuickEditConfigOpen(true);
+                    }}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    {L("تعديل", "Modifier", "Edit")}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentTab("config")} className="gap-1.5 text-xs">
+                    <SettingsIcon className="w-3.5 h-3.5" />
+                    {L("كل الإعدادات", "Tous les paramètres", "All settings")}
+                  </Button>
+                </div>
+              </div>
+            </aside>
+
+            {/* ---------------- Aperçu A4 ---------------- */}
+            <section className="min-w-0 space-y-2">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm no-print print:hidden">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Eye className="w-4 h-4 shrink-0 text-indigo-600" />
+                  <span className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {L("معاينة (A4)", "Aperçu (A4)", "Preview (A4)")} — {reportTemplate === "t2" ? L("النموذج 2", "Modèle 2", "Template 2") : L("النموذج 1", "Modèle 1", "Template 1")}
+                  </span>
+                </div>
+                <div className="inline-flex shrink-0 rounded-md bg-slate-100 dark:bg-slate-800 p-0.5">
+                  {([
+                    { v: true, label: L("ملاءمة", "Ajuster", "Fit") },
+                    { v: false, label: "100%" },
+                  ]).map(o => (
+                    <button
+                      key={String(o.v)}
+                      type="button"
+                      onClick={() => setPreviewFit(o.v)}
+                      className={`rounded px-2.5 py-1 text-[11px] font-semibold ${previewFit === o.v ? "bg-white dark:bg-slate-900 shadow-sm text-slate-900 dark:text-white" : "text-slate-500"}`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {classesForReport.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center text-sm text-slate-500">
+                  {L("أضف قسماً أو اختر الأقسام لعرض التقرير.", "Ajoutez ou sélectionnez des classes pour afficher le rapport.", "Add or select classes to display the report.")}
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                  <ReportScaler fit={previewFit} disabled={isExportingPdf}>
+                    {reportTemplate === "t2" ? (
+                      <DiagnosticReportTemplate2
+                        config={appData.config}
+                        classes={classesForReport}
+                        lang={lang}
+                      />
+                    ) : (
+                      <DiagnosticReportPrint
+                        config={appData.config}
+                        stats={reportStats}
+                        lang={lang}
+                        includeGraphs={includeGraphsInReport}
+                        selectedClassesNames={reportClassesNames}
+                        chartBackground={chartBgTheme}
+                      />
+                    )}
+                  </ReportScaler>
+                </div>
+              )}
+
+              {/* Actions répétées sous l'aperçu (pratique sur téléphone) */}
+              <div className="lg:hidden no-print print:hidden pt-1">{actionButtons}</div>
+            </section>
+          </div>
+        );
+      })()}
 
       {/* ==================== DIALOG AJOUTER UNE CLASSE ==================== */}
       <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>

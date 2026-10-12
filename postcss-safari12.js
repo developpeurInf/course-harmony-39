@@ -7,6 +7,7 @@
  *   2. `rtl:`   → `.x:where([dir=rtl],[dir=rtl] *)`     : la mise en page arabe est cassée
  *   3. preflight `button,input:where([type=button])…`   : les boutons gardent le fond gris iOS
  *   4. `gap-*` sur un conteneur flex (Safari ≥ 14.1)     : éléments collés, sans espacement
+ *   5. `inset-0` (Safari ≥ 14.5)                          : fonds de fenêtres / menus mal placés
  *
  * Ce plugin réécrit 1-3 avec des sélecteurs équivalents compatibles, et ajoute pour 4
  * des règles de repli appliquées UNIQUEMENT quand <html> porte la classe `no-flex-gap`
@@ -93,6 +94,15 @@ export default function postcssSafari12() {
     postcssPlugin: "postcss-safari12",
     OnceExit(root, { Rule, Declaration }) {
       try {
+        /* ---------- 5 : `inset` (Safari < 14.5) → top / right / bottom / left ---------- */
+        root.walkDecls("inset", (decl) => {
+          const v = decl.value.trim().split(/\s+/);
+          const [t, r = t, b = t, l = r] = v;
+          [["top", t], ["right", r], ["bottom", b], ["left", l]].forEach(([prop, value]) => {
+            decl.before(new Declaration({ prop, value, important: decl.important }));
+          });
+        });
+
         const additions = [];
         root.walkRules((rule) => {
           // ignore les @keyframes

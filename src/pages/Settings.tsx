@@ -297,9 +297,9 @@ const Settings = () => {
         {renderSyncBadge()}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
         {/* Navigation */}
-        <nav className="sticky top-0 z-10 -mx-1 px-1 py-1 bg-background/95 lg:mx-0 lg:px-0 lg:py-0 lg:bg-transparent lg:top-4 lg:self-start">
+        <nav className="min-w-0 sticky top-0 z-10 -mx-1 px-1 py-1 bg-background/95 lg:mx-0 lg:px-0 lg:py-0 lg:bg-transparent lg:top-4 lg:self-start">
           <div ref={navRef} className="flex gap-1 overflow-x-auto rounded-2xl border bg-card p-1.5 lg:flex-col" style={{ WebkitOverflowScrolling: "touch" }}>
             {sections.filter(s => s.show).map(s => (
               <button
@@ -318,7 +318,7 @@ const Settings = () => {
           </div>
         </nav>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* ── Général ── */}
           <SectionCard id="general" icon={<Globe className="h-5 w-5" />} title={tr("Général", "عام", "General")} desc={tr("Langue et apparence de l'interface.", "لغة ومظهر الواجهة.", "Interface language and appearance.")}>
             <Row icon={<Globe className="h-4 w-4" />} title={tr("Langue", "اللغة", "Language")} desc={tr("La langue change immédiatement.", "تتغير اللغة فوراً.", "The language changes instantly.")}>

@@ -57,6 +57,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "sonner";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
+import { isSmallScreen } from "@/lib/device";
 
 const Exams = () => {
   const { t, language } = useLanguage();
@@ -81,7 +82,7 @@ const Exams = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
+  const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
   const submitLockRef = useRef(false);

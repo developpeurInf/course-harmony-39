@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { isSmallScreen } from "@/lib/device";
 
 interface Room {
   id: string;
@@ -44,7 +45,7 @@ const ClassManagement = () => {
   const [roomsWithCounts, setRoomsWithCounts] = useState<Room[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
+  const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
   const [formData, setFormData] = useState({
     name: "",
     description: "",

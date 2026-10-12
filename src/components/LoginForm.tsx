@@ -64,7 +64,7 @@ const LoginForm = () => {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-muted/30">
-      <Card className="w-[350px] shadow-lg animate-fade-in">
+      <Card className="w-full max-w-[350px] shadow-lg animate-fade-in">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">{t("login.title")}</CardTitle>
           <CardDescription className="text-center">

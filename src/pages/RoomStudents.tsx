@@ -21,6 +21,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import StudentSearchBar from "@/components/StudentSearchBar";
 import { matchesStudent, type StudentSearchMode } from "@/lib/search";
+import { isSmallScreen } from "@/lib/device";
 
 interface Student {
   id: string;
@@ -43,7 +44,7 @@ const RoomStudents = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchMode, setSearchMode] = useState<StudentSearchMode>("all");
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => (isSmallScreen() ? 'cards' : 'list'));
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [infoStudent, setInfoStudent] = useState<Student | null>(null);
