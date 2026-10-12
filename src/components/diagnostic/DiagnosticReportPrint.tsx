@@ -1,6 +1,12 @@
 import React from "react";
-import { DiagnosticConfig, getLangContent } from "@/lib/diagnosticStorage";
-import { GlobalDiagnosticStats } from "@/lib/diagnosticStatsEngine";
+import { DiagnosticConfig, getLangContent, DEFAULT_REPORT1_CHARTS } from "@/lib/diagnosticStorage";
+import { GlobalDiagnosticStats, DiagnosticClass } from "@/lib/diagnosticStatsEngine";
+import {
+  ClassChart, GlobalChart, GLOBAL_CHARTS, SCHEME_T1, computeClassChartData, mergeChartData, chartLabel, chartDesc,
+  type ClassChartType, type GlobalChartType,
+} from "@/components/diagnostic/ReportCharts";
+
+const isGlobalChart = (t: string) => GLOBAL_CHARTS.some(g => g.id === t);
 import {
   DiagLang,
   DIAGNOSTIC_TRANSLATIONS,
@@ -15,6 +21,8 @@ interface DiagnosticReportPrintProps {
   includeGraphs?: boolean;
   selectedClassesNames?: string[];
   chartBackground?: "gray" | "white";
+  /** Classes du rapport (pour les graphiques de la bibliothèque) */
+  classes?: DiagnosticClass[];
 }
 
 // Formatage adapté de la période
@@ -106,7 +114,8 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
   lang = "fr",
   includeGraphs = false,
   selectedClassesNames = [],
-  chartBackground = "gray"
+  chartBackground = "gray",
+  classes = [],
 }) => {
   const t = DIAGNOSTIC_TRANSLATIONS[lang] || DIAGNOSTIC_TRANSLATIONS.fr;
   const isRtl = lang === "ar";
@@ -148,6 +157,14 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
       r4: "[14 – 20]"
     };
   }, [lang]);
+
+  // Graphiques choisis dans la bibliothèque (paramètres → onglet Rapport)
+  const chartSettings = { ...DEFAULT_REPORT1_CHARTS, ...(config.rapport1_graphiques || {}) };
+  const libClasses = React.useMemo(() => classes.map(c => computeClassChartData(c, SCHEME_T1)), [classes]);
+  const libData = React.useMemo(
+    () => (libClasses.length ? mergeChartData(lang === "ar" ? "جميع الأقسام" : lang === "en" ? "All classes" : "Toutes les classes", libClasses) : null),
+    [libClasses, lang]
+  );
 
   // Libellé adapté des classes concernées
   const classesText = React.useMemo(() => {
@@ -944,6 +961,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
               <div className="diag-gap" />
 
               {/* BOÎTE 1 SÉPARÉE : GRAPHE EN BARRES DES 4 TRANCHES (hauteur augmentée) */}
+              {chartSettings.graphe1 === "original" || !libData ? (
               <div className="diag-separate-graph-block diag-section">
                 <div className="diag-separate-graph-header">
                   <span>{t.chartColumnsTitle}</span>
@@ -990,10 +1008,24 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                   })}
                 </svg>
               </div>
+              ) : (
+                <div className="diag-separate-graph-block diag-section">
+                  <div className="diag-separate-graph-header">
+                    <span>{chartLabel(chartSettings.graphe1 as any, lang)}</span>
+                    <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>{chartDesc(chartSettings.graphe1 as any, lang)}</span>
+                  </div>
+                  <div style={{ padding: "4px 8px" }}>
+                    {isGlobalChart(chartSettings.graphe1)
+                      ? <GlobalChart type={chartSettings.graphe1 as GlobalChartType} classes={libClasses} lang={lang} palette={chartSettings.palette} />
+                      : <ClassChart type={chartSettings.graphe1 as ClassChartType} data={libData} lang={lang} palette={chartSettings.palette} />}
+                  </div>
+                </div>
+              )}
 
               <div className="diag-gap" />
 
               {/* BOÎTE 2 SÉPARÉE EN DESSOUS : GRAPHE DONUT (taille augmentée) */}
+              {chartSettings.graphe2 === "original" || !libData ? (
               <div className="diag-separate-graph-block diag-section">
                 <div className="diag-separate-graph-header">
                   <span>{t.chartPieTitle}</span>
@@ -1028,6 +1060,19 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
                   </div>
                 </div>
               </div>
+              ) : (
+                <div className="diag-separate-graph-block diag-section">
+                  <div className="diag-separate-graph-header">
+                    <span>{chartLabel(chartSettings.graphe2 as any, lang)}</span>
+                    <span style={{ fontSize: "8.5pt", color: "#64748b", fontWeight: "normal" }}>{chartDesc(chartSettings.graphe2 as any, lang)}</span>
+                  </div>
+                  <div style={{ padding: "4px 8px" }}>
+                    {isGlobalChart(chartSettings.graphe2)
+                      ? <GlobalChart type={chartSettings.graphe2 as GlobalChartType} classes={libClasses} lang={lang} palette={chartSettings.palette} />
+                      : <ClassChart type={chartSettings.graphe2 as ClassChartType} data={libData} lang={lang} palette={chartSettings.palette} />}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

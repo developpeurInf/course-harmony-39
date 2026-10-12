@@ -1,5 +1,9 @@
 import React from "react";
-import { DiagnosticConfig } from "@/lib/diagnosticStorage";
+import { DiagnosticConfig, DEFAULT_REPORT2_CHARTS, type Report2ChartSettings } from "@/lib/diagnosticStorage";
+import {
+  ClassChart, GlobalChart, computeClassChartData, chartDesc, chartLabel, statsLine,
+  type ClassChartType, type GlobalChartType, type ClassChartData,
+} from "@/components/diagnostic/ReportCharts";
 import { DiagnosticClass, parseNoteValue } from "@/lib/diagnosticStatsEngine";
 import { DiagLang } from "@/lib/diagnosticTranslations";
 
@@ -14,6 +18,8 @@ interface Props {
   config: DiagnosticConfig;
   classes: DiagnosticClass[];
   lang?: DiagLang;
+  /** « Inclure les graphiques » (onglet Rapport) */
+  includeGraphs?: boolean;
 }
 
 interface ClassBand {
@@ -57,6 +63,9 @@ const TXT = {
     sigDirector: "توقيع السيد المدير",
     sigInspector: "توقيع السيد المفتش",
     noData: "لا توجد نقط مسجلة",
+    secCharts: "التمثيل المبياني لنتائج التقويم التشخيصي:",
+    figure: "الشكل",
+    allClasses: "جميع الأقسام",
   },
   fr: {
     title: "Rapport des évaluations diagnostiques",
@@ -88,6 +97,9 @@ const TXT = {
     sigDirector: "Signature du directeur",
     sigInspector: "Signature de l'inspecteur",
     noData: "Aucune note saisie",
+    secCharts: "Représentation graphique des résultats de l'évaluation diagnostique :",
+    figure: "Figure",
+    allClasses: "ensemble des classes",
   },
   en: {
     title: "Diagnostic Assessments Report",
@@ -119,10 +131,13 @@ const TXT = {
     sigDirector: "Principal's signature",
     sigInspector: "Inspector's signature",
     noData: "No grades entered",
+    secCharts: "Graphical representation of the diagnostic results:",
+    figure: "Figure",
+    allClasses: "all classes",
   },
 };
 
-const ROMAN = ["I", "II", "III", "IV"];
+const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
 
 /* ───────────── Textes dynamiques par défaut ───────────── */
 
@@ -202,18 +217,24 @@ type Block =
   | { kind: "objectives" }
   | { kind: "general" }
   | { kind: "distTitle" }
-  | { kind: "class"; band: ClassBand }
+  | { kind: "class"; band: ClassBand; chart?: ClassChartType; data: ClassChartData; fig?: number }
+  | { kind: "chartsTitle" }
+  | { kind: "globalChart"; type: GlobalChartType; fig?: number }
   | { kind: "support" }
   | { kind: "signatures" };
 
 /* ═══════════════════════════════ Composant ═══════════════════════════════ */
 
-export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, lang = "ar" }) => {
+export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, lang = "ar", includeGraphs = false }) => {
   const t = TXT[lang] || TXT.fr;
   const isRtl = lang === "ar";
   const cfg = config as DiagnosticConfig & { rapport2_intro?: string; rapport2_soutien?: string; rapport2_remarque?: string };
 
   const bands = React.useMemo(() => classes.map(computeBands), [classes]);
+  const chartData = React.useMemo(() => classes.map(c => computeClassChartData(c)), [classes]);
+  const gs: Report2ChartSettings = { ...DEFAULT_REPORT2_CHARTS, ...(config.rapport2_graphiques || {}) };
+  const perTable = includeGraphs && (gs.mode === "per_table" || gs.mode === "both");
+  const globalOn = includeGraphs && (gs.mode === "global" || gs.mode === "both") && gs.globaux.length > 0;
   const totalAll = bands.reduce((s, b) => s + b.total, 0);
   const presentAll = bands.reduce((s, b) => s + b.present, 0);
   const absentPct = totalAll ? ((totalAll - presentAll) / totalAll) * 100 : 0;
@@ -223,16 +244,31 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
   const remark = (cfg.rapport2_remarque || "").trim() || defaultTemplate2Remark(absentPct, lang);
 
   // Blocs du rapport, dans l'ordre
-  const blocks = React.useMemo<Block[]>(() => [
-    { kind: "header" },
-    { kind: "intro" },
-    { kind: "objectives" },
-    { kind: "general" },
-    { kind: "distTitle" },
-    ...bands.map((band) => ({ kind: "class" as const, band })),
-    { kind: "support" },
-    { kind: "signatures" },
-  ], [bands]);
+  const gsKey = JSON.stringify(gs);
+  const blocks = React.useMemo<Block[]>(() => {
+    let fig = 0;
+    const list: Block[] = [
+      { kind: "header" },
+      { kind: "intro" },
+      { kind: "objectives" },
+      { kind: "general" },
+      { kind: "distTitle" },
+      ...bands.map((band, i) => {
+        const chart = perTable ? ((gs.types_par_classe || {})[band.nom] || gs.type_par_defaut) as ClassChartType : undefined;
+        return { kind: "class" as const, band, data: chartData[i], chart, fig: chart && band.present ? ++fig : undefined };
+      }),
+    ];
+    if (globalOn) {
+      list.push({ kind: "chartsTitle" });
+      gs.globaux.forEach(type => list.push({ kind: "globalChart", type: type as GlobalChartType, fig: ++fig }));
+    }
+    list.push({ kind: "support" }, { kind: "signatures" });
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bands, chartData, perTable, globalOn, gsKey]);
+  const supportRoman = ROMAN[globalOn ? 4 : 3];
+  const figCaption = (n: number | undefined, text: string) =>
+    n && gs.numeroter ? <div className="t2-caption"><b>{t.figure} {n} :</b> {text}</div> : <div className="t2-caption">{text}</div>;
 
   // Pagination mesurée : chaque bloc est rendu une fois hors écran à la largeur réelle
   // de la page, puis les blocs sont répartis sur des pages A4 sans débordement.
@@ -246,7 +282,7 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
       fonts.ready.then(() => setFontsTick((n) => n + 1)).catch(() => undefined);
     }
   }, []);
-  const contentKey = `${lang}|${intro}|${support}|${remark}|${JSON.stringify(bands)}|${config.lycee}|${config.nom_enseignant}|${config.matiere}|${config.annee_scolaire}`;
+  const contentKey = `${lang}|${intro}|${support}|${remark}|${JSON.stringify(bands)}|${config.lycee}|${config.nom_enseignant}|${config.matiere}|${config.annee_scolaire}|${includeGraphs}|${gsKey}`;
 
   React.useLayoutEffect(() => {
     const root = measureRef.current;
@@ -266,7 +302,8 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
     blocks.forEach((b, i) => {
       const h = heights[i] || 0;
       // Garder le titre de la section III avec le premier tableau de classe
-      const need = b.kind === "distTitle" && blocks[i + 1]?.kind === "class" ? h + (heights[i + 1] || 0) : h;
+      const keepWithNext = (b.kind === "distTitle" && blocks[i + 1]?.kind === "class") || (b.kind === "chartsTitle" && blocks[i + 1]?.kind === "globalChart");
+      const need = keepWithNext ? h + (heights[i + 1] || 0) : h;
       if (used + need > available && out[out.length - 1].length > 0) {
         out.push([]);
         used = 0;
@@ -361,6 +398,12 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
         return (
           <div key={key} className="t2-block t2-class">
             <div className="t2-class-title">• {c.nom}</div>
+            {b.chart && c.present > 0 && (
+              <div className="t2-figure">
+                <ClassChart type={b.chart} data={b.data} lang={lang} palette={gs.palette} />
+                {figCaption(b.fig, lang === "ar" ? `توزيع نتائج قسم ${c.nom} (${chartLabel(b.chart, lang)})` : lang === "en" ? `Results of ${c.nom} (${chartLabel(b.chart, lang).toLowerCase()})` : `Résultats de la classe ${c.nom} (${chartLabel(b.chart, lang).toLowerCase()})`)}
+              </div>
+            )}
             <table className="t2-table">
               <thead>
                 <tr>
@@ -390,13 +433,25 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
                 </tr>
               </tbody>
             </table>
+            {gs.statistiques && includeGraphs && c.present > 0 && <div className="t2-stats">{statsLine(b.data, lang)}</div>}
           </div>
         );
       }
+      case "chartsTitle":
+        return (
+          <div key={key} className="t2-section"><span className="t2-roman">{ROMAN[3]}.</span> <u>{t.secCharts}</u></div>
+        );
+      case "globalChart":
+        return (
+          <div key={key} className="t2-block t2-figure t2-global">
+            <GlobalChart type={b.type} classes={chartData} lang={lang} palette={gs.palette} />
+            {figCaption(b.fig, `${chartDesc(b.type, lang)} — ${t.allClasses}`)}
+          </div>
+        );
       case "support":
         return (
           <div key={key} className="t2-block">
-            <div className="t2-section"><span className="t2-roman">{ROMAN[3]}.</span> <u>{t.secSupport}</u></div>
+            <div className="t2-section"><span className="t2-roman">{supportRoman}.</span> <u>{t.secSupport}</u></div>
             <p className="t2-para t2-justify">{support}</p>
           </div>
         );
@@ -478,6 +533,11 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
         .t2-class { margin-bottom: 2.5mm; page-break-inside: avoid; break-inside: avoid; }
         .t2-class-title { font-size: 11.5pt; font-weight: bold; text-decoration: underline; margin: 0 2mm 1mm 2mm; }
         .t2-sign { margin-top: 5mm; }
+        .t2-figure { margin: 0.5mm 0 1.5mm 0; page-break-inside: avoid; break-inside: avoid; }
+        .t2-figure svg { width: 100%; height: auto; }
+        .t2-global { margin-bottom: 3mm; }
+        .t2-caption { font-size: 9.5pt; font-style: italic; text-align: center; margin-top: 0.5mm; color: #222; }
+        .t2-stats { font-size: 9pt; margin-top: 0.8mm; color: #222; text-align: ${isRtl ? "right" : "left"}; }
         .t2-sign-cell { height: 32mm; vertical-align: top; padding-top: 2mm !important; }
       `}</style>
 

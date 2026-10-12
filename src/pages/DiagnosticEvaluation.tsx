@@ -64,6 +64,8 @@ import {
   saveDiagnosticData,
   resetDiagnosticDataToDefaults,
   DEFAULT_DIAGNOSTIC_DATA,
+  DEFAULT_REPORT1_CHARTS,
+  DEFAULT_REPORT2_CHARTS,
   getLangContent,
   setLangContent,
   numberToWords,
@@ -97,6 +99,7 @@ import {
 } from "@/lib/diagnosticTranslations";
 import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportPrint";
 import ReportScaler from "@/components/diagnostic/ReportScaler";
+import ChartSettingsPanel, { Report1ChartPicker } from "@/components/diagnostic/ChartSettingsPanel";
 import {
   DiagnosticReportTemplate2,
   defaultTemplate2Intro,
@@ -2422,30 +2425,18 @@ export const DiagnosticEvaluation: React.FC = () => {
                 {sectionTitle(3, L("المحتوى", "Contenu", "Content"))}
                 {reportTemplate === "t1" ? (
                   <>
-                    <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="include-graphs-toggle-r" className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
-                        <BarChart2 className="w-4 h-4 text-indigo-600" />
-                        {t.includeGraphsInReportLabel}
-                      </Label>
-                      <Switch id="include-graphs-toggle-r" checked={includeGraphsInReport} onCheckedChange={setIncludeGraphsInReport} />
-                    </div>
-                    {includeGraphsInReport && (
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="text-slate-500">{L("خلفية المبيانات", "Fond des graphiques", "Charts background")}</span>
-                        <div className="inline-flex rounded-md bg-slate-100 dark:bg-slate-800 p-0.5">
-                          {(["gray", "white"] as const).map(bg => (
-                            <button
-                              key={bg}
-                              type="button"
-                              onClick={() => setChartBgTheme(bg)}
-                              className={`rounded px-2.5 py-1 text-[11px] font-semibold ${chartBgTheme === bg ? "bg-white dark:bg-slate-900 shadow-sm text-slate-900 dark:text-white" : "text-slate-500"}`}
-                            >
-                              {bg === "gray" ? L("رمادي", "Gris", "Gray") : L("أبيض", "Blanc", "White")}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <Report1ChartPicker
+                      lang={lang}
+                      enabled={includeGraphsInReport}
+                      onEnabledChange={setIncludeGraphsInReport}
+                      settings={appData.config.rapport1_graphiques}
+                      onChange={(patch) => updateAppData(prev => ({
+                        ...prev,
+                        config: { ...prev.config, rapport1_graphiques: { ...DEFAULT_REPORT1_CHARTS, ...(prev.config.rapport1_graphiques || {}), ...patch } },
+                      }))}
+                      chartBg={chartBgTheme}
+                      onChartBg={setChartBgTheme}
+                    />
                     <Button variant="outline" size="sm" onClick={() => setCurrentTab("observations")} className="w-full justify-start gap-1.5 text-xs">
                       <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
                       {L("تعديل الملاحظات والمقترحات (4)", "Modifier observations & propositions (onglet 4)", "Edit observations & proposals (tab 4)")}
@@ -2453,6 +2444,17 @@ export const DiagnosticEvaluation: React.FC = () => {
                   </>
                 ) : (
                   <>
+                    <ChartSettingsPanel
+                      lang={lang}
+                      enabled={includeGraphsInReport}
+                      onEnabledChange={setIncludeGraphsInReport}
+                      settings={appData.config.rapport2_graphiques}
+                      onChange={(patch) => updateAppData(prev => ({
+                        ...prev,
+                        config: { ...prev.config, rapport2_graphiques: { ...DEFAULT_REPORT2_CHARTS, ...(prev.config.rapport2_graphiques || {}), ...patch } },
+                      }))}
+                      classNames={classesForReport.map(c => c.nom)}
+                    />
                     <Button variant="outline" size="sm" onClick={() => setShowTemplate2Texts(v => !v)} className="w-full justify-start gap-1.5 text-xs">
                       <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
                       {L("تخصيص نصوص النموذج 2", "Personnaliser les textes du modèle 2", "Customise template 2 texts")}
@@ -2564,6 +2566,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                         config={appData.config}
                         classes={classesForReport}
                         lang={lang}
+                        includeGraphs={includeGraphsInReport}
                       />
                     ) : (
                       <DiagnosticReportPrint
@@ -2573,6 +2576,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                         includeGraphs={includeGraphsInReport}
                         selectedClassesNames={reportClassesNames}
                         chartBackground={chartBgTheme}
+                        classes={classesForReport}
                       />
                     )}
                   </ReportScaler>

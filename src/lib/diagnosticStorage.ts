@@ -27,12 +27,55 @@ export interface DiagnosticConfig {
   rapport2_intro?: string;
   rapport2_soutien?: string;
   rapport2_remarque?: string;
+  /** Modèle 2 : graphiques (bibliothèque src/components/diagnostic/ReportCharts.tsx) */
+  rapport2_graphiques?: Report2ChartSettings;
+  /** Modèle 1 : choix des 2 graphiques de la page « Résultats » */
+  rapport1_graphiques?: Report1ChartSettings;
   /**
    * Contenu pédagogique propre à chaque langue (onglet « 4. Résultats et remédiation ») :
    * modifier un champ en arabe met à jour le rapport arabe, en français le rapport français…
    */
   contenu_par_langue?: Partial<Record<DiagLang, DiagnosticLangContent>>;
 }
+
+export interface Report2ChartSettings {
+  /** au-dessus de chaque tableau de classe, section d'ensemble, ou les deux */
+  mode: "per_table" | "global" | "both";
+  /** graphique par défaut pour chaque classe (ClassChartType) */
+  type_par_defaut: string;
+  /** choix différent pour certaines classes (clé = nom de la classe) */
+  types_par_classe?: Record<string, string>;
+  /** graphiques de la section d'ensemble (GlobalChartType), dans l'ordre */
+  globaux: string[];
+  palette: "color" | "mono";
+  /** ligne « moyenne · médiane · écart-type · min · max » sous chaque tableau */
+  statistiques: boolean;
+  /** légendes « Figure n : … » */
+  numeroter: boolean;
+}
+
+export const DEFAULT_REPORT2_CHARTS: Report2ChartSettings = {
+  mode: "per_table",
+  type_par_defaut: "bars",
+  types_par_classe: {},
+  globaux: ["stacked100", "success", "boxplots"],
+  palette: "color",
+  statistiques: true,
+  numeroter: true,
+};
+
+export interface Report1ChartSettings {
+  /** "original" = graphique d'origine du modèle 1, sinon un type de la bibliothèque (classe ou ensemble) */
+  graphe1: string;
+  graphe2: string;
+  palette: "color" | "mono";
+}
+
+export const DEFAULT_REPORT1_CHARTS: Report1ChartSettings = {
+  graphe1: "original",
+  graphe2: "original",
+  palette: "color",
+};
 
 export interface DiagnosticLangContent {
   observations: string[];
