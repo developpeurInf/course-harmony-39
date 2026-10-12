@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     
-    const { students, roomId } = await req.json()
+    const { students, roomId, purpose } = await req.json()
     
     if (!students || !Array.isArray(students) || !roomId) {
       return new Response(
@@ -34,6 +34,48 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
+    }
+
+    // --- Habilitations : appelant connecté, propriétaire de la classe, permission + quota d'élèves ---
+    const deny = (error: string) => new Response(
+      JSON.stringify({ success: false, created: 0, total: students.length, error }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+    const caller = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: req.headers.get('Authorization') || '' } },
+    })
+    const { data: who } = await caller.auth.getUser()
+    if (!who?.user) return deny('Non connecté')
+    const callerId = who.user.id
+    const { data: callerIsAdmin, error: adminCheckError } = await supabase.rpc('is_admin', { uid: callerId })
+    // (si la migration « abonnements » n'est pas encore appliquée, la fonction n'existe pas : comportement d'avant)
+    const accessControl = !adminCheckError
+    if (accessControl && !callerIsAdmin) {
+      const { data: room } = await supabase.from('rooms').select('professor_id').eq('id', roomId).maybeSingle()
+      if (!room || room.professor_id !== callerId) return deny('Cette classe ne vous appartient pas')
+      const keys = purpose === 'import' ? ['student.import_excel']
+        : purpose === 'reset' ? ['student.reset_password']
+        : purpose === 'create' ? ['student.create']
+        : ['student.create', 'student.import_excel', 'student.reset_password']
+      let allowed = false
+      for (const key of keys) {
+        const { data } = await supabase.rpc('has_permission', { p_key: key, uid: callerId })
+        if (data === true) { allowed = true; break }
+      }
+      if (!allowed) return deny('Non inclus dans votre offre')
+
+      if (purpose !== 'reset') {
+        const { data: limit } = await supabase.rpc('quota_limit', { p_key: 'students.max', uid: callerId })
+        if (limit !== null && limit !== undefined) {
+          const { data: used } = await supabase.rpc('quota_usage', { p_key: 'students.max', uid: callerId })
+          const usernames = (students as Student[]).map(s => s.username)
+          const { data: existing } = await supabase.from('profiles').select('username').in('username', usernames)
+          const newOnes = usernames.length - (existing?.length || 0)
+          if ((used || 0) + newOnes > limit) {
+            return deny(`Limite de votre offre atteinte : ${limit} élèves maximum (${used || 0} déjà créés)`)
+          }
+        }
+      }
     }
 
     const results = []

@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useState } from "react";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +49,7 @@ const Profile = () => {
   const [role, setRole] = useState<UserRole>(user?.role || "student");
 
   const handleSave = async () => {
+    if (!accessStore.guard("profile.edit")) return;
     if (!user) return;
     
     setLoading(true);
@@ -79,6 +81,7 @@ const Profile = () => {
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!accessStore.guard("profile.edit")) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -123,6 +126,7 @@ const Profile = () => {
   };
 
   const handleDeleteAvatar = async () => {
+    if (!accessStore.guard("profile.edit")) return;
     setShowDeleteConfirm(false);
     setAvatarLoading(true);
     try {

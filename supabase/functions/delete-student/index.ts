@@ -29,6 +29,26 @@ Deno.serve(async (req) => {
       )
     }
 
+    // --- Habilitations : propriétaire de la classe + permission « Supprimer un élève » ---
+    const caller = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: req.headers.get('Authorization') || '' } },
+    })
+    const { data: who } = await caller.auth.getUser()
+    if (!who?.user) {
+      return new Response(JSON.stringify({ success: false, error: 'Non connecté' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    const { data: callerIsAdmin, error: adminCheckError } = await supabase.rpc('is_admin', { uid: who.user.id })
+    if (!adminCheckError && !callerIsAdmin) {
+      const { data: room } = await supabase.from('rooms').select('professor_id').eq('id', roomId).maybeSingle()
+      const { data: allowed } = await supabase.rpc('has_permission', { p_key: 'student.delete', uid: who.user.id })
+      const { data: allowedClear } = await supabase.rpc('has_permission', { p_key: 'class.clear', uid: who.user.id })
+      if (!room || room.professor_id !== who.user.id || (allowed !== true && allowedClear !== true)) {
+        return new Response(JSON.stringify({ success: false, error: 'Non inclus dans votre offre' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+    }
+
     console.log(`Deleting student ${studentId} from room ${roomId}`)
 
     // First, get the student profile to check if it exists

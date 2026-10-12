@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -843,7 +844,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 }}
                                 className="h-8 text-xs flex-1 bg-background"
                               />
-                              <Button
+                              {accessStore.can("quiz.math_editor") && <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
@@ -852,7 +853,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 title={language === "ar" ? "إدراج صيغة رياضية" : language === "fr" ? "Insérer une formule" : "Insert a formula"}
                               >
                                 fx
-                              </Button>
+                              </Button>}
                             </div>
                             {hasMath(opt.option_text) && (
                               <MathText text={opt.option_text} as="div" className="rounded-md bg-background/80 px-2 py-1 text-sm" />

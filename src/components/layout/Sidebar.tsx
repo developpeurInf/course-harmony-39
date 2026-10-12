@@ -21,8 +21,11 @@ import {
   Sparkles,
   LogOut,
   Layers,
-  ChevronLeft
+  ChevronLeft,
+  Crown,
+  Lock
 } from "lucide-react";
+import { useAccess } from "@/contexts/AccessContext";
 import { useState } from "react";
 import {
   Collapsible,
@@ -45,6 +48,8 @@ const Sidebar = () => {
   const [openRooms, setOpenRooms] = useState<Record<string, boolean>>({});
   const isProfessor = user?.role === "professor";
   const isRtl = language === "ar";
+  const { can, enforced, access } = useAccess();
+  const lockIcon = <Lock size={12} className="flex-shrink-0 opacity-60" />;
 
   const t = (fr: string, ar: string, en: string = fr) =>
     language === "ar" ? ar : language === "fr" ? fr : en;
@@ -237,6 +242,7 @@ const Sidebar = () => {
                           <Activity size={14} />
                         </div>
                         <span className="truncate">{t("Suivi & Classement", "التتبع والترتيب", "Tracking & Ranking")}</span>
+                        {!can("student.activity_view") && lockIcon}
                       </NavLink>
                       
                       {/* Cours */}
@@ -362,6 +368,7 @@ const Sidebar = () => {
                 <BarChart3 size={18} />
               </div>
               <span className="truncate">{t("Rapports & Statistiques", "التقارير والإحصائيات", "Reports & Analytics")}</span>
+              {!can("reports.view") && lockIcon}
             </NavLink>
             
             <NavLink 
@@ -378,6 +385,7 @@ const Sidebar = () => {
                   <FileSpreadsheet size={18} />
                 </div>
                 <span className="truncate">{t("Évaluation Diagnostique", "التقويم التشخيصي", "Diagnostic Assessment")}</span>
+                {!can("diagnostic.use") && lockIcon}
               </div>
               <Badge className="text-[10px] h-4 px-1.5 bg-violet-500/20 text-violet-700 dark:text-violet-300 border-0 font-bold">
                 {t("Éval", "تقويم", "Eval")}
@@ -422,6 +430,31 @@ const Sidebar = () => {
             <span className="truncate">{t("Mon Profil", "الملف الشخصي", "My Profile")}</span>
           </NavLink>
           
+          {isProfessor && enforced && (
+            <NavLink 
+              to="/subscription" 
+              className={({ isActive }) => cn(
+                "group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                isActive 
+                  ? "bg-amber-500/10 text-amber-800 dark:text-amber-200 font-semibold shadow-xs dark:bg-amber-500/20 border-l-4 rtl:border-l-0 rtl:border-r-4 border-amber-500" 
+                  : "text-slate-600 dark:text-slate-300 hover:text-foreground hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
+              )}
+            >
+              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/20 group-hover:scale-110 transition-transform">
+                <Crown size={18} />
+              </div>
+              <span className="truncate">{t("Mon abonnement", "اشتراكي", "My subscription")}</span>
+              {access?.subscription?.plan_name && (
+                <>
+                  <span className="flex-1" />
+                  <span className="max-w-[90px] truncate rounded-full bg-amber-500/15 px-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                    {access.subscription.plan_name}
+                  </span>
+                </>
+              )}
+            </NavLink>
+          )}
+
           <NavLink 
             to="/settings" 
             className={({ isActive }) => cn(

@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -288,6 +289,12 @@ const Settings = () => {
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 py-6" dir={isRtl ? "rtl" : "ltr"}>
+      {!accessStore.can("settings.edit") && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {isRtl ? "تعديل الإعدادات غير مدرج في عرضك." : "La modification des paramètres n'est pas incluse dans votre offre."}
+        </p>
+      )}
+      <fieldset disabled={!accessStore.can("settings.edit")} className="m-0 min-w-0 space-y-6 border-0 p-0">
       {/* En-tête simple */}
       <div className="flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -565,6 +572,7 @@ const Settings = () => {
           {isProfessor && <PasswordResetManager />}
         </div>
       </div>
+      </fieldset>
 
       <ChangePasswordDialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen} />
     </div>

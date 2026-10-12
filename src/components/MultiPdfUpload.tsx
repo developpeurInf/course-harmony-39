@@ -1,3 +1,4 @@
+import { useAccess } from "@/contexts/AccessContext";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +80,7 @@ const MultiPdfUpload = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const { language } = useLanguage();
   const tr = (ar: string, fr: string, en: string) => (language === 'ar' ? ar : language === 'fr' ? fr : en);
+  const { guard, quota } = useAccess();
 
   const links = videoLinks || [];
   const totalCount = selectedFiles.length + existingFiles.length + links.length;
@@ -101,6 +103,25 @@ const MultiPdfUpload = ({
             : tr(`${file.name}: نوع ملف غير مدعوم`, `${file.name} : type de fichier non pris en charge`, `${file.name}: unsupported file type`)
         );
         continue;
+      }
+
+      // Habilitations : type de fichier autorisé par l'offre + quotas (vidéo, stockage)
+      const perm = kind === 'video' ? 'course.upload_video' : kind === 'image' ? 'course.upload_image' : 'course.upload_pdf';
+      if (!guard(perm)) continue;
+      if (kind === 'video') {
+        const vq = quota('video.max_mb');
+        if (vq.limit !== null && file.size > vq.limit * 1024 * 1024) {
+          toast.error(tr(`الفيديو ${file.name} يتجاوز ${vq.limit} ميغابايت المسموح بها في عرضك.`, `La vidéo ${file.name} dépasse les ${vq.limit} Mo autorisés par votre offre.`, `${file.name} exceeds the ${vq.limit}MB allowed by your plan.`));
+          continue;
+        }
+      }
+      {
+        const sq = quota('storage.max_mb');
+        const pendingBytes = selectedFiles.concat(filesToAdd).reduce((n, f) => n + f.size, 0);
+        if (sq.limit !== null && sq.used * 1024 * 1024 + pendingBytes + file.size > sq.limit * 1024 * 1024) {
+          toast.error(tr(`تم بلوغ مساحة التخزين المسموح بها في عرضك (${sq.limit} م.ب).`, `Espace de stockage de votre offre atteint (${sq.limit} Mo).`, `Your plan's storage is full (${sq.limit} MB).`));
+          continue;
+        }
       }
 
       if (file.size > maxSizeMB * 1024 * 1024) {
@@ -149,6 +170,7 @@ const MultiPdfUpload = ({
   const addLink = () => {
     const url = linkInput.trim();
     if (!url) return;
+    if (!guard('course.edit')) return;
     if (!parseVideoUrl(url)) {
       toast.error(tr('رابط فيديو غير صالح (YouTube أو Vimeo أو ملف mp4)', 'Lien vidéo invalide (YouTube, Vimeo ou fichier .mp4)', 'Invalid video link (YouTube, Vimeo or .mp4)'));
       return;

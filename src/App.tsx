@@ -11,6 +11,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import { FirstLoginDialog } from "@/components/FirstLoginDialog";
+import { AccessProvider } from "@/contexts/AccessContext";
+import { RequirePermission } from "@/components/access/AccessUi";
 
 import MainLayout from "@/components/layout/MainLayout";
 import Index from "@/pages/Index";
@@ -36,6 +38,17 @@ const Settings = lazyWithRetry(() => import("@/pages/Settings"));
 const Reports = lazyWithRetry(() => import("@/pages/Reports"));
 const DiagnosticEvaluation = lazyWithRetry(() => import("@/pages/DiagnosticEvaluation"));
 const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
+const MySubscription = lazyWithRetry(() => import("@/pages/MySubscription"));
+// Espace d'administration (chargé uniquement par les administrateurs)
+const AdminLayout = lazyWithRetry(() => import("@/pages/admin/AdminLayout"));
+const AdminDashboard = lazyWithRetry(() => import("@/pages/admin/AdminDashboard"));
+const AdminTeachers = lazyWithRetry(() => import("@/pages/admin/AdminTeachers"));
+const AdminTeacherDetail = lazyWithRetry(() => import("@/pages/admin/AdminTeacherDetail"));
+const AdminPlans = lazyWithRetry(() => import("@/pages/admin/AdminPlans"));
+const AdminSubscriptions = lazyWithRetry(() => import("@/pages/admin/AdminSubscriptions"));
+const AdminPayments = lazyWithRetry(() => import("@/pages/admin/AdminPayments"));
+const AdminAudit = lazyWithRetry(() => import("@/pages/admin/AdminAudit"));
+const AdminTeam = lazyWithRetry(() => import("@/pages/admin/AdminTeam"));
 
 const queryClient = new QueryClient();
 
@@ -50,6 +63,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
+          <AccessProvider>
           <LanguageProvider>
             <PreferencesProvider>
             <CourseProvider>
@@ -73,13 +87,24 @@ const App = () => {
                         <Route path="/exams" element={<Exams />} />
                         <Route path="/students" element={<Students />} />
                         <Route path="/rooms/:roomId/students" element={<RoomStudents />} />
-                        <Route path="/rooms/:roomId/students-activities" element={<StudentsActivities />} />
+                        <Route path="/rooms/:roomId/students-activities" element={<RequirePermission perm="student.activity_view"><StudentsActivities /></RequirePermission>} />
                         <Route path="/rooms/:roomId/courses" element={<RoomCourses />} />
                         <Route path="/rooms/:roomId/exercises" element={<RoomExercises />} />
                         <Route path="/rooms/:roomId/exams" element={<RoomExams />} />
-                        <Route path="/reports" element={<Reports />} />
-                        <Route path="/diagnostic" element={<DiagnosticEvaluation />} />
+                        <Route path="/reports" element={<RequirePermission perm="reports.view"><Reports /></RequirePermission>} />
+                        <Route path="/diagnostic" element={<RequirePermission perm="diagnostic.use"><DiagnosticEvaluation /></RequirePermission>} />
                         <Route path="/settings" element={<Settings />} />
+                        <Route path="/subscription" element={<MySubscription />} />
+                      </Route>
+                      <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<AdminDashboard />} />
+                        <Route path="teachers" element={<AdminTeachers />} />
+                        <Route path="teachers/:id" element={<AdminTeacherDetail />} />
+                        <Route path="plans" element={<AdminPlans />} />
+                        <Route path="subscriptions" element={<AdminSubscriptions />} />
+                        <Route path="payments" element={<AdminPayments />} />
+                        <Route path="audit" element={<AdminAudit />} />
+                        <Route path="team" element={<AdminTeam />} />
                       </Route>
                       <Route path="*" element={<NotFound />} />
                     </Routes>
@@ -90,6 +115,7 @@ const App = () => {
             </CourseProvider>
             </PreferencesProvider>
           </LanguageProvider>
+          </AccessProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

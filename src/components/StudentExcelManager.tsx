@@ -1,3 +1,4 @@
+import { useAccess } from "@/contexts/AccessContext";
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 }) => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
+  const { guard, guardQuota } = useAccess();
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -264,6 +266,10 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         });
       }
 
+      if (studentsToCreate.length > 0 && !guardQuota("students.max", studentsToCreate.length)) {
+        return;
+      }
+
       if (studentsToCreate.length === 0) {
         toast.error(
           language === "ar"
@@ -279,7 +285,8 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         const { data: result, error: functionError } = await supabase.functions.invoke('create-student', {
           body: { 
             students: studentsToCreate,
-            roomId: roomId 
+            roomId: roomId,
+            purpose: 'import'
           }
         });
 
@@ -393,7 +400,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       };
 
       const { data: result, error: functionError } = await supabase.functions.invoke('create-student', {
-        body: { students: [student], roomId }
+        body: { students: [student], roomId, purpose: 'create' }
       });
       if (functionError) throw functionError;
       if (!result?.success || (result.errors && result.errors.length > 0) || !result.created) {
@@ -491,6 +498,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
   // Download student list with credentials (4 columns with black borders)
   const handleDownloadList = async () => {
+    if (!guard("student.export_excel")) return;
     let studentList = allStudentsForDownload;
     if (studentList.length === 0 && existingStudents && existingStudents.length > 0) {
       studentList = existingStudents;
@@ -633,6 +641,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
       <CardContent className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-2">
           <Dialog open={isImportDialogOpen} onOpenChange={(open) => {
+            if (open && !guard("student.import_excel")) return;
             setIsImportDialogOpen(open);
             if (!open) {
               setSelectedFile(null);
@@ -738,6 +747,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
 
           <Dialog open={isManualDialogOpen} onOpenChange={(open) => {
             if (manualCreating) return;
+            if (open && (!guard("student.create") || !guardQuota("students.max"))) return;
             setIsManualDialogOpen(open);
             if (!open) resetManualForm();
           }}>

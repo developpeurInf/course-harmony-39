@@ -1,3 +1,4 @@
+import { accessStore, useAccess } from "@/contexts/AccessContext";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,16 +137,29 @@ export const DiagnosticEvaluation: React.FC = () => {
   const [reportScope, setReportScope] = useState<"all" | "single" | "custom">("all");
   const [selectedSingleClassId, setSelectedSingleClassId] = useState<string>("");
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
-  const [includeGraphsInReport, setIncludeGraphsInReport] = useState<boolean>(false);
+  const [includeGraphsInReportRaw, setIncludeGraphsInReportRaw] = useState<boolean>(false);
+  // Graphiques : réservés aux offres qui incluent la bibliothèque de graphiques
+  const { can: canAccess } = useAccess();
+  const includeGraphsInReport = includeGraphsInReportRaw && canAccess("diagnostic.charts");
+  const setIncludeGraphsInReport = (v: boolean) => {
+    if (v && !accessStore.guard("diagnostic.charts")) return;
+    setIncludeGraphsInReportRaw(v);
+  };
   const [chartBgTheme, setChartBgTheme] = useState<"gray" | "white">("gray");
   // Modèle de rapport officiel : 1 = rapport détaillé (existant), 2 = rapport multi-classes par tranches
   const [reportTemplate, setReportTemplateState] = useState<"t1" | "t2">(() => {
     try { return localStorage.getItem("diag_report_template") === "t2" ? "t2" : "t1"; } catch { return "t1"; }
   });
   const setReportTemplate = (v: "t1" | "t2") => {
+    if (!accessStore.guard(v === "t2" ? "diagnostic.template2" : "diagnostic.template1")) return;
     setReportTemplateState(v);
     try { localStorage.setItem("diag_report_template", v); } catch { /* stockage indisponible */ }
   };
+  // Modèle mémorisé mais non inclus dans l'offre : on bascule sur l'autre
+  useEffect(() => {
+    if (reportTemplate === "t2" && !canAccess("diagnostic.template2") && canAccess("diagnostic.template1")) setReportTemplateState("t1");
+    if (reportTemplate === "t1" && !canAccess("diagnostic.template1") && canAccess("diagnostic.template2")) setReportTemplateState("t2");
+  }, [reportTemplate, canAccess]);
   const [showTemplate2Texts, setShowTemplate2Texts] = useState(false);
   // Aperçu du rapport : ajusté à la largeur de l'écran (téléphone / iPad) ou taille réelle
   const [previewFit, setPreviewFit] = useState(true);
@@ -436,6 +450,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
   // --- ACTIONS EXPORT PDF & IMPRESSION SÉPARÉES ---
   const handleDownloadPdf = async () => {
+    if (!accessStore.guard("diagnostic.export_pdf")) return;
     setIsExportingPdf(true);
     toast.info(t.downloadingPdfMsg);
     try {
@@ -464,6 +479,7 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   const handlePrintReport = () => {
+    if (!accessStore.guard("diagnostic.export_pdf")) return;
     if (currentTab !== "preview") {
       setCurrentTab("preview");
       setTimeout(() => window.print(), 350);

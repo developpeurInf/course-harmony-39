@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { downloadBlob } from "@/lib/download";
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -451,6 +452,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
   /* ───────────── export ───────────── */
 
   const exportCsv = () => {
+    if (!accessStore.guard("reports.export")) return;
     const quizCols = analytics.quizzes.map(q => q.quiz.title);
     const header = [
       tr("Rang", "الرتبة", "Rank"), tr("Élève", "التلميذ", "Student"), tr("E-mail", "البريد الإلكتروني", "Email"),

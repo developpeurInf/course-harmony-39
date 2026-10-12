@@ -7,10 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useAccess } from "@/contexts/AccessContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export const FirstLoginDialog = () => {
-  const { isFirstLogin, setIsFirstLogin, changeStudentPassword } = useAuth();
+  const { user, isFirstLogin, setIsFirstLogin, changeStudentPassword } = useAuth();
   const { language } = useLanguage();
+  const { access, refresh } = useAccess();
+  // Professeur créé par l'administration : changement du mot de passe obligatoire
+  const teacherMustChange = user?.role === "professor" && !!access?.must_change_password;
+  const open = isFirstLogin || teacherMustChange;
 
   const [mode, setMode] = useState<"choice" | "change">("choice");
   const [newPassword, setNewPassword] = useState("");
@@ -47,6 +53,10 @@ export const FirstLoginDialog = () => {
     }
     setLoading(true);
     const success = await changeStudentPassword(newPassword);
+    if (success && teacherMustChange) {
+      await (supabase as any).rpc("clear_must_change_password");
+      await refresh();
+    }
     setLoading(false);
     if (success) {
       setMode("choice");
@@ -56,7 +66,7 @@ export const FirstLoginDialog = () => {
   };
 
   return (
-    <Dialog open={isFirstLogin} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
         className="sm:max-w-md"
         // Prevent closing by clicking outside or pressing Escape
@@ -73,7 +83,13 @@ export const FirstLoginDialog = () => {
             {t("Première connexion", "أول تسجيل دخول", "First Login")}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {mode === "choice"
+            {teacherMustChange && mode === "choice"
+              ? t(
+                  "Votre compte a été créé par l'administration avec un mot de passe provisoire. Choisissez votre propre mot de passe pour continuer.",
+                  "تم إنشاء حسابك من طرف الإدارة بكلمة مرور مؤقتة. اختر كلمة مرورك الخاصة للمتابعة.",
+                  "Your account was created by the administration with a temporary password. Choose your own password to continue."
+                )
+              : mode === "choice"
               ? t(
                   "Vous utilisez un mot de passe temporaire. Souhaitez-vous le conserver ou en définir un nouveau ?",
                   "أنت تستخدم كلمة مرور مؤقتة. هل تريد الاحتفاظ بها أو تغييرها؟",
@@ -96,13 +112,15 @@ export const FirstLoginDialog = () => {
               <ShieldCheck className="h-5 w-5" />
               {t("Modifier le mot de passe", "تغيير كلمة المرور", "Change Password")}
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleKeep}
-              className="w-full h-12"
-            >
-              {t("Conserver le mot de passe temporaire", "الاحتفاظ بكلمة المرور المؤقتة", "Keep Temporary Password")}
-            </Button>
+            {!teacherMustChange && (
+              <Button
+                variant="outline"
+                onClick={handleKeep}
+                className="w-full h-12"
+              >
+                {t("Conserver le mot de passe temporaire", "الاحتفاظ بكلمة المرور المؤقتة", "Keep Temporary Password")}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-4 mt-2">

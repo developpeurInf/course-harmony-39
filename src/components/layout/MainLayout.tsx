@@ -1,7 +1,9 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAccess } from "@/contexts/AccessContext";
+import { SubscriptionBanner } from "@/components/access/AccessUi";
 import { useSessionTracking } from "@/hooks/useSessionTracking";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import TopNav from "./TopNav";
 
 const MainLayout = () => {
   const { user, loading } = useAuth();
+  const { isAdmin } = useAccess();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -69,6 +72,11 @@ const MainLayout = () => {
     return null; // Will redirect to login
   }
 
+  // Les comptes de l'équipe d'administration ont leur propre espace
+  if (isAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+
   return (
     <div className="flex app-viewport bg-background overflow-hidden">
       <aside className="hidden lg:flex lg:w-72 h-full max-h-screen overflow-hidden bg-background border-r border-border/70 shadow-xs flex-shrink-0 z-20">
@@ -88,6 +96,7 @@ const MainLayout = () => {
               </div>
             }
           >
+            <SubscriptionBanner />
             <Outlet />
           </Suspense>
         </main>

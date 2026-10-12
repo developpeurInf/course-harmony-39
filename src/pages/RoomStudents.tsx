@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useState, useEffect } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -88,6 +89,7 @@ const RoomStudents = () => {
   };
 
   const handleRemoveStudent = async (studentId: string) => {
+    if (!accessStore.guard("student.delete")) return;
     try {
       const { data, error } = await supabase.functions.invoke('delete-student', {
         body: { 
@@ -116,6 +118,7 @@ const RoomStudents = () => {
   };
 
   const handleEditStudent = (student: Student) => {
+    if (!accessStore.guard("student.edit")) return;
     setEditingStudent(student);
     setIsEditDialogOpen(true);
   };
@@ -143,6 +146,7 @@ const RoomStudents = () => {
   };
 
   const handleResetStudentPassword = async () => {
+    if (!accessStore.guard("student.reset_password")) return;
     if (!resetPasswordStudent || !newTempPassword.trim()) return;
     setIsResetting(true);
     const success = await resetStudentPassword(resetPasswordStudent.id, newTempPassword.trim());

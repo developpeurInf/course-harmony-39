@@ -431,53 +431,17 @@ const AuthForm = () => {
                         {t("Forgot your password?")}
                       </Button>
 
-                      {isLogin && (
-                        <Button
-                          type="button"
-                          variant="link"
-                          onClick={() => {
-                            if (!email) {
-                              toast.info("Please enter your email first");
-                              return;
-                            }
-                            setIsOtpMode(true);
-                            setResendCooldown(15);
-                          }}
-                          className="p-0 h-auto text-xs text-muted-foreground hover:text-primary"
-                        >
-                          {t("Have a confirmation code?")}
-                        </Button>
-                      )}
                     </div>
                   )}
 
                   {userType === "professor" && (
-                    <>
-                      <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                          <span className="w-full border-t" />
-                        </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                          <span className="bg-background px-2 text-muted-foreground">
-                            {t("or")}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-center">
-                        <Button
-                          type="button"
-                          variant="link"
-                          onClick={() => setIsLogin(!isLogin)}
-                          className="text-sm"
-                        >
-                          {isLogin 
-                            ? t("Don't have an account? Sign up") 
-                            : t("Already have an account? Sign in")
-                          }
-                        </Button>
-                      </div>
-                    </>
+                    <p className="rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
+                      {language === "ar"
+                        ? "حسابات الأساتذة تُنشأ من طرف الإدارة. للحصول على حساب، يرجى الاتصال بالإدارة."
+                        : language === "en"
+                        ? "Teacher accounts are created by the administration. Please contact us to get one."
+                        : "Les comptes professeurs sont créés par l'administration. Contactez-nous pour obtenir un compte."}
+                    </p>
                   )}
                 </div>
               )}

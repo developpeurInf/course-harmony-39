@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -386,6 +387,7 @@ const QuizDetails = ({ examId }: Props) => {
   /* ───────────── Export CSV ───────────── */
 
   const exportCsv = () => {
+    if (!accessStore.guard("quiz.results_export")) return;
     const header = [
       tr("Rang", "الرتبة", "Rank"), tr("Élève", "التلميذ", "Student"), "Email",
       tr("Score", "النقطة", "Score"), "/20", "%", tr("Temps (min)", "الوقت (د)", "Time (min)"),

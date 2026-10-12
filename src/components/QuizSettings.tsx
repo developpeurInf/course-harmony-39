@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -167,8 +168,12 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
               </div>
               <Switch
                 id="anti-cheat"
-                checked={settings.antiCheat}
-                onCheckedChange={(checked) => updateSetting('antiCheat', checked)}
+                checked={settings.antiCheat && accessStore.can("quiz.anti_cheat")}
+                disabled={!accessStore.can("quiz.anti_cheat")}
+                onCheckedChange={(checked) => {
+                  if (checked && !accessStore.guard("quiz.anti_cheat")) return;
+                  updateSetting('antiCheat', checked);
+                }}
               />
             </div>
 

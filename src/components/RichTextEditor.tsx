@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -290,7 +291,7 @@ const RichTextEditor = ({
         <div className="w-px h-4 bg-border mx-1" />
 
         {/* Formule mathématique */}
-        {enableMath && (
+        {enableMath && accessStore.can("quiz.math_editor") && (
           <Button
             type="button"
             variant="ghost"

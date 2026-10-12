@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -96,6 +97,7 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
   };
 
   const handleResetPassword = async () => {
+    if (!accessStore.guard("student.reset_password")) return;
     if (!selectedRequest || !newPassword.trim()) return;
     setIsResetting(true);
     try {

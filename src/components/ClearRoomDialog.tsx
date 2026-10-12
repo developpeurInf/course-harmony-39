@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
   ];
 
   const run = async () => {
+    if (!accessStore.guard("class.clear")) return;
     if (!room || lockRef.current) return;
     lockRef.current = true;
     setRunning(true);

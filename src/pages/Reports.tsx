@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
@@ -493,6 +494,7 @@ const Reports = () => {
   /* ───────────── Export Excel ───────────── */
 
   const exportExcel = async () => {
+    if (!accessStore.guard("reports.export")) return;
     try {
       const wb = XLSX.utils.book_new();
       const classes = roomReports.map((r) => ({

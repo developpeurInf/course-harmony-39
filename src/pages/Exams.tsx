@@ -1,3 +1,5 @@
+import { accessStore } from "@/contexts/AccessContext";
+import { RequirePermission } from "@/components/access/AccessUi";
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -555,7 +557,7 @@ const Exams = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="exam">{language === "ar" ? "امتحان عادي" : language === "fr" ? "Examen régulier" : "Regular Exam"}</SelectItem>
+                        <SelectItem value="exam" disabled={!accessStore.can("exam.edit")}>{language === "ar" ? "امتحان عادي" : language === "fr" ? "Examen régulier" : "Regular Exam"}{!accessStore.can("exam.edit") ? (language === "ar" ? " (غير مدرج في عرضك)" : language === "fr" ? " (non inclus dans votre offre)" : " (not in your plan)") : ""}</SelectItem>
                         <SelectItem value="quiz">{language === "ar" ? "اختبار قصير (Quiz)" : language === "fr" ? "Quiz" : "Quiz"}</SelectItem>
                       </SelectContent>
                     </Select>
@@ -746,7 +748,7 @@ const Exams = () => {
             </DialogHeader>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6">
               {isProfessor ? (
-                <QuizDetails examId={showQuizResults} />
+                <RequirePermission perm="quiz.results_view"><QuizDetails examId={showQuizResults} /></RequirePermission>
               ) : (
                 <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
               )}
@@ -1253,7 +1255,7 @@ const Exams = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="exam">{language === "ar" ? "امتحان عادي" : language === "fr" ? "Examen régulier" : "Regular Exam"}</SelectItem>
+                  <SelectItem value="exam" disabled={!accessStore.can("exam.edit")}>{language === "ar" ? "امتحان عادي" : language === "fr" ? "Examen régulier" : "Regular Exam"}{!accessStore.can("exam.edit") ? (language === "ar" ? " (غير مدرج في عرضك)" : language === "fr" ? " (non inclus dans votre offre)" : " (not in your plan)") : ""}</SelectItem>
                   <SelectItem value="quiz">{language === "ar" ? "اختبار قصير (Quiz)" : language === "fr" ? "Quiz" : "Quiz"}</SelectItem>
                 </SelectContent>
               </Select>

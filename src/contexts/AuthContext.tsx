@@ -323,6 +323,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
           toast.error("Invalid email or password");
+        } else if (/banned/i.test(error.message)) {
+          toast.error("Compte suspendu : contactez l'administration.");
         } else if (error.message.includes('Email not confirmed')) {
           toast.error("Email not confirmed. Please enter the verification code.");
         } else {
@@ -331,20 +333,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // If logging in as professor, ensure profile has role 'professor'
-      if (data?.user && (role === "professor" || data.user.user_metadata?.role === "professor")) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .maybeSingle();
-
-        if (profile && profile.role !== 'professor') {
-          await supabase.from('profiles').update({ role: 'professor' }).eq('id', data.user.id);
-          await supabase.auth.updateUser({ data: { role: 'professor' } });
-          profile.role = 'professor';
-        }
-      }
+      // Le rôle (professeur / élève) est fixé par l'administration : plus de promotion automatique ici.
+      void role;
+      void data;
 
       return true;
     } catch (error) {
@@ -459,7 +450,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               username: profile.username,
               temporaryPassword: newPassword
             }],
-            roomId: profile.room_id
+            roomId: profile.room_id,
+            purpose: 'reset'
           }
         });
       }

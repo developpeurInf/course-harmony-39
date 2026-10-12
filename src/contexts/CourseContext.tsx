@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { accessStore } from "@/contexts/AccessContext";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -478,6 +479,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   // Room operations
   const addRoom = async (room: Omit<Room, "id" | "created_at" | "updated_at" | "professor_id">): Promise<boolean> => {
+    if (!accessStore.guard("class.create")) return false;
+    if (!accessStore.guardQuota("classes.max")) return false;
     if (!user || user.role !== "professor") {
       toast.error("Only professors can add rooms");
       return false;
@@ -508,6 +511,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateRoom = async (roomId: string, updates: Partial<Room>): Promise<boolean> => {
+    if (!accessStore.guard("class.edit")) return false;
     try {
       const { error } = await supabase
         .from('rooms')
@@ -531,6 +535,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteRoom = async (roomId: string): Promise<boolean> => {
+    if (!accessStore.guard("class.delete")) return false;
     try {
       const { error } = await supabase
         .from('rooms')
@@ -552,6 +557,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleRoomVisibility = async (roomId: string): Promise<boolean> => {
+    if (!accessStore.guard("class.edit")) return false;
     const room = rooms.find(r => r.id === roomId);
     if (!room) return false;
 
@@ -560,6 +566,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   // Course operations
   const addCourseImpl = async (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">): Promise<Course | null> => {
+    if (!accessStore.guard("course.edit")) return null;
     if (!user || user.role !== "professor") {
       toast.error("Only professors can add courses");
       return null;
@@ -603,6 +610,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateCourse = async (courseId: string, updates: Partial<Course>): Promise<boolean> => {
+    if (!accessStore.guard("course.edit")) return false;
     try {
       const { error } = await supabase
         .from('courses')
@@ -641,6 +649,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteCourse = async (courseId: string): Promise<boolean> => {
+    if (!accessStore.guard("course.delete")) return false;
     try {
       // Find course details before deletion
       const courseToDelete = courses.find(c => c.id === courseId);
@@ -789,6 +798,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleCourseVisibility = async (courseId: string): Promise<boolean> => {
+    if (!accessStore.guard("course.edit")) return false;
     const course = courses.find(c => c.id === courseId);
     if (!course) return false;
 
@@ -830,6 +840,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   // Exercise operations
   const addExerciseImpl = async (exercise: Omit<Exercise, "id" | "created_at" | "updated_at">): Promise<Exercise | null> => {
+    if (!accessStore.guard("exercise.edit")) return null;
     try {
       const { data, error } = await supabase
         .from('exercises')
@@ -868,6 +879,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateExercise = async (exerciseId: string, updates: Partial<Exercise>): Promise<boolean> => {
+    if (!accessStore.guard("exercise.edit")) return false;
     try {
       const { error } = await supabase
         .from('exercises')
@@ -909,6 +921,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteExercise = async (exerciseId: string): Promise<boolean> => {
+    if (!accessStore.guard("exercise.edit")) return false;
     try {
       const exerciseToDelete = exercises.find(e => e.id === exerciseId);
       const parentCourse = exerciseToDelete ? courses.find(c => c.id === exerciseToDelete.course_id) : null;
@@ -949,6 +962,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleExerciseVisibility = async (exerciseId: string): Promise<boolean> => {
+    if (!accessStore.guard("exercise.publish")) return false;
     const exercise = exercises.find(e => e.id === exerciseId);
     if (!exercise) return false;
 
@@ -1004,6 +1018,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
   // Exam operations
   const addExamImpl = async (exam: Omit<Exam, "id" | "created_at" | "updated_at">): Promise<Exam | null> => {
+    if (!accessStore.guard((exam as any).type === "exam" ? "exam.edit" : "quiz.edit")) return null;
+    if (!accessStore.guardQuota("quiz.max_per_month")) return null;
     try {
       const payload: any = {
         title: exam.title,
@@ -1063,6 +1079,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateExam = async (examId: string, updates: Partial<Exam>): Promise<boolean> => {
+    {
+      const t = (updates as any).type || (exams.find(e => e.id === examId) as any)?.type;
+      if (!accessStore.guard(t === "exam" ? "exam.edit" : "quiz.edit")) return false;
+    }
     try {
       const dbUpdates: any = { ...updates };
 
@@ -1132,6 +1152,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteExam = async (examId: string): Promise<boolean> => {
+    {
+      const t = (exams.find(e => e.id === examId) as any)?.type;
+      if (!accessStore.guard(t === "exam" ? "exam.edit" : "quiz.edit")) return false;
+    }
     try {
       const examToDelete = exams.find(e => e.id === examId);
       const parentCourse = examToDelete ? courses.find(c => c.id === examToDelete.course_id) : null;
@@ -1172,6 +1196,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleExamVisibility = async (examId: string): Promise<boolean> => {
+    if (!accessStore.guard("quiz.publish")) return false;
     const exam = exams.find(e => e.id === examId);
     if (!exam) return false;
 
@@ -1585,6 +1610,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     action: 'add' | 'delete' | 'update';
     examDate?: string;
   }) => {
+    // Notifications aux élèves : seulement si l'offre l'inclut (sans message d'erreur)
+    if (!accessStore.can("notify.send")) return;
     try {
       const {
         courseId,
