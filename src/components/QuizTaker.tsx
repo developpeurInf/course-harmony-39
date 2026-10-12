@@ -54,7 +54,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuizAntiCheat, type CheatEventType } from "@/hooks/useQuizAntiCheat";
-import { MathHtml, MathText } from "@/components/math/MathContent";
+import { MathHtml, MathText, SimpleMathPreview } from "@/components/math/MathContent";
 import MathSymbolBar from "@/components/math/MathSymbolBar";
 
 interface QuizTakerProps {
@@ -1388,7 +1388,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                 />
                 <MathSymbolBar
                   disabled={isLocked}
-                  onInsert={(sym) => {
+                  onInsert={(sym, caret) => {
                     const el = answerAreaRef.current;
                     const cur = ans?.text || "";
                     const start = el ? el.selectionStart : cur.length;
@@ -1396,11 +1396,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                     setTextAnswer(item, cur.slice(0, start) + sym + cur.slice(end));
                     requestAnimationFrame(() => {
                       if (!el) return;
-                      const pos = start + sym.length;
+                      const pos = start + caret;
                       try { el.focus(); el.setSelectionRange(pos, pos); } catch { /* ancien iOS */ }
                     });
                   }}
                 />
+                <SimpleMathPreview text={ans?.text || ""} />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>
                     {!settings.allowCorrections && !isLocked

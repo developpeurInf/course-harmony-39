@@ -4,16 +4,34 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 /**
  * Clavier de symboles pour les réponses rédigées des élèves (téléphone, iPad, PC).
- * Insère des caractères Unicode simples (√, π, ≤, ℝ, ², …) à la position du curseur :
- * aucune connaissance de LaTeX nécessaire.
+ * Les touches à « portée » (racine, fraction, puissance…) insèrent un modèle avec
+ * parenthèses et placent le curseur dedans : √(…)  (…)/(…)  ^(…)
+ * → l'élève voit clairement ce qui est sous la racine : √(32)×5 ≠ √(32×5).
+ * k = libellé de la touche, s = texte inséré (§ = position du curseur).
  */
-const ROWS: { label: { fr: string; ar: string; en: string }; keys: string[] }[] = [
-  { label: { fr: "Opérations", ar: "عمليات", en: "Operations" }, keys: ["+", "−", "×", "÷", "±", "=", "≠", "≈", "≤", "≥", "<", ">", "√", "∛", "²", "³", "ⁿ", "⁻¹", "½", "%", "°", "∞", "π"] },
-  { label: { fr: "Ensembles", ar: "مجموعات", en: "Sets" }, keys: ["ℕ", "ℤ", "ℚ", "ℝ", "ℂ", "∈", "∉", "⊂", "∪", "∩", "∅", "∀", "∃", "⇒", "⇔", "[", "]", ";", "{", "}"] },
-  { label: { fr: "Analyse & géométrie", ar: "تحليل وهندسة", en: "Calculus & geometry" }, keys: ["→", "↦", "∫", "Σ", "Δ", "lim", "ln", "eˣ", "f′", "‖", "⃗", "⊥", "∥", "∠", "△", "α", "β", "θ", "λ", "μ", "ω"] },
+type Key = { k: string; s?: string; wide?: boolean };
+const plain = (keys: string[]): Key[] => keys.map(k => ({ k }));
+const ROWS: { label: { fr: string; ar: string; en: string }; keys: Key[] }[] = [
+  {
+    label: { fr: "Opérations", ar: "عمليات", en: "Operations" },
+    keys: [
+      { k: "√( )", s: "√(§)", wide: true }, { k: "a/b", s: "(§)/()", wide: true }, { k: "xⁿ", s: "^(§)" }, { k: "xₙ", s: "_(§)" },
+      { k: "ⁿ√( )", s: "√[§]()", wide: true }, { k: "|x|", s: "|§|" }, { k: "( )", s: "(§)" },
+      ...plain(["²", "³", "+", "−", "×", "÷", "±", "=", "≠", "≈", "≤", "≥", "<", ">", "%", "°", "∞", "π"]),
+    ],
+  },
+  { label: { fr: "Ensembles", ar: "مجموعات", en: "Sets" }, keys: plain(["ℕ", "ℤ", "ℚ", "ℝ", "ℂ", "∈", "∉", "⊂", "∪", "∩", "∅", "∀", "∃", "⇒", "⇔", "[", "]", ";", "{", "}"]) },
+  {
+    label: { fr: "Analyse & géométrie", ar: "تحليل وهندسة", en: "Calculus & geometry" },
+    keys: [
+      { k: "lim", s: "lim(x→§) ", wide: true }, { k: "∫", s: "∫(§,) dx" }, { k: "Σ", s: "Σ(k=§,n) " }, { k: "ln( )", s: "ln(§)", wide: true },
+      { k: "eˣ", s: "e^(§)" }, { k: "f′", s: "f′(§)" }, { k: "AB⃗", s: "vec(§)", wide: true },
+      ...plain(["→", "↦", "Δ", "‖", "⊥", "∥", "∠", "△", "α", "β", "θ", "λ", "μ", "ω"]),
+    ],
+  },
 ];
 
-export default function MathSymbolBar({ onInsert, disabled }: { onInsert: (s: string) => void; disabled?: boolean }) {
+export default function MathSymbolBar({ onInsert, disabled }: { onInsert: (text: string, caret: number) => void; disabled?: boolean }) {
   const { language } = useLanguage();
   const lang = (language === "ar" || language === "en" ? language : "fr") as "fr" | "ar" | "en";
   const [open, setOpen] = useState(false);
@@ -47,16 +65,30 @@ export default function MathSymbolBar({ onInsert, disabled }: { onInsert: (s: st
               </button>
             ))}
           </div>
+          {row !== 1 && (
+            <p className="px-1 text-[11px] text-muted-foreground">
+              {lang === "ar"
+                ? "الأقواس تحدد المجال: √(32)×5 ≠ √(32×5)"
+                : lang === "en"
+                ? "Parentheses set the scope: √(32)×5 ≠ √(32×5)"
+                : "Les parenthèses délimitent : √(32)×5 ≠ √(32×5)"}
+            </p>
+          )}
           <div className="flex flex-wrap gap-1" dir="ltr">
-            {ROWS[row].keys.map(k => (
+            {ROWS[row].keys.map(({ k, s, wide }) => (
               <button
                 key={k}
                 type="button"
                 disabled={disabled}
                 // mousedown + preventDefault : le champ garde le focus (et le curseur) sur PC
                 onMouseDown={e => e.preventDefault()}
-                onClick={() => onInsert(k === "⃗" ? "⃗" : k)}
-                className="h-10 min-w-[40px] rounded-lg border bg-background px-2 font-serif text-base hover:border-indigo-400 hover:bg-indigo-50 active:scale-95 dark:hover:bg-indigo-950/40"
+                onClick={() => {
+                  const tpl = s || k;
+                  const caret = tpl.indexOf("§");
+                  const text = tpl.replace("§", "");
+                  onInsert(text, caret >= 0 ? caret : text.length);
+                }}
+                className={`h-10 ${wide ? "min-w-[52px]" : "min-w-[40px]"} rounded-lg border px-2 font-serif text-base ${s ? "border-indigo-200 bg-indigo-50/60 dark:border-indigo-800 dark:bg-indigo-950/30" : "bg-background"} hover:border-indigo-400 hover:bg-indigo-50 active:scale-95 dark:hover:bg-indigo-950/40`}
               >
                 {k}
               </button>

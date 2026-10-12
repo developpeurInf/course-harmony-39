@@ -36,7 +36,7 @@ import {
   type QuizSettings,
 } from "@/contexts/CourseContext";
 import { downloadBlob } from "@/lib/download";
-import { MathText } from "@/components/math/MathContent";
+import { MathText, SimpleMathPreview } from "@/components/math/MathContent";
 
 /* ═══════════════════════════════ Types ═══════════════════════════════ */
 
@@ -675,6 +675,7 @@ const QuizDetails = ({ examId }: Props) => {
                           <span className="font-semibold">{r?.name || "—"}</span>
                           <span className={`ms-2 ${a.is_correct ? "text-emerald-600" : "text-rose-600"}`}>{a.is_correct ? "✓" : "✗"}</span>
                           <div className="mt-0.5 whitespace-pre-wrap text-foreground/80">{a.text_answer}</div>
+                          <SimpleMathPreview text={a.text_answer || ""} compact className="mt-1" />
                         </div>
                       );
                     })}
