@@ -295,7 +295,8 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
     const els = Array.from(frame.children) as HTMLElement[];
     const heights = els.map((el) => {
       const cs = window.getComputedStyle(el);
-      return el.getBoundingClientRect().height + parseFloat(cs.marginTop || "0") + parseFloat(cs.marginBottom || "0");
+      // offsetHeight = hauteur réelle, non faussée par la réduction de l'aperçu (téléphone / iPad)
+      return el.offsetHeight + parseFloat(cs.marginTop || "0") + parseFloat(cs.marginBottom || "0");
     });
     const out: Block[][] = [[]];
     let used = 0;
