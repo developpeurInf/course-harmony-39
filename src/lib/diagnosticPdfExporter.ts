@@ -1,3 +1,4 @@
+import { downloadBlob } from "@/lib/download";
 /**
  * Chargeur dynamique ultra-léger pour html2pdf.js côté client.
  * Évite d'alourdir le bundle et de saturer Terser lors du build.
@@ -108,6 +109,118 @@ async function rasterizeSvgs(root: HTMLElement, scale = 3): Promise<() => void> 
   };
 }
 
+function loadScript(id: string, src: string, globalName: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const get = () => globalName.split(".").reduce((o: any, k) => (o ? o[k] : undefined), window as any);
+    if (get()) return resolve(get());
+    let script = document.getElementById(id) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    script.addEventListener("load", () => (get() ? resolve(get()) : reject(new Error(globalName + " indisponible"))));
+    script.addEventListener("error", () => reject(new Error("Impossible de charger " + src)));
+  });
+}
+
+const isIOS = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+/**
+ * Export PDF page par page.
+ * Le rapport est d'abord copié hors de la mise en page de l'application (dont la hauteur
+ * est limitée à l'écran : html2canvas ne voyait alors que la première page), puis chaque
+ * page A4 (.diag-a4-page) est photographiée séparément et ajoutée au PDF.
+ * Avantages : rapport complet, aucune page coupée en deux, mémoire maîtrisée sur iPad.
+ */
+async function exportPageByPage(element: HTMLElement, filename: string): Promise<void> {
+  const [html2canvas, jspdf] = await Promise.all([
+    loadScript("html2canvas-cdn-script", "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "html2canvas"),
+    loadScript("jspdf-cdn-script", "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "jspdf"),
+  ]);
+  const JsPDF = jspdf.jsPDF || jspdf.default || jspdf;
+
+  // Copie du rapport (graphiques déjà convertis en images) dans un conteneur libre
+  const holder = document.createElement("div");
+  holder.setAttribute("aria-hidden", "true");
+  holder.style.cssText =
+    "position:absolute;left:0;top:0;width:210mm;background:#ffffff;z-index:-1;pointer-events:none;direction:ltr;";
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.removeAttribute("id");
+  clone.classList.add("pdf-export-mode");
+  holder.appendChild(clone);
+  document.body.appendChild(holder);
+
+  const prevHtmlH = document.documentElement.style.height;
+  const prevBodyH = document.body.style.height;
+  const prevBodyOverflow = document.body.style.overflow;
+  document.documentElement.style.height = "auto";
+  document.body.style.height = "auto";
+  document.body.style.overflow = "visible";
+
+  try {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const imgs = Array.from(holder.querySelectorAll("img"));
+    await Promise.all(imgs.map((img) => (img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); }))));
+
+    let pages = Array.from(clone.querySelectorAll(".diag-a4-page")) as HTMLElement[];
+    if (pages.length === 0) pages = [clone];
+
+    const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+    const scale = isIOS() ? 1.5 : 2;
+    const totalH = holder.scrollHeight + 200;
+    let first = true;
+
+    for (const page of pages) {
+      const canvas: HTMLCanvasElement = await html2canvas(page, {
+        scale,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: Math.max(1024, Math.ceil(holder.scrollWidth)),
+        windowHeight: totalH,
+      });
+      // Une page plus haute que l'A4 (cas rare) est découpée en plusieurs pages
+      const sliceH = Math.floor((canvas.width * 297) / 210);
+      for (let y = 0; y < canvas.height; y += sliceH) {
+        const h = Math.min(sliceH, canvas.height - y);
+        if (h < 8) break; // reste de quelques pixels : ignoré
+        let source: HTMLCanvasElement = canvas;
+        if (y > 0 || h < canvas.height) {
+          source = document.createElement("canvas");
+          source.width = canvas.width;
+          source.height = h;
+          const ctx = source.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, source.width, h);
+            ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+          }
+        }
+        if (!first) pdf.addPage("a4", "portrait");
+        first = false;
+        pdf.addImage(source.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, (h * 210) / canvas.width, undefined, "FAST");
+      }
+      // libère la mémoire du canvas (iPad)
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+
+    const blob: Blob = pdf.output("blob");
+    await downloadBlob(blob, filename);
+  } finally {
+    document.documentElement.style.height = prevHtmlH;
+    document.body.style.height = prevBodyH;
+    document.body.style.overflow = prevBodyOverflow;
+    holder.remove();
+  }
+}
+
 export async function exportDiagnosticReportToPdf(elementId: string, filename: string): Promise<boolean> {
   const element = document.getElementById(elementId);
   if (!element) {
@@ -116,53 +229,45 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
   }
 
   const cleanFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
-
-  // Sauvegarder la position de défilement actuelle
   const prevScrollX = window.scrollX || window.pageXOffset || 0;
   const prevScrollY = window.scrollY || window.pageYOffset || 0;
-
-  // Remonter en haut de page pour que html2canvas capture exactement les coordonnées (0, 0)
   window.scrollTo(0, 0);
 
-  // Activer le mode export strict : supprime les paddings d'aperçu web, marges et ombres
+  // Mode export : pages A4 sans marges ni ombres (mesures exactes des graphiques)
   element.classList.add("pdf-export-mode");
-
   let restoreSvgs: () => void = () => {};
 
   try {
-    const html2pdf = await loadHtml2PdfScript();
-
-    // Laisser le navigateur appliquer le mode export avant de mesurer les graphiques
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     restoreSvgs = await rasterizeSvgs(element);
+    try {
+      await exportPageByPage(element, cleanFilename);
+      return true;
+    } catch (err) {
+      console.warn("Export page par page impossible, essai avec html2pdf :", err);
+    }
 
+    const html2pdf = await loadHtml2PdfScript();
     const opt = {
       margin: 0,
       filename: cleanFilename,
       image: { type: "jpeg", quality: 0.98 },
       html2canvas: {
-        // iPad iOS 12 (1 Go de RAM) : un canvas trop grand donne un PDF blanc ou fait planter l'onglet
-        scale: /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? 1.5 : 2,
+        scale: isIOS() ? 1.5 : 2,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
-        letterRendering: true
+        letterRendering: true,
+        scrollY: 0,
+        windowHeight: element.scrollHeight + 200,
       },
-      jsPDF: {
-        unit: "mm",
-        format: "a4",
-        orientation: "portrait",
-        compress: true
-      },
-      pagebreak: {
-        mode: ["css", "legacy"]
-      }
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
+      pagebreak: { mode: ["css", "legacy"] },
     };
-
     await html2pdf().set(opt).from(element).save();
     return true;
   } catch (err) {
-    console.warn("Échec génération html2pdf, déclenchement impression directe:", err);
+    console.warn("Échec génération PDF, déclenchement impression directe:", err);
     const prevTitle = document.title;
     document.title = cleanFilename.replace(".pdf", "");
     window.print();
@@ -171,7 +276,6 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
     }, 1500);
     return true;
   } finally {
-    // Restaurer les graphiques SVG, le mode aperçu et la position de défilement
     restoreSvgs();
     element.classList.remove("pdf-export-mode");
     window.scrollTo(prevScrollX, prevScrollY);
