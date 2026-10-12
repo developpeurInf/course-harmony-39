@@ -29,6 +29,10 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Sigma } from 'lucide-react';
+import MathFormulaDialog from '@/components/math/MathFormulaDialog';
+import { MathHtml } from '@/components/math/MathContent';
+import { hasMath } from '@/lib/mathRender';
 
 interface RichTextEditorProps {
   content: string;
@@ -36,6 +40,8 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   minHeight?: string;
+  /** bouton « Formule » (LaTeX) + aperçu des formules — activé par défaut */
+  enableMath?: boolean;
 }
 
 const RichTextEditor = ({ 
@@ -43,8 +49,10 @@ const RichTextEditor = ({
   onChange, 
   placeholder = "Saisissez votre contenu...", 
   className = "",
-  minHeight = "min-h-[120px]"
+  minHeight = "min-h-[120px]",
+  enableMath = true,
 }: RichTextEditorProps) => {
+  const [showMathDialog, setShowMathDialog] = useState(false);
   const { language } = useLanguage();
   const [imageUrl, setImageUrl] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
@@ -281,6 +289,21 @@ const RichTextEditor = ({
 
         <div className="w-px h-4 bg-border mx-1" />
 
+        {/* Formule mathématique */}
+        {enableMath && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowMathDialog(true)}
+            className="h-7 px-2 gap-1 rounded-md text-indigo-600 font-medium hover:bg-indigo-500/10"
+            title={language === "ar" ? "إدراج صيغة رياضية" : language === "fr" ? "Insérer une formule mathématique" : "Insert a math formula"}
+          >
+            <Sigma className="h-3.5 w-3.5" />
+            <span className="text-[11px] hidden sm:inline">{language === "ar" ? "صيغة" : language === "fr" ? "Formule" : "Formula"}</span>
+          </Button>
+        )}
+
         {/* Image Dialog Trigger */}
         <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
           <DialogTrigger asChild>
@@ -471,6 +494,32 @@ const RichTextEditor = ({
           placeholder={placeholder}
         />
       </div>
+
+      {/* Aperçu des formules : rendu exact vu par l'élève */}
+      {enableMath && hasMath(content) && (
+        <div className="border-t bg-indigo-50/40 dark:bg-indigo-950/20 px-3 py-2">
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+            <Sigma className="h-3 w-3" />
+            {language === "ar" ? "معاينة كما يراها التلميذ" : language === "fr" ? "Aperçu élève" : "Student preview"}
+          </div>
+          <MathHtml html={content} className="prose prose-sm max-w-none dark:prose-invert [&_p]:my-1 [&_img]:max-h-40" />
+        </div>
+      )}
+
+      {enableMath && (
+        <MathFormulaDialog
+          open={showMathDialog}
+          onOpenChange={setShowMathDialog}
+          onInsert={(wrapped) => {
+            // insertion en texte brut (une formule peut contenir < ou >)
+            if (wrapped.startsWith("$$")) {
+              editor.chain().focus().insertContent([{ type: "paragraph", content: [{ type: "text", text: wrapped }] }]).run();
+            } else {
+              editor.chain().focus().insertContent({ type: "text", text: `${wrapped} ` }).run();
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

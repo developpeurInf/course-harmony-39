@@ -549,3 +549,20 @@ img, video, iframe, canvas { max-width: 100%; }
 @layer base {
   .grid > * { min-width: 0; }
 }
+
+/* ═════════ Formules mathématiques (KaTeX, chargé à la demande) ═════════ */
+.math-inline, .math-display {
+  direction: ltr;
+  unicode-bidi: embed;
+  unicode-bidi: isolate;
+}
+.math-display {
+  display: block;
+  text-align: center;
+  margin: 0.45em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.math-inline .katex, .math-display .katex { font-size: 1.08em; }
+.truncate .math-inline .katex { font-size: 1em; }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,9 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/RichTextEditor";
+import MathFormulaDialog from "@/components/math/MathFormulaDialog";
+import { MathHtml, MathText } from "@/components/math/MathContent";
+import { hasMath } from "@/lib/mathRender";
 
 
 interface QuizBuilderProps {
@@ -56,6 +59,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
     timeSecs: 0,
   });
 
+  // Formules dans les options (bouton « fx »)
+  const [mathOptionIdx, setMathOptionIdx] = useState<number | null>(null);
+  const optionInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [currentOptions, setCurrentOptions] = useState([
     { option_text: "", is_correct: false, option_order: 1 },
     { option_text: "", is_correct: false, option_order: 2 },
@@ -593,9 +599,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 )}
                               </div>
 
-                              <div 
-                                className="text-xs font-semibold text-foreground mb-1.5 prose prose-xs max-w-none dark:prose-invert line-clamp-3 [&_p]:m-0 [&_img]:max-h-20 [&_img]:rounded [&_img]:inline-block" 
-                                dangerouslySetInnerHTML={{ __html: qCleanText }}
+                              <MathHtml
+                                className="text-xs font-semibold text-foreground mb-1.5 prose prose-xs max-w-none dark:prose-invert line-clamp-3 [&_p]:m-0 [&_img]:max-h-20 [&_img]:rounded [&_img]:inline-block"
+                                html={qCleanText}
                               />
 
 
@@ -609,9 +615,10 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                       }`}>
                                         {String.fromCharCode(65 + oIdx)}
                                       </span>
-                                      <span className={`truncate flex-1 ${opt.is_correct ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-muted-foreground'}`}>
-                                        {opt.option_text}
-                                      </span>
+                                      <MathText
+                                        text={opt.option_text}
+                                        className={`truncate flex-1 ${opt.is_correct ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-muted-foreground'}`}
+                                      />
                                       {opt.is_correct && <Check className="w-3 h-3 text-emerald-600 shrink-0 ml-auto" />}
                                     </div>
                                   ))}
@@ -823,16 +830,34 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                             {String.fromCharCode(65 + idx)}
                           </span>
 
-                          <Input
-                            placeholder={`${language === "ar" ? "الخيار" : "Option"} ${String.fromCharCode(65 + idx)}`}
-                            value={opt.option_text}
-                            onChange={(e) => {
-                              const next = [...currentOptions];
-                              next[idx] = { ...opt, option_text: e.target.value };
-                              setCurrentOptions(next);
-                            }}
-                            className="h-8 text-xs flex-1 bg-background"
-                          />
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Input
+                                ref={(el) => { optionInputRefs.current[idx] = el; }}
+                                placeholder={`${language === "ar" ? "الخيار" : "Option"} ${String.fromCharCode(65 + idx)}`}
+                                value={opt.option_text}
+                                onChange={(e) => {
+                                  const next = [...currentOptions];
+                                  next[idx] = { ...opt, option_text: e.target.value };
+                                  setCurrentOptions(next);
+                                }}
+                                className="h-8 text-xs flex-1 bg-background"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMathOptionIdx(idx)}
+                                className="h-8 w-9 shrink-0 p-0 font-serif italic text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-900 dark:hover:bg-indigo-950/40"
+                                title={language === "ar" ? "إدراج صيغة رياضية" : language === "fr" ? "Insérer une formule" : "Insert a formula"}
+                              >
+                                fx
+                              </Button>
+                            </div>
+                            {hasMath(opt.option_text) && (
+                              <MathText text={opt.option_text} as="div" className="rounded-md bg-background/80 px-2 py-1 text-sm" />
+                            )}
+                          </div>
 
                           <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold select-none pr-1">
                             <input
@@ -854,6 +879,27 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                     </div>
                   </div>
                 )}
+
+                <MathFormulaDialog
+                  open={mathOptionIdx !== null}
+                  onOpenChange={(o) => { if (!o) setMathOptionIdx(null); }}
+                  allowDisplay={false}
+                  onInsert={(wrapped) => {
+                    const idx = mathOptionIdx;
+                    if (idx === null) return;
+                    const el = optionInputRefs.current[idx];
+                    setCurrentOptions(prev => {
+                      const next = [...prev];
+                      const cur = next[idx]?.option_text || "";
+                      const pos = el && typeof el.selectionStart === "number" ? el.selectionStart : cur.length;
+                      const before = cur.slice(0, pos);
+                      const after = cur.slice(pos);
+                      const sep = before && !/\s$/.test(before) ? " " : "";
+                      next[idx] = { ...next[idx], option_text: `${before}${sep}${wrapped}${after}` };
+                      return next;
+                    });
+                  }}
+                />
 
                 {/* True / False Options */}
                 {currentQuestion.question_type === 'true_false' && (

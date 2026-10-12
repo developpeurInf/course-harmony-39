@@ -54,6 +54,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuizAntiCheat, type CheatEventType } from "@/hooks/useQuizAntiCheat";
+import { MathHtml, MathText } from "@/components/math/MathContent";
+import MathSymbolBar from "@/components/math/MathSymbolBar";
 
 interface QuizTakerProps {
   exam: Exam;
@@ -175,6 +177,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   // Refs pour éviter les closures périmées dans les minuteurs
   const answersRef = useRef(answers);
+  const answerAreaRef = useRef<HTMLTextAreaElement>(null);
   answersRef.current = answers;
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -1046,7 +1049,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                       {r.earned} / {pts} pt
                     </span>
                   </div>
-                  <div className="quiz-question-html text-sm font-medium mb-3" dangerouslySetInnerHTML={{ __html: r.item.html }} />
+                  <MathHtml className="quiz-question-html text-sm font-medium mb-3" html={r.item.html} />
 
                   {r.item.question.question_type === "short_answer" ? (
                     <div className="rounded-xl bg-muted/50 p-3 text-sm">
@@ -1065,7 +1068,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                         return (
                           <div key={opt.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${cls}`}>
                             {opt.is_correct ? <Check className="h-4 w-4 shrink-0" /> : chosen ? <X className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
-                            <span className="flex-1">{optionLabel(opt)}</span>
+                            <MathText className="flex-1" text={optionLabel(opt)} />
                             {chosen && (
                               <span className="text-[10px] font-bold uppercase tracking-wide opacity-80">
                                 {tr("Votre choix", "اختيارك", "Your pick")}
@@ -1267,9 +1270,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               )}
             </div>
 
-            <div
+            <MathHtml
               className="quiz-question-html text-lg sm:text-xl font-semibold leading-relaxed text-foreground"
-              dangerouslySetInnerHTML={{ __html: item.html }}
+              html={item.html}
             />
 
             {/* QCM */}
@@ -1305,7 +1308,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                       >
                         {selected && item.multi ? <Check className="h-5 w-5" /> : String.fromCharCode(65 + oIdx)}
                       </span>
-                      <span className="flex-1 text-base font-medium">{opt.option_text}</span>
+                      <MathText className="flex-1 text-base font-medium" text={opt.option_text} />
                       {selected && !item.multi && (
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground animate-in zoom-in duration-200">
                           <Check className="h-4 w-4" />
@@ -1375,12 +1378,28 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             {type === "short_answer" && (
               <div className="space-y-2">
                 <Textarea
+                  ref={answerAreaRef}
                   placeholder={tr("Rédigez votre réponse ici…", "اكتب إجابتك هنا…", "Write your answer here…")}
                   value={ans?.text || ""}
                   onChange={e => setTextAnswer(item, e.target.value)}
                   disabled={isLocked}
                   rows={5}
                   className="rounded-2xl border-2 text-base p-4 focus-visible:ring-primary/25 resize-y"
+                />
+                <MathSymbolBar
+                  disabled={isLocked}
+                  onInsert={(sym) => {
+                    const el = answerAreaRef.current;
+                    const cur = ans?.text || "";
+                    const start = el ? el.selectionStart : cur.length;
+                    const end = el ? el.selectionEnd : cur.length;
+                    setTextAnswer(item, cur.slice(0, start) + sym + cur.slice(end));
+                    requestAnimationFrame(() => {
+                      if (!el) return;
+                      const pos = start + sym.length;
+                      try { el.focus(); el.setSelectionRange(pos, pos); } catch { /* ancien iOS */ }
+                    });
+                  }}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>

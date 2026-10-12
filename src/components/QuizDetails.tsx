@@ -36,6 +36,7 @@ import {
   type QuizSettings,
 } from "@/contexts/CourseContext";
 import { downloadBlob } from "@/lib/download";
+import { MathText } from "@/components/math/MathContent";
 
 /* ═══════════════════════════════ Types ═══════════════════════════════ */
 
@@ -626,7 +627,7 @@ const QuizDetails = ({ examId }: Props) => {
                     <span className="rounded-lg border px-2 py-0.5 text-[11px] text-muted-foreground">{qs.q.points || 1} {tr("pt", "نقطة", "pt")}</span>
                     {qs.timeLimit && <span className="rounded-lg border px-2 py-0.5 text-[11px] text-muted-foreground">{qs.timeLimit} s</span>}
                   </div>
-                  <p className="text-sm font-medium leading-relaxed">{qs.text}</p>
+                  <MathText as="p" className="text-sm font-medium leading-relaxed" text={qs.text} />
                 </div>
                 <div className="text-end shrink-0">
                   <div className={`text-2xl font-bold tabular-nums ${qs.total ? gradeTone(qs.rate) : "text-muted-foreground"}`}>{qs.total ? `${Math.round(qs.rate)} %` : "—"}</div>
@@ -649,7 +650,7 @@ const QuizDetails = ({ examId }: Props) => {
                         <span className={`w-5 shrink-0 ${o.is_correct ? "text-emerald-600" : "text-muted-foreground"}`}>
                           {o.is_correct ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4 opacity-40" />}
                         </span>
-                        <span className={`w-2/5 truncate ${o.is_correct ? "font-semibold" : ""}`}>{o.option_text}</span>
+                        <MathText className={`w-2/5 truncate ${o.is_correct ? "font-semibold" : ""}`} text={o.option_text} />
                         <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                           <div className={`h-full rounded-full ${o.is_correct ? "bg-emerald-500" : "bg-muted-foreground/40"}`} style={{ width: `${share}%` }} />
                         </div>
@@ -718,7 +719,7 @@ const QuizDetails = ({ examId }: Props) => {
               {[...questionStats].sort((a, b) => a.rate - b.rate).map((qs) => (
                 <div key={qs.q.id} className="flex items-center gap-3 text-xs" title={`Q${qs.index} : ${qs.correct}/${qs.total}`}>
                   <span className="w-9 font-bold">Q{qs.index}</span>
-                  <span className="w-1/3 truncate text-muted-foreground">{qs.text}</span>
+                  <MathText className="w-1/3 truncate text-muted-foreground" text={qs.text} />
                   <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
                     <div className="h-full rounded-full bg-primary" style={{ width: `${qs.rate}%` }} />
                   </div>
