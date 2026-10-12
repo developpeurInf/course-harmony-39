@@ -166,6 +166,8 @@ async function exportPageByPage(element: HTMLElement, filename: string): Promise
     const imgs = Array.from(holder.querySelectorAll("img"));
     await Promise.all(imgs.map((img) => (img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); }))));
 
+    // Zones de mesure invisibles (pagination du modèle 2) : jamais dans le PDF
+    Array.from(clone.querySelectorAll(".no-print")).forEach((n) => n.remove());
     let pages = Array.from(clone.querySelectorAll(".diag-a4-page")) as HTMLElement[];
     if (pages.length === 0) pages = [clone];
 

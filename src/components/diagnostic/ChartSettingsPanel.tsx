@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { BarChart2, Check, ChevronDown, Palette, Sigma, Hash } from "lucide-react";
+import { BarChart2, Check, Palette, Sigma, Hash } from "lucide-react";
 import type { DiagLang } from "@/lib/diagnosticTranslations";
 import { DEFAULT_REPORT2_CHARTS, DEFAULT_REPORT1_CHARTS, type Report2ChartSettings, type Report1ChartSettings } from "@/lib/diagnosticStorage";
 import {
@@ -26,7 +26,22 @@ export default function ChartSettingsPanel({ lang, enabled, onEnabledChange, set
   const L = (ar: string, fr: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : fr);
   const pick = (t: { ar: string; fr: string; en: string }) => t[lang] || t.fr;
   const gs: Report2ChartSettings = { ...DEFAULT_REPORT2_CHARTS, ...(settings || {}) };
-  const [showPerClass, setShowPerClass] = useState(false);
+  const ALL = "__all__";
+  const [targetRaw, setTarget] = useState<string>(ALL);
+  // classe retirée de la sélection : on revient sur « Tous les tableaux »
+  const target = targetRaw === ALL || classNames.includes(targetRaw) ? targetRaw : ALL;
+  const currentOwn = target === ALL ? undefined : (gs.types_par_classe || {})[target];
+  const chartName = (id?: string) => {
+    const c = CLASS_CHARTS.find(x => x.id === id);
+    return c ? pick(c.label) : "—";
+  };
+  const setClassChart = (nom: string, value: string) => {
+    const next = { ...(gs.types_par_classe || {}) };
+    if (value) next[nom] = value;
+    else delete next[nom];
+    onChange({ types_par_classe: next });
+  };
+  const checkMark = <Check className="absolute top-1 h-3.5 w-3.5 rounded-full bg-indigo-600 p-0.5 text-white" style={{ right: lang === "ar" ? undefined : 4, left: lang === "ar" ? 4 : undefined }} />;
   const perTable = gs.mode === "per_table" || gs.mode === "both";
   const global = gs.mode === "global" || gs.mode === "both";
 
@@ -67,60 +82,74 @@ export default function ChartSettingsPanel({ lang, enabled, onEnabledChange, set
             ))}
           </div>
 
-          {/* Bibliothèque : graphique de chaque tableau */}
+          {/* Bibliothèque : graphique de chaque tableau (un type différent possible pour chaque tableau) */}
           {perTable && (
             <div className="space-y-2">
               <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                {L("مبيان فوق كل جدول", "Graphique au-dessus de chaque tableau", "Chart above each table")}
+                {L("اختر الجدول ثم نوع مبيانه", "Choisissez le tableau, puis son graphique", "Pick a table, then its chart")}
               </p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {CLASS_CHARTS.map(c => {
-                  const active = gs.type_par_defaut === c.id;
+              {/* Tableaux : « Tous » + chaque classe, avec le graphique choisi */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: "touch" } as any}>
+                {[ALL, ...classNames].map(nom => {
+                  const active = target === nom;
+                  const own = nom === ALL ? gs.type_par_defaut : (gs.types_par_classe || {})[nom];
+                  const sub = nom === ALL
+                    ? chartName(gs.type_par_defaut)
+                    : own === "none" ? L("بدون مبيان", "Sans graphique", "No chart") : own ? chartName(own) : L("كالباقي", "Comme les autres", "Same as others");
                   return (
-                    <button key={c.id} type="button" onClick={() => onChange({ type_par_defaut: c.id })} className={tile(active)} title={pick(c.desc)}>
-                      <div className="h-11 w-full overflow-hidden rounded bg-slate-50 dark:bg-white" dir="ltr">
-                        <ClassChart type={c.id} data={SAMPLE_CLASS_DATA} lang={lang} palette={gs.palette} mini />
-                      </div>
-                      <span className="mt-1 truncate text-[10.5px] font-semibold text-slate-800 dark:text-slate-100">{pick(c.label)}</span>
-                      {active && <Check className="absolute top-1 h-3.5 w-3.5 rounded-full bg-indigo-600 p-0.5 text-white" style={{ right: lang === "ar" ? undefined : 4, left: lang === "ar" ? 4 : undefined }} />}
+                    <button
+                      key={nom}
+                      type="button"
+                      onClick={() => setTarget(nom)}
+                      className={`flex shrink-0 flex-col items-start rounded-lg border-2 px-2 py-1 text-start ${
+                        active ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                      }`}
+                    >
+                      <span className="max-w-[120px] truncate text-[11px] font-bold">{nom === ALL ? L("كل الجداول", "Tous les tableaux", "All tables") : nom}</span>
+                      <span className={`max-w-[120px] truncate text-[10px] ${own && nom !== ALL ? "text-indigo-700 dark:text-indigo-300 font-semibold" : "text-slate-500"}`}>{sub}</span>
                     </button>
                   );
                 })}
               </div>
 
-              {classNames.length > 1 && (
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setShowPerClass(v => !v)}
-                    className="flex w-full items-center justify-between px-2.5 py-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200"
-                  >
-                    {L("مبيان مختلف لكل قسم", "Un graphique différent par classe", "A different chart per class")}
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showPerClass ? "rotate-180" : ""}`} />
-                  </button>
-                  {showPerClass && (
-                    <div className="space-y-1.5 border-t border-slate-200 dark:border-slate-800 p-2.5">
-                      {classNames.map(nom => (
-                        <div key={nom} className="flex items-center justify-between gap-2">
-                          <span className="min-w-0 truncate text-[11px] font-medium">{nom}</span>
-                          <select
-                            value={(gs.types_par_classe || {})[nom] || ""}
-                            onChange={e => {
-                              const next = { ...(gs.types_par_classe || {}) };
-                              if (e.target.value) next[nom] = e.target.value;
-                              else delete next[nom];
-                              onChange({ types_par_classe: next });
-                            }}
-                            className="h-7 max-w-[150px] shrink-0 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-1.5 text-[11px]"
-                          >
-                            <option value="">{L("الافتراضي", "Par défaut", "Default")}</option>
-                            {CLASS_CHARTS.map(c => <option key={c.id} value={c.id}>{pick(c.label)}</option>)}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {target !== ALL && (
+                  <>
+                    <button type="button" onClick={() => setClassChart(target, "")} className={tile(!currentOwn)}>
+                      <span className="flex h-11 w-full items-center justify-center rounded bg-slate-50 text-[10px] text-slate-500 dark:bg-slate-900">{chartName(gs.type_par_defaut)}</span>
+                      <span className="mt-1 truncate text-[10.5px] font-semibold text-slate-800 dark:text-slate-100">{L("كالباقي", "Comme les autres", "Same as others")}</span>
+                      {!currentOwn && checkMark}
+                    </button>
+                    <button type="button" onClick={() => setClassChart(target, "none")} className={tile(currentOwn === "none")}>
+                      <span className="flex h-11 w-full items-center justify-center rounded bg-slate-50 text-lg text-slate-400 dark:bg-slate-900">∅</span>
+                      <span className="mt-1 truncate text-[10.5px] font-semibold text-slate-800 dark:text-slate-100">{L("بدون مبيان", "Sans graphique", "No chart")}</span>
+                      {currentOwn === "none" && checkMark}
+                    </button>
+                  </>
+                )}
+                {CLASS_CHARTS.map(c => {
+                  const active = target === ALL ? gs.type_par_defaut === c.id : currentOwn === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => (target === ALL ? onChange({ type_par_defaut: c.id }) : setClassChart(target, c.id))}
+                      className={tile(active)}
+                      title={pick(c.desc)}
+                    >
+                      <div className="h-11 w-full overflow-hidden rounded bg-slate-50 dark:bg-white" dir="ltr">
+                        <ClassChart type={c.id} data={SAMPLE_CLASS_DATA} lang={lang} palette={gs.palette} mini />
+                      </div>
+                      <span className="mt-1 truncate text-[10.5px] font-semibold text-slate-800 dark:text-slate-100">{pick(c.label)}</span>
+                      {active && checkMark}
+                    </button>
+                  );
+                })}
+              </div>
+              {target === ALL && Object.keys(gs.types_par_classe || {}).some(k => classNames.includes(k)) && (
+                <button type="button" onClick={() => onChange({ types_par_classe: {} })} className="text-[11px] font-semibold text-indigo-600 underline">
+                  {L("نفس المبيان لكل الجداول", "Même graphique pour tous les tableaux", "Same chart for every table")}
+                </button>
               )}
             </div>
           )}

@@ -254,7 +254,9 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
       { kind: "general" },
       { kind: "distTitle" },
       ...bands.map((band, i) => {
-        const chart = perTable ? ((gs.types_par_classe || {})[band.nom] || gs.type_par_defaut) as ClassChartType : undefined;
+        // Choix propre à ce tableau, sinon le graphique commun ; « none » = tableau sans graphique
+        const choice = perTable ? ((gs.types_par_classe || {})[band.nom] || gs.type_par_defaut) : undefined;
+        const chart = choice && choice !== "none" ? (choice as ClassChartType) : undefined;
         return { kind: "class" as const, band, data: chartData[i], chart, fig: chart && band.present ? ++fig : undefined };
       }),
     ];
