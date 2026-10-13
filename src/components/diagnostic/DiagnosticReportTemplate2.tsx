@@ -401,12 +401,6 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
         return (
           <div key={key} className="t2-block t2-class">
             <div className="t2-class-title">• {c.nom}</div>
-            {b.chart && c.present > 0 && (
-              <div className="t2-figure">
-                <ClassChart type={b.chart} data={b.data} lang={lang} palette={gs.palette} />
-                {figCaption(b.fig, lang === "ar" ? `توزيع نتائج قسم ${c.nom} (${chartLabel(b.chart, lang)})` : lang === "en" ? `Results of ${c.nom} (${chartLabel(b.chart, lang).toLowerCase()})` : `Résultats de la classe ${c.nom} (${chartLabel(b.chart, lang).toLowerCase()})`)}
-              </div>
-            )}
             <table className="t2-table">
               <thead>
                 <tr>
@@ -437,6 +431,13 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
               </tbody>
             </table>
             {gs.statistiques && includeGraphs && c.present > 0 && <div className="t2-stats">{statsLine(b.data, lang)}</div>}
+            {/* Graphique sous le tableau */}
+            {b.chart && c.present > 0 && (
+              <div className="t2-figure">
+                <ClassChart type={b.chart} data={b.data} lang={lang} palette={gs.palette} />
+                {figCaption(b.fig, lang === "ar" ? `توزيع نتائج قسم ${c.nom} (${chartLabel(b.chart, lang)})` : lang === "en" ? `Results of ${c.nom} (${chartLabel(b.chart, lang).toLowerCase()})` : `Résultats de la classe ${c.nom} (${chartLabel(b.chart, lang).toLowerCase()})`)}
+              </div>
+            )}
           </div>
         );
       }
@@ -536,7 +537,7 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
         .t2-class { margin-bottom: 2.5mm; page-break-inside: avoid; break-inside: avoid; }
         .t2-class-title { font-size: 11.5pt; font-weight: bold; text-decoration: underline; margin: 0 2mm 1mm 2mm; }
         .t2-sign { margin-top: 5mm; }
-        .t2-figure { margin: 0.5mm 0 1.5mm 0; page-break-inside: avoid; break-inside: avoid; }
+        .t2-figure { margin: 1.5mm 0 1mm 0; page-break-inside: avoid; break-inside: avoid; }
         .t2-figure svg { width: 100%; height: auto; }
         .t2-global { margin-bottom: 3mm; }
         .t2-caption { font-size: 9.5pt; font-style: italic; text-align: center; margin-top: 0.5mm; color: #222; }
