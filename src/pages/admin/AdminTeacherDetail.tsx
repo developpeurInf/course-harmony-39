@@ -559,56 +559,134 @@ function PaymentDialog({ open, onOpenChange, teacherId, subs, onSaved }: any) {
 // ---------------------------------------------------------------------------
 
 interface EffRow { key: string; allowed: boolean; source: string; limit_value: number | null; used: number | null }
+/** Exception d'un professeur ; null = « Selon l'offre » (aucune exception) */
+type Ov = { effect: "allow" | "deny"; limit_value: number | null; expires_at: string | null; reason?: string | null } | null;
+
+const sameOv = (a: Ov | undefined, b: Ov | undefined) =>
+  (!a && !b) || (!!a && !!b && a.effect === b.effect && (a.limit_value ?? null) === (b.limit_value ?? null)
+    && (a.expires_at ? a.expires_at.slice(0, 10) : null) === (b.expires_at ? b.expires_at.slice(0, 10) : null));
 
 function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: boolean }) {
   const { L, lang } = useT();
   const [rows, setRows] = useState<EffRow[]>([]);
   const [perms, setPerms] = useState<any[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, any>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Record<string, Ov>>({});
+  // modifications en attente de validation (clé → nouvelle valeur)
+  const [draft, setDraft] = useState<Record<string, Ov>>({});
+  const [planKeys, setPlanKeys] = useState<Set<string>>(new Set());
+  const [subStatus, setSubStatus] = useState<string>("none");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const [{ data: eff, error }, { data: cat }, { data: ov }] = await Promise.all([
+    const [{ data: eff, error }, { data: cat }, { data: ov }, { data: st }] = await Promise.all([
       db.rpc("effective_permissions", { uid: teacherId }),
       db.from("permissions").select("*").neq("kind", "admin").order("sort_order"),
       db.from("teacher_permission_overrides").select("*").eq("teacher_id", teacherId),
+      db.rpc("subscription_status", { uid: teacherId }),
     ]);
     if (error) toast.error(error.message);
     setRows(eff || []);
     setPerms(cat || []);
-    const map: Record<string, any> = {};
-    (ov || []).forEach((o: any) => (map[o.permission_key] = o));
-    setOverrides(map);
+    const map: Record<string, Ov> = {};
+    (ov || []).forEach((o: any) => (map[o.permission_key] = { effect: o.effect, limit_value: o.limit_value, expires_at: o.expires_at, reason: o.reason }));
+    setSaved(map);
+    const s = Array.isArray(st) ? st[0] : st;
+    setSubStatus(s?.status || "none");
+    if (s?.plan_id) {
+      const { data: pp } = await db.from("plan_permissions").select("permission_key").eq("plan_id", s.plan_id);
+      setPlanKeys(new Set((pp || []).map((x: any) => x.permission_key)));
+    } else setPlanKeys(new Set());
   };
   useEffect(() => {
+    setDraft({});
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId]);
 
   const eff = useMemo(() => Object.fromEntries(rows.map(r => [r.key, r])), [rows]);
+  const permByKey = useMemo(() => Object.fromEntries(perms.map(p => [p.key, p])), [perms]);
   const modules = useMemo(() => {
     const m: Record<string, any[]> = {};
     perms.forEach(p => (m[p.module] = m[p.module] || []).push(p));
     return Object.keys(MODULE_LABELS).filter(k => m[k]).map(k => ({ key: k, items: m[k] }));
   }, [perms]);
 
-  const setOverride = async (key: string, effect: "plan" | "allow" | "deny", extra: { limit?: number | null; expires?: string | null } = {}) => {
-    setBusy(key);
-    let error: any = null;
-    if (effect === "plan") {
-      ({ error } = await db.from("teacher_permission_overrides").delete().eq("teacher_id", teacherId).eq("permission_key", key));
-    } else {
-      const prev = overrides[key];
-      ({ error } = await db.from("teacher_permission_overrides").upsert({
-        teacher_id: teacherId, permission_key: key, effect,
-        limit_value: extra.limit !== undefined ? extra.limit : prev?.limit_value ?? null,
-        expires_at: extra.expires !== undefined ? extra.expires : prev?.expires_at ?? null,
-        reason: prev?.reason ?? null,
-      }, { onConflict: "teacher_id,permission_key" }));
+  const current = (key: string): Ov => (key in draft ? draft[key] : saved[key] ?? null);
+  const changedKeys = Object.keys(draft).filter(k => !sameOv(draft[k], saved[k] ?? null));
+  const dirty = changedKeys.length > 0;
+
+  // modification locale (pas encore enregistrée)
+  const edit = (key: string, next: Ov) => {
+    setDraft(d => {
+      const copy = { ...d };
+      if (sameOv(next, saved[key] ?? null)) delete copy[key];
+      else copy[key] = next;
+      return copy;
+    });
+  };
+  const setEffect = (key: string, effect: "plan" | "allow" | "deny", limit?: number | null) => {
+    if (effect === "plan") return edit(key, null);
+    const prev = current(key) || saved[key] || null;
+    edit(key, { effect, limit_value: limit !== undefined ? limit : prev?.limit_value ?? null, expires_at: prev?.expires_at ?? null, reason: prev?.reason ?? null });
+  };
+
+  // avertissement si on quitte la page avec des modifications non validées
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
+
+  // état autorisé / interdit prévisualisé avec le brouillon
+  const previewAllowed = (key: string): boolean | undefined => {
+    const r = eff[key];
+    if (!(key in draft)) return r?.allowed;
+    if (subStatus === "suspended" || subStatus === "deleted") return false;
+    const o = draft[key];
+    if (o?.effect === "deny") return false;
+    if (o?.effect === "allow") return true;
+    if (subStatus === "none") return false;
+    if (subStatus === "expired") return !permByKey[key]?.is_write && planKeys.has(key);
+    return planKeys.has(key);
+  };
+
+  const describeOv = (key: string, o: Ov) => {
+    const isQuota = permByKey[key]?.kind === "quota";
+    if (!o) return L("Selon l'offre", "حسب العرض", "Per plan");
+    let txt = isQuota
+      ? `${L("Limite", "الحد", "Limit")} ${o.limit_value ?? "∞"}`
+      : o.effect === "allow" ? L("Autoriser", "سماح", "Allow") : L("Interdire", "منع", "Deny");
+    if (o.expires_at) txt += ` (${L("jusqu'au", "إلى غاية", "until")} ${fmtDate(o.expires_at, lang)})`;
+    return txt;
+  };
+
+  const cancel = () => setDraft({});
+
+  const validate = async () => {
+    setSaving(true);
+    const errors: string[] = [];
+    for (const key of changedKeys) {
+      const o = draft[key];
+      const { error } = o
+        ? await db.from("teacher_permission_overrides").upsert({
+            teacher_id: teacherId, permission_key: key, effect: o.effect,
+            limit_value: o.limit_value ?? null, expires_at: o.expires_at ?? null, reason: o.reason ?? null,
+          }, { onConflict: "teacher_id,permission_key" })
+        : await db.from("teacher_permission_overrides").delete().eq("teacher_id", teacherId).eq("permission_key", key);
+      if (error) errors.push(`${permLabel(key, lang)} : ${error.message}`);
     }
-    setBusy(null);
-    if (error) return toast.error(error.message);
-    void load();
+    setSaving(false);
+    setConfirmOpen(false);
+    if (errors.length) toast.error(errors.join("\n"));
+    else toast.success(L(
+      `${changedKeys.length} modification(s) enregistrée(s), appliquée(s) immédiatement au professeur`,
+      `تم حفظ ${changedKeys.length} تعديل(ات)، وتطبق فورا على الأستاذ`,
+      `${changedKeys.length} change(s) saved and applied to the teacher immediately`,
+    ));
+    setDraft({});
+    await load();
   };
 
   const sourceLabel = (s: string) =>
@@ -620,12 +698,12 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
     : L("sans abonnement", "بدون اشتراك", "no subscription");
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${dirty ? "pb-28" : ""}`}>
       <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
         {L(
-          "« Selon l'offre » applique le contenu de l'offre du professeur. « Autoriser » / « Interdire » créent une exception pour lui seul (avec une date de fin si besoin). Les changements s'appliquent immédiatement.",
-          "« حسب العرض » يطبق محتوى عرض الأستاذ. « السماح » / « المنع » ينشئان استثناء خاصا به (مع تاريخ نهاية عند الحاجة). تطبق التغييرات فورا.",
-          "“Per plan” applies the teacher's plan. “Allow” / “Deny” create an exception for this teacher only (optionally until a date). Changes apply immediately."
+          "« Selon l'offre » applique le contenu de l'offre du professeur. « Autoriser » / « Interdire » créent une exception pour lui seul (avec une date de fin si besoin). Faites vos choix puis cliquez sur « Valider » : ils s'appliquent aussitôt sur l'application du professeur, sans qu'il ait à se reconnecter. « Annuler » efface les choix non validés.",
+          "« حسب العرض » يطبق محتوى عرض الأستاذ. « السماح » / « المنع » ينشئان استثناء خاصا به (مع تاريخ نهاية عند الحاجة). اختر ثم اضغط « تأكيد »: تطبق التغييرات فورا على تطبيق الأستاذ دون إعادة الاتصال. « إلغاء » يمحو الاختيارات غير المؤكدة.",
+          "“Per plan” applies the teacher's plan. “Allow” / “Deny” create an exception for this teacher only (optionally until a date). Make your choices then click “Validate”: they apply at once in the teacher's app, without signing in again. “Cancel” discards unvalidated choices."
         )}
       </p>
       {modules.map(m => (
@@ -634,23 +712,29 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
           <ul className="divide-y">
             {m.items.map((p: any) => {
               const r = eff[p.key];
-              const ov = overrides[p.key];
+              const ov = current(p.key);
+              const changed = changedKeys.indexOf(p.key) !== -1;
               const value = ov ? ov.effect : "plan";
               const isQuota = p.kind === "quota";
-              const limit = r?.limit_value ?? null;
+              const allowed = previewAllowed(p.key);
+              const limit = changed ? (ov ? ov.limit_value : r?.source === "override" ? null : r?.limit_value ?? null) : r?.limit_value ?? null;
               const used = r?.used ?? 0;
               const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
               return (
-                <li key={p.key} className="flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <li key={p.key} className={`flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between ${changed ? "border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}`}>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       {!isQuota && (
-                        <span className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${r?.allowed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                          {r?.allowed ? "✓" : "✕"}
+                        <span className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${allowed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                          {allowed ? "✓" : "✕"}
                         </span>
                       )}
                       <span className="text-sm font-medium">{permLabel(p.key, lang)}</span>
-                      <span className="text-[11px] text-muted-foreground">{r ? sourceLabel(r.source) : ""}</span>
+                      {changed ? (
+                        <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">{L("non validé", "غير مؤكد", "not saved")}</span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">{r ? sourceLabel(r.source) : ""}</span>
+                      )}
                     </div>
                     {isQuota && (
                       <div className="mt-1.5 max-w-xs">
@@ -672,8 +756,8 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                           <select
                             className="h-8 rounded-md border bg-background px-2 text-xs"
                             value={ov ? "allow" : "plan"}
-                            disabled={busy === p.key}
-                            onChange={e => setOverride(p.key, e.target.value === "plan" ? "plan" : "allow", { limit: limit })}
+                            disabled={saving}
+                            onChange={e => setEffect(p.key, e.target.value === "plan" ? "plan" : "allow", r?.limit_value ?? null)}
                           >
                             <option value="plan">{L("Selon l'offre", "حسب العرض", "Per plan")}</option>
                             <option value="allow">{L("Limite personnalisée", "حد مخصص", "Custom limit")}</option>
@@ -683,9 +767,10 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                               type="number"
                               min="0"
                               className="h-8 w-24 text-xs"
-                              defaultValue={ov.limit_value ?? ""}
+                              value={ov.limit_value ?? ""}
                               placeholder="∞"
-                              onBlur={e => setOverride(p.key, "allow", { limit: e.target.value === "" ? null : Number(e.target.value) })}
+                              disabled={saving}
+                              onChange={e => setEffect(p.key, "allow", e.target.value === "" ? null : Math.max(0, Number(e.target.value)))}
                             />
                           )}
                         </>
@@ -695,8 +780,8 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                             <button
                               key={v}
                               type="button"
-                              disabled={busy === p.key}
-                              onClick={() => value !== v && setOverride(p.key, v)}
+                              disabled={saving}
+                              onClick={() => value !== v && setEffect(p.key, v)}
                               className={`rounded px-2 py-1 font-semibold ${value === v
                                 ? v === "allow" ? "bg-emerald-600 text-white" : v === "deny" ? "bg-red-600 text-white" : "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
                                 : "text-muted-foreground"}`}
@@ -711,11 +796,9 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                           type="date"
                           className="h-8 w-36 text-xs"
                           title={L("Fin de l'exception (facultatif)", "نهاية الاستثناء (اختياري)", "Override end (optional)")}
-                          defaultValue={toDateInput(ov.expires_at)}
-                          onBlur={e => {
-                            const v = e.target.value ? fromDateInput(e.target.value, true) : null;
-                            if (v !== (ov.expires_at || null)) setOverride(p.key, ov.effect, { expires: v });
-                          }}
+                          value={toDateInput(ov.expires_at)}
+                          disabled={saving}
+                          onChange={e => edit(p.key, { ...ov, expires_at: e.target.value ? fromDateInput(e.target.value, true) : null })}
                         />
                       )}
                     </div>
@@ -726,6 +809,53 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
           </ul>
         </section>
       ))}
+
+      {canEdit && dirty && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-amber-400 bg-background shadow lg:left-60 rtl:lg:left-0 rtl:lg:right-60-[0_-4px_16px_rgba(0,0,0,0.08)]">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-700">
+              {L(`${changedKeys.length} modification(s) non validée(s)`, `${changedKeys.length} تعديل(ات) غير مؤكدة`, `${changedKeys.length} unsaved change(s)`)}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={cancel} disabled={saving}>
+                <XCircle className="mr-1 h-4 w-4" />{L("Annuler", "إلغاء", "Cancel")}
+              </Button>
+              <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={saving}>
+                <Check className="mr-1 h-4 w-4" />{L("Valider", "تأكيد", "Validate")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={confirmOpen} onOpenChange={o => !saving && setConfirmOpen(o)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{L("Valider les modifications ?", "تأكيد التعديلات؟", "Validate the changes?")}</DialogTitle>
+            <DialogDescription>
+              {L("Elles s'appliqueront immédiatement sur l'application du professeur.", "ستطبق فورا على تطبيق الأستاذ.", "They will apply immediately in the teacher's app.")}
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="max-h-72 divide-y overflow-y-auto rounded-lg border text-sm">
+            {changedKeys.map(k => (
+              <li key={k} className="px-3 py-2">
+                <p className="font-medium">{permLabel(k, lang)}</p>
+                <p className="text-xs text-muted-foreground">
+                  <span className="line-through">{describeOv(k, saved[k] ?? null)}</span>
+                  {"  →  "}
+                  <span className="font-semibold text-foreground">{describeOv(k, draft[k])}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={saving}>{L("Retour", "رجوع", "Back")}</Button>
+            <Button onClick={validate} disabled={saving}>
+              {saving ? L("Enregistrement…", "جار الحفظ…", "Saving…") : L("Confirmer", "تأكيد", "Confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -113,17 +113,46 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     void load();
   }, [load]);
 
-  // Les changements faits par l'administration s'appliquent sans reconnexion
+  // Les changements faits par l'administration s'appliquent tout de suite, sans reconnexion :
+  // 1) temps réel (Supabase Realtime) sur les exceptions, abonnements, compte et offres ;
+  // 2) filet de sécurité : relecture au retour sur l'onglet et toutes les 60 s.
   useEffect(() => {
     if (!userId) return;
+    let pending: number | undefined;
+    const soon = () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(() => void load(), 300);
+    };
     const onFocus = () => {
-      if (Date.now() - lastLoad.current > 30000) void load();
+      if (Date.now() - lastLoad.current > 5000) void load();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") onFocus();
     };
     window.addEventListener("focus", onFocus);
-    const timer = window.setInterval(() => void load(), 5 * 60 * 1000);
+    window.addEventListener("access-refresh", soon);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => void load(), 60 * 1000);
+
+    let channel: any = null;
+    try {
+      channel = (supabase as any)
+        .channel(`access-${userId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "teacher_permission_overrides", filter: `teacher_id=eq.${userId}` }, soon)
+        .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions", filter: `teacher_id=eq.${userId}` }, soon)
+        .on("postgres_changes", { event: "*", schema: "public", table: "teacher_accounts", filter: `user_id=eq.${userId}` }, soon)
+        .on("postgres_changes", { event: "*", schema: "public", table: "plan_permissions" }, soon)
+        .subscribe();
+    } catch {
+      channel = null;
+    }
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("access-refresh", soon);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
+      window.clearTimeout(pending);
+      if (channel) (supabase as any).removeChannel(channel);
     };
   }, [userId, load]);
 

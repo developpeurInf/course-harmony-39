@@ -79,16 +79,16 @@ const App = () => {
                       <Route path="/login" element={<Login />} />
                       <Route element={<MainLayout />}>
                         <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/create-room" element={<CreateRoom />} />
-                        <Route path="/class-management" element={<ClassManagement />} />
+                        <Route path="/create-room" element={<RequirePermission perm="class.create"><CreateRoom /></RequirePermission>} />
+                        <Route path="/class-management" element={<RequirePermission perm="class.view"><ClassManagement /></RequirePermission>} />
                         <Route path="/profile" element={<Profile />} />
-                        <Route path="/courses" element={<Courses />} />
+                        <Route path="/courses" element={<RequirePermission perm="course.view"><Courses /></RequirePermission>} />
                         <Route path="/exercises" element={<Exercises />} />
                         <Route path="/exams" element={<Exams />} />
-                        <Route path="/students" element={<Students />} />
-                        <Route path="/rooms/:roomId/students" element={<RoomStudents />} />
+                        <Route path="/students" element={<RequirePermission perm="student.view"><Students /></RequirePermission>} />
+                        <Route path="/rooms/:roomId/students" element={<RequirePermission perm="student.view"><RoomStudents /></RequirePermission>} />
                         <Route path="/rooms/:roomId/students-activities" element={<RequirePermission perm="student.activity_view"><StudentsActivities /></RequirePermission>} />
-                        <Route path="/rooms/:roomId/courses" element={<RoomCourses />} />
+                        <Route path="/rooms/:roomId/courses" element={<RequirePermission perm="course.view"><RoomCourses /></RequirePermission>} />
                         <Route path="/rooms/:roomId/exercises" element={<RoomExercises />} />
                         <Route path="/rooms/:roomId/exams" element={<RoomExams />} />
                         <Route path="/reports" element={<RequirePermission perm="reports.view"><Reports /></RequirePermission>} />

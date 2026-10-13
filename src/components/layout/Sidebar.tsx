@@ -57,6 +57,7 @@ const Sidebar = () => {
   // For students, get enrolled rooms through their course enrollments or direct room assignment
   const getEnrolledRooms = () => {
     if (isProfessor) {
+      if (!can("class.view")) return []; // habilitation « Voir ses classes » retirée
       return rooms.filter(room => room.professor_id === user?.id);
     }
     

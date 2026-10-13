@@ -17,6 +17,7 @@ function friendlyAccessError(text: string, lang: string): string {
   if (typeof text !== "string") return text;
   const m = text.match(/(PERMISSION|QUOTA):[\w.]+ — ([^\n]+)/);
   if (m) {
+    try { window.dispatchEvent(new Event("access-refresh")); } catch { /* ancien navigateur */ }
     const detail = m[2].replace(/^(Limite de votre offre atteinte|Non inclus dans votre offre) : /, "");
     if (m[1] === "QUOTA") {
       return lang === "ar" ? `تم بلوغ حد عرضك: ${detail}` : lang === "en" ? `Plan limit reached: ${detail}` : `Limite de votre offre atteinte : ${detail}`;
@@ -24,6 +25,8 @@ function friendlyAccessError(text: string, lang: string): string {
     return lang === "ar" ? `غير مدرج في عرضك: ${detail}` : lang === "en" ? `Not included in your plan: ${detail}` : `Non inclus dans votre offre : ${detail}`;
   }
   if (/row-level security policy "hab:/.test(text) || /Changement de rôle non autorisé/.test(text)) {
+    // la base vient de refuser : on relit tout de suite les droits pour mettre l'écran à jour
+    try { window.dispatchEvent(new Event("access-refresh")); } catch { /* ancien navigateur */ }
     return lang === "ar"
       ? "هذه العملية غير مدرجة في عرضك أو أن اشتراكك منته."
       : lang === "en"
