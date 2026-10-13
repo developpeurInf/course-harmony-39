@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatCard } from "@/components/ui/stat-card";
 import {
   BookOpen, FileText, Calendar, Users, Building, Award, Clock, CheckCircle2,
-  RefreshCw, ArrowRight, GraduationCap, Target, Sparkles, Trophy, Activity, EyeOff, ClipboardList
+  RefreshCw, ArrowRight, GraduationCap, Target, Sparkles, Trophy, Activity, EyeOff, ClipboardList, Play, Timer
 } from "lucide-react";
 
 interface RecentSubmission {
@@ -74,7 +74,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const {
     courses, exercises, exams, enrollments, rooms, refreshData,
-    getVisibleCoursesForStudent, getVisibleExercisesForStudent, getVisibleExamsForStudent
+    getVisibleCoursesForStudent, getVisibleExercisesForStudent, getVisibleExamsForStudent,
+    quizSubmissions
   } = useCourses();
 
   const isRtl = language === "ar";
@@ -125,6 +126,25 @@ const Dashboard = () => {
   }, [exams, displayCourseIds, isProfessor, user, getVisibleExamsForStudent]);
 
   const examIdsKey = displayExams.map(e => e.id).sort().join(",");
+
+  // Élève : quiz ouverts maintenant et pas encore passés
+  const quizzesToDo = useMemo(() => {
+    if (isProfessor || !user?.id) return [];
+    const now = Date.now();
+    const done = new Set((quizSubmissions || []).filter(sub => sub.student_id === user.id).map(sub => sub.exam_id));
+    return displayExams
+      .filter(ex => ex.type === "quiz" && !done.has(ex.id))
+      .filter(ex => {
+        const from = new Date((ex as any).available_from || ex.exam_date).getTime();
+        const until = (ex as any).available_until ? new Date((ex as any).available_until).getTime() : null;
+        return (!from || from <= now) && (!until || until >= now);
+      })
+      .sort((a, b) => {
+        const ua = (a as any).available_until ? new Date((a as any).available_until).getTime() : Infinity;
+        const ub = (b as any).available_until ? new Date((b as any).available_until).getTime() : Infinity;
+        return ua - ub;
+      });
+  }, [displayExams, quizSubmissions, isProfessor, user]);
 
   const upcomingExercises = useMemo(() => {
     const now = Date.now(), limit = now + 14 * 86400000;
@@ -375,6 +395,48 @@ const Dashboard = () => {
               <Building className="h-4 w-4" />
               {tr("Créer ma première classe", "إنشاء قسمي الأول", "Create my first class")}
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Élève : à faire maintenant ── */}
+      {!isProfessor && quizzesToDo.length > 0 && (
+        <Card className="overflow-hidden border-emerald-300 dark:border-emerald-800">
+          <CardHeader className="bg-emerald-500/10 pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-emerald-800 dark:text-emerald-300">
+              <Play className="h-5 w-5" />
+              {tr("À faire maintenant", "مطلوب الآن", "To do now")}
+              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white">{quizzesToDo.length}</span>
+            </CardTitle>
+            <CardDescription>{tr("Ces quiz sont ouverts : passez-les avant la fermeture.", "هذه الاختبارات مفتوحة الآن: اجتزها قبل إغلاقها.", "These quizzes are open: take them before they close.")}</CardDescription>
+          </CardHeader>
+          <CardContent className="divide-y p-0">
+            {quizzesToDo.slice(0, 5).map(ex => {
+              const until = (ex as any).available_until ? new Date((ex as any).available_until) : null;
+              return (
+                <div key={ex.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{ex.title}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>{courses.find(c => c.id === ex.course_id)?.title}</span>
+                      {ex.duration_minutes ? (
+                        <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{ex.duration_minutes} {tr("min", "دقيقة", "min")}</span>
+                      ) : null}
+                      {until && (
+                        <span className="inline-flex items-center gap-1 text-rose-600">
+                          <Timer className="h-3.5 w-3.5" />
+                          {tr("jusqu'au", "إلى غاية", "until")} {until.toLocaleString(locale, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <Button onClick={() => navigate(`/exams?quiz=${ex.id}`)} className="h-10 shrink-0 gap-2 bg-emerald-600 font-semibold text-white hover:bg-emerald-700">
+                    <Play className="h-4 w-4" />
+                    {tr("Commencer", "ابدأ", "Start")}
+                  </Button>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

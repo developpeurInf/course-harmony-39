@@ -164,6 +164,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   const [questionDeadline, setQuestionDeadline] = useState<number | null>(null);
   const [now, setNow] = useState<number>(Date.now());
   const startTimeRef = useRef<number>(0);
+  const reviewRef = useRef<HTMLDivElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -552,6 +553,31 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     void handleSubmit(auto, reason);
   };
 
+  // Avertissements avant la fin du temps (1 min et 10 s)
+  const warnedRef = useRef<{ min: boolean; ten: boolean }>({ min: false, ten: false });
+  useEffect(() => {
+    if (phase !== "running" || timeLeft === null) {
+      warnedRef.current = { min: false, ten: false };
+      return;
+    }
+    const vibrate = () => { try { (navigator as any).vibrate?.(200); } catch { /* ignore */ } };
+    if (durationMinutes > 1 && timeLeft <= 60 && timeLeft > 10 && !warnedRef.current.min) {
+      warnedRef.current.min = true;
+      vibrate();
+      toast.warning(tr("Plus qu'une minute !", "تبقّت دقيقة واحدة!", "One minute left!"));
+    }
+    if (timeLeft <= 10 && timeLeft > 0 && !warnedRef.current.ten) {
+      warnedRef.current.ten = true;
+      vibrate();
+      const left = items.filter(it => !isAnswered(it, answers[it.question.id])).length;
+      toast.warning(
+        left > 0
+          ? tr(`10 secondes ! ${left} question(s) sans réponse.`, `10 ثوانٍ! ${left} سؤال بدون جواب.`, `10 seconds! ${left} unanswered question(s).`)
+          : tr("10 secondes restantes !", "تبقّت 10 ثوانٍ!", "10 seconds left!")
+      );
+    }
+  }, [phase, timeLeft, durationMinutes, items, answers, tr]);
+
   // Fin du temps global → envoi automatique
   useEffect(() => {
     if (phase === "running" && timeLeft === 0) {
@@ -757,6 +783,18 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             }
           ]
         : []),
+      ...(settings.antiCheat !== false
+        ? [
+            {
+              icon: <ShieldAlert className="h-4 w-4" />,
+              text: tr(
+                `Quiz protégé : copier/coller bloqué, votre nom en filigrane. Si vous quittez la page ${maxFocusLosses} fois, le quiz est envoyé automatiquement.`,
+                `اختبار محمي: النسخ واللصق ممنوعان واسمك يظهر كعلامة مائية. إذا غادرت الصفحة ${maxFocusLosses} مرات يُرسل الاختبار تلقائياً.`,
+                `Protected quiz: copy/paste blocked, your name as a watermark. Leaving the page ${maxFocusLosses} times submits the quiz automatically.`
+              )
+            }
+          ]
+        : []),
       {
         icon: <Send className="h-4 w-4" />,
         text: tr(
@@ -940,8 +978,13 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                   <div className="text-center">
                     <div className="text-4xl font-extrabold tabular-nums">{pct}%</div>
                     <div className="text-xs font-semibold text-muted-foreground tabular-nums">
-                      {finalScore.score} / {finalScore.total} pts
+                      <span dir="ltr">{finalScore.score}/{finalScore.total}</span> {tr("pts", "نقطة", "pts")}
                     </div>
+                    {finalScore.total > 0 && (
+                      <div className="mt-0.5 text-[11px] font-bold text-primary tabular-nums">
+                        <span dir="ltr">{(Math.round((finalScore.score / finalScore.total) * 200) / 10).toString().replace(".", ",")}/20</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <p className={`text-center text-xl font-bold ${m.color}`}>{m.label}</p>
@@ -993,7 +1036,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {canReview && (
-                <Button variant="outline" onClick={() => setShowReview(v => !v)} className="h-11 rounded-xl gap-2 font-semibold">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const open = !showReview;
+                    setShowReview(open);
+                    if (open) setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                  }}
+                  className="h-11 rounded-xl gap-2 font-semibold"
+                >
                   {showReview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   {showReview
                     ? tr("Masquer le corrigé", "إخفاء التصحيح", "Hide correction")
@@ -1015,7 +1066,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
         {/* Corrigé détaillé */}
         {canReview && showReview && (
-          <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div ref={reviewRef} className="space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
             {graded.map((r, i) => {
               const tone = !r.gradable
                 ? "border-slate-200 dark:border-slate-800"
@@ -1046,7 +1097,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                       )}
                     </div>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full tabular-nums ${r.isCorrect ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                      {r.earned} / {pts} pt
+                      <span dir="ltr">{r.earned}/{pts}</span> {tr("pt", "نقطة", "pt")}
                     </span>
                   </div>
                   <MathHtml className="quiz-question-html text-sm font-medium mb-3" html={r.item.html} />
@@ -1110,7 +1161,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     return "empty";
   };
 
-  const watermarkText = `${user?.name || ""} · ${user?.email || ""} · ${new Date(startTimeRef.current || Date.now()).toLocaleString(isRtl ? "ar-MA" : "fr-FR")}`;
+  // Nom + code Massar (l'e-mail technique « @student.internal » n'est jamais affiché)
+  const rawEmail = user?.email || "";
+  const idLabel = /@student\.internal$/i.test(rawEmail) ? rawEmail.split("@")[0].toUpperCase() : rawEmail;
+  const watermarkText = `${user?.name || ""} · ${idLabel} · ${new Date(startTimeRef.current || Date.now()).toLocaleString(isRtl ? "ar-MA" : "fr-FR")}`;
 
   return (
     <div

@@ -205,7 +205,7 @@ const AuthForm = () => {
             </div>
           </div>
           <CardTitle className="text-2xl text-center">
-            {getTitle()} {!isOtpMode && (userType === "student" ? "- Student" : userType === "professor" ? "- Professor" : "")}
+            {getTitle()} {!isOtpMode && (userType === "student" ? `- ${t("Student")}` : userType === "professor" ? `- ${t("Professor")}` : "")}
           </CardTitle>
           <CardDescription className="text-center">
             {getDescription()}
@@ -371,13 +371,15 @@ const AuthForm = () => {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       disabled={loading}
+                      className="pr-10 rtl:pr-3 rtl:pl-10"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent rtl:right-auto rtl:left-0"
                       onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? t("Hide password") : t("Show password")}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />

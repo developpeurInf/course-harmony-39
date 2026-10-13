@@ -1,7 +1,7 @@
 import { accessStore } from "@/contexts/AccessContext";
 import { RequirePermission } from "@/components/access/AccessUi";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Exam } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  CheckCircle2,
   Timer
 } from "lucide-react";
 import QuizBuilder from "@/components/QuizBuilder";
@@ -75,8 +76,38 @@ const Exams = () => {
     deleteExam, 
     toggleExamVisibility,
     getVisibleExamsForStudent,
-    refreshData
+    refreshData,
+    quizQuestions,
+    quizSubmissions
   } = useCourses();
+
+  // Nombre de questions et total des points de chaque quiz
+  const quizStats = useMemo(() => {
+    const m: Record<string, { count: number; points: number }> = {};
+    (quizQuestions || []).forEach(q => {
+      const e = (m[q.exam_id] = m[q.exam_id] || { count: 0, points: 0 });
+      e.count += 1;
+      e.points += q.points || 1;
+    });
+    return m;
+  }, [quizQuestions]);
+
+  // Meilleure copie de l'élève connecté pour chaque quiz
+  const mySubmissions = useMemo(() => {
+    const m: Record<string, { score: number; total: number; count: number }> = {};
+    if (!user) return m;
+    (quizSubmissions || []).filter(sub => sub.student_id === user.id).forEach((sub: any) => {
+      const prev = m[sub.exam_id];
+      const score = Number(sub.score) || 0;
+      const total = Number(sub.total_points) || 0;
+      if (!prev || score > prev.score) m[sub.exam_id] = { score, total, count: (prev?.count || 0) + 1 };
+      else prev.count += 1;
+    });
+    return m;
+  }, [quizSubmissions, user]);
+
+  const dateLocale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
+  const fmtScore = (sc: number, tot: number) => `${String(sc).replace(".", ",")}/${tot}`;
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -124,6 +155,7 @@ const Exams = () => {
       setSelectedCourseFilter(courseParam);
     }
   }, [location.search, courses]);
+
   
   // Update URL when filter changes
   const updateUrlWithFilter = (courseId: string) => {
@@ -137,6 +169,19 @@ const Exams = () => {
   const [examSearch, setExamSearch] = useState("");
   // Filter exams based on user role and selected course
   const userExams = isProfessor ? exams : (user ? getVisibleExamsForStudent(user.id) : []);
+
+  // Lien direct « ?quiz=<id> » (carte « À faire maintenant » du tableau de bord élève)
+  const openedQuizRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isProfessor) return;
+    const quizParam = new URLSearchParams(location.search).get('quiz');
+    if (!quizParam || openedQuizRef.current === quizParam) return;
+    const target = userExams.find(e => e.id === quizParam);
+    if (target) {
+      openedQuizRef.current = quizParam;
+      setShowQuizTaker(target);
+    }
+  }, [location.search, userExams, isProfessor]);
   const courseFilteredExams = selectedCourseFilter === "all" 
     ? userExams 
     : userExams.filter(exam => exam.course_id === selectedCourseFilter);
@@ -423,7 +468,9 @@ const Exams = () => {
   // Format exam date and time
   const formatExamDateTime = (dateString: string) => {
     try {
-      return format(new Date(dateString), "PPP 'at' p");
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleString(dateLocale, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     } catch (error) {
       return "Invalid date";
     }
@@ -854,6 +901,46 @@ const Exams = () => {
                     {exam.description && (
                       <p className="text-xs text-muted-foreground line-clamp-2">{exam.description}</p>
                     )}
+                    {isProfessor && exam.type === 'quiz' && (
+                      (quizStats[exam.id]?.count || 0) > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                          <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-sky-700 dark:text-sky-300">
+                            {quizStats[exam.id].count} {language === "ar" ? "سؤال" : "questions"}
+                          </span>
+                          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-violet-700 dark:text-violet-300">
+                            {quizStats[exam.id].points} {language === "ar" ? "نقطة" : "pts"}
+                          </span>
+                          {(() => {
+                            const n = new Set((quizSubmissions || []).filter(x => x.exam_id === exam.id).map(x => x.student_id)).size;
+                            return n > 0 ? (
+                              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300">
+                                {n} {language === "ar" ? "ورقة" : language === "fr" ? "copie(s)" : "submission(s)"}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowQuizBuilder(exam.id)}
+                          className="w-full rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-start text-[11px] font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                        >
+                          {language === "ar"
+                            ? "لا يوجد أي سؤال بعد: الاختبار غير ظاهر للتلاميذ. أضف الأسئلة."
+                            : language === "fr"
+                            ? "Aucune question : les élèves ne voient pas encore ce quiz. Ajoutez des questions."
+                            : "No questions yet: students can't see this quiz. Add questions."}
+                        </button>
+                      )
+                    )}
+                    {!isProfessor && exam.type === 'quiz' && mySubmissions[exam.id] && (
+                      <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 px-3 py-2 text-emerald-800 dark:text-emerald-300">
+                        <span className="text-xs font-semibold">{language === "ar" ? "نقطتي" : language === "fr" ? "Ma note" : "My score"}</span>
+                        <span className="text-sm font-extrabold tabular-nums" dir="ltr">
+                          {fmtScore(mySubmissions[exam.id].score, mySubmissions[exam.id].total)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-col gap-1.5 text-xs text-muted-foreground pt-1 border-t">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5 text-primary" />
@@ -948,7 +1035,23 @@ const Exams = () => {
                         </>
                       ) : exam.type === 'quiz' ? (
                         <div className="flex justify-end w-full items-center gap-2">
-                          {quizStatus.status === 'available' ? (
+                          {mySubmissions[exam.id] ? (
+                            <>
+                              <Badge variant="outline" className="mr-auto rtl:mr-0 rtl:ml-auto border-emerald-300 bg-emerald-500/10 text-[10px] text-emerald-700">
+                                <CheckCircle2 className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
+                                {language === "ar" ? "تم الاجتياز" : language === "fr" ? "Terminé" : "Done"}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowQuizTaker(exam)}
+                                className="h-8 gap-1.5 text-xs font-medium"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                {language === "ar" ? "عرض نتيجتي" : language === "fr" ? "Voir mon résultat" : "See my result"}
+                              </Button>
+                            </>
+                          ) : quizStatus.status === 'available' ? (
                             <Button 
                               size="sm"
                               onClick={() => setShowQuizTaker(exam)}
@@ -1033,7 +1136,7 @@ const Exams = () => {
                       </td>
                       <td className="p-3">
                         <div className="text-xs">
-                          <div className="font-medium">{format(new Date(exam.available_from || exam.exam_date), "dd MMM yyyy")}</div>
+                          <div className="font-medium">{new Date(exam.available_from || exam.exam_date).toLocaleDateString(dateLocale, { day: "2-digit", month: "short", year: "numeric" })}</div>
                           <div className="text-muted-foreground">
                             {format(new Date(exam.available_from || exam.exam_date), "HH:mm")}
                             {exam.available_until && ` → ${format(new Date(exam.available_until), "HH:mm")}`}
@@ -1134,7 +1237,17 @@ const Exams = () => {
                           </div>
                         ) : (
                           exam.type === 'quiz' && (
-                            quizStatus.status === 'available' ? (
+                            mySubmissions[exam.id] ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowQuizTaker(exam)}
+                                className="h-7 gap-1 text-xs"
+                              >
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                <span dir="ltr">{fmtScore(mySubmissions[exam.id].score, mySubmissions[exam.id].total)}</span>
+                              </Button>
+                            ) : quizStatus.status === 'available' ? (
                               <Button
                                 size="sm"
                                 onClick={() => setShowQuizTaker(exam)}

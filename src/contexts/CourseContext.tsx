@@ -1422,8 +1422,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
     enrollments.filter(enr => enr.student_id === studentId).forEach(enr => accessibleCourseIds.add(enr.course_id));
 
+    // Un quiz encore vide (aucune question) n'est pas montré aux élèves
+    const examsWithQuestions = new Set(quizQuestions.map(q => q.exam_id));
     return exams.filter(exam => 
       exam.is_visible && (accessibleCourseIds.has(exam.course_id) || accessibleCourseIds.size === 0)
+      && (exam.type !== 'quiz' || examsWithQuestions.has(exam.id) || quizSubmissions.some(sub => sub.exam_id === exam.id && sub.student_id === studentId))
     );
   };
 

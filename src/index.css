@@ -566,3 +566,20 @@ img, video, iframe, canvas { max-width: 100%; }
 }
 .math-inline .katex, .math-display .katex { font-size: 1.08em; }
 .truncate .math-inline .katex { font-size: 1em; }
+
+/* Texte mixte arabe / français dans les champs de saisie : le sens suit la première lettre
+   (les paragraphes affichés sont gérés par src/lib/bidiAuto.ts). */
+@layer base {
+  input[type="text"]:not(:placeholder-shown),
+  input[type="search"]:not(:placeholder-shown),
+  input:not([type]):not(:placeholder-shown),
+  textarea:not(:placeholder-shown),
+  [contenteditable="true"] p,
+  [contenteditable="true"] li,
+  [contenteditable="true"] h1,
+  [contenteditable="true"] h2,
+  [contenteditable="true"] h3 {
+    unicode-bidi: -webkit-plaintext;
+    unicode-bidi: plaintext;
+  }
+}

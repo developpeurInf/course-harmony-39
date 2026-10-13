@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle, Zap } from "lucide-react";
+import QuickQuizImport from "@/components/QuickQuizImport";
 import { useCourses, QuizQuestion, QuizOption, serializeQuestionText, parseQuestionText, serializeExamDescription, parseExamAvailability, QuizSettings as QuizSettingsType, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +72,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   ]);
 
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(DEFAULT_QUIZ_SETTINGS);
 
   const emptyMcqOptions = () => [
@@ -464,9 +466,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-5xl max-h-[92vh] w-[95vw] overflow-hidden flex flex-col p-0 gap-0 border rounded-2xl shadow-2xl bg-card">
+      <DialogContent className="h-full max-h-full w-screen max-w-none rounded-none sm:h-auto sm:max-h-[92vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-2xl overflow-hidden flex flex-col p-0 gap-0 border shadow-2xl bg-card">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b bg-muted/20 flex items-center justify-between">
+        <div className="p-3 pr-12 rtl:pr-3 rtl:pl-12 sm:p-5 sm:pr-14 sm:rtl:pr-5 sm:rtl:pl-14 border-b bg-muted/20 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
               <Sparkles className="h-5 w-5" />
@@ -505,10 +507,10 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         </div>
 
         {/* Body with Tabs */}
-        <div className="flex-1 overflow-hidden flex flex-col p-4 sm:p-5">
+        <div className="flex-1 overflow-hidden flex flex-col p-3 sm:p-5">
           <Tabs defaultValue="questions" className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b mb-3">
-              <TabsList className="grid grid-cols-2 w-72">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b mb-3">
+              <TabsList className="grid grid-cols-2 w-full max-w-[18rem] sm:w-72">
                 <TabsTrigger value="questions" className="text-xs font-semibold flex items-center gap-1.5">
                   <ListOrdered className="h-3.5 w-3.5" />
                   {language === "ar" ? "الأسئلة" : language === "fr" ? "Questions" : "Questions"}
@@ -519,21 +521,32 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                 </TabsTrigger>
               </TabsList>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={resetForm}
-                className="text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {language === "ar" ? "سؤال جديد" : language === "fr" ? "Nouvelle question" : "New Question"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuickOpen(true)}
+                  className="text-xs gap-1.5 font-medium border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  {language === "ar" ? "إدخال سريع" : language === "fr" ? "Saisie rapide" : "Quick entry"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetForm}
+                  className="text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {language === "ar" ? "سؤال جديد" : language === "fr" ? "Nouvelle question" : "New Question"}
+                </Button>
+              </div>
             </div>
 
             {/* Questions Tab: 2-Column Split View */}
-            <TabsContent value="questions" className="flex-1 overflow-hidden m-0 grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <TabsContent value="questions" className="flex-1 overflow-y-auto lg:overflow-hidden m-0 grid grid-cols-1 content-start lg:content-stretch lg:grid-cols-12 gap-4">
               {/* Left Column: Questions List */}
-              <div className="lg:col-span-5 flex flex-col overflow-hidden border rounded-xl bg-muted/10">
+              <div className="lg:col-span-5 flex flex-col lg:overflow-hidden border rounded-xl bg-muted/10">
                 <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <ListOrdered className="h-4 w-4 text-primary" />
@@ -541,8 +554,8 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                   </span>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-                  {loading ? (
+                <div className="flex-1 lg:overflow-y-auto p-3 space-y-2.5">
+                  {loading && questions.length === 0 ? (
                     <div className="text-center py-10 text-muted-foreground text-xs">
                       {language === "ar" ? "جاري تحميل الأسئلة..." : language === "fr" ? "Chargement des questions..." : "Loading questions..."}
                     </div>
@@ -554,9 +567,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {language === "ar"
-                          ? "استخدم النموذج على اليمين لإضافة سؤالك الأول"
+                          ? "استخدم النموذج «إضافة سؤال جديد» لإضافة سؤالك الأول"
                           : language === "fr"
-                          ? "Utilisez le formulaire pour ajouter votre première question"
+                          ? "Utilisez le formulaire « Ajouter une question » pour créer votre première question"
                           : "Use the form to add your first question"}
                       </p>
                     </div>
@@ -670,7 +683,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               </div>
 
               {/* Right Column: Question Editor Form */}
-              <div className="lg:col-span-7 flex flex-col overflow-y-auto border rounded-xl p-4 bg-card shadow-xs space-y-4">
+              <div className="lg:col-span-7 flex flex-col lg:overflow-y-auto border rounded-xl p-4 bg-card shadow-xs space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b">
                   <h3 className="text-sm font-bold flex items-center gap-2">
                     {editingQuestionId ? (
@@ -998,6 +1011,15 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
           </Button>
         </div>
       </DialogContent>
+
+      <QuickQuizImport
+        open={quickOpen}
+        onOpenChange={setQuickOpen}
+        examId={examId}
+        startOrder={questions.reduce((m, q) => Math.max(m, q.question_order || 0), 0)}
+        language={(language as any) === "ar" ? "ar" : (language as any) === "en" ? "en" : "fr"}
+        onImported={async () => { await loadQuestions(); await refreshData(); }}
+      />
 
       {/* Delete Question Confirmation Dialog */}
       <Dialog open={!!questionToDelete} onOpenChange={(open) => { if (!open) setQuestionToDelete(null); }}>

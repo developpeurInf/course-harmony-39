@@ -162,7 +162,7 @@ const TopNav = () => {
 
   const pageInfo = getPageInfo();
   const PageIcon = pageInfo.icon;
-  const firstName = user?.name ? user.name.split(' ')[0] : (isProfessor ? "Professeur" : "Élève");
+  const firstName = user?.name ? user.name.split(' ')[0] : (isProfessor ? (language === "ar" ? "أستاذ" : "Professeur") : (language === "ar" ? "تلميذ" : "Élève"));
 
   return (
     <header 
@@ -260,10 +260,10 @@ const TopNav = () => {
 
             <div className="hidden lg:flex flex-col items-start text-left rtl:text-right min-w-0 pointer-events-none">
               <span className="text-xs font-bold text-foreground truncate max-w-[100px] leading-tight">
-                {user?.name || (isProfessor ? "Professeur" : "Élève")}
+                {user?.name || (isProfessor ? (language === "ar" ? "أستاذ" : "Professeur") : (language === "ar" ? "تلميذ" : "Élève"))}
               </span>
               <span className="text-[10px] text-muted-foreground leading-tight">
-                {isProfessor ? t("Professeur", "أستاذ", "Professor") : t("Élève", "تلميذ", "Student")}
+                {isProfessor ? (language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor") : (language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student")}
               </span>
             </div>
 
@@ -300,7 +300,7 @@ const TopNav = () => {
                           : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                       )}
                     >
-                      {isProfessor ? t("Professeur", "أستاذ", "Professor") : t("Élève", "تلميذ", "Student")}
+                      {isProfessor ? (language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor") : (language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student")}
                     </Badge>
                   </div>
                 </div>
