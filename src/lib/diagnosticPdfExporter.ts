@@ -126,6 +126,20 @@ function loadScript(id: string, src: string, globalName: string): Promise<any> {
   });
 }
 
+/**
+ * html2canvas mesure la ligne de base des polices avec une petite image placée dans un
+ * <div> directement sous <body>. Le CSS de base de Tailwind met toutes les images en
+ * « display:block », ce qui fausse cette mesure : le texte était dessiné trop bas
+ * (traversé par les bordures des tableaux). On rétablit « inline » le temps de l'export.
+ */
+function installBaselineFix(): () => void {
+  const style = document.createElement("style");
+  style.setAttribute("data-pdf-export", "baseline-fix");
+  style.textContent = "body > div > img { display: inline !important; }";
+  document.head.appendChild(style);
+  return () => style.remove();
+}
+
 const isIOS = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
@@ -186,6 +200,12 @@ async function exportPageByPage(element: HTMLElement, filename: string): Promise
         scrollY: 0,
         windowWidth: Math.max(1024, Math.ceil(holder.scrollWidth)),
         windowHeight: totalH,
+        // même correctif dans la copie de page utilisée par html2canvas
+        onclone: (doc: Document) => {
+          const st = doc.createElement("style");
+          st.textContent = "body > div > img { display: inline !important; }";
+          doc.head.appendChild(st);
+        },
       });
       // Une page plus haute que l'A4 (cas rare) est découpée en plusieurs pages
       const sliceH = Math.floor((canvas.width * 297) / 210);
@@ -238,6 +258,7 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
   // Mode export : pages A4 sans marges ni ombres (mesures exactes des graphiques)
   element.classList.add("pdf-export-mode");
   let restoreSvgs: () => void = () => {};
+  const removeBaselineFix = installBaselineFix();
 
   try {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -278,6 +299,7 @@ export async function exportDiagnosticReportToPdf(elementId: string, filename: s
     }, 1500);
     return true;
   } finally {
+    removeBaselineFix();
     restoreSvgs();
     element.classList.remove("pdf-export-mode");
     window.scrollTo(prevScrollX, prevScrollY);
