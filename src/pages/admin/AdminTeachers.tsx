@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Copy, Check, UserPlus } from "lucide-react";
+import { Plus, Search, Copy, Check, UserPlus, Eye, Pencil, Ban, PlayCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { useAccess } from "@/contexts/AccessContext";
 import {
   addDaysIso, adminInvoke, db, fmtDate, fromDateInput, PageTitle, PAYMENT_METHODS, StatusBadge, toDateInput, useT,
 } from "./adminShared";
+import { DeleteTeacherDialog, EditTeacherDialog, toggleTeacherSuspension } from "./TeacherDialogs";
 
 export interface PlanRow {
   id: string;
@@ -37,6 +38,9 @@ export default function AdminTeachers() {
   const [status, setStatus] = useState("all");
   const [plan, setPlan] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [deleting, setDeleting] = useState<any>(null);
+  const canManage = adminCan("admin.teachers.manage");
 
   const load = async () => {
     setLoading(true);
@@ -59,6 +63,38 @@ export default function AdminTeachers() {
       return [r.name, r.email, r.school, r.city, r.phone].some(v => (v || "").toLowerCase().includes(s));
     });
   }, [rows, q, status, plan]);
+
+  // Actions d'une ligne : voir, modifier, suspendre / réactiver, supprimer
+  const RowActions = ({ r, labels }: { r: any; labels?: boolean }) => {
+    const suspended = r.account_status === "suspended";
+    const btn = "inline-flex h-8 items-center justify-center gap-1 rounded-md border bg-background px-2 text-xs font-medium hover:bg-muted";
+    return (
+      <div className={`flex items-center gap-1.5 ${labels ? "flex-wrap" : "justify-end"}`}>
+        <Link to={`/admin/teachers/${r.user_id}`} className={btn} title={L("Voir la fiche", "عرض البطاقة", "View")}>
+          <Eye className="h-3.5 w-3.5" />{labels && L("Voir", "عرض", "View")}
+        </Link>
+        {canManage && (
+          <>
+            <button type="button" className={btn} onClick={() => setEditing(r)} title={L("Modifier", "تعديل", "Edit")}>
+              <Pencil className="h-3.5 w-3.5" />{labels && L("Modifier", "تعديل", "Edit")}
+            </button>
+            <button
+              type="button"
+              className={`${btn} ${suspended ? "text-emerald-700" : "text-amber-700"}`}
+              onClick={async () => { if (await toggleTeacherSuspension(r, L)) void load(); }}
+              title={suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend")}
+            >
+              {suspended ? <PlayCircle className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+              {labels && (suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend"))}
+            </button>
+            <button type="button" className={`${btn} text-red-600`} onClick={() => setDeleting(r)} title={L("Supprimer", "حذف", "Delete")}>
+              <Trash2 className="h-3.5 w-3.5" />{labels && L("Supprimer", "حذف", "Delete")}
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -116,6 +152,7 @@ export default function AdminTeachers() {
                     <th className="px-4 py-2.5 text-start font-semibold">{L("Statut", "الحالة", "Status")}</th>
                     <th className="px-4 py-2.5 text-start font-semibold">{L("Fin", "النهاية", "Ends")}</th>
                     <th className="px-4 py-2.5 text-end font-semibold">{L("Classes / élèves", "الأقسام / التلاميذ", "Classes / students")}</th>
+                    <th className="px-4 py-2.5 text-end font-semibold">{L("Actions", "إجراءات", "Actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -132,6 +169,7 @@ export default function AdminTeachers() {
                       <td className="px-4 py-2.5"><StatusBadge status={r.account_status === "suspended" ? "suspended" : r.sub_status} /></td>
                       <td className="px-4 py-2.5 text-muted-foreground">{r.ends_at ? fmtDate(r.ends_at, lang) : L("Sans fin", "بدون نهاية", "No end")}</td>
                       <td className="px-4 py-2.5 text-end tabular-nums">{r.classes_count} / {r.students_count}</td>
+                      <td className="px-4 py-2.5"><RowActions r={r} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -153,6 +191,7 @@ export default function AdminTeachers() {
                       {r.plan_name || "—"} · {r.ends_at ? fmtDate(r.ends_at, lang) : L("Sans fin", "بدون نهاية", "No end")} · {r.classes_count} {L("classes", "أقسام", "classes")} · {r.students_count} {L("élèves", "تلاميذ", "students")}
                     </p>
                   </Link>
+                  <div className="px-3 pb-2.5"><RowActions r={r} labels /></div>
                 </li>
               ))}
             </ul>
@@ -161,6 +200,8 @@ export default function AdminTeachers() {
       </div>
 
       <CreateTeacherDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={load} />
+      {editing && <EditTeacherDialog open={!!editing} onOpenChange={(v: boolean) => !v && setEditing(null)} teacher={editing} onSaved={load} />}
+      <DeleteTeacherDialog teacher={deleting} onClose={() => setDeleting(null)} onDeleted={load} />
     </div>
   );
 }

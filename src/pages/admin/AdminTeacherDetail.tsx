@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, KeyRound, Ban, PlayCircle, Pencil, CalendarPlus, RefreshCw, Repeat, XCircle, Plus, Printer, Copy, Check } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, KeyRound, Ban, PlayCircle, Pencil, CalendarPlus, RefreshCw, Repeat, XCircle, Plus, Printer, Copy, Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
 } from "./adminShared";
 import type { PlanRow } from "./AdminTeachers";
 import { AuditList } from "./AdminAudit";
+import { DeleteTeacherDialog, EditTeacherDialog, toggleTeacherSuspension } from "./TeacherDialogs";
 
 const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm";
 type Tab = "subscription" | "payments" | "permissions" | "journal";
@@ -34,6 +35,8 @@ export default function AdminTeacherDetail() {
   const [payOpen, setPayOpen] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<any>(null);
+  const navigate = useNavigate();
 
   const load = async () => {
     const [{ data: list }, { data: acc }, { data: s }, { data: p }, { data: pl }] = await Promise.all([
@@ -69,16 +72,7 @@ export default function AdminTeacherDetail() {
     setSecret(data.password);
   };
   const toggleSuspend = async () => {
-    let reason = "";
-    if (!suspended) {
-      const r = prompt(L("Motif de la suspension (facultatif) :", "سبب التوقيف (اختياري):", "Reason (optional):"));
-      if (r === null) return;
-      reason = r;
-    }
-    const { error } = await adminInvoke("set_status", { user_id: id, status: suspended ? "active" : "suspended", reason });
-    if (error) return toast.error(error);
-    toast.success(suspended ? L("Compte réactivé", "تم تفعيل الحساب", "Account reactivated") : L("Compte suspendu", "تم توقيف الحساب", "Account suspended"));
-    void load();
+    if (await toggleTeacherSuspension(teacher, L)) void load();
   };
   const cancelCurrent = async () => {
     if (!current) return;
@@ -132,6 +126,9 @@ export default function AdminTeacherDetail() {
               <Button variant={suspended ? "default" : "outline"} size="sm" className={`gap-1.5 ${suspended ? "" : "text-red-600"}`} onClick={toggleSuspend}>
                 {suspended ? <PlayCircle className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
                 {suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend")}
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5 text-red-600" onClick={() => setDeleting(teacher)}>
+                <Trash2 className="h-3.5 w-3.5" />{L("Supprimer", "حذف", "Delete")}
               </Button>
             </div>
           )}
@@ -236,6 +233,7 @@ export default function AdminTeacherDetail() {
       </div>
 
       <EditTeacherDialog open={editOpen} onOpenChange={setEditOpen} teacher={teacher} account={account} onSaved={load} />
+      <DeleteTeacherDialog teacher={deleting} onClose={() => setDeleting(null)} onDeleted={() => navigate("/admin/teachers")} />
       <SubscriptionDialog
         mode={subDialog}
         onClose={() => setSubDialog(null)}
@@ -274,61 +272,6 @@ function CopyBox({ text }: { text: string }) {
 }
 
 // ---------------------------------------------------------------------------
-
-function EditTeacherDialog({ open, onOpenChange, teacher, account, onSaved }: any) {
-  const { L } = useT();
-  const [f, setF] = useState<any>({});
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (open) setF({
-      name: teacher.name || "", email: teacher.email || "", phone: account?.phone || "", school: account?.school || "",
-      city: account?.city || "", subject: account?.subject || "", notes: account?.notes || "",
-    });
-  }, [open, teacher, account]);
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    const { error } = await adminInvoke("update_teacher", {
-      user_id: teacher.user_id, ...f, email: f.email !== teacher.email ? f.email : undefined,
-    });
-    setSaving(false);
-    if (error) return toast.error(error);
-    toast.success(L("Enregistré", "تم الحفظ", "Saved"));
-    onOpenChange(false);
-    onSaved();
-  };
-  const field = (k: string, label: string, props: any = {}) => (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input value={f[k] || ""} onChange={e => setF({ ...f, [k]: e.target.value })} {...props} />
-    </div>
-  );
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader><DialogTitle>{L("Modifier le professeur", "تعديل الأستاذ", "Edit teacher")}</DialogTitle></DialogHeader>
-        <form onSubmit={save} className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {field("name", L("Nom complet", "الاسم الكامل", "Full name"), { required: true })}
-            {field("email", L("E-mail", "البريد", "Email"), { type: "email", dir: "ltr", required: true })}
-            {field("phone", L("Téléphone", "الهاتف", "Phone"), { dir: "ltr" })}
-            {field("subject", L("Matière", "المادة", "Subject"))}
-            {field("school", L("Établissement", "المؤسسة", "School"))}
-            {field("city", L("Ville", "المدينة", "City"))}
-          </div>
-          <div className="space-y-1.5">
-            <Label>{L("Notes internes", "ملاحظات داخلية", "Internal notes")}</Label>
-            <Textarea rows={3} value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
-            <Button type="submit" disabled={saving}>{L("Enregistrer", "حفظ", "Save")}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ---------------------------------------------------------------------------
 

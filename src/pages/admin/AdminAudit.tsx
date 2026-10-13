@@ -15,6 +15,7 @@ function describe(row: any, L: (fr: string, ar: string, en: string) => string, l
     case "suspend_teacher": return L(`Compte suspendu${n.reason ? ` (${n.reason})` : ""}`, "توقيف الحساب", "Account suspended");
     case "reactivate_teacher": return L("Compte réactivé", "إعادة تفعيل الحساب", "Account reactivated");
     case "update_teacher": return L("Informations modifiées", "تعديل المعلومات", "Details updated");
+    case "delete_teacher": return L(`Professeur supprimé : ${n.name || n.email || ""}`, `حذف الأستاذ: ${n.name || n.email || ""}`, `Teacher deleted: ${n.name || n.email || ""}`);
     case "create_admin": return L(`Ajout à l'équipe admin (${n.role})`, "إضافة إلى فريق الإدارة", "Added to admin team");
   }
   const verb = a === "insert" ? L("ajout", "إضافة", "added") : a === "delete" ? L("suppression", "حذف", "removed") : L("modification", "تعديل", "changed");

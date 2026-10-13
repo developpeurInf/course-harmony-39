@@ -154,6 +154,32 @@ Deno.serve(async (req) => {
     }
 
     // ---------------------------------------------------------------
+    if (action === 'delete_teacher') {
+      if (!(await can('admin.teachers.manage'))) return json({ error: 'Permission refusée' }, 403)
+      const uid = String(body.user_id || '')
+      if (!uid) return json({ error: 'Professeur manquant' }, 400)
+      if (uid === callerId) return json({ error: 'Vous ne pouvez pas supprimer votre propre compte' }, 400)
+      const { data: isAdminTarget } = await admin.rpc('is_admin', { uid })
+      if (isAdminTarget) return json({ error: 'Ce compte fait partie de l\'équipe d\'administration' }, 400)
+
+      const { data: prof } = await admin.from('profiles').select('name, email').eq('id', uid).maybeSingle()
+      // 1. Marqué « supprimé » : plus aucune permission, retiré des listes
+      const { error: markError } = await admin.from('teacher_accounts').upsert({
+        user_id: uid, status: 'deleted', deleted_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+      if (markError) return json({ error: markError.message }, 400)
+      // 2. Connexion impossible : compte d'authentification supprimé (suppression « douce » :
+      //    les classes, cours et élèves liés restent intacts ; l'e-mail redevient libre)
+      const { error: delError } = await admin.auth.admin.deleteUser(uid, true)
+      if (delError) {
+        // à défaut, blocage définitif de la connexion
+        await admin.auth.admin.updateUserById(uid, { ban_duration: '876000h' } as any)
+      }
+      await audit('delete_teacher', uid, { name: prof?.name || null, email: prof?.email || null })
+      return json({ success: true })
+    }
+
+    // ---------------------------------------------------------------
     if (action === 'create_admin') {
       if (!(await can('admin.roles.manage'))) return json({ error: 'Réservé au super administrateur' }, 403)
       const email = String(body.email || '').trim().toLowerCase()
