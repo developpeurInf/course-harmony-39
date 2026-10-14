@@ -221,7 +221,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
           }}
         >
           {/* Header Banner Background */}
-          <div className="relative h-28 bg-gradient-to-tr from-primary/30 via-primary/15 to-accent/20 flex items-center justify-end p-4">
+          <div className="relative h-28 bg-gradient-to-tr from-primary/30 via-primary/15 to-accent/20 flex items-center justify-end p-4 pr-12 rtl:pl-12">
             {user?.role && (
               <Badge 
                 variant="secondary" 
@@ -265,7 +265,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
 
                   {/* Loading Overlay */}
                   {loading && (
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-xs flex flex-col items-center justify-center rounded-full z-20 animate-fade-in">
+                    <div className="absolute top-0 left-0 h-full w-full bg-background/80 backdrop-blur-xs flex flex-col items-center justify-center rounded-full z-20 animate-fade-in">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
                       <span className="text-[10px] font-medium text-muted-foreground mt-1">
                         {language === "ar" ? "جارٍ التحميل..." : language === "fr" ? "Traitement..." : "Processing..."}
@@ -278,8 +278,9 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsFullscreen(true)}
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white rounded-full z-10"
+                      className="absolute top-0 left-0 h-full w-full bg-black/40 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white rounded-full z-10"
                       title={language === "ar" ? "تكبير الصورة" : language === "fr" ? "Agrandir l'image" : "Zoom photo"}
+                      aria-label={language === "ar" ? "تكبير الصورة" : language === "fr" ? "Agrandir l'image" : "Zoom photo"}
                     >
                       <Maximize2 className="h-6 w-6 mb-1" />
                       <span className="text-xs font-medium">
@@ -296,7 +297,8 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading}
-                  className="absolute bottom-1 right-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform duration-150 border-2 border-background z-20 cursor-pointer"
+                  aria-label={language === "ar" ? "تغيير الصورة" : language === "fr" ? "Changer la photo" : "Change photo"}
+                  className="absolute bottom-1 right-1 rtl:right-auto rtl:left-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform duration-150 border-2 border-background z-20 cursor-pointer"
                   title={language === "ar" ? "تغيير الصورة" : language === "fr" ? "Changer la photo" : "Change photo"}
                 >
                   <Camera className="h-4 w-4" />
@@ -310,8 +312,10 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                 {user?.name || (language === "ar" ? "مستخدم" : language === "fr" ? "Utilisateur" : "User")}
               </h3>
               {user?.email && (
-                <p className="text-sm text-muted-foreground">
-                  {user.email}
+                <p className="text-sm text-muted-foreground" dir="ltr">
+                  {/@student\.internal$/i.test(user.email)
+                    ? (((user as any).username || user.email.split("@")[0]) as string).toUpperCase()
+                    : user.email}
                 </p>
               )}
             </div>
@@ -378,6 +382,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                   className="h-10 w-10 shrink-0 cursor-pointer"
                   onClick={() => setIsFullscreen(true)}
                   title={language === "ar" ? "عرض كامل" : language === "fr" ? "Plein écran" : "Fullscreen"}
+                  aria-label={language === "ar" ? "عرض كامل" : language === "fr" ? "Plein écran" : "Fullscreen"}
                 >
                   <Maximize2 className="h-4 w-4" />
                 </Button>
@@ -392,6 +397,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                   className="h-10 w-10 shrink-0 cursor-pointer"
                   onClick={handleDownload}
                   title={language === "ar" ? "تحميل الصورة" : language === "fr" ? "Télécharger" : "Download"}
+                  aria-label={language === "ar" ? "تحميل الصورة" : language === "fr" ? "Télécharger" : "Download"}
                 >
                   <Download className="h-4 w-4" />
                 </Button>
@@ -407,6 +413,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                   onClick={() => setShowDeleteConfirm(true)}
                   disabled={loading}
                   title={language === "ar" ? "حذف الصورة" : language === "fr" ? "Supprimer la photo" : "Delete photo"}
+                  aria-label={language === "ar" ? "حذف الصورة" : language === "fr" ? "Supprimer la photo" : "Delete photo"}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -418,7 +425,12 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
 
       {/* Instagram Fullscreen Lightbox Modal */}
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
-        <DialogContent className="max-w-4xl p-2 bg-black/95 text-white border-0 shadow-2xl flex flex-col items-center justify-center">
+        <DialogContent
+          className="max-w-4xl p-2 bg-black/95 text-white border-0 shadow-2xl flex flex-col items-center justify-center"
+          // Une seule croix : celle de l'en-tête ci-dessous
+          hideClose
+        >
+          <DialogTitle className="sr-only">{user?.name || (language === "ar" ? "الصورة" : language === "fr" ? "Photo" : "Photo")}</DialogTitle>
           <div className="w-full flex items-center justify-between p-3 border-b border-white/10">
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8 ring-1 ring-white/30">
@@ -434,14 +446,16 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                 className="text-white hover:bg-white/10"
                 onClick={handleDownload}
               >
-                <Download className="h-4 w-4 mr-1" />
+                <Download className="h-4 w-4 mr-1 rtl:mr-0 rtl:ml-1" />
                 {language === "ar" ? "تحميل" : language === "fr" ? "Télécharger" : "Download"}
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-white hover:bg-white/10"
+                className="h-10 w-10 text-white hover:bg-white/10"
                 onClick={() => setIsFullscreen(false)}
+                aria-label={language === "ar" ? "إغلاق" : language === "fr" ? "Fermer" : "Close"}
+                title={language === "ar" ? "إغلاق" : language === "fr" ? "Fermer" : "Close"}
               >
                 <X className="h-5 w-5" />
               </Button>

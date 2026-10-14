@@ -46,8 +46,9 @@ const CourseMaterials = ({ materials, compact = false, className = "", title, de
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className={`h-7 gap-2 border-primary/30 px-2 text-xs font-medium hover:bg-primary/10 ${className}`}
+        className={`h-9 gap-2 border-primary/30 px-2.5 text-xs font-medium hover:bg-primary/10 ${className}`}
         title={tr('عرض مواد الدرس', 'Voir les supports du cours', 'View course materials')}
+        aria-label={`${tr('عرض مواد الدرس', 'Voir les supports du cours', 'View course materials')}${c.video ? ` · ${c.video} ${tr('فيديو', 'vidéo(s)', 'video(s)')}` : ''}${c.image ? ` · ${c.image} ${tr('صورة', 'image(s)', 'image(s)')}` : ''}${docs ? ` · ${docs} ${tr('وثيقة', 'document(s)', 'document(s)')}` : ''}`}
       >
         <Layers className="h-3.5 w-3.5 text-primary" />
         {c.video > 0 && <span className="inline-flex items-center gap-0.5"><Film className="h-3.5 w-3.5 text-violet-500" />{c.video}</span>}

@@ -30,10 +30,16 @@ const triggerDownload = (m: CourseMaterialLike) => {
   document.body.removeChild(a);
 };
 
-const displayName = (m: CourseMaterialLike) => {
+type Tr = (ar: string, fr: string, en: string) => string;
+const displayName = (m: CourseMaterialLike, tr?: Tr) => {
   const k = getMaterialKind(m);
   if ((k === "youtube" || k === "vimeo" || k === "link") && m.file_name === m.file_path) {
-    return k === "youtube" ? "Vidéo YouTube" : k === "vimeo" ? "Vidéo Vimeo" : m.file_name;
+    const t: Tr = tr || ((_ar, fr) => fr);
+    return k === "youtube"
+      ? t("فيديو يوتيوب", "Vidéo YouTube", "YouTube video")
+      : k === "vimeo"
+      ? t("فيديو Vimeo", "Vidéo Vimeo", "Vimeo video")
+      : m.file_name;
   }
   return m.file_name.replace(/\.(mp4|webm|mov|m4v|jpe?g|png|webp|gif|pdf)$/i, "");
 };
@@ -60,7 +66,7 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
           playing ? (
             <iframe
               src={parsed.embedUrl}
-              title={displayName(material)}
+              title={displayName(material, tr)}
               className="absolute top-0 left-0 h-full w-full"
               allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
               allowFullScreen
@@ -71,11 +77,11 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
               type="button"
               onClick={() => setPlaying(true)}
               className="absolute top-0 left-0 h-full w-full"
-              aria-label={tr("تشغيل", "Lire la vidéo", "Play video")}
+              aria-label={`${tr("تشغيل", "Lire la vidéo", "Play video")} : ${displayName(material, tr)}`}
             >
               {parsed.thumbnail ? (
                 <span className="block h-full w-full bg-gradient-to-br from-red-700 to-zinc-900">
-                  <img src={parsed.thumbnail} alt="" className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  <img src={parsed.thumbnail} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                 </span>
               ) : (
                 <div className="h-full w-full bg-gradient-to-br from-violet-700 to-indigo-900" />
@@ -93,7 +99,7 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
             src={`${src}#t=0.1`}
             controls
             playsInline
-            preload="metadata"
+            preload="none"
             onLoadedMetadata={e => {
               const v = e.currentTarget;
               if (v.videoWidth > 0 && v.videoHeight > 0) setRatio(v.videoHeight / v.videoWidth);
@@ -108,17 +114,17 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
           {kind === "youtube" ? <Youtube className="h-4 w-4 text-red-500" /> : <Film className="h-4 w-4 text-violet-500" />}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" title={material.file_name}>{displayName(material)}</p>
+          <p className="truncate text-sm font-semibold" title={material.file_name}>{displayName(material, tr)}</p>
           <p className="text-xs text-muted-foreground">
             {kind === "youtube" ? "YouTube" : kind === "vimeo" ? "Vimeo" : formatFileSize(material.file_size) || tr("فيديو", "Vidéo", "Video")}
           </p>
         </div>
         {parsed ? (
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild title={tr("فتح", "Ouvrir", "Open")}>
-            <a href={material.file_path} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
+          <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+            <a href={material.file_path} target="_blank" rel="noopener noreferrer" title={tr("فتح", "Ouvrir", "Open")} aria-label={`${tr("فتح", "Ouvrir", "Open")} : ${displayName(material, tr)}`}><ExternalLink className="h-4 w-4" /></a>
           </Button>
         ) : (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => triggerDownload(material)} title={tr("تحميل", "Télécharger", "Download")}>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => triggerDownload(material)} title={tr("تحميل", "Télécharger", "Download")} aria-label={`${tr("تحميل", "Télécharger", "Download")} : ${displayName(material, tr)}`}>
             <Download className="h-4 w-4" />
           </Button>
         )}
@@ -172,20 +178,20 @@ const ImageLightbox = ({
             touchX.current = null;
           }}
         >
-          <DialogPrimitive.Title className="sr-only">{current ? displayName(current) : ""}</DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">{current ? displayName(current, tr) : ""}</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">{tr("عرض الصورة", "Aperçu de l'image", "Image preview")}</DialogPrimitive.Description>
           <div className="flex items-center justify-between gap-3 px-4 py-3 text-white" dir="ltr">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{current ? displayName(current) : ""}</p>
+              <p className="truncate text-sm font-semibold">{current ? displayName(current, tr) : ""}</p>
               <p className="text-xs text-white/60">{index !== null ? index + 1 : 0} / {images.length}</p>
             </div>
             <div className="flex items-center gap-1">
               {current && (
-                <button type="button" onClick={() => triggerDownload(current)} className="rounded-full p-2 hover:bg-white/10" aria-label="Download">
+                <button type="button" onClick={() => triggerDownload(current)} className="rounded-full p-2 hover:bg-white/10" aria-label={tr("تحميل", "Télécharger", "Download")} title={tr("تحميل", "Télécharger", "Download")}>
                   <Download className="h-5 w-5" />
                 </button>
               )}
-              <DialogPrimitive.Close className="rounded-full p-2 hover:bg-white/10" aria-label="Close">
+              <DialogPrimitive.Close className="rounded-full p-2 hover:bg-white/10" aria-label={tr("إغلاق", "Fermer", "Close")} title={tr("إغلاق", "Fermer", "Close")}>
                 <X className="h-6 w-6" />
               </DialogPrimitive.Close>
             </div>
@@ -195,17 +201,17 @@ const ImageLightbox = ({
               <img
                 key={current.id}
                 src={getMaterialUrl(current)}
-                alt={displayName(current)}
+                alt={displayName(current, tr)}
                 className="max-h-full max-w-full select-none rounded-lg object-contain shadow-2xl animate-fade-in"
                 draggable={false}
               />
             )}
             {images.length > 1 && (
               <>
-                <button type="button" onClick={() => go(-1)} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 sm:left-4" aria-label="Previous">
+                <button type="button" onClick={() => go(-1)} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 sm:left-4" aria-label={tr("الصورة السابقة", "Image précédente", "Previous image")}>
                   <ChevronLeft className="h-6 w-6" />
                 </button>
-                <button type="button" onClick={() => go(1)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 sm:right-4" aria-label="Next">
+                <button type="button" onClick={() => go(1)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 sm:right-4" aria-label={tr("الصورة التالية", "Image suivante", "Next image")}>
                   <ChevronRight className="h-6 w-6" />
                 </button>
               </>
@@ -218,9 +224,11 @@ const ImageLightbox = ({
                   key={img.id}
                   type="button"
                   onClick={() => onIndexChange(i)}
+                  aria-label={`${tr("صورة", "Image", "Image")} ${i + 1} / ${images.length}`}
+                  aria-current={i === index ? "true" : undefined}
                   className={`h-12 w-16 shrink-0 overflow-hidden rounded-md border-2 transition-opacity ${i === index ? "border-white opacity-100" : "border-transparent opacity-50 hover:opacity-80"}`}
                 >
-                  <img src={getMaterialUrl(img)} alt="" className="h-full w-full object-cover" />
+                  <img src={getMaterialUrl(img)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>
@@ -287,6 +295,7 @@ export const CourseMediaGallery = ({
               key={f.key}
               type="button"
               onClick={() => setFilter(f.key)}
+              aria-pressed={filter === f.key}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                 filter === f.key ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
               }`}
@@ -315,17 +324,19 @@ export const CourseMediaGallery = ({
                 key={img.id}
                 type="button"
                 onClick={() => setLightbox(i)}
+                aria-label={`${tr("تكبير الصورة", "Agrandir l'image", "Enlarge image")} : ${displayName(img, tr)}`}
                 className="group relative block w-full overflow-hidden rounded-xl border bg-muted shadow-sm"
                 style={{ paddingTop: "75%" }}
               >
                 <img
                   src={getMaterialUrl(img)}
-                  alt={displayName(img)}
+                  alt={displayName(img, tr)}
                   loading="lazy"
+                  decoding="async"
                   className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
-                <span className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6 text-start text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  {displayName(img)}
+                <span className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6 text-start text-xs font-medium text-white transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-visible:opacity-100">
+                  {displayName(img, tr)}
                 </span>
               </button>
             ))}
@@ -345,15 +356,17 @@ export const CourseMediaGallery = ({
                     {k === "link" ? <Link2 className="h-5 w-5 text-slate-500" /> : <FileText className="h-5 w-5 text-rose-500" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold" title={d.file_name}>{displayName(d)}</p>
+                    <p className="truncate text-sm font-semibold" title={d.file_name}>{displayName(d, tr)}</p>
                     <p className="text-xs text-muted-foreground">{k === "pdf" ? "PDF" : k === "link" ? tr("رابط", "Lien", "Link") : tr("ملف", "Fichier", "File")}{d.file_size ? ` · ${formatFileSize(d.file_size)}` : ""}</p>
                   </div>
-                  <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs" onClick={() => window.open(getMaterialUrl(d), "_blank", "noopener,noreferrer")}>
-                    <ExternalLink className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">{tr("فتح", "Ouvrir", "Open")}</span>
+                  <Button asChild size="sm" variant="outline" className="h-9 gap-1 px-2.5 text-xs">
+                    <a href={getMaterialUrl(d)} target="_blank" rel="noopener noreferrer" aria-label={`${tr("فتح", "Ouvrir", "Open")} : ${displayName(d, tr)}`}>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>{tr("فتح", "Ouvrir", "Open")}</span>
+                    </a>
                   </Button>
                   {k !== "link" && (
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => triggerDownload(d)} title={tr("تحميل", "Télécharger", "Download")}>
+                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => triggerDownload(d)} title={tr("تحميل", "Télécharger", "Download")} aria-label={`${tr("تحميل", "Télécharger", "Download")} : ${displayName(d, tr)}`}>
                       <Download className="h-4 w-4" />
                     </Button>
                   )}
@@ -389,7 +402,7 @@ export const CourseViewerDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[92vh] w-[96vw] max-w-5xl flex-col overflow-hidden p-0">
         <div className="shrink-0 border-b bg-gradient-to-br from-primary/10 via-background to-background px-5 pb-4 pt-5 sm:px-7">
-          <DialogHeader className="space-y-1.5 text-start pr-8">
+          <DialogHeader className="space-y-1.5 text-start pr-8 rtl:pr-0 rtl:pl-8">
             {subtitle && <p className="text-xs font-semibold uppercase tracking-wider text-primary">{subtitle}</p>}
             <DialogTitle className="text-xl font-bold leading-tight sm:text-2xl">{title}</DialogTitle>
             <DialogDescription className={description ? "whitespace-pre-line text-sm" : "sr-only"}>
@@ -447,10 +460,10 @@ export const CourseCover = ({
       onClick={onClick}
       className="group relative block w-full overflow-hidden text-start"
       style={{ paddingTop: `${heightPct}%` }}
-      aria-label={tr("فتح الدرس", "Ouvrir le cours", "Open course")}
+      aria-label={title ? `${tr("فتح الدرس", "Ouvrir le cours", "Open course")} : ${title}` : tr("فتح الدرس", "Ouvrir le cours", "Open course")}
     >
       {cover ? (
-        <img src={cover} alt="" loading="lazy" onError={() => setCoverFailed(true)} className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <img src={cover} alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
       ) : (
         <div className={`absolute top-0 left-0 flex h-full w-full items-center justify-center bg-gradient-to-br ${gradient}`}>
           <BookOpen className="h-12 w-12 text-white/40" />

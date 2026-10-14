@@ -334,7 +334,7 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" dir="ltr">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sigma className="h-5 w-5 text-indigo-600" />
@@ -356,7 +356,8 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
               key={g.id}
               type="button"
               onClick={() => setGroup(g.id)}
-              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+              aria-pressed={group === g.id}
+              className={`shrink-0 min-h-[36px] rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                 group === g.id ? "border-indigo-600 bg-indigo-600 text-white" : "bg-background hover:bg-muted"
               }`}
             >
@@ -366,7 +367,7 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
         </div>
 
         {/* Palette */}
-        <div className={`grid gap-1.5 ${current.id === "models" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-4 sm:grid-cols-6"}`}>
+        <div dir="ltr" className={`grid gap-1.5 ${current.id === "models" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-4 sm:grid-cols-6"}`}>
           {current.items.map(it => (
             <button
               key={it.l + it.s}
@@ -385,20 +386,20 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
         {/* Saisie LaTeX */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <div className="inline-flex rounded-md bg-muted p-0.5 text-[11px]">
-              <button type="button" onClick={() => setMode("simple")} className={`rounded px-2 py-1 font-semibold ${mode === "simple" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+            <div className="inline-flex rounded-md bg-muted p-0.5 text-[11px]" role="group">
+              <button type="button" aria-pressed={mode === "simple"} onClick={() => setMode("simple")} className={`min-h-[36px] rounded px-2 py-1 font-semibold ${mode === "simple" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
                 {L("Écriture simple", "كتابة مبسطة", "Simple")}
               </button>
-              <button type="button" onClick={() => { if (mode === "simple" && simple.trim() && !latex.trim()) setLatex(simpleToLatex(simple)); setMode("latex"); }} className={`rounded px-2 py-1 font-semibold ${mode === "latex" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+              <button type="button" aria-pressed={mode === "latex"} onClick={() => { if (mode === "simple" && simple.trim() && !latex.trim()) setLatex(simpleToLatex(simple)); setMode("latex"); }} className={`min-h-[36px] rounded px-2 py-1 font-semibold ${mode === "latex" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
                 LaTeX
               </button>
             </div>
             {allowDisplay && (
-              <div className="inline-flex rounded-md bg-muted p-0.5 text-[11px]">
-                <button type="button" onClick={() => setDisplay(false)} className={`inline-flex items-center gap-1 rounded px-2 py-1 font-semibold ${!display ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+              <div className="inline-flex rounded-md bg-muted p-0.5 text-[11px]" role="group">
+                <button type="button" aria-pressed={!display} onClick={() => setDisplay(false)} className={`min-h-[36px] inline-flex items-center gap-1 rounded px-2 py-1 font-semibold ${!display ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
                   <AlignLeft className="h-3 w-3" />{L("Dans la ligne", "داخل السطر", "Inline")}
                 </button>
-                <button type="button" onClick={() => setDisplay(true)} className={`inline-flex items-center gap-1 rounded px-2 py-1 font-semibold ${display ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+                <button type="button" aria-pressed={display} onClick={() => setDisplay(true)} className={`min-h-[36px] inline-flex items-center gap-1 rounded px-2 py-1 font-semibold ${display ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
                   <AlignCenter className="h-3 w-3" />{L("Centrée", "في الوسط", "Centred")}
                 </button>
               </div>
@@ -422,7 +423,7 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
               <p className="mb-1 font-semibold">
                 {L("Les parenthèses délimitent ce qui est sous la racine, au numérateur, en exposant :", "الأقواس تحدد ما يوجد تحت الجذر أو في البسط أو في الأس:", "Parentheses set what goes under the root, in the numerator, in the exponent:")}
               </p>
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
+              <div className="flex flex-wrap gap-x-3 gap-y-1" dir="ltr">
                 {SIMPLE_EXAMPLES.map(ex => (
                   <button key={ex} type="button" onClick={() => setSimple(ex)} className="inline-flex items-center gap-1 rounded px-1 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
                     <code className="font-mono">{ex}</code>
@@ -438,7 +439,7 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
         </div>
 
         {/* Aperçu */}
-        <div className="min-h-[64px] rounded-lg border border-dashed bg-muted/30 px-3 py-3 overflow-x-auto">
+        <div dir="ltr" className="min-h-[64px] rounded-lg border border-dashed bg-muted/30 px-3 py-3 overflow-x-auto">
           {loadError ? (
             <p className="text-xs text-amber-700">{L("Aperçu indisponible (connexion internet requise).", "المعاينة غير متاحة (يلزم الاتصال بالإنترنت).", "Preview unavailable (internet connection required).")}</p>
           ) : preview ? (

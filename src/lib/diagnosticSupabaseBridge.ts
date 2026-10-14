@@ -250,43 +250,51 @@ export async function fetchDiagnosticClassesFromSupabase(
     const storedNotes = await fetchCloudStudentNotes();
     const storedDates = getStoredRoomDates();
 
-    // 2. Pour chaque salle, récupérer ses élèves
-    const classes: DiagnosticClass[] = [];
-
-    for (const room of rooms) {
-      // Élèves directs dans profiles
-      const { data: directProfiles } = await supabase
+    // 2. Élèves de toutes les salles en requêtes groupées (3 requêtes au lieu de 3 par salle)
+    const roomIds = rooms.map(r => r.id);
+    const [directRes, enrollRes] = await Promise.all([
+      supabase
         .from("profiles")
-        .select("id, name, username, email, role")
+        .select("id, name, username, email, role, room_id")
         .eq("role", "student")
-        .eq("room_id", room.id)
-        .order("name");
-
-      // Élèves inscrits via enrollments
-      const { data: enrollments } = await supabase
+        .in("room_id", roomIds),
+      supabase
         .from("enrollments")
-        .select("student_id")
-        .eq("room_id", room.id);
+        .select("student_id, room_id")
+        .in("room_id", roomIds),
+    ]);
+    if (directRes.error) console.warn("Chargement des élèves (profiles) :", directRes.error.message);
+    if (enrollRes.error) console.warn("Chargement des inscriptions :", enrollRes.error.message);
 
-      const enrolledStudentIds = (enrollments || []).map(e => e.student_id).filter(Boolean);
+    const profileById = new Map<string, any>();
+    const idsByRoom = new Map<string, Set<string>>();
+    roomIds.forEach(id => idsByRoom.set(id, new Set()));
+    (directRes.data || []).forEach((p: any) => {
+      profileById.set(p.id, p);
+      if (p.room_id && idsByRoom.has(p.room_id)) idsByRoom.get(p.room_id)!.add(p.id);
+    });
+    (enrollRes.data || []).forEach((e: any) => {
+      if (e.student_id && e.room_id && idsByRoom.has(e.room_id)) idsByRoom.get(e.room_id)!.add(e.student_id);
+    });
 
-      let enrolledProfiles: any[] = [];
-      if (enrolledStudentIds.length > 0) {
-        const { data: extraProfiles } = await supabase
-          .from("profiles")
-          .select("id, name, username, email, role")
-          .in("id", enrolledStudentIds);
-        enrolledProfiles = extraProfiles || [];
-      }
+    // Profils des élèves inscrits non encore chargés (par lots pour limiter la longueur d'URL)
+    const missing = Array.from(new Set((enrollRes.data || []).map((e: any) => e.student_id).filter((id: string) => id && !profileById.has(id))));
+    if (missing.length > 0) {
+      const parts: string[][] = [];
+      for (let i = 0; i < missing.length; i += 150) parts.push(missing.slice(i, i + 150) as string[]);
+      const results = await Promise.all(parts.map(part =>
+        supabase.from("profiles").select("id, name, username, email, role").in("id", part)
+      ));
+      results.forEach(r => (r.data || []).forEach((p: any) => profileById.set(p.id, p)));
+    }
 
-      // Fusion et déduplication
-      const studentMap = new Map<string, any>();
-      (directProfiles || []).forEach(p => studentMap.set(p.id, p));
-      enrolledProfiles.forEach(p => studentMap.set(p.id, p));
+    const classes: DiagnosticClass[] = rooms.map(room => {
+      const allRoomStudents = Array.from(idsByRoom.get(room.id) || [])
+        .map(id => profileById.get(id))
+        .filter(Boolean)
+        .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
 
-      const allRoomStudents = Array.from(studentMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-
-      const students: DiagnosticStudent[] = allRoomStudents.map((s, idx) => {
+      const students: DiagnosticStudent[] = allRoomStudents.map((s: any, idx: number) => {
         const noteVal = storedNotes[s.id] ?? null;
         return {
           id: s.id,
@@ -297,13 +305,13 @@ export async function fetchDiagnosticClassesFromSupabase(
         };
       });
 
-      classes.push({
+      return {
         id: room.id,
         nom: room.name,
         date: storedDates[room.id] || "06-10-2024",
         students
-      });
-    }
+      };
+    });
 
     return classes;
   } catch (err) {

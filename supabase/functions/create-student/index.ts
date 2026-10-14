@@ -84,56 +84,114 @@ Deno.serve(async (req) => {
 
     console.log(`Creating ${students.length} students for room ${roomId}`)
 
+    // Cours de la classe : lus UNE fois (et non pour chaque élève)
+    let roomCourseIds: string[] = []
+    {
+      const { data: courses, error: coursesError } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('room_id', roomId)
+      if (coursesError) console.error('Failed to get courses for room:', coursesError.message)
+      else roomCourseIds = (courses || []).map((c: { id: string }) => c.id)
+    }
+
+    // Comptes déjà existants : retrouvés par le profil (une seule requête), sans parcourir
+    // toute la liste des utilisateurs Auth (auth.admin.listUsers) pour chaque élève.
+    // (même format qu'avant ; Supabase Auth compare les e-mails sans tenir compte de la casse)
+    const emailOf = (s: Student) => `${s.username}@student.internal`
+    const existingByEmail = new Map<string, string>()
+    {
+      const emails = Array.from(new Set((students as Student[]).flatMap(s => [emailOf(s), emailOf(s).toLowerCase()])))
+      // par paquets de 100 pour garder des URL courtes
+      for (let i = 0; i < emails.length; i += 100) {
+        const { data: existingProfiles, error: existingError } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('email', emails.slice(i, i + 100))
+        if (existingError) console.error('Error checking existing profiles:', existingError.message)
+        for (const p of existingProfiles || []) {
+          if (p.email) existingByEmail.set(String(p.email).toLowerCase(), p.id)
+        }
+      }
+    }
+
+    // Dernier recours (rare) : compte Auth sans profil → recherche paginée par e-mail
+    const findAuthUserId = async (email: string): Promise<string | null> => {
+      for (let page = 1; page <= 50; page++) {
+        const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+        if (error) return null
+        const users = data?.users || []
+        const found = users.find(u => (u.email || '').toLowerCase() === email)
+        if (found) return found.id
+        if (users.length < 1000) return null
+      }
+      return null
+    }
+
+    const isAlreadyRegistered = (err: { message?: string; status?: number; code?: string } | null) =>
+      !!err && (
+        err.status === 422 ||
+        err.code === 'email_exists' ||
+        /already (been )?registered|already exists/i.test(err.message || '')
+      )
+
+    const enrollmentRows: { student_id: string; course_id: string; room_id: string }[] = []
+
     for (const student of students as Student[]) {
       try {
-        // Create auth user with username as email (temporary approach)
-        const fakeEmail = `${student.username}@student.internal`
-        
-        // First check if user already exists by searching specifically for this email
-        const { data: existingUsers, error: existingError } = await supabase.auth.admin.listUsers()
-        if (existingError) {
-          console.error('Error checking existing users:', existingError)
+        // Compte Auth : identifiant fictif construit à partir du nom d'utilisateur
+        const fakeEmail = emailOf(student)
+        const userMetadata = {
+          name: `${student.prenom} ${student.nom}`,
+          username: student.username,
+          role: 'student'
         }
-        
-        const userExists = existingUsers?.users?.find(u => u.email === fakeEmail)
-        
-        let authData
-        if (userExists) {
-          console.log('User already exists, deleting and recreating:', student.username)
-          // Delete the existing user first to avoid conflicts
-          const { error: deleteError } = await supabase.auth.admin.deleteUser(userExists.id)
-          if (deleteError) {
-            console.error('Error deleting existing user:', deleteError)
-            // Continue anyway, maybe we can update instead
-          } else {
-            console.log('Successfully deleted existing user:', userExists.id)
-          }
-        }
-        
-        // Always create new user (either fresh or after deletion)
-        console.log('Creating new user with email:', fakeEmail)
-        const { data: createData, error: authError } = await supabase.auth.admin.createUser({
-          email: fakeEmail,
-          password: student.temporaryPassword,
-          email_confirm: true, // Auto-confirm email for students
-          user_metadata: {
-            name: `${student.prenom} ${student.nom}`,
-            username: student.username,
-            role: 'student'
-          }
-        })
 
-        if (authError) {
-          console.error('Auth error for student:', student.username, authError)
-          errors.push({ 
-            student: `${student.prenom} ${student.nom}`, 
-            error: authError.message 
+        let userId: string | null = existingByEmail.get(fakeEmail.toLowerCase()) || null
+        // compte existant : on met à jour le mot de passe au lieu de supprimer / recréer le
+        // compte (l'élève garde son identifiant et tout son historique)
+        let needsUpdate = !!userId
+
+        if (!userId) {
+          const { data: createData, error: authError } = await supabase.auth.admin.createUser({
+            email: fakeEmail,
+            password: student.temporaryPassword,
+            email_confirm: true, // Auto-confirm email for students
+            user_metadata: userMetadata
           })
-          continue
+          if (authError) {
+            if (isAlreadyRegistered(authError)) {
+              userId = await findAuthUserId(fakeEmail.toLowerCase())
+              needsUpdate = !!userId
+            }
+            if (!userId) {
+              console.error('Auth error for student:', student.username, authError.message)
+              errors.push({
+                student: `${student.prenom} ${student.nom}`,
+                error: authError.message
+              })
+              continue
+            }
+          } else {
+            userId = createData.user.id
+          }
         }
-        authData = createData
 
-        console.log('Created auth user:', authData.user.id)
+        if (userId && needsUpdate) {
+          const { error: updError } = await supabase.auth.admin.updateUserById(userId, {
+            password: student.temporaryPassword,
+            email_confirm: true,
+            user_metadata: userMetadata
+          })
+          if (updError) {
+            console.error('Auth update error for student:', student.username, updError.message)
+            errors.push({
+              student: `${student.prenom} ${student.nom}`,
+              error: updError.message
+            })
+            continue
+          }
+        }
 
         // Update the profile with username, email, temporary password and room_id
         const { error: profileError } = await supabase
@@ -145,54 +203,63 @@ Deno.serve(async (req) => {
             role: 'student',
             room_id: roomId // Associate student with the room
           })
-          .eq('id', authData.user.id)
+          .eq('id', userId)
 
         if (profileError) {
-          console.error('Profile update error:', profileError)
-          errors.push({ 
-            student: `${student.prenom} ${student.nom}`, 
-            error: `Profile update failed: ${profileError.message}` 
+          console.error('Profile update error:', profileError.message)
+          errors.push({
+            student: `${student.prenom} ${student.nom}`,
+            error: `Profile update failed: ${profileError.message}`
           })
           continue
         }
 
-        // Get all courses in this room to auto-enroll the student
-        const { data: courses, error: coursesError } = await supabase
-          .from('courses')
-          .select('id')
-          .eq('room_id', roomId)
-
-        if (coursesError) {
-          console.error('Failed to get courses for room:', coursesError)
-        } else if (courses && courses.length > 0) {
-          // Create enrollments for all courses in the room
-          const enrollments = courses.map(course => ({
-            student_id: authData.user.id,
-            course_id: course.id,
-            room_id: roomId
-          }))
-
-          const { error: enrollmentError } = await supabase
-            .from('enrollments')
-            .insert(enrollments)
-
-          if (enrollmentError) {
-            console.error('Enrollment error:', enrollmentError)
-          }
+        for (const courseId of roomCourseIds) {
+          enrollmentRows.push({ student_id: userId as string, course_id: courseId, room_id: roomId })
         }
 
         results.push({
           ...student,
-          id: authData.user.id
+          id: userId
         })
         created++
 
       } catch (error) {
-        console.error('Unexpected error creating student:', student.username, error)
-        errors.push({ 
-          student: `${student.prenom} ${student.nom}`, 
-          error: error.message 
+        console.error('Unexpected error creating student:', student.username, (error as Error)?.message)
+        errors.push({
+          student: `${student.prenom} ${student.nom}`,
+          error: (error as Error)?.message || String(error)
         })
+      }
+    }
+
+    // Inscriptions aux cours de la classe : un seul envoi groupé (les doublons sont ignorés)
+    if (enrollmentRows.length > 0) {
+      const { error: batchError } = await supabase
+        .from('enrollments')
+        .upsert(enrollmentRows, { onConflict: 'student_id,course_id', ignoreDuplicates: true })
+      if (batchError) {
+        // pas de contrainte unique adaptée (ou autre erreur) : on retombe sur un envoi par élève
+        console.error('Batch enrollment error, falling back:', batchError.message)
+        const byStudent = new Map<string, typeof enrollmentRows>()
+        for (const row of enrollmentRows) {
+          const list = byStudent.get(row.student_id) || []
+          list.push(row)
+          byStudent.set(row.student_id, list)
+        }
+        for (const [studentId, rows] of byStudent) {
+          const { data: already } = await supabase
+            .from('enrollments')
+            .select('course_id')
+            .eq('student_id', studentId)
+            .in('course_id', rows.map(r => r.course_id))
+          const have = new Set((already || []).map((r: { course_id: string }) => r.course_id))
+          const missing = rows.filter(r => !have.has(r.course_id))
+          if (missing.length > 0) {
+            const { error: enrollmentError } = await supabase.from('enrollments').insert(missing)
+            if (enrollmentError) console.error('Enrollment error:', enrollmentError.message)
+          }
+        }
       }
     }
 

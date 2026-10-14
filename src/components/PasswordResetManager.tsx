@@ -31,7 +31,7 @@ interface PasswordResetManagerProps {
 }
 
 export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
-  const { user } = useAuth();
+  const { user, resetStudentPassword } = useAuth();
   const { t, language } = useLanguage();
   const { createNotification } = useNotifications();
   const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
@@ -39,6 +39,8 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
   const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [isResetting, setIsResetting] = useState(false);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
 
   useEffect(() => {
     if (user?.role === 'professor') {
@@ -99,17 +101,12 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
   const handleResetPassword = async () => {
     if (!accessStore.guard("student.reset_password")) return;
     if (!selectedRequest || !newPassword.trim()) return;
+    if (isResetting) return;
     setIsResetting(true);
     try {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ temporary_password: newPassword.trim() })
-        .eq('id', selectedRequest.student_id);
-
-      if (updateError) {
-        toast.error(t("pwdReset.error"));
-        return;
-      }
+      // Change réellement le mot de passe de connexion (et affiche son propre message)
+      const ok = await resetStudentPassword(selectedRequest.student_id, newPassword.trim());
+      if (!ok) return;
 
       const { error: requestError } = await supabase
         .from('password_reset_requests')
@@ -134,7 +131,6 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
         read: false
       });
 
-      toast.success(t("pwdReset.success"));
       setSelectedRequest(null);
       setNewPassword("");
       loadPasswordResetRequests();
@@ -147,12 +143,45 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
   };
 
   const generateTempPassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    try {
+      const buf = new Uint32Array(8);
+      window.crypto.getRandomValues(buf);
+      for (let i = 0; i < 8; i++) result += chars.charAt(buf[i] % chars.length);
+    } catch {
+      result = '';
+      for (let i = 0; i < 8; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setNewPassword(result);
+  };
+
+  /** « Ignorer » : la demande sort de la liste des demandes en attente. */
+  const handleDismiss = async (request: PasswordResetRequest) => {
+    if (dismissingId) return;
+    setDismissingId(request.id);
+    try {
+      const base = { resolved_at: new Date().toISOString(), resolved_by: user?.id };
+      let { error } = await supabase
+        .from('password_reset_requests')
+        .update({ ...base, status: 'rejected' })
+        .eq('id', request.id);
+      if (error) {
+        // Valeur « rejected » refusée par la base : on clôt la demande sans changer le mot de passe
+        ({ error } = await supabase
+          .from('password_reset_requests')
+          .update({ ...base, status: 'resolved' })
+          .eq('id', request.id));
+      }
+      if (error) {
+        toast.error(tr("Impossible d'ignorer la demande", "تعذر تجاهل الطلب", "Could not dismiss the request"));
+        return;
+      }
+      setRequests(prev => prev.filter(r => r.id !== request.id));
+      toast.success(tr("Demande ignorée", "تم تجاهل الطلب", "Request dismissed"));
+    } finally {
+      setDismissingId(null);
+    }
   };
 
   if (user?.role !== 'professor') return null;
@@ -165,7 +194,7 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
             <AlertCircle className="h-5 w-5" />
             {t("pwdReset.title")}
             {requests.length > 0 && (
-              <Badge variant="destructive" className="ml-2">{requests.length}</Badge>
+              <Badge variant="destructive">{requests.length}</Badge>
             )}
           </CardTitle>
           <CardDescription>{t("pwdReset.description")}</CardDescription>
@@ -179,23 +208,26 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
             <div className="space-y-3">
               {requests.map((request) => (
                 <Card key={request.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{request.student_name}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{request.student_name}</p>
                         {request.student_username && (
-                          <p className="text-sm text-muted-foreground">@{request.student_username}</p>
+                          <p className="text-sm text-muted-foreground truncate" dir="ltr">@{request.student_username}</p>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right text-sm text-muted-foreground">
-                        <Clock className="h-3 w-3 inline mr-1" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                        <Clock className="h-3 w-3" />
                         {new Date(request.requested_at).toLocaleDateString(
-                          language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US"
+                          language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB"
                         )}
                       </div>
+                      <Button size="sm" onClick={() => handleDismiss(request)} variant="ghost" disabled={dismissingId === request.id}>
+                        {tr("Ignorer", "تجاهل", "Dismiss")}
+                      </Button>
                       <Button size="sm" onClick={() => setSelectedRequest(request)} variant="outline">
                         {t("pwdReset.resetBtn")}
                       </Button>
@@ -208,7 +240,7 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
+      <Dialog open={!!selectedRequest} onOpenChange={(o) => { if (!o && !isResetting) setSelectedRequest(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("pwdReset.dialog.title")}</DialogTitle>
@@ -225,8 +257,10 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder={t("pwdReset.placeholder")}
+                  autoComplete="off"
+                  dir="ltr"
                 />
-                <Button type="button" variant="outline" onClick={generateTempPassword} size="sm">
+                <Button type="button" variant="outline" onClick={generateTempPassword}>
                   {t("pwdReset.generate")}
                 </Button>
               </div>

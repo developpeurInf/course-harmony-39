@@ -81,30 +81,44 @@ export default function QuickQuizImport({
   );
 
   const importAll = async () => {
-    if (!valid.length) return;
+    if (!valid.length || busy) return;
     setBusy(true);
-    let order = startOrder;
-    let done = 0;
+    let inserted: { id: string; question_order: number }[] = [];
     try {
-      for (const q of valid) {
-        order += 1;
-        const { data: nq, error } = await supabase
-          .from("quiz_questions")
-          .insert([{ exam_id: examId, question: serializeQuestionText(`<p>${escapeHtml(q.text)}</p>`, null), question_type: q.type, points: q.points, question_order: order }])
-          .select()
-          .single();
-        if (error || !nq) throw error;
-        const { error: oe } = await supabase.from("quiz_options").insert(
-          q.options.map((o, idx) => ({ question_id: nq.id, option_text: o.text, is_correct: o.correct, option_order: idx + 1 }))
-        );
-        if (oe) throw oe;
-        done += 1;
+      // 1) Toutes les questions en UNE requête
+      const rows = valid.map((q, i) => ({
+        exam_id: examId,
+        question: serializeQuestionText(`<p>${escapeHtml(q.text)}</p>`, null),
+        question_type: q.type,
+        points: q.points,
+        question_order: startOrder + i + 1,
+      }));
+      const { data: nqs, error } = await supabase.from("quiz_questions").insert(rows).select("id, question_order");
+      if (error || !nqs) throw error || new Error("insert");
+      inserted = nqs as { id: string; question_order: number }[];
+      const idByOrder: Record<number, string> = {};
+      inserted.forEach(r => { idByOrder[r.question_order] = r.id; });
+
+      // 2) Toutes les options en UNE requête
+      const optionRows = valid.flatMap((q, i) => {
+        const qid = idByOrder[startOrder + i + 1];
+        return qid ? q.options.map((o, idx) => ({ question_id: qid, option_text: o.text, is_correct: o.correct, option_order: idx + 1 })) : [];
+      });
+      if (optionRows.length) {
+        const { error: oe } = await supabase.from("quiz_options").insert(optionRows);
+        if (oe) {
+          // Pas de questions sans options : on annule les questions insérées
+          await supabase.from("quiz_questions").delete().in("id", inserted.map(r => r.id));
+          throw oe;
+        }
       }
+      const done = inserted.length;
       toast.success(L(`${done} question(s) ajoutée(s)`, `تمت إضافة ${done} سؤال`, `${done} question(s) added`));
       setText("");
       onOpenChange(false);
     } catch (e: any) {
-      toast.error(L(`Arrêt après ${done} question(s) : ${e?.message || "erreur"}`, `توقف بعد ${done} سؤال: ${e?.message || "خطأ"}`, `Stopped after ${done} question(s): ${e?.message || "error"}`));
+      console.error("Quick quiz import failed", e);
+      toast.error(L("Échec de l'ajout des questions. Aucune question n'a été ajoutée.", "تعذرت إضافة الأسئلة. لم تتم إضافة أي سؤال.", "Failed to add the questions. No question was added."));
     } finally {
       setBusy(false);
       await onImported();

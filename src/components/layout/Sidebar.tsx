@@ -81,9 +81,12 @@ const Sidebar = () => {
     });
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
+    }
   };
 
   // Helper for student's current room name
@@ -94,7 +97,7 @@ const Sidebar = () => {
   return (
     <div 
       dir={isRtl ? "rtl" : "ltr"}
-      className="flex flex-col h-full w-full max-h-full overflow-hidden bg-gradient-to-b from-slate-50 via-slate-50/80 to-slate-100/90 dark:from-slate-950 dark:via-slate-900/90 dark:to-slate-950 border-r border-slate-200/80 dark:border-slate-800/80 select-none text-slate-700 dark:text-slate-300"
+      className="flex flex-col h-full w-full max-h-full overflow-hidden bg-gradient-to-b from-slate-50 via-slate-50/80 to-slate-100/90 dark:from-slate-950 dark:via-slate-900/90 dark:to-slate-950 border-r rtl:border-r-0 rtl:border-l border-slate-200/80 dark:border-slate-800/80 select-none text-slate-700 dark:text-slate-300"
     >
       {/* Brand Header */}
       <div className="p-4 md:p-5 flex-shrink-0 border-b border-slate-200/60 dark:border-slate-800/60">
@@ -127,7 +130,7 @@ const Sidebar = () => {
         
         {/* Section: Overview */}
         <div className="space-y-1">
-          <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center justify-between">
+          <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
             <span>{t("Général", "عام", "General")}</span>
           </div>
 
@@ -152,7 +155,7 @@ const Sidebar = () => {
 
         {/* Section: Classes / Courses */}
         <div className="space-y-1.5">
-          <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center justify-between">
+          <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
             <span>
               {isProfessor 
                 ? t("Mes Classes", "أقسامي", "My Classes")
@@ -217,7 +220,7 @@ const Sidebar = () => {
                       <NavLink 
                         to={`/rooms/${room.id}/students`} 
                         className={({ isActive }) => cn(
-                          "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 group",
+                          "flex items-center gap-2.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-medium transition-all duration-150 group",
                           isActive 
                             ? "bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold shadow-xs" 
                             : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -233,7 +236,7 @@ const Sidebar = () => {
                       <NavLink 
                         to={`/rooms/${room.id}/students-activities`} 
                         className={({ isActive }) => cn(
-                          "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 group",
+                          "flex items-center gap-2.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-medium transition-all duration-150 group",
                           isActive 
                             ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold shadow-xs" 
                             : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -250,7 +253,7 @@ const Sidebar = () => {
                       <NavLink 
                         to={`/rooms/${room.id}/courses`} 
                         className={({ isActive }) => cn(
-                          "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 group",
+                          "flex items-center gap-2.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-medium transition-all duration-150 group",
                           isActive 
                             ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold shadow-xs" 
                             : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -266,7 +269,7 @@ const Sidebar = () => {
                       <NavLink 
                         to={`/rooms/${room.id}/exercises`} 
                         className={({ isActive }) => cn(
-                          "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 group",
+                          "flex items-center gap-2.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-medium transition-all duration-150 group",
                           isActive 
                             ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 font-semibold shadow-xs" 
                             : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -282,7 +285,7 @@ const Sidebar = () => {
                       <NavLink 
                         to={`/rooms/${room.id}/exams`} 
                         className={({ isActive }) => cn(
-                          "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 group",
+                          "flex items-center gap-2.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-medium transition-all duration-150 group",
                           isActive 
                             ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold shadow-xs" 
                             : "text-muted-foreground hover:text-foreground hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -352,7 +355,7 @@ const Sidebar = () => {
         {/* Section: Management Tools (Professor Only) */}
         {isProfessor && (
           <div className="space-y-1 pt-1">
-            <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center justify-between">
+            <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>{t("Gestion & Outils", "الإدارة والأدوات", "Management & Tools")}</span>
             </div>
 
@@ -412,7 +415,7 @@ const Sidebar = () => {
 
         {/* Section: Account & Settings */}
         <div className="space-y-1 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
-          <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center justify-between">
+          <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
             <span>{t("Compte & Paramètres", "الحساب والإعدادات", "Account & Settings")}</span>
           </div>
 
@@ -479,8 +482,8 @@ const Sidebar = () => {
         <div className="flex items-center justify-between px-2 py-1 bg-background/60 dark:bg-slate-950/40 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
           <span className="text-[11px] font-medium text-muted-foreground">{t("Affichage & Langue", "العرض واللغة", "Display & Language")}</span>
           <div className="flex items-center gap-1">
-            <LanguageSelector />
-            <ThemeToggle />
+            <LanguageSelector placement="top" />
+            <ThemeToggle placement="top" />
           </div>
         </div>
 
@@ -494,7 +497,7 @@ const Sidebar = () => {
                 </AvatarFallback>
               </Avatar>
               {/* Online pulse indicator */}
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background animate-pulse" />
+              <span className="absolute -bottom-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background animate-pulse" />
             </div>
             
             <div className="flex flex-col min-w-0">
@@ -526,10 +529,11 @@ const Sidebar = () => {
             variant="ghost"
             size="icon"
             onClick={handleLogout}
-            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex-shrink-0"
-            title={t("Déconnexion", "تسجيل الخروج", "Logout")}
+            className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex-shrink-0"
+            title={t("Déconnexion", "تسجيل الخروج", "Log out")}
+            aria-label={t("Déconnexion", "تسجيل الخروج", "Log out")}
           >
-            <LogOut size={15} />
+            <LogOut size={16} className={isRtl ? "rotate-180" : undefined} />
           </Button>
         </div>
       </div>

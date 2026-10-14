@@ -1,6 +1,5 @@
 
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -8,16 +7,23 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { GraduationCap, BookOpen, FileText, Calendar, ArrowRight } from "lucide-react";
 
 const Index = () => {
-  const { user } = useAuth();
-  const { t } = useLanguage();
+  const { user, loading } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // If already logged in, redirect to dashboard
-    if (user) {
-      navigate("/dashboard");
-    }
-  }, [user, navigate]);
+  // Attendre la session avant d'afficher la page d'accueil (pas de flash pour un utilisateur connecté)
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  // Déjà connecté : tableau de bord (replace : « Retour » ne revient pas ici)
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-accent/20 p-4">
@@ -61,7 +67,7 @@ const Index = () => {
           <CardFooter>
             <Button className="w-full" onClick={() => navigate("/login")}>
               {t("index.login.account")}
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className={language === "ar" ? "h-4 w-4 rotate-180" : "h-4 w-4"} />
             </Button>
           </CardFooter>
         </Card>

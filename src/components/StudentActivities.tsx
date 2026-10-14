@@ -311,17 +311,25 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     loadAll().finally(() => setLoading(false));
   }, [user, roomId, loadAll]);
 
-  // « En ligne » : rafraîchi toutes les 30 s et lors des connexions
+  // « En ligne » : temps réel + filet de sécurité toutes les 120 s (en pause si l'onglet est masqué)
   useEffect(() => {
     if (!user || !roomId) return;
     const channel = supabase
       .channel(`class-analytics-${roomId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "student_sessions", filter: `room_id=eq.${roomId}` }, () => loadActiveSessions())
       .subscribe();
-    const id = setInterval(loadActiveSessions, 30_000);
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadActiveSessions();
+    }, 120_000);
+    const onVisible = () => {
+      if (!document.hidden) loadActiveSessions();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [user, roomId, loadActiveSessions]);
 
@@ -441,11 +449,11 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
   };
 
   const SortHead = ({ k, children, className = "" }: { k: SortKey; children: ReactNode; className?: string }) => (
-    <TableHead className={`cursor-pointer select-none whitespace-nowrap hover:text-foreground ${className}`} onClick={() => toggleSort(k)}>
-      <span className="inline-flex items-center gap-1">
+    <TableHead className={`select-none whitespace-nowrap ${className}`} aria-sort={sortKey === k ? (sortAsc ? "ascending" : "descending") : "none"}>
+      <button type="button" onClick={() => toggleSort(k)} className="inline-flex min-h-[36px] items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {children}
         {sortKey === k ? (sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <span className="w-3" />}
-      </span>
+      </button>
     </TableHead>
   );
 
@@ -516,7 +524,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
           <AvatarImage src={s.student.avatar_url || undefined} />
           <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{initials(s.student.name)}</AvatarFallback>
         </Avatar>
-        {s.online && <span className="absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-500" />}
+        {s.online && <span className="absolute -bottom-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-500" />}
       </div>
       <div className="min-w-0">
         <p className="font-semibold truncate max-w-[190px]">{s.student.name}</p>
@@ -735,7 +743,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                             </span>
                           ))}
                         </div>
-                        <div className="flex items-center gap-2 sm:ms-2">
+                        <div className="flex items-center gap-2 sm:ml-2 rtl:sm:ml-0 rtl:sm:mr-2">
                           <span className={`text-sm font-extrabold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}{s.note20 !== null && <span className="text-[10px] text-muted-foreground">/20</span>}</span>
                           <Button size="sm" variant="outline" className="h-8 gap-1 rounded-lg" onClick={() => setSelectedId(s.student.id)}>
                             <Eye className="h-3.5 w-3.5" />{tr("Fiche", "البطاقة", "Profile")}
@@ -785,8 +793,8 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
             <TabsContent value="ranking" className="space-y-4 m-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("Rechercher un élève…", "ابحث عن تلميذ…", "Search a student…")} className="h-10 rounded-xl ps-9" />
+                  <Search className="pointer-events-none absolute left-3 rtl:left-auto rtl:right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("Rechercher un élève…", "ابحث عن تلميذ…", "Search a student…")} className="h-10 rounded-xl pl-9 rtl:pl-3 rtl:pr-9" />
                 </div>
                 <Select value={levelFilter} onValueChange={v => setLevelFilter(v as any)}>
                   <SelectTrigger className="h-10 w-full rounded-xl sm:w-[220px]"><SelectValue /></SelectTrigger>
@@ -853,7 +861,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                           </div>
                         </TableCell>
                         <TableCell className="text-end">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={e => { e.stopPropagation(); setSelectedId(s.student.id); }}>
+                          <Button size="icon" variant="ghost" className="h-9 w-9 rounded-lg" onClick={e => { e.stopPropagation(); setSelectedId(s.student.id); }} aria-label={tr(`Voir la fiche de ${s.student.name}`, `عرض بطاقة ${s.student.name}`, `View ${s.student.name}'s profile`)} title={tr("Voir la fiche", "عرض البطاقة", "View profile")}>
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TableCell>

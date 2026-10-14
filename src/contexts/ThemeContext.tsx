@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type Theme = "light" | "dark" | "system";
 
@@ -12,12 +12,17 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem("maataoui-theme");
-    return (savedTheme as Theme) || "system";
+    let savedTheme: string | null = null;
+    try { savedTheme = localStorage.getItem("maataoui-theme"); } catch { /* stockage indisponible */ }
+    return savedTheme === "light" || savedTheme === "dark" || savedTheme === "system" ? savedTheme : "system";
   });
 
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() => {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    try {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch {
+      return "light";
+    }
   });
 
   useEffect(() => {
@@ -42,20 +47,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("maataoui-theme", theme);
-    
-    const root = window.document.documentElement;
-    root.classList.remove("light", "dark");
+    try { localStorage.setItem("maataoui-theme", theme); } catch { /* stockage indisponible */ }
 
-    if (theme === "system") {
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
+    const root = window.document.documentElement;
+    const resolved = theme === "system" ? systemTheme : theme;
+    root.classList.remove(resolved === "dark" ? "light" : "dark");
+    root.classList.add(resolved);
+    // contrôles natifs (barres de défilement, champs) assortis au thème
+    try { root.style.colorScheme = resolved; } catch { /* ancien navigateur */ }
   }, [theme, systemTheme]);
 
+  const value = useMemo(() => ({ theme, setTheme, systemTheme }), [theme, systemTheme]);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, systemTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

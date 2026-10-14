@@ -87,11 +87,17 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const userId = user?.id;
   const isProfessor = user?.role === "professor";
+  // Les élèves ne sont jamais concernés par les habilitations (gated = professeur uniquement) :
+  // ni appel my_access, ni canal temps réel, ni relecture périodique pour eux.
+  const tracked = !!userId && user?.role !== "student";
   const lastLoad = useRef(0);
+  const lastJson = useRef<string>("");
 
   const load = useCallback(async () => {
-    if (!userId) {
+    if (!userId || !tracked) {
+      lastJson.current = "";
       setAccess(null);
+      setEnforced(false);
       setLoading(false);
       return;
     }
@@ -100,24 +106,34 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       // fonction absente (migration non appliquée) : on ne bloque rien
       setEnforced(false);
-      setAccess(null);
+      if (lastJson.current !== "") {
+        lastJson.current = "";
+        setAccess(null);
+      }
     } else {
       setEnforced(true);
-      setAccess(data as AccessInfo);
+      // nouvel objet seulement si le contenu a changé (évite de re-rendre toute l'application)
+      const json = JSON.stringify(data || null);
+      if (json !== lastJson.current) {
+        lastJson.current = json;
+        setAccess(data as AccessInfo);
+      }
     }
     setLoading(false);
-  }, [userId]);
+  }, [userId, tracked]);
 
   useEffect(() => {
     setLoading(true);
     void load();
   }, [load]);
 
+  const planId = access?.subscription?.plan_id || null;
+
   // Les changements faits par l'administration s'appliquent tout de suite, sans reconnexion :
-  // 1) temps réel (Supabase Realtime) sur les exceptions, abonnements, compte et offres ;
-  // 2) filet de sécurité : relecture au retour sur l'onglet et toutes les 60 s.
+  // 1) temps réel (Supabase Realtime) sur les exceptions, abonnements, compte et offre ;
+  // 2) filet de sécurité : relecture au retour sur l'onglet et toutes les 5 min (onglet visible).
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !tracked) return;
     let pending: number | undefined;
     const soon = () => {
       window.clearTimeout(pending);
@@ -132,7 +148,11 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", onFocus);
     window.addEventListener("access-refresh", soon);
     document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => void load(), 60 * 1000);
+    const timer = window.setInterval(() => {
+      // en pause quand l'onglet est caché (la relecture se fait au retour)
+      if (document.hidden) return;
+      void load();
+    }, 5 * 60 * 1000);
 
     let channel: any = null;
     try {
@@ -141,7 +161,10 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
         .on("postgres_changes", { event: "*", schema: "public", table: "teacher_permission_overrides", filter: `teacher_id=eq.${userId}` }, soon)
         .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions", filter: `teacher_id=eq.${userId}` }, soon)
         .on("postgres_changes", { event: "*", schema: "public", table: "teacher_accounts", filter: `user_id=eq.${userId}` }, soon)
-        .on("postgres_changes", { event: "*", schema: "public", table: "plan_permissions" }, soon)
+        // seulement l'offre du professeur quand elle est connue
+        .on("postgres_changes", planId
+          ? { event: "*", schema: "public", table: "plan_permissions", filter: `plan_id=eq.${planId}` }
+          : { event: "*", schema: "public", table: "plan_permissions" }, soon)
         .subscribe();
     } catch {
       channel = null;
@@ -154,7 +177,7 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(pending);
       if (channel) (supabase as any).removeChannel(channel);
     };
-  }, [userId, load]);
+  }, [userId, tracked, planId, load]);
 
   const isAdmin = !!access?.is_admin;
   const gated = enforced && isProfessor && !isAdmin;

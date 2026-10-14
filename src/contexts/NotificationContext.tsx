@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { usePreferences, playNotificationSound } from "@/contexts/PreferencesContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +65,13 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+/** Message traduit selon la langue active (fr / ar / en) */
+const trn = (fr: string, ar: string, en: string): string => {
+  let l = "fr";
+  try { l = localStorage.getItem("maataoui-language") || "fr"; } catch { /* stockage indisponible */ }
+  return l === "ar" ? ar : l === "en" ? en : fr;
+};
+
 // Storage helper for persisted deleted IDs
 const getDeletedIdsKey = (userId: string) => `course_harmony_deleted_notifs_${userId}`;
 
@@ -120,6 +127,12 @@ const setLastClearTimestamp = (userId: string, ts: number) => {
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  // Dépendances primitives : un nouvel objet « user » identique ne relance rien
+  const userId = user?.id;
+  const userRole = user?.role;
+  const userRoomId = user?.room_id;
+  const userRef = useRef(user);
+  userRef.current = user;
   const { prefs } = usePreferences();
   // Référence à jour pour le gestionnaire temps réel (évite une closure périmée)
   const prefsRef = useRef(prefs);
@@ -128,9 +141,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(false);
   const reminderCheckedRef = useRef(false);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+  const notificationsRef = useRef(notifications);
+  notificationsRef.current = notifications;
 
   const fetchNotifications = useCallback(async () => {
+    const user = userId ? { id: userId } : null;
     if (!user) {
       setNotifications([]);
       return;
@@ -145,7 +161,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        // les 50 plus récentes suffisent à l'affichage (et aux marqueurs de remise à zéro récents)
+        .limit(50);
 
       if (error) {
         console.error('Failed to fetch notifications:', error);
@@ -220,11 +238,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   // Check for exams approaching in less than 24h
   const checkExamReminders = useCallback(async () => {
-    if (!user || user.role !== 'student' || !user.room_id) return;
+    if (!userId || userRole !== 'student' || !userRoomId) return;
+    const user = { id: userId, room_id: userRoomId };
 
     try {
       const lastClearTs = getLastClearTimestamp(user.id);
@@ -244,7 +263,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       // 2. Get exams for these courses
       const { data: exams, error: examsError } = await supabase
         .from('exams')
-        .select('*')
+        .select('id, title, type, course_id, exam_date, created_at, updated_at')
         .in('course_id', courseIds)
         .eq('is_visible', true);
 
@@ -269,6 +288,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           .map(r => r.exam_id)
       );
 
+      // Rappels à créer, envoyés en un seul insert
+      const reminderRows: any[] = [];
       for (const exam of exams) {
         if (!exam.exam_date) continue;
 
@@ -292,7 +313,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             minute: '2-digit'
           });
 
-          await supabase.from('notifications').insert({
+          reminderRows.push({
             user_id: user.id,
             title: `⏰ Rappel : ${exam.type === 'quiz' ? 'Quiz' : 'Examen'} dans moins de 24h !`,
             message: `L'évaluation "${exam.title}" aura lieu le ${formattedDate}. Préparez-vous !`,
@@ -306,18 +327,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       }
 
+      if (reminderRows.length > 0) {
+        const { error: remindersError } = await supabase.from('notifications').insert(reminderRows);
+        if (remindersError) console.error('Error creating exam reminders:', remindersError.message);
+      }
+
       fetchNotifications();
     } catch (err) {
       console.error('Error checking exam reminders:', err);
     }
-  }, [user, fetchNotifications]);
+  }, [userId, userRole, userRoomId, fetchNotifications]);
 
   // Initial fetch and Realtime subscription
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
+      reminderCheckedRef.current = false;
       setNotifications([]);
       return;
     }
+    const user = { id: userId, role: userRole, room_id: userRoomId };
 
     fetchNotifications();
 
@@ -446,7 +474,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       supabase.removeChannel(channel);
       if (roomChannel) supabase.removeChannel(roomChannel);
     };
-  }, [user, fetchNotifications, checkExamReminders]);
+  }, [userId, userRole, userRoomId, fetchNotifications, checkExamReminders]);
 
   const markAsRead = async (id: string): Promise<boolean> => {
     try {
@@ -471,6 +499,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   const markAllAsRead = async (): Promise<boolean> => {
+    const user = userRef.current;
     if (!user) return false;
 
     try {
@@ -497,6 +526,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Robust delete using soft-delete update, hard-delete attempt, and localStorage persistence
   const deleteNotification = async (id: string): Promise<boolean> => {
+    const user = userRef.current;
     if (!user) return false;
 
     try {
@@ -522,13 +552,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Robust clear all using soft-delete update, hard-delete attempt, and localStorage persistence
   const clearAllNotifications = async (): Promise<boolean> => {
+    const user = userRef.current;
     if (!user) return false;
 
     try {
       const nowTs = Date.now();
       setLastClearTimestamp(user.id, nowTs);
 
-      const currentIds = notifications.map(n => n.id);
+      const currentIds = notificationsRef.current.map(n => n.id);
       if (currentIds.length > 0) {
         addPersistedDeletedIds(user.id, currentIds);
       }
@@ -554,6 +585,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Professor clears all notifications for all students in a specific room/class
   const clearRoomStudentsNotifications = async (roomId: string): Promise<boolean> => {
+    const user = userRef.current;
     try {
       // 1. Get all students in this room
       const { data: roomStudents } = await supabase
@@ -592,7 +624,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const studentIds = Array.from(studentIdsSet);
 
       if (studentIds.length === 0) {
-        toast.info("Aucun élève trouvé dans cette classe.");
+        toast.info(trn("Aucun élève trouvé dans cette classe.", "لم يتم العثور على أي تلميذ في هذا القسم.", "No students found in this class."));
         return true;
       }
 
@@ -659,11 +691,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       });
 
-      toast.success("Toutes les notifications des élèves de cette classe ont été supprimées avec succès !");
+      toast.success(trn(
+        "Toutes les notifications des élèves de cette classe ont été supprimées avec succès !",
+        "تم حذف جميع إشعارات تلاميذ هذا القسم بنجاح!",
+        "All notifications for the students of this class were deleted."
+      ));
       return true;
     } catch (error) {
       console.error('Exception clearing room students notifications:', error);
-      toast.error("Erreur lors de la suppression des notifications");
+      toast.error(trn("Erreur lors de la suppression des notifications", "خطأ أثناء حذف الإشعارات", "Error while deleting notifications"));
       return false;
     }
   };
@@ -818,21 +854,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  const value = useMemo<NotificationContextType>(() => ({
+    notifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+    clearRoomStudentsNotifications,
+    createNotification,
+    notifyRoomStudents,
+    checkExamReminders,
+    refreshNotifications: fetchNotifications
+    // (les fonctions lisent l'utilisateur / la liste via des refs)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [notifications, unreadCount, loading, fetchNotifications, checkExamReminders]);
+
   return (
-    <NotificationContext.Provider value={{
-      notifications,
-      unreadCount,
-      loading,
-      markAsRead,
-      markAllAsRead,
-      deleteNotification,
-      clearAllNotifications,
-      clearRoomStudentsNotifications,
-      createNotification,
-      notifyRoomStudents,
-      checkExamReminders,
-      refreshNotifications: fetchNotifications
-    }}>
+    <NotificationContext.Provider value={value}>
       {children}
     </NotificationContext.Provider>
   );
@@ -844,4 +884,4 @@ export function useNotifications() {
     throw new Error("useNotifications must be used within a NotificationProvider");
   }
   return context;
-}
+}

@@ -59,7 +59,7 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
                   {language === "ar" ? "أسئلة متسلسلة إجبارياً" : language === "fr" ? "Questions séquentielles" : "Sequential Questions"}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "يجب على التلاميذ الإجابة عن الأسئلة بالترتيب" : language === "fr" ? "Les élèves doivent répondre aux questions dans l'ordre" : "Students must answer questions in order"}
+                  {language === "ar" ? "يجب على التلاميذ الإجابة عن الأسئلة بالترتيب، مع مدة لكل سؤال" : language === "fr" ? "Les élèves répondent dans l'ordre, avec une durée par question (séquentiel minuté)" : "Students answer in order, with a time limit per question (sequential timed)"}
                 </p>
               </div>
               <Switch
@@ -179,7 +179,7 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
 
             {settings.antiCheat && (
               <div className="pt-2 border-t border-muted/30 space-y-2">
-                <Label className="text-sm font-medium">
+                <Label id="auto-submit-label" className="text-sm font-medium">
                   {language === "ar"
                     ? "الإرسال التلقائي بعد مغادرة الصفحة"
                     : language === "fr"
@@ -193,11 +193,13 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
                     ? "Le quiz est envoyé d'office quand l'élève quitte la page (pour chercher la réponse, par ex.) ce nombre de fois"
                     : "The quiz is submitted automatically when the student leaves the page this many times"}
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="auto-submit-label">
                   {[1, 2, 3, 5, 0].map((n) => (
                     <button
                       key={n}
                       type="button"
+                      role="radio"
+                      aria-checked={(settings.maxFocusLosses ?? 3) === n}
                       onClick={() => updateSetting('maxFocusLosses', n)}
                       className={`h-9 min-w-[3rem] px-3 rounded-lg border text-sm font-semibold transition-colors ${
                         (settings.maxFocusLosses ?? 3) === n

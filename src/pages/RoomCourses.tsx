@@ -24,8 +24,7 @@ import {
   Edit, 
   Trash, 
   Plus,
-  Grid3x3,
-  List,
+  Loader2,
   FileText
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +35,7 @@ import { CourseCover, CourseViewerDialog } from "@/components/CourseMediaGallery
 import { saveCourseMaterials, deleteCourseMaterial } from "@/lib/courseMedia";
 import type { VideoLinkDraft } from "@/components/MultiPdfUpload";
 import { useLanguage } from "@/contexts/LanguageContext";
+import ViewToggle from "@/components/ViewToggle";
 
 interface CourseMaterial {
   id: string;
@@ -77,6 +77,9 @@ const RoomCourses = () => {
   const [courseMaterials, setCourseMaterials] = useState<Record<string, CourseMaterial[]>>({});
   const [existingFiles, setExistingFiles] = useState<CourseMaterial[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [deletingCourse, setDeletingCourse] = useState(false);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const dateLocale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
   
   const isProfessor = user?.role === "professor";
   
@@ -85,7 +88,9 @@ const RoomCourses = () => {
     if (user && roomId) {
       refreshData(roomId);
     }
-  }, [user, roomId, refreshData]);
+    // Dépendances stables : uniquement l'utilisateur et la classe (le contexte déduplique)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, roomId]);
 
   // Redirect if no roomId
   if (!roomId) {
@@ -159,7 +164,7 @@ const RoomCourses = () => {
   const handleAddCourse = async () => {
     if (submitLockRef.current) return;
     if (!title.trim()) {
-      toast.error("Course title is required");
+      toast.error(tr("Le titre du cours est obligatoire", "عنوان الدرس مطلوب", "Course title is required"));
       return;
     }
 
@@ -224,7 +229,7 @@ const RoomCourses = () => {
     if (!currentCourse || submitLockRef.current) return;
     
     if (!title.trim()) {
-      toast.error("Course title is required");
+      toast.error(tr("Le titre du cours est obligatoire", "عنوان الدرس مطلوب", "Course title is required"));
       return;
     }
 
@@ -257,12 +262,17 @@ const RoomCourses = () => {
   };
 
   const confirmDeleteCourse = async () => {
-    if (!courseToDelete) return;
-    const success = await deleteCourse(courseToDelete.id);
-    if (success) {
-      refreshData(roomId);
+    if (!courseToDelete || deletingCourse) return;
+    setDeletingCourse(true);
+    try {
+      const success = await deleteCourse(courseToDelete.id);
+      if (success) {
+        setCourseToDelete(null);
+        refreshData(roomId);
+      }
+    } finally {
+      setDeletingCourse(false);
     }
-    setCourseToDelete(null);
   };
   
   // Open edit dialog
@@ -299,7 +309,7 @@ const RoomCourses = () => {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
-              Class not found.
+              {tr("Classe introuvable.", "القسم غير موجود.", "Class not found.")}
             </p>
           </CardContent>
         </Card>
@@ -319,30 +329,13 @@ const RoomCourses = () => {
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('grid')}
-              className="h-8 w-8 p-0"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className="h-8 w-8 p-0"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
+          <ViewToggle view={viewMode === 'grid' ? 'grid' : 'table'} onViewChange={(v) => setViewMode(v === 'grid' ? 'grid' : 'list')} />
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="shadow-elegant text-xs sm:text-sm">
-                  <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
+                  <Plus className="h-4 w-4" />
                   {t("Add Course")}
                 </Button>
               </DialogTrigger>
@@ -384,7 +377,7 @@ const RoomCourses = () => {
                       maxSizeMB={50}
                     />
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-2">
                     <Switch
                       id="visible"
                       checked={isVisible}
@@ -434,7 +427,7 @@ const RoomCourses = () => {
                       )}
                     </div>
                     <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">
-                      {course.is_visible ? "Visible" : "Hidden"}
+                      {course.is_visible ? tr("Visible", "مرئي", "Visible") : tr("Masqué", "مخفي", "Hidden")}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -442,7 +435,7 @@ const RoomCourses = () => {
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <FileText className="h-4 w-4" />
-                    <span>{language === "ar" ? "أُنشئ في " : language === "fr" ? "Créé le " : "Created "}{new Date(course.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US")}</span>
+                    <span>{language === "ar" ? "أُنشئ في " : language === "fr" ? "Créé le " : "Created "}{new Date(course.created_at).toLocaleDateString(dateLocale)}</span>
                   </div>
                   
                   {courseMaterials[course.id] && courseMaterials[course.id].length > 0 && (
@@ -467,28 +460,33 @@ const RoomCourses = () => {
                     >
                       {course.is_visible ? (
                         <>
-                          <EyeOff className="h-4 w-4 mr-1" />
-                          Hide
+                          <EyeOff className="h-4 w-4" />
+                          {tr("Masquer", "إخفاء", "Hide")}
                         </>
                       ) : (
                         <>
-                          <Eye className="h-4 w-4 mr-1" />
-                          Show
+                          <Eye className="h-4 w-4" />
+                          {tr("Afficher", "إظهار", "Show")}
                         </>
                       )}
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
+                      className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10"
                       onClick={() => openEditDialog(course)}
+                      aria-label={tr(`Modifier le cours ${course.title}`, `تعديل الدرس ${course.title}`, `Edit course ${course.title}`)}
+                      title={tr("Modifier", "تعديل", "Edit")}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       onClick={() => handleDeleteCourse(course)}
-                      className="text-destructive hover:text-destructive"
+                      className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 text-destructive hover:text-destructive"
+                      aria-label={tr(`Supprimer le cours ${course.title}`, `حذف الدرس ${course.title}`, `Delete course ${course.title}`)}
+                      title={tr("Supprimer", "حذف", "Delete")}
                     >
                       <Trash className="h-4 w-4" />
                     </Button>
@@ -515,11 +513,11 @@ const RoomCourses = () => {
                               {course.title}
                             </button>
                             <p className="text-sm text-muted-foreground mt-1">
-                              {language === "ar" ? "أُنشئ في " : language === "fr" ? "Créé le " : "Created "}{new Date(course.created_at).toLocaleDateString(language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-US")}
+                              {language === "ar" ? "أُنشئ في " : language === "fr" ? "Créé le " : "Created "}{new Date(course.created_at).toLocaleDateString(dateLocale)}
                             </p>
                           </div>
                           <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">
-                            {course.is_visible ? "Visible" : "Hidden"}
+                            {course.is_visible ? tr("Visible", "مرئي", "Visible") : tr("Masqué", "مخفي", "Hidden")}
                           </Badge>
                         </div>
                         
@@ -542,22 +540,24 @@ const RoomCourses = () => {
                   </div>
                   
                   {isProfessor && (
-                    <div className="flex md:flex-col gap-2 p-4 border-t md:border-t-0 md:border-l bg-muted/30 md:w-32 justify-center">
+                    <div className="flex md:flex-col gap-2 p-4 border-t md:border-t-0 md:border-l rtl:md:border-l-0 rtl:md:border-r bg-muted/30 md:w-32 justify-center">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => toggleCourseVisibility(course.id)}
                         className="flex-1 md:flex-none"
+                        aria-label={course.is_visible ? tr(`Masquer le cours ${course.title}`, `إخفاء الدرس ${course.title}`, `Hide course ${course.title}`) : tr(`Afficher le cours ${course.title}`, `إظهار الدرس ${course.title}`, `Show course ${course.title}`)}
+                        title={course.is_visible ? tr("Masquer", "إخفاء", "Hide") : tr("Afficher", "إظهار", "Show")}
                       >
                         {course.is_visible ? (
                           <>
-                            <EyeOff className="h-4 w-4 md:mr-0 mr-1" />
-                            <span className="md:hidden">Hide</span>
+                            <EyeOff className="h-4 w-4" />
+                            <span className="md:hidden">{tr("Masquer", "إخفاء", "Hide")}</span>
                           </>
                         ) : (
                           <>
-                            <Eye className="h-4 w-4 md:mr-0 mr-1" />
-                            <span className="md:hidden">Show</span>
+                            <Eye className="h-4 w-4" />
+                            <span className="md:hidden">{tr("Afficher", "إظهار", "Show")}</span>
                           </>
                         )}
                       </Button>
@@ -566,6 +566,8 @@ const RoomCourses = () => {
                         size="sm"
                         onClick={() => openEditDialog(course)}
                         className="flex-1 md:flex-none"
+                        aria-label={tr(`Modifier le cours ${course.title}`, `تعديل الدرس ${course.title}`, `Edit course ${course.title}`)}
+                        title={tr("Modifier", "تعديل", "Edit")}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -574,6 +576,8 @@ const RoomCourses = () => {
                         size="sm"
                         onClick={() => handleDeleteCourse(course)}
                         className="flex-1 md:flex-none text-destructive hover:text-destructive"
+                        aria-label={tr(`Supprimer le cours ${course.title}`, `حذف الدرس ${course.title}`, `Delete course ${course.title}`)}
+                        title={tr("Supprimer", "حذف", "Delete")}
                       >
                         <Trash className="h-4 w-4" />
                       </Button>
@@ -606,7 +610,7 @@ const RoomCourses = () => {
             </p>
             {isProfessor && (
               <Button onClick={() => setIsAddDialogOpen(true)} className="shadow-elegant">
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4" />
                 {language === "ar" ? "إضافة أول درس" : language === "fr" ? "Ajouter votre premier cours" : "Add Your First Course"}
               </Button>
             )}
@@ -656,7 +660,7 @@ const RoomCourses = () => {
                 maxSizeMB={50}
               />
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <Switch
                 id="edit-visible"
                 checked={isVisible}
@@ -679,7 +683,7 @@ const RoomCourses = () => {
       </Dialog>
 
       {/* Delete Course Confirmation Dialog */}
-      <Dialog open={!!courseToDelete} onOpenChange={(open) => { if (!open) setCourseToDelete(null); }}>
+      <Dialog open={!!courseToDelete} onOpenChange={(open) => { if (!open && !deletingCourse) setCourseToDelete(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -694,11 +698,12 @@ const RoomCourses = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCourseToDelete(null)}>
+            <Button variant="outline" onClick={() => setCourseToDelete(null)} disabled={deletingCourse}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteCourse}>
-              {language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}
+            <Button variant="destructive" onClick={confirmDeleteCourse} disabled={deletingCourse}>
+              {deletingCourse && <Loader2 className="h-4 w-4 animate-spin" />}
+              {deletingCourse ? tr("Suppression…", "جارٍ الحذف…", "Deleting…") : tr("Supprimer le cours", "حذف الدرس", "Delete Course")}
             </Button>
           </DialogFooter>
         </DialogContent>

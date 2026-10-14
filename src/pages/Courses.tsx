@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
 import { useCourses, Course } from "@/contexts/CourseContext";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
@@ -74,8 +74,13 @@ const Courses = () => {
     enrollStudent,
     unenrollStudent,
     getVisibleCoursesForStudent,
-    getEnrolledStudents
+    getVisibleExercisesForStudent,
+    getVisibleExamsForStudent,
+    getEnrolledStudents,
+    refreshData,
+    loading: dataLoading
   } = useCourses();
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -85,6 +90,10 @@ const Courses = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
+  const [enrolledLoading, setEnrolledLoading] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [isEnrollingAll, setIsEnrollingAll] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedPdfFiles, setSelectedPdfFiles] = useState<File[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<{[courseId: string]: any[]}>({});
   const [videoLinks, setVideoLinks] = useState<VideoLinkDraft[]>([]);
@@ -103,15 +112,15 @@ const Courses = () => {
   
   const [students, setStudents] = useState<UserProfile[]>([]);
   
-  // Load students
-  useEffect(() => {
-    const loadStudents = async () => {
-      const studentList = await getStudents();
-      setStudents(studentList);
-    };
-    loadStudents();
-  }, [getStudents]);
   const isProfessor = user?.role === "professor";
+  // Liste des élèves : utile seulement à l'enseignant (dialogue d'inscription)
+  useEffect(() => {
+    if (!user?.id || user.role !== "professor") return;
+    let cancelled = false;
+    getStudents().then(list => { if (!cancelled) setStudents(list); }).catch(() => undefined);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]);
   
   // Parse room ID from URL query parameters
   useEffect(() => {
@@ -302,10 +311,19 @@ const Courses = () => {
 
   // Delete course
   const handleDeleteCourse = async () => {
-    if (currentCourse) {
-      await deleteCourse(currentCourse.id);
-      setIsDeleteDialogOpen(false);
-      resetForm();
+    if (!currentCourse || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const ok = await deleteCourse(currentCourse.id);
+      if (ok !== false) {
+        setIsDeleteDialogOpen(false);
+        resetForm();
+      }
+    } catch (err) {
+      console.error("Error deleting course:", err);
+      toast.error(tr("Échec de la suppression", "فشل الحذف", "Delete failed"));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -328,11 +346,52 @@ const Courses = () => {
   };
 
   // Open enrollment dialog
+  // Le dialogue s'ouvre tout de suite (squelette) puis la liste se charge
   const openEnrollDialog = async (course: Course) => {
     setCurrentCourse(course);
-    const students = await getEnrolledStudents(course.id);
-    setEnrolledStudents(students);
+    setEnrolledStudents([]);
+    setStudentSearch("");
+    setEnrolledLoading(true);
     setIsEnrollDialogOpen(true);
+    try {
+      const list = await getEnrolledStudents(course.id);
+      setEnrolledStudents(list);
+    } finally {
+      setEnrolledLoading(false);
+    }
+  };
+
+  // Élèves de la classe du cours pas encore inscrits
+  const notEnrolledRoomStudents = currentCourse?.room_id
+    ? students.filter(st => st.room_id === currentCourse.room_id && !enrolledStudents.some(e => e.id === st.id))
+    : [];
+
+  const handleEnrollWholeClass = async () => {
+    if (!currentCourse || isEnrollingAll || notEnrolledRoomStudents.length === 0) return;
+    setIsEnrollingAll(true);
+    try {
+      const rows = notEnrolledRoomStudents.map(st => ({ course_id: currentCourse.id, student_id: st.id }));
+      const { error } = await supabase.from("enrollments").insert(rows);
+      if (error) {
+        // Repli : inscription une par une (ignore les doublons)
+        for (const st of notEnrolledRoomStudents) {
+          await enrollStudent(currentCourse.id, st.id);
+        }
+      } else {
+        toast.success(tr(
+          `${rows.length} élève(s) inscrit(s)`,
+          `تم تسجيل ${rows.length} تلميذ`,
+          `${rows.length} student(s) enrolled`
+        ));
+        await refreshData(undefined, { force: true });
+      }
+      setEnrolledStudents(await getEnrolledStudents(currentCourse.id));
+    } catch (err) {
+      console.error("Error enrolling class:", err);
+      toast.error(tr("Échec de l'inscription", "فشل التسجيل", "Enrollment failed"));
+    } finally {
+      setIsEnrollingAll(false);
+    }
   };
 
   // Handle enrollment
@@ -364,10 +423,16 @@ const Courses = () => {
   };
 
 
+  // Élève : seuls les exercices / évaluations qu'il peut voir sont comptés
+  const statsSource = useMemo(() => {
+    if (isProfessor || !user?.id) return { exercises, exams };
+    return { exercises: getVisibleExercisesForStudent(user.id), exams: getVisibleExamsForStudent(user.id) };
+  }, [isProfessor, user?.id, exercises, exams, getVisibleExercisesForStudent, getVisibleExamsForStudent]);
+
   // Get course statistics
   const getCourseStats = (courseId: string) => {
-    const courseExercises = exercises.filter(e => e.course_id === courseId);
-    const courseExams = exams.filter(e => e.course_id === courseId);
+    const courseExercises = statsSource.exercises.filter(e => e.course_id === courseId);
+    const courseExams = statsSource.exams.filter(e => e.course_id === courseId);
     
     return {
       exerciseCount: courseExercises.length,
@@ -382,9 +447,9 @@ const Courses = () => {
 
   // Get room name from ID
   const getRoomName = (roomId?: string) => {
-    if (!roomId) return "No Room";
+    if (!roomId) return tr("Sans classe", "بدون قسم", "No class");
     const room = rooms.find(r => r.id === roomId);
-    return room ? room.name : "Unknown Room";
+    return room ? room.name : tr("Classe inconnue", "قسم غير معروف", "Unknown class");
   };
 
   // Navigate to filtered exercises/exams for a course
@@ -403,7 +468,8 @@ const Courses = () => {
 
   const handleDownloadPdf = (pdfUrl: string, courseName: string) => {
     try {
-      const filename = `${courseName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_materials.pdf`;
+      // Seuls les caractères interdits dans un nom de fichier sont retirés (l'arabe est conservé)
+      const filename = `${courseName.replace(/[\\/:*?"<>|]/g, '_').trim() || 'cours'}_supports.pdf`;
       let downloadUrl = pdfUrl;
       if (downloadUrl.includes('supabase.co/storage/v1/object/public') && !downloadUrl.includes('download=')) {
         downloadUrl += `${downloadUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`;
@@ -416,7 +482,7 @@ const Courses = () => {
       link.click();
       document.body.removeChild(link);
     } catch (error) {
-      toast.error("Failed to download PDF");
+      toast.error(tr("Échec du téléchargement", "فشل التحميل", "Download failed"));
     }
   };
 
@@ -606,7 +672,19 @@ const Courses = () => {
         </div>
       )}
 
-      {displayedCourses.length > 0 ? (
+      {dataLoading && userCourses.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" aria-busy="true" aria-label={tr("Chargement…", "جارٍ التحميل…", "Loading…")}>
+          {[0, 1, 2].map(i => (
+            <div key={i} className="rounded-lg border overflow-hidden">
+              <div className="h-32 bg-muted motion-safe:animate-pulse" />
+              <div className="p-4 space-y-2">
+                <div className="h-4 w-2/3 rounded bg-muted motion-safe:animate-pulse" />
+                <div className="h-3 w-full rounded bg-muted motion-safe:animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : displayedCourses.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedCourses.map((course) => {
@@ -635,37 +713,49 @@ const Courses = () => {
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 pb-3 sm:pb-3 flex-1">
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center text-xs sm:text-sm">
-                        <div className="flex items-center text-muted-foreground">
-                          <Users className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{enrollmentCount} {language === "ar" ? "تلاميذ" : language === "fr" ? (enrollmentCount > 1 ? "élèves" : "élève") : (enrollmentCount === 1 ? "student" : "students")}</span>
+                      {isProfessor && (
+                        <div className="flex justify-between items-center text-xs sm:text-sm">
+                          <div className="flex items-center text-muted-foreground">
+                            <Users className="h-4 w-4 mr-1 rtl:mr-0 rtl:ml-1 shrink-0" />
+                            <span>{enrollmentCount} {language === "ar" ? "تلاميذ" : language === "fr" ? (enrollmentCount > 1 ? "élèves" : "élève") : (enrollmentCount === 1 ? "student" : "students")}</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                       
                       {course.room_id && (
                         <div className="flex items-center text-xs sm:text-sm text-muted-foreground">
-                          <Building className="h-4 w-4 mr-1 shrink-0" />
+                          <Building className="h-4 w-4 mr-1 rtl:mr-0 rtl:ml-1 shrink-0" />
                           <span className="truncate">{language === "ar" ? "القسم: " : language === "fr" ? "Classe : " : "Room: "}{getRoomName(course.room_id)}</span>
                         </div>
                       )}
                       
                       <div className="flex flex-wrap gap-2 mt-3">
+                        {!isProfessor && (
+                          <Button
+                            size="sm"
+                            className="h-9 text-xs px-3 gap-1.5 font-semibold"
+                            onClick={() => setViewerCourse(course)}
+                          >
+                            <BookOpen className="h-4 w-4" />
+                            {tr("Ouvrir le cours", "فتح الدرس", "Open course")}
+                          </Button>
+                        )}
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-7 text-xs px-2.5"
+                          className="h-9 text-xs px-2.5"
                           onClick={() => navigateToExercises(course.id)}
                         >
-                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          <FileText className="h-3.5 w-3.5 mr-1 rtl:mr-0 rtl:ml-1" />
                           {stats.exerciseCount} {language === "ar" ? "تمارين" : language === "fr" ? (stats.exerciseCount > 1 ? "Exercices" : "Exercice") : (stats.exerciseCount === 1 ? "Exercise" : "Exercises")}
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-7 text-xs px-2.5"
+                          className="h-9 text-xs px-2.5"
                           onClick={() => navigateToExams(course.id)}
                         >
-                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          <Calendar className="h-3.5 w-3.5 mr-1 rtl:mr-0 rtl:ml-1" />
                           {stats.examCount} {language === "ar" ? "امتحانات" : language === "fr" ? (stats.examCount > 1 ? "Examens" : "Examen") : (stats.examCount === 1 ? "Exam" : "Exams")}
                         </Button>
                         {(course.pdf_url || (courseMaterials[course.id] && courseMaterials[course.id].length > 0)) && (
@@ -680,7 +770,7 @@ const Courses = () => {
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              className="h-7 text-xs px-2.5"
+                              className="h-9 text-xs px-2.5"
                               onClick={() => handleViewPdf(course.pdf_url!)}
                             >
                               <File className="h-3.5 w-3.5 mr-1" />
@@ -697,9 +787,12 @@ const Courses = () => {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-9 w-9"
                           onClick={() => handleToggleVisibility(course.id)}
                           title={course.is_visible 
+                            ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer pour les élèves" : "Hide from students") 
+                            : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
+                          aria-label={course.is_visible 
                             ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer pour les élèves" : "Hide from students") 
                             : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
                         >
@@ -713,27 +806,30 @@ const Courses = () => {
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-9 w-9"
                             onClick={() => openEnrollDialog(course)}
                             title={language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gérer les élèves" : "Manage students"}
+                            aria-label={language === "ar" ? "إدارة التلاميذ" : language === "fr" ? "Gérer les élèves" : "Manage students"}
                           >
                             <Users className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-9 w-9"
                             onClick={() => openEditDialog(course)}
                             title={language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit course"}
+                            aria-label={language === "ar" ? "تعديل الدرس" : language === "fr" ? "Modifier le cours" : "Edit course"}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            className="h-9 w-9 text-destructive hover:text-destructive"
                             onClick={() => openDeleteDialog(course)}
                             title={language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete course"}
+                            aria-label={language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete course"}
                           >
                             <Trash className="h-4 w-4" />
                           </Button>
@@ -756,7 +852,7 @@ const Courses = () => {
                   {isProfessor && <th className="p-3.5 text-start font-semibold">{language === "ar" ? "التلاميذ" : language === "fr" ? "Élèves" : "Students"}</th>}
                   <th className="p-3.5 text-start font-semibold">{language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}</th>
                   <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</th>
-                  <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الرؤية" : language === "fr" ? "Statut" : "Status"}</th>
+                  {isProfessor && <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الرؤية" : language === "fr" ? "Statut" : "Status"}</th>}
                   {isProfessor && <th className="p-3.5 text-start font-semibold">{language === "ar" ? "الإجراءات" : language === "fr" ? "Actions" : "Actions"}</th>}
                 </tr>
               </thead>
@@ -770,7 +866,7 @@ const Courses = () => {
                     <tr key={course.id}>
                       <td className="p-3.5 max-w-[220px]">
                         <div>
-                          <button type="button" onClick={() => setViewerCourse(course)} className="text-start font-semibold text-sm line-clamp-1 hover:text-primary hover:underline">{course.title}</button>
+                          <button type="button" onClick={() => setViewerCourse(course)} className="min-h-[40px] py-2 text-start font-semibold text-sm line-clamp-1 hover:text-primary hover:underline">{course.title}</button>
                           {course.description && (
                             <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{course.description}</p>
                           )}
@@ -806,9 +902,10 @@ const Courses = () => {
                           variant="outline" 
                           size="sm"
                           onClick={() => navigateToExercises(course.id)}
-                          className="h-7 text-xs px-2"
+                          className="h-9 text-xs px-2.5"
+                          aria-label={`${tr("Exercices", "التمارين", "Exercises")} : ${stats.exerciseCount}`}
                         >
-                          <FileText className="h-3.5 w-3.5 mr-1 text-indigo-500" />
+                          <FileText className="h-3.5 w-3.5 mr-1 rtl:mr-0 rtl:ml-1 text-indigo-500" />
                           {stats.exerciseCount}
                         </Button>
                       </td>
@@ -817,31 +914,35 @@ const Courses = () => {
                           variant="outline" 
                           size="sm"
                           onClick={() => navigateToExams(course.id)}
-                          className="h-7 text-xs px-2"
+                          className="h-9 text-xs px-2.5"
+                          aria-label={`${tr("Examens", "الامتحانات", "Exams")} : ${stats.examCount}`}
                         >
-                          <Calendar className="h-3.5 w-3.5 mr-1 text-emerald-500" />
+                          <Calendar className="h-3.5 w-3.5 mr-1 rtl:mr-0 rtl:ml-1 text-emerald-500" />
                           {stats.examCount}
                         </Button>
                       </td>
-                      <td className="p-3.5">
-                        <Badge 
-                          variant={course.is_visible ? "default" : "secondary"} 
-                          className="text-[10px] px-2 py-0.5 font-medium"
-                        >
-                          {course.is_visible 
-                            ? (language === "ar" ? "مرئي" : "Visible") 
-                            : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
-                        </Badge>
-                      </td>
+                      {isProfessor && (
+                        <td className="p-3.5">
+                          <Badge 
+                            variant={course.is_visible ? "default" : "secondary"} 
+                            className="text-[11px] px-2 py-0.5 font-medium"
+                          >
+                            {course.is_visible 
+                              ? (language === "ar" ? "مرئي" : "Visible") 
+                              : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
+                          </Badge>
+                        </td>
+                      )}
                       {isProfessor && (
                         <td className="p-3.5">
                           <div className="flex items-center gap-1">
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9"
                               onClick={() => handleToggleVisibility(course.id)}
-                              title={course.is_visible ? "Masquer" : "Rendre visible"}
+                              title={course.is_visible ? tr("Masquer pour les élèves", "إخفاء عن التلاميذ", "Hide from students") : tr("Rendre visible aux élèves", "إظهار للتلاميذ", "Make visible to students")}
+                              aria-label={course.is_visible ? tr("Masquer pour les élèves", "إخفاء عن التلاميذ", "Hide from students") : tr("Rendre visible aux élèves", "إظهار للتلاميذ", "Make visible to students")}
                             >
                               {course.is_visible ? (
                                 <EyeOff className="h-3.5 w-3.5" />
@@ -852,27 +953,30 @@ const Courses = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9"
                               onClick={() => openEnrollDialog(course)}
-                              title={language === "ar" ? "تسجيل تلاميذ" : "Inscrire élèves"}
+                              title={tr("Inscrire des élèves", "تسجيل تلاميذ", "Enroll students")}
+                              aria-label={tr("Inscrire des élèves", "تسجيل تلاميذ", "Enroll students")}
                             >
                               <UserPlus className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9"
                               onClick={() => openEditDialog(course)}
-                              title={language === "ar" ? "تعديل" : "Modifier"}
+                              title={tr("Modifier", "تعديل", "Edit")}
+                              aria-label={tr("Modifier", "تعديل", "Edit")}
                             >
                               <Edit className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-destructive"
+                              className="h-9 w-9 text-destructive"
                               onClick={() => openDeleteDialog(course)}
-                              title={language === "ar" ? "حذف" : "Supprimer"}
+                              title={tr("Supprimer", "حذف", "Delete")}
+                              aria-label={tr("Supprimer", "حذف", "Delete")}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -1023,7 +1127,7 @@ const Courses = () => {
       </Dialog>
 
       {/* Delete Course Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(o) => { if (!isDeleting) setIsDeleteDialogOpen(o); }}>
         <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}</DialogTitle>
@@ -1036,10 +1140,11 @@ const Courses = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button variant="destructive" onClick={handleDeleteCourse}>
+            <Button variant="destructive" onClick={handleDeleteCourse} disabled={isDeleting} className="gap-2">
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
               {language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete Course"}
             </Button>
           </DialogFooter>
@@ -1060,17 +1165,38 @@ const Courses = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Toute la classe */}
+            {currentCourse?.room_id && (
+              <Button
+                variant="outline"
+                className="w-full h-10 gap-2"
+                onClick={handleEnrollWholeClass}
+                disabled={enrolledLoading || isEnrollingAll || notEnrolledRoomStudents.length === 0}
+              >
+                {isEnrollingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                {tr("Inscrire toute la classe", "تسجيل القسم بأكمله", "Enroll the whole class")}
+                {notEnrolledRoomStudents.length > 0 && <span className="text-muted-foreground">({notEnrolledRoomStudents.length})</span>}
+              </Button>
+            )}
             {/* Add student */}
             <div className="space-y-2">
-              <Label>{language === "ar" ? "إضافة تلميذ" : language === "fr" ? "Ajouter un élève" : "Add student"}</Label>
-              <div className="flex space-x-2">
+              <Label htmlFor="enroll-student-search">{language === "ar" ? "إضافة تلميذ" : language === "fr" ? "Ajouter un élève" : "Add student"}</Label>
+              <Input
+                id="enroll-student-search"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder={tr("Rechercher un élève…", "ابحث عن تلميذ…", "Search a student…")}
+                className="h-10"
+              />
+              <div className="flex gap-2">
                 <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder={language === "ar" ? "اختر تلميذًا" : language === "fr" ? "Sélectionner un élève" : "Select a student"} />
                   </SelectTrigger>
                   <SelectContent>
                     {students.filter(student => 
-                      !enrolledStudents.some(enrolled => enrolled.id === student.id)
+                      !enrolledStudents.some(enrolled => enrolled.id === student.id) &&
+                      matchesText(studentSearch, student.name, student.username, student.email)
                     ).map(student => (
                       <SelectItem key={student.id} value={student.id}>
                         {student.name}
@@ -1082,6 +1208,9 @@ const Courses = () => {
                   onClick={handleEnrollStudent} 
                   disabled={!selectedStudentId}
                   size="icon"
+                  className="h-10 w-10 shrink-0"
+                  aria-label={tr("Inscrire l'élève", "تسجيل التلميذ", "Enroll student")}
+                  title={tr("Inscrire l'élève", "تسجيل التلميذ", "Enroll student")}
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -1092,7 +1221,11 @@ const Courses = () => {
             <div className="space-y-2">
               <Label>{language === "ar" ? "التلاميذ المسجلون" : language === "fr" ? "Élèves inscrits" : "Enrolled students"}</Label>
               <div className="border rounded-md overflow-hidden">
-                {enrolledStudents.length === 0 ? (
+                {enrolledLoading ? (
+                  <div className="p-3 space-y-2" aria-busy="true">
+                    {[0, 1, 2].map(i => <div key={i} className="h-5 rounded bg-muted motion-safe:animate-pulse" />)}
+                  </div>
+                ) : enrolledStudents.length === 0 ? (
                   <div className="p-3 text-center text-muted-foreground">
                     {language === "ar" ? "لم يتم تسجيل أي تلميذ بعد" : language === "fr" ? "Aucun élève inscrit pour le moment" : "No students enrolled yet"}
                   </div>
@@ -1104,7 +1237,10 @@ const Courses = () => {
                         <Button 
                           variant="ghost" 
                           size="icon"
+                          className="h-9 w-9"
                           onClick={() => currentCourse && handleUnenrollStudent(currentCourse.id, student.id)}
+                          aria-label={`${tr("Désinscrire", "إلغاء تسجيل", "Unenroll")} ${student.name}`}
+                          title={`${tr("Désinscrire", "إلغاء تسجيل", "Unenroll")} ${student.name}`}
                         >
                           <Trash className="h-4 w-4" />
                         </Button>

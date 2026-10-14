@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { AlertTriangle, BellOff, BookOpen, Calendar, Eraser, FileText, Loader2, ListChecks, Users } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +90,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
   const [confirming, setConfirming] = useState(false);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState("");
+  const [typedName, setTypedName] = useState("");
   const lockRef = useRef(false);
 
   // Reset + load counts when opened
@@ -97,6 +99,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
     setSelected({ notifications: false, students: false, courses: false, exercises: false, exams: false, quizzes: false });
     setConfirming(false);
     setStep("");
+    setTypedName("");
     let cancelled = false;
     (async () => {
       try {
@@ -128,6 +131,11 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
   const isChecked = (k: ClearKey) => selected[k] || (coursesChecked && (k === "exercises" || k === "exams" || k === "quizzes"));
   const anySelected = (Object.keys(selected) as ClearKey[]).some(k => selected[k]);
   const allSelected = (Object.keys(selected) as ClearKey[]).every(k => isChecked(k));
+
+  // Suppression des comptes élèves : il faut retaper le nom de la classe
+  const norm = (v: string) => v.trim().replace(/\s+/g, " ").toLowerCase();
+  const needsTypedName = selected.students;
+  const typedOk = !needsTypedName || (!!room && norm(typedName) === norm(room.name));
 
   const toggle = (k: ClearKey, v: boolean) => {
     setConfirming(false);
@@ -174,6 +182,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
   const run = async () => {
     if (!accessStore.guard("class.clear")) return;
     if (!room || lockRef.current) return;
+    if (!typedOk) return;
     lockRef.current = true;
     setRunning(true);
     const errors: string[] = [];
@@ -218,7 +227,8 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
           await deleteIn("enrollments", "course_id", courseIds).catch(e => console.warn(e));
           await deleteIn("notifications", "course_id", courseIds).catch(e => console.warn(e));
           await deleteIn("courses", "id", courseIds);
-          for (const id of courseIds) await removeCourseFolder(id);
+          // Nettoyage du stockage en parallèle (par lots de 5)
+          for (const part of chunk(courseIds, 5)) await Promise.all(part.map(id => removeCourseFolder(id)));
         } catch (e) { console.error(e); errors.push(tr("الدروس", "cours", "courses")); }
       }
 
@@ -311,6 +321,25 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
               {tr("هذا الإجراء نهائي ولا يمكن التراجع عنه", "Action définitive, impossible à annuler", "This cannot be undone")}
             </p>
             <p className="mt-1 text-muted-foreground">{selectedLabels.join(" · ")}</p>
+            {needsTypedName && room && (
+              <div className="mt-3 space-y-1.5">
+                <label htmlFor="clear-room-confirm-name" className="block text-xs font-medium text-foreground">
+                  {tr(
+                    `لتأكيد حذف حسابات التلاميذ، اكتب اسم القسم: « ${room.name} »`,
+                    `Pour confirmer la suppression des comptes élèves, saisissez le nom de la classe : « ${room.name} »`,
+                    `To confirm deleting student accounts, type the class name: "${room.name}"`
+                  )}
+                </label>
+                <Input
+                  id="clear-room-confirm-name"
+                  value={typedName}
+                  onChange={e => setTypedName(e.target.value)}
+                  autoComplete="off"
+                  disabled={running}
+                  aria-invalid={typedName.length > 0 && !typedOk}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -326,12 +355,12 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
           </Button>
           {!confirming ? (
             <Button variant="destructive" onClick={() => setConfirming(true)} disabled={!anySelected || running}>
-              <Eraser className="mr-2 h-4 w-4" />
+              <Eraser className="h-4 w-4" />
               {tr("إفراغ المحدد", "Vider la sélection", "Clear selection")}
             </Button>
           ) : (
-            <Button variant="destructive" onClick={run} disabled={running}>
-              {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-2 h-4 w-4" />}
+            <Button variant="destructive" onClick={run} disabled={running || !typedOk}>
+              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
               {tr("تأكيد الإفراغ", "Confirmer le vidage", "Confirm")}
             </Button>
           )}

@@ -1,6 +1,7 @@
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface SearchInputProps {
   value: string;
@@ -10,7 +11,10 @@ interface SearchInputProps {
 }
 
 /** Champ de recherche avec icône, bouton d'effacement et compteur de résultats */
-const SearchInput = ({ value, onChange, placeholder, className }: SearchInputProps) => (
+const SearchInput = ({ value, onChange, placeholder, className }: SearchInputProps) => {
+  const { language } = useLanguage();
+  const clearLabel = language === "ar" ? "مسح البحث" : language === "en" ? "Clear search" : "Effacer la recherche";
+  return (
   <div className={cn("relative w-full", className)}>
     <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 left-3 rtl:left-auto rtl:right-3 h-4 w-4 text-muted-foreground" />
     <Input
@@ -19,7 +23,7 @@ const SearchInput = ({ value, onChange, placeholder, className }: SearchInputPro
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       dir="auto"
-      className="h-10 pl-9 pr-9 rtl:pl-9 rtl:pr-9 [&::-webkit-search-cancel-button]:hidden"
+      className="h-10 pl-9 pr-11 rtl:pl-11 rtl:pr-9 [&::-webkit-search-cancel-button]:hidden"
       autoComplete="off"
       autoCorrect="off"
       spellCheck={false}
@@ -28,13 +32,15 @@ const SearchInput = ({ value, onChange, placeholder, className }: SearchInputPro
       <button
         type="button"
         onClick={() => onChange("")}
-        aria-label="Effacer"
-        className="absolute top-1/2 -translate-y-1/2 right-2 rtl:right-auto rtl:left-2 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label={clearLabel}
+        title={clearLabel}
+        className="absolute top-1/2 -translate-y-1/2 right-0.5 rtl:right-auto rtl:left-0.5 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
       >
         <X className="h-4 w-4" />
       </button>
     ) : null}
   </div>
-);
+  );
+};
 
 export default SearchInput;

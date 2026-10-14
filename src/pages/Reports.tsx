@@ -749,12 +749,23 @@ const Reports = () => {
                               <td className="text-center tabular-nums">{a.successRate === null ? "—" : `${Math.round(a.successRate)} %`}</td>
                               <td className="text-center tabular-nums">{a.quizzes.length ? `${Math.round(a.participationRate)} %` : "—"}</td>
                               <td className="text-center tabular-nums text-xs">{formatMinutes(a.avgStudyMinutes)}</td>
-                              <td style={{ minWidth: 140 }}>
+                              <td style={{ minWidth: 180 }}>
                                 {total ? (
-                                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted" title={levelKeys.map((k, i) => `${levelLabel(k)} : ${a.distribution[i]}`).join(" · ")}>
-                                    {levelKeys.map((k, i) => a.distribution[i] ? (
-                                      <div key={k} style={{ width: `${(a.distribution[i] / total) * 100}%`, background: LEVEL_COLORS[k], borderRight: "2px solid hsl(var(--card))" }} />
-                                    ) : null)}
+                                  <div>
+                                    <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                                      {levelKeys.map((k, i) => a.distribution[i] ? (
+                                        <div key={k} style={{ width: `${(a.distribution[i] / total) * 100}%`, background: LEVEL_COLORS[k], ...(language === "ar" ? { borderLeft: "2px solid hsl(var(--card))" } : { borderRight: "2px solid hsl(var(--card))" }) }} />
+                                      ) : null)}
+                                    </div>
+                                    {/* Valeurs visibles sans survol (tactile) */}
+                                    <ul className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] leading-tight text-muted-foreground">
+                                      {levelKeys.map((k, i) => a.distribution[i] ? (
+                                        <li key={k} className="inline-flex items-center gap-1 whitespace-nowrap">
+                                          <span className="inline-block h-2 w-2 rounded-full" style={{ background: LEVEL_COLORS[k] }} />
+                                          {levelLabel(k)} {a.distribution[i]} ({Math.round((a.distribution[i] / total) * 100)} %)
+                                        </li>
+                                      ) : null)}
+                                    </ul>
                                   </div>
                                 ) : <span className="text-xs text-muted-foreground">—</span>}
                               </td>

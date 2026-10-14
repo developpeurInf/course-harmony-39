@@ -1,5 +1,5 @@
-import { Suspense, useEffect } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Suspense, useEffect, useRef } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Users, Layers, CalendarClock, Wallet, ScrollText, ShieldCheck, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
@@ -7,6 +7,7 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useT } from "./adminShared";
+import { useConfirm } from "./ConfirmDialog";
 
 /** Espace d'administration : menu propre, réservé aux comptes de l'équipe admin */
 export default function AdminLayout() {
@@ -14,10 +15,27 @@ export default function AdminLayout() {
   const { isAdmin, adminCan, loading: accessLoading, enforced } = useAccess();
   const navigate = useNavigate();
   const { L, rtl } = useT();
+  const { pathname } = useLocation();
+  const mobileNav = useRef<HTMLElement>(null);
+  const { ask, dialog: confirmDialog } = useConfirm();
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [loading, user, navigate]);
+
+  // Téléphone : la pastille active reste visible dans la barre défilante
+  useEffect(() => {
+    const nav = mobileNav.current;
+    if (!nav) return;
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!active) return;
+    // calcul manuel (scrollIntoView({inline}) est imprécis sur iOS 12 et ferait aussi défiler la page)
+    const navRect = nav.getBoundingClientRect();
+    const r = active.getBoundingClientRect();
+    if (r.left < navRect.left || r.right > navRect.right) {
+      nav.scrollLeft += r.left - navRect.left - (navRect.width - r.width) / 2;
+    }
+  }, [pathname, isAdmin, rtl]);
 
   if (loading || accessLoading) {
     return (
@@ -61,10 +79,15 @@ export default function AdminLayout() {
     { to: "/admin/team", icon: ShieldCheck, label: L("Équipe admin", "فريق الإدارة", "Admin team"), show: true },
   ].filter(i => i.show);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  const handleLogout = () => ask({
+    title: L("Se déconnecter ?", "تسجيل الخروج؟", "Log out?"),
+    confirmLabel: L("Déconnexion", "تسجيل الخروج", "Log out"),
+    destructive: true,
+    onConfirm: async () => {
+      await logout();
+      navigate("/login");
+    },
+  });
 
   return (
     <div dir={rtl ? "rtl" : "ltr"} className="flex app-viewport overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -79,7 +102,7 @@ export default function AdminLayout() {
             </div>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav aria-label={L("Menu d'administration", "قائمة الإدارة", "Administration menu")} className="flex-1 space-y-1 overflow-y-auto p-3">
           {items.map(it => (
             <NavLink
               key={it.to}
@@ -103,7 +126,7 @@ export default function AdminLayout() {
             <ThemeToggle />
           </div>
           <p className="truncate px-1 text-xs text-muted-foreground">{user.email}</p>
-          <button type="button" onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40">
+          <button type="button" onClick={handleLogout} className="flex min-h-[40px] w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
             <LogOut className="h-4 w-4" />
             {L("Déconnexion", "تسجيل الخروج", "Log out")}
           </button>
@@ -121,12 +144,12 @@ export default function AdminLayout() {
             <div className="flex items-center gap-1">
               <LanguageSelector />
               <ThemeToggle />
-              <button type="button" onClick={handleLogout} aria-label="logout" className="rounded-lg p-2 text-red-600 hover:bg-red-50">
+              <button type="button" onClick={handleLogout} aria-label={L("Déconnexion", "تسجيل الخروج", "Log out")} title={L("Déconnexion", "تسجيل الخروج", "Log out")} className="flex h-10 w-10 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
           </div>
-          <nav className="flex gap-1 overflow-x-auto px-2 pb-2" style={{ WebkitOverflowScrolling: "touch" } as any}>
+          <nav ref={mobileNav} aria-label={L("Menu d'administration", "قائمة الإدارة", "Administration menu")} className="flex gap-1 overflow-x-auto px-2 pb-2" style={{ WebkitOverflowScrolling: "touch" } as any}>
             {items.map(it => (
               <NavLink
                 key={it.to}
@@ -134,7 +157,7 @@ export default function AdminLayout() {
                 end={it.end}
                 className={({ isActive }) =>
                   cn(
-                    "flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold",
+                    "flex min-h-[36px] flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold",
                     isActive ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-muted text-muted-foreground"
                   )
                 }
@@ -160,6 +183,7 @@ export default function AdminLayout() {
           </div>
         </main>
       </div>
+      {confirmDialog}
     </div>
   );
 }

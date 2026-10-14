@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Users, UserCheck, Hourglass, AlertTriangle, Ban, Wallet, GraduationCap, CalendarClock } from "lucide-react";
-import { db, fmtDate, fmtMoney, PageTitle, StatusBadge, useT } from "./adminShared";
+import { Users, UserCheck, Hourglass, AlertTriangle, Ban, Wallet, GraduationCap, CalendarClock, Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { daysLeftLabel, db, fmtDate, fmtMoney, PageTitle, StatusBadge, useT } from "./adminShared";
+import { useConfirm } from "./ConfirmDialog";
 
 interface Dash {
   teachers: number;
@@ -26,6 +28,8 @@ export default function AdminDashboard() {
   const [requests, setRequests] = useState<any[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
+  const [handling, setHandling] = useState<string | null>(null);
+  const { ask, dialog: confirmDialog } = useConfirm();
 
   useEffect(() => {
     (async () => {
@@ -52,12 +56,34 @@ export default function AdminDashboard() {
     })();
   }, []);
 
-  const markDone = async (id: string) => {
-    const { error } = await db.from("subscription_requests").update({ status: "done", handled_at: new Date().toISOString() }).eq("id", id);
-    if (!error) setRequests(r => r.filter(x => x.id !== id));
-  };
+  const markDone = (r: any) => ask({
+    title: L("Marquer la demande comme traitée ?", "تحديد الطلب كمعالَج؟", "Mark the request as handled?"),
+    description: L(
+      `La demande de ${names[r.teacher_id] || "—"} disparaîtra de la liste. Pensez à attribuer ou renouveler l'offre depuis sa fiche si besoin.`,
+      `سيختفي طلب ${names[r.teacher_id] || "—"} من القائمة. لا تنس منح العرض أو تجديده من بطاقته عند الحاجة.`,
+      `${names[r.teacher_id] || "—"}'s request will leave the list. Remember to assign or renew the plan from their page if needed.`
+    ),
+    confirmLabel: L("Traitée", "تمت المعالجة", "Handled"),
+    onConfirm: async () => {
+      setHandling(r.id);
+      const { error } = await db.from("subscription_requests").update({ status: "done", handled_at: new Date().toISOString() }).eq("id", r.id);
+      setHandling(null);
+      if (error) {
+        toast.error(L(`Impossible de mettre à jour la demande : ${error.message}`, `تعذر تحديث الطلب: ${error.message}`, `Could not update the request: ${error.message}`));
+        return false;
+      }
+      setRequests(list => list.filter(x => x.id !== r.id));
+      toast.success(L("Demande traitée", "تمت معالجة الطلب", "Request handled"));
+    },
+  });
 
-  if (error) return <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>;
+  if (error) {
+    return (
+      <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+        {L("Impossible de charger le tableau de bord : ", "تعذر تحميل لوحة القيادة: ", "Could not load the dashboard: ")}{error}
+      </p>
+    );
+  }
   if (!dash) return <div className="h-40 animate-pulse rounded-xl bg-muted" />;
 
   const cards = [
@@ -68,7 +94,7 @@ export default function AdminDashboard() {
     { icon: CalendarClock, label: L("Expirés / sans offre", "منتهية / بدون عرض", "Expired / none"), value: dash.expired, tone: "text-red-700 bg-red-100 dark:bg-red-900/40 dark:text-red-300" },
     { icon: Ban, label: L("Suspendus", "موقوفون", "Suspended"), value: dash.suspended, tone: "text-slate-700 bg-slate-200 dark:bg-slate-800 dark:text-slate-200" },
     { icon: GraduationCap, label: L("Élèves au total", "مجموع التلاميذ", "Total students"), value: dash.students, tone: "text-indigo-700 bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300" },
-    { icon: Wallet, label: L("Encaissé ce mois", "المحصل هذا الشهر", "Collected this month"), value: fmtMoney(dash.revenue_month), tone: "text-violet-700 bg-violet-100 dark:bg-violet-900/40 dark:text-violet-300" },
+    { icon: Wallet, label: L("Encaissé ce mois", "المحصل هذا الشهر", "Collected this month"), value: fmtMoney(dash.revenue_month, lang), tone: "text-violet-700 bg-violet-100 dark:bg-violet-900/40 dark:text-violet-300" },
   ];
 
   return (
@@ -76,9 +102,9 @@ export default function AdminDashboard() {
       <PageTitle
         title={L("Tableau de bord", "لوحة القيادة", "Dashboard")}
         subtitle={L(
-          `${dash.expiring_7} abonnement(s) expirent dans 7 jours, ${dash.expiring_30} dans 30 jours · ${fmtMoney(dash.revenue_year)} encaissés cette année`,
-          `${dash.expiring_7} اشتراك(ات) تنتهي خلال 7 أيام، ${dash.expiring_30} خلال 30 يوما · ${fmtMoney(dash.revenue_year)} هذه السنة`,
-          `${dash.expiring_7} subscription(s) end within 7 days, ${dash.expiring_30} within 30 days · ${fmtMoney(dash.revenue_year)} collected this year`
+          `${dash.expiring_7} abonnement(s) expirent dans 7 jours, ${dash.expiring_30} dans 30 jours · ${fmtMoney(dash.revenue_year, lang)} encaissés cette année`,
+          `${dash.expiring_7} اشتراك(ات) تنتهي خلال 7 أيام، ${dash.expiring_30} خلال 30 يوما · ${fmtMoney(dash.revenue_year, lang)} هذه السنة`,
+          `${dash.expiring_7} subscription(s) end within 7 days, ${dash.expiring_30} within 30 days · ${fmtMoney(dash.revenue_year, lang)} collected this year`
         )}
       />
 
@@ -95,8 +121,16 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">{fmtDate(r.created_at, lang)}{r.message ? ` · « ${r.message} »` : ""}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Link to={`/admin/teachers/${r.teacher_id}`} className="rounded-md border bg-background px-2.5 py-1 text-xs font-semibold">{L("Ouvrir la fiche", "فتح البطاقة", "Open")}</Link>
-                  <button type="button" onClick={() => markDone(r.id)} className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-900">{L("Traitée", "تمت المعالجة", "Done")}</button>
+                  <Link to={`/admin/teachers/${r.teacher_id}`} className="inline-flex h-9 items-center rounded-md border bg-background px-3 text-xs font-semibold hover:bg-muted">{L("Ouvrir la fiche", "فتح البطاقة", "Open")}</Link>
+                  <button
+                    type="button"
+                    onClick={() => markDone(r)}
+                    disabled={handling === r.id}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white disabled:opacity-60 dark:bg-white dark:text-slate-900"
+                  >
+                    {handling === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    {L("Traitée", "تمت المعالجة", "Done")}
+                  </button>
                 </div>
               </li>
             ))}
@@ -120,9 +154,9 @@ export default function AdminDashboard() {
 
       <div className="mt-5 grid items-start gap-4 lg:grid-cols-3">
         <section className="min-w-0 rounded-xl border bg-card lg:col-span-2">
-          <header className="flex items-center justify-between border-b px-4 py-3">
+          <header className="flex items-center justify-between border-b px-4 py-1.5">
             <h2 className="text-sm font-bold">{L("Prochaines expirations", "الاشتراكات القريبة من الانتهاء", "Upcoming expirations")}</h2>
-            <Link to="/admin/subscriptions" className="text-xs font-semibold text-primary">{L("Tout voir", "عرض الكل", "See all")}</Link>
+            <Link to="/admin/subscriptions" className="inline-flex min-h-[36px] items-center px-1 text-xs font-semibold text-primary">{L("Tout voir", "عرض الكل", "See all")}</Link>
           </header>
           {soon.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">{L("Aucune expiration prévue.", "لا يوجد اشتراك سينتهي قريبا.", "No upcoming expiration.")}</p>
@@ -137,7 +171,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex flex-shrink-0 items-center gap-2">
                       {t.days_left !== null && t.sub_status !== "grace" && (
-                        <span className="text-xs font-semibold text-muted-foreground">J-{t.days_left}</span>
+                        <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">{daysLeftLabel(t.days_left, L)}</span>
                       )}
                       <StatusBadge status={t.sub_status} />
                     </div>
@@ -172,9 +206,9 @@ export default function AdminDashboard() {
             </ul>
           </div>
           <div className="rounded-xl border bg-card">
-            <header className="flex items-center justify-between border-b px-4 py-3">
+            <header className="flex items-center justify-between border-b px-4 py-1.5">
               <h2 className="text-sm font-bold">{L("Derniers comptes créés", "آخر الحسابات المنشأة", "Latest accounts")}</h2>
-              <Link to="/admin/teachers" className="text-xs font-semibold text-primary">{L("Professeurs", "الأساتذة", "Teachers")}</Link>
+              <Link to="/admin/teachers" className="inline-flex min-h-[36px] items-center px-1 text-xs font-semibold text-primary">{L("Professeurs", "الأساتذة", "Teachers")}</Link>
             </header>
             <ul className="divide-y">
               {recent.map(t => (
@@ -189,6 +223,7 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
+      {confirmDialog}
     </div>
   );
 }

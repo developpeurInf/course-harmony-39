@@ -53,7 +53,7 @@ export function StatCard({ icon, label, value, hint, tone = "blue", progress, as
     >
       <div
         className={cn(
-          "pointer-events-none absolute -top-10 -end-10 h-32 w-32 rounded-full bg-gradient-to-br to-transparent opacity-80 blur-2xl transition-opacity duration-300 group-hover:opacity-100",
+          "pointer-events-none absolute -top-10 -right-10 rtl:right-auto rtl:-left-10 h-32 w-32 rounded-full bg-gradient-to-br to-transparent opacity-80 blur-2xl transition-opacity duration-300 group-hover:opacity-100",
           t.glow
         )}
       />

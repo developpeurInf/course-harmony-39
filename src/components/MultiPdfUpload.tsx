@@ -268,7 +268,7 @@ const MultiPdfUpload = ({
         </p>
         <Button type="button" variant="outline" size="sm" className="mt-3" disabled={totalCount >= maxFiles}
           onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}>
-          <Plus className="h-4 w-4 mr-1.5" />
+          <Plus className="h-4 w-4" />
           {tr('اختيار ملفات', 'Choisir des fichiers', 'Choose files')}
         </Button>
         <input
@@ -310,7 +310,7 @@ const MultiPdfUpload = ({
               className="flex-1"
             />
             <Button type="button" variant="secondary" onClick={addLink} disabled={!linkInput.trim()} className="shrink-0">
-              <Plus className="h-4 w-4 mr-1" />
+              <Plus className="h-4 w-4" />
               {tr('إضافة', 'Ajouter', 'Add')}
             </Button>
             </div>

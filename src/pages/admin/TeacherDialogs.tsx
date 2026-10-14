@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { adminInvoke, db, useT } from "./adminShared";
+import type { ConfirmOptions } from "./ConfirmDialog";
 
 /** Dialogues communs à la liste des professeurs et à la fiche professeur */
 
@@ -41,8 +42,8 @@ export function EditTeacherDialog({ open, onOpenChange, teacher, account: accoun
   };
   const field = (k: string, label: string, props: any = {}) => (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input value={f[k] || ""} onChange={e => setF({ ...f, [k]: e.target.value })} {...props} />
+      <Label htmlFor={`edit-teacher-${k}`}>{label}</Label>
+      <Input id={`edit-teacher-${k}`} value={f[k] || ""} onChange={e => setF({ ...f, [k]: e.target.value })} {...props} />
     </div>
   );
   return (
@@ -59,12 +60,15 @@ export function EditTeacherDialog({ open, onOpenChange, teacher, account: accoun
             {field("city", L("Ville", "المدينة", "City"))}
           </div>
           <div className="space-y-1.5">
-            <Label>{L("Notes internes", "ملاحظات داخلية", "Internal notes")}</Label>
-            <Textarea rows={3} value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
+            <Label htmlFor="edit-teacher-notes">{L("Notes internes", "ملاحظات داخلية", "Internal notes")}</Label>
+            <Textarea id="edit-teacher-notes" rows={3} value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
-            <Button type="submit" disabled={saving}>{L("Enregistrer", "حفظ", "Save")}</Button>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving ? L("Enregistrement…", "جار الحفظ…", "Saving…") : L("Enregistrer", "حفظ", "Save")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -73,24 +77,48 @@ export function EditTeacherDialog({ open, onOpenChange, teacher, account: accoun
 }
 
 
-/** Suspendre / réactiver (demande le motif à la suspension) */
-export async function toggleTeacherSuspension(
-  teacher: { user_id: string; account_status?: string },
+/** Suspendre / réactiver : options du ConfirmDialog (motif facultatif à la suspension, confirmation à la réactivation) */
+export function suspensionConfirm(
+  teacher: { user_id: string; name?: string; account_status?: string },
+  L: (fr: string, ar: string, en: string) => string,
+  onDone: () => void
+): ConfirmOptions {
+  const suspended = teacher.account_status === "suspended";
+  const name = teacher.name || "";
+  return {
+    title: suspended
+      ? L(`Réactiver ${name} ?`, `إعادة تفعيل ${name}؟`, `Reactivate ${name}?`)
+      : L(`Suspendre ${name} ?`, `توقيف ${name}؟`, `Suspend ${name}?`),
+    description: suspended
+      ? L("Le professeur pourra de nouveau se connecter.", "سيتمكن الأستاذ من الدخول من جديد.", "The teacher will be able to log in again.")
+      : L("Le professeur ne pourra plus se connecter tant que le compte est suspendu (réversible).", "لن يتمكن الأستاذ من الدخول ما دام الحساب موقوفا (قابل للتراجع).", "The teacher can no longer log in while suspended (reversible)."),
+    confirmLabel: suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend"),
+    destructive: !suspended,
+    input: suspended ? undefined : {
+      label: L("Motif de la suspension (facultatif)", "سبب التوقيف (اختياري)", "Reason (optional)"),
+      multiline: true,
+    },
+    onConfirm: async (reason: string) => {
+      const ok = await setTeacherSuspension(teacher, !suspended, reason, L);
+      if (ok) onDone();
+      return ok;
+    },
+  };
+}
+
+/** Appel serveur : suspend (true) ou réactive (false) */
+export async function setTeacherSuspension(
+  teacher: { user_id: string },
+  suspend: boolean,
+  reason: string,
   L: (fr: string, ar: string, en: string) => string
 ): Promise<boolean> {
-  const suspended = teacher.account_status === "suspended";
-  let reason = "";
-  if (!suspended) {
-    const r = prompt(L("Motif de la suspension (facultatif) :", "سبب التوقيف (اختياري):", "Reason (optional):"));
-    if (r === null) return false;
-    reason = r;
-  }
-  const { error } = await adminInvoke("set_status", { user_id: teacher.user_id, status: suspended ? "active" : "suspended", reason });
+  const { error } = await adminInvoke("set_status", { user_id: teacher.user_id, status: suspend ? "suspended" : "active", reason: suspend ? reason : "" });
   if (error) {
     toast.error(error);
     return false;
   }
-  toast.success(suspended ? L("Compte réactivé", "تم تفعيل الحساب", "Account reactivated") : L("Compte suspendu : il ne peut plus se connecter", "تم توقيف الحساب: لم يعد بإمكانه الدخول", "Account suspended: login blocked"));
+  toast.success(suspend ? L("Compte suspendu : il ne peut plus se connecter", "تم توقيف الحساب: لم يعد بإمكانه الدخول", "Account suspended: login blocked") : L("Compte réactivé", "تم تفعيل الحساب", "Account reactivated"));
   return true;
 }
 
@@ -112,7 +140,7 @@ export function DeleteTeacherDialog({ teacher, onClose, onDeleted }: { teacher: 
     onDeleted();
   };
   return (
-    <Dialog open={!!teacher} onOpenChange={v => !v && onClose()}>
+    <Dialog open={!!teacher} onOpenChange={v => !v && !busy && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -131,13 +159,14 @@ export function DeleteTeacherDialog({ teacher, onClose, onDeleted }: { teacher: 
           {L("Pour bloquer l'accès sans supprimer, utilisez plutôt « Suspendre » (réversible).", "لمنع الدخول دون حذف، استعمل « توقيف » (قابل للتراجع).", "To block access without deleting, use “Suspend” (reversible).")}
         </p>
         <div className="space-y-1.5">
-          <Label className="text-xs">{L("Tapez le nom du professeur pour confirmer :", "اكتب اسم الأستاذ للتأكيد:", "Type the teacher's name to confirm:")} <b>{teacher.name}</b></Label>
-          <Input value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" />
+          <Label htmlFor="delete-teacher-confirm" className="text-xs">{L("Tapez le nom du professeur pour confirmer :", "اكتب اسم الأستاذ للتأكيد:", "Type the teacher's name to confirm:")} <b>{teacher.name}</b></Label>
+          <Input id="delete-teacher-confirm" value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" disabled={busy} />
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onClose}>{L("Annuler", "إلغاء", "Cancel")}</Button>
+          <Button variant="outline" onClick={onClose} disabled={busy}>{L("Annuler", "إلغاء", "Cancel")}</Button>
           <Button className="bg-red-600 text-white hover:bg-red-700" disabled={!ok || busy} onClick={run}>
-            {busy ? "…" : L("Supprimer définitivement", "حذف نهائي", "Delete permanently")}
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busy ? L("Suppression…", "جار الحذف…", "Deleting…") : L("Supprimer définitivement", "حذف نهائي", "Delete permanently")}
           </Button>
         </DialogFooter>
       </DialogContent>

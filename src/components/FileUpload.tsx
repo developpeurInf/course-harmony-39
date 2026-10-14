@@ -20,7 +20,8 @@ const FileUpload = ({
 }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -50,14 +51,14 @@ const FileUpload = ({
     // Check file type
     const fileType = file.type;
     if (fileType !== 'application/pdf') {
-      toast.error("Only PDF files are allowed");
+      toast.error(tr("Seuls les fichiers PDF sont acceptés", "يُسمح بملفات PDF فقط", "Only PDF files are allowed"));
       return;
     }
 
     // Check file size
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > maxSizeMB) {
-      toast.error(`File size exceeds ${maxSizeMB}MB limit`);
+      toast.error(tr(`Fichier trop lourd (${maxSizeMB} Mo maximum)`, `الملف يتجاوز ${maxSizeMB} ميغابايت`, `File size exceeds ${maxSizeMB}MB limit`));
       return;
     }
 
@@ -107,7 +108,7 @@ const FileUpload = ({
       ) : (
         <div className="border rounded-lg p-4 bg-muted/50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="bg-primary/10 p-2 rounded">
                 <FileText className="h-6 w-6 text-primary" />
               </div>

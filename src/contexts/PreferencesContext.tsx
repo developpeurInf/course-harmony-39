@@ -80,6 +80,15 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   tableDensity: "comfortable",
 };
 
+/** Réglage « réduire les animations » du système (utilisé quand rien n'est enregistré) */
+export function systemPrefersReducedMotion(): boolean {
+  try {
+    return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
 /** Fusionne des préférences partielles (ex. anciennes versions) avec les valeurs par défaut et les corrige. */
 export function normalizePreferences(raw: Partial<AppPreferences> | null | undefined): AppPreferences {
   const p: AppPreferences = {
@@ -91,6 +100,8 @@ export function normalizePreferences(raw: Partial<AppPreferences> | null | undef
     const n = typeof v === "number" && isFinite(v) ? v : def;
     return Math.min(max, Math.max(min, n));
   };
+  // pas de choix enregistré : on suit le réglage du système
+  if (typeof (raw && raw.reduceMotion) !== "boolean") p.reduceMotion = systemPrefersReducedMotion();
   p.passThreshold = clamp(p.passThreshold, 1, 20, 10);
   p.levelStruggling = clamp(p.levelStruggling, 0, 20, 8);
   p.levelGood = clamp(p.levelGood, p.levelStruggling, 20, 12);
@@ -129,7 +140,7 @@ const readLocal = (userId?: string): AppPreferences | null => {
 
 export const PreferencesProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  const [prefs, setPrefs] = useState<AppPreferences>(() => readLocal(undefined) || DEFAULT_PREFERENCES);
+  const [prefs, setPrefs] = useState<AppPreferences>(() => readLocal(undefined) || normalizePreferences(null));
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -185,9 +196,9 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
       } else if (section === "notifications") {
         next = { ...prev, notifyPopup: d.notifyPopup, notifySound: d.notifySound, notifyBrowser: d.notifyBrowser };
       } else if (section === "display") {
-        next = { ...prev, reduceMotion: d.reduceMotion, fontScale: d.fontScale, tableDensity: d.tableDensity, accentColor: d.accentColor };
+        next = { ...prev, reduceMotion: systemPrefersReducedMotion(), fontScale: d.fontScale, tableDensity: d.tableDensity, accentColor: d.accentColor };
       } else {
-        next = { ...d, quizDefaults: { ...d.quizDefaults } };
+        next = { ...d, reduceMotion: systemPrefersReducedMotion(), quizDefaults: { ...d.quizDefaults } };
       }
       persist(next);
       return next;

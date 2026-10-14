@@ -39,7 +39,8 @@ import {
   BarChart2,
   Layers,
   Filter,
-  Zap
+  Zap,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -111,6 +112,24 @@ import * as XLSX from "xlsx";
 import { downloadExcelFile } from "@/lib/download";
 import { supabase } from "@/integrations/supabase/client";
 
+/** Saisie d'une note : vide, « ABS », ou nombre de 0 à 20 (virgule ou point, 2 décimales max). */
+const NOTE_INPUT_RE = /^\d{1,2}([.,]\d{1,2})?$/;
+const isValidNoteInput = (raw: string): boolean => {
+  const v = (raw || "").trim();
+  if (!v) return true;
+  if (v.toUpperCase() === "ABS") return true;
+  if (!NOTE_INPUT_RE.test(v)) return false;
+  const n = parseFloat(v.replace(",", "."));
+  return !isNaN(n) && n >= 0 && n <= 20;
+};
+const parseNoteInput = (raw: string): number | string | null => {
+  const v = (raw || "").trim();
+  if (!v) return null;
+  if (v.toUpperCase() === "ABS") return "ABS";
+  const n = parseFloat(v.replace(",", "."));
+  return isNaN(n) ? null : Math.round(n * 100) / 100;
+};
+
 export const DiagnosticEvaluation: React.FC = () => {
   const { user } = useAuth();
   const { rooms, addRoom, courses, exams } = useCourses();
@@ -120,6 +139,8 @@ export const DiagnosticEvaluation: React.FC = () => {
   const lang: DiagLang = language === "ar" || language === "en" ? language : "fr";
   const t = DIAGNOSTIC_TRANSLATIONS[lang] || DIAGNOSTIC_TRANSLATIONS.fr;
   const isRtl = lang === "ar";
+  const tx = (fr: string, ar: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : fr);
+  const dateLocale = lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR";
 
   const [appData, setAppData] = useState<DiagnosticAppData>(() => loadDiagnosticData());
   const [currentTab, setCurrentTab] = useState<"classes" | "notes" | "stats" | "observations" | "config" | "preview">("classes");
@@ -192,6 +213,8 @@ export const DiagnosticEvaluation: React.FC = () => {
 
   // Local draft of notes being edited in Tab 2
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<null | (() => void)>(null);
 
   // CHARGEMENT DYNAMIQUE DEPUIS SUPABASE (ROOMS DU PROFESSEUR CONNECTÉ)
   const activeClassIdRef = useRef(activeClassId);
@@ -199,8 +222,17 @@ export const DiagnosticEvaluation: React.FC = () => {
   useEffect(() => { activeClassIdRef.current = activeClassId; }, [activeClassId]);
   useEffect(() => { selectedSingleClassIdRef.current = selectedSingleClassId; }, [selectedSingleClassId]);
 
+  // Clé stable des classes : on ne recharge que si la liste des classes change vraiment
+  const roomsKey = (rooms || []).map(r => r.id).join(",");
+  const roomsRef = useRef(rooms);
+  roomsRef.current = rooms;
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const loadDynamicDataFromSupabase = useCallback(async (force = false) => {
     setLoadingRealData(true);
+    const t = tRef.current;
+    const rooms = roomsRef.current;
     try {
       const realClassesPromise = fetchDiagnosticClassesFromSupabase(
         user?.id,
@@ -252,15 +284,16 @@ export const DiagnosticEvaluation: React.FC = () => {
       }
     } catch (err) {
       console.error("Erreur de synchronisation:", err);
-      if (force) toast.error("Erreur de chargement");
+      if (force) toast.error(tx("Erreur de chargement des classes", "خطأ في تحميل الأقسام", "Failed to load classes"));
     } finally {
       setLoadingRealData(false);
     }
-  }, [user?.id, rooms, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, roomsKey]);
 
   useEffect(() => {
     loadDynamicDataFromSupabase();
-  }, [rooms, loadDynamicDataFromSupabase]);
+  }, [loadDynamicDataFromSupabase]);
 
   useEffect(() => {
     if (!activeClassId && appData.classes.length > 0) {
@@ -285,6 +318,37 @@ export const DiagnosticEvaluation: React.FC = () => {
       setNotesDraft(initial);
     }
   }, [currentClass]);
+
+  // Notes modifiées et non enregistrées ?
+  const notesDirty = useMemo(() => {
+    if (!currentClass) return false;
+    return currentClass.students.some(s => {
+      const saved = s.note !== null && s.note !== undefined ? String(s.note) : "";
+      const draft = notesDraft[String(s.id)];
+      return draft !== undefined && draft.trim() !== saved;
+    });
+  }, [currentClass, notesDraft]);
+
+  // Avertissement à la fermeture / au rechargement de l'onglet
+  useEffect(() => {
+    if (!notesDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [notesDirty]);
+
+  /** Navigation interne (onglets, changement de classe) : confirmation si notes non enregistrées */
+  const guardLeave = (action: () => void) => {
+    if (notesDirty) {
+      setPendingLeave(() => action);
+      return;
+    }
+    action();
+  };
 
   // --- GESTION DU MODE DE SAISIE (MANUELLE vs QUIZ PLATEFORME) ---
   const currentGradingMode = classGradingModes[activeClassId] || "manual";
@@ -329,7 +393,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       if (error) {
         console.error("Erreur récupération soumissions:", error);
-        toast.error(lang === "ar" ? "تعذر جلب نتائج الاختبار" : "Erreur lors de la récupération des notes du quiz");
+        toast.error(tx("Erreur lors de la récupération des notes du quiz", "تعذر جلب نتائج الاختبار", "Could not fetch the quiz grades"));
         return;
       }
 
@@ -402,14 +466,14 @@ export const DiagnosticEvaluation: React.FC = () => {
       const targetQuiz = exams.find(e => e.id === quizId);
       const quizName = targetQuiz?.title || "Quiz";
 
-      toast.success(
-        lang === "ar"
-          ? `✅ تم استيراد النقط من "${quizName}" : ${presentCount} حاضر(ة)، ${absentCount} غائب(ة) (ABS)`
-          : `✅ Notes synchronisées depuis "${quizName}" : ${presentCount} noté(s), ${absentCount} absent(s) (ABS)`
-      );
+      toast.success(tx(
+        `✅ Notes synchronisées depuis "${quizName}" : ${presentCount} noté(s), ${absentCount} absent(s) (ABS)`,
+        `✅ تم استيراد النقط من "${quizName}" : ${presentCount} حاضر(ة)، ${absentCount} غائب(ة) (ABS)`,
+        `✅ Grades synced from "${quizName}": ${presentCount} graded, ${absentCount} absent (ABS)`
+      ));
     } catch (err) {
       console.error("Erreur synchronisation quiz:", err);
-      toast.error("Erreur inattendue");
+      toast.error(tx("Erreur inattendue lors de la synchronisation", "خطأ غير متوقع أثناء المزامنة", "Unexpected error while syncing"));
     } finally {
       setIsSyncingQuiz(false);
     }
@@ -439,14 +503,40 @@ export const DiagnosticEvaluation: React.FC = () => {
     return classesForReport.map(c => c.nom);
   }, [classesForReport]);
 
-  // Sauvegarde globale de l'état
+  // Sauvegarde globale de l'état (écriture locale différée de ~500 ms : la saisie reste fluide)
+  const pendingSaveRef = useRef<DiagnosticAppData | null>(null);
+  const saveTimerRef = useRef<number | undefined>(undefined);
+  const flushPendingSave = useCallback(() => {
+    window.clearTimeout(saveTimerRef.current);
+    const data = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    if (!data) return;
+    try {
+      saveDiagnosticData(data);
+    } catch (e) {
+      console.error("Diagnostic: local save failed", e);
+      toast.error(tx("Enregistrement local impossible (stockage plein ou bloqué)", "تعذر الحفظ المحلي (التخزين ممتلئ أو محظور)", "Local save failed (storage full or blocked)"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
   const updateAppData = (updater: (prev: DiagnosticAppData) => DiagnosticAppData) => {
     setAppData(prev => {
       const next = updater(prev);
-      saveDiagnosticData(next);
+      pendingSaveRef.current = next;
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(flushPendingSave, 500);
       return next;
     });
   };
+  // Écrit ce qui reste en attente en quittant la page / l'application
+  useEffect(() => {
+    const onHide = () => flushPendingSave();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      flushPendingSave();
+    };
+  }, [flushPendingSave]);
 
   // --- ACTIONS EXPORT PDF & IMPRESSION SÉPARÉES ---
   const handleDownloadPdf = async () => {
@@ -468,11 +558,11 @@ export const DiagnosticEvaluation: React.FC = () => {
 
       const ok = await exportDiagnosticReportToPdf("diagnostic-official-report", filename);
       if (ok) {
-        toast.success(lang === "ar" ? "تم تحميل التقرير بصيغة PDF بنجاح !" : "Rapport téléchargé avec succès en PDF !");
+        toast.success(tx("Rapport téléchargé avec succès en PDF !", "تم تحميل التقرير بصيغة PDF بنجاح !", "Report downloaded as PDF!"));
       }
     } catch (e: any) {
       console.error(e);
-      toast.error("Erreur lors du téléchargement du PDF");
+      toast.error(tx("Erreur lors du téléchargement du PDF", "خطأ أثناء تحميل ملف PDF", "PDF download failed"));
     } finally {
       setIsExportingPdf(false);
     }
@@ -491,7 +581,7 @@ export const DiagnosticEvaluation: React.FC = () => {
   // --- ACTIONS CLASSES ---
   const handleAddClass = async () => {
     if (!newClassName.trim()) {
-      toast.error(t.classesHeaderTitle);
+      toast.error(tx("Le nom de la classe est obligatoire", "اسم القسم مطلوب", "Class name is required"));
       return;
     }
 
@@ -503,7 +593,7 @@ export const DiagnosticEvaluation: React.FC = () => {
           is_visible: true
         });
         if (ok) {
-          toast.success(`Classe "${newClassName.trim()}" créée avec succès !`);
+          // Le contexte affiche déjà le message de succès
           setIsAddClassOpen(false);
           setNewClassName("");
           await loadDynamicDataFromSupabase(false);
@@ -529,22 +619,26 @@ export const DiagnosticEvaluation: React.FC = () => {
     setSelectedClassIds(prev => [...prev, newId]);
     setIsAddClassOpen(false);
     setNewClassName("");
-    toast.success(`Classe "${newCls.nom}" ajoutée.`);
+    toast.success(tx(`Classe « ${newCls.nom} » ajoutée.`, `تمت إضافة القسم « ${newCls.nom} ».`, `Class "${newCls.nom}" added.`));
   };
 
   const handleUpdateClass = () => {
     if (!editingClass || !editingClass.nom.trim()) return;
 
-    const storedDates = getStoredRoomDates();
-    storedDates[editingClass.id] = editingClass.date;
-    saveStoredRoomDates(storedDates);
+    try {
+      const storedDates = getStoredRoomDates();
+      storedDates[editingClass.id] = editingClass.date;
+      void saveStoredRoomDates(storedDates);
+    } catch (e) {
+      console.error("Diagnostic: dates save failed", e);
+    }
 
     updateAppData(prev => ({
       ...prev,
       classes: prev.classes.map(c => c.id === editingClass.id ? editingClass : c)
     }));
     setEditingClass(null);
-    toast.success(t.editClassBtn);
+    toast.success(tx("Classe mise à jour", "تم تحديث القسم", "Class updated"));
   };
 
   const handleDeleteClass = async (id: string) => {
@@ -564,7 +658,7 @@ export const DiagnosticEvaluation: React.FC = () => {
       setActiveClassId(appData.classes.find(c => c.id !== id)?.id || "");
     }
     setClassToDelete(null);
-    toast.success(t.deleteClassBtn);
+    toast.success(tx("Classe retirée de l'évaluation", "تم حذف القسم من التقويم", "Class removed from the assessment"));
   };
 
   const handleToggleDataSource = () => {
@@ -577,7 +671,7 @@ export const DiagnosticEvaluation: React.FC = () => {
       setSelectedSingleClassId(DEFAULT_DIAGNOSTIC_DATA.classes[0].id);
       setSelectedClassIds(DEFAULT_DIAGNOSTIC_DATA.classes.map(c => c.id));
       setDataSource("sample");
-      toast.info(t.demoModeBadge);
+      toast.info(tx("Mode démonstration : données d'exemple affichées", "وضع العرض: بيانات تجريبية", "Demo mode: sample data shown"));
     } else {
       loadDynamicDataFromSupabase(true);
     }
@@ -608,7 +702,7 @@ export const DiagnosticEvaluation: React.FC = () => {
     ws["!cols"] = [{ wch: 8 }, { wch: 18 }, { wch: 30 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, ws, targetClass.nom.substring(0, 30));
     downloadExcelFile(wb, `liste_diagnostic_${targetClass.nom}.xlsx`);
-    toast.success(`${t.downloadClassTemplateBtn} (${targetClass.students.length})`);
+    toast.success(tx(`Liste téléchargée (${targetClass.students.length} élèves)`, `تم تحميل اللائحة (${targetClass.students.length} تلميذ)`, `List downloaded (${targetClass.students.length} students)`));
   };
 
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -666,7 +760,7 @@ export const DiagnosticEvaluation: React.FC = () => {
           classes: prev.classes.map(c => c.id === importTargetClass.id ? { ...c, students: existingStudents } : c)
         }));
 
-        toast.success(`${matchedCount} élèves mis à jour, ${newStudents.length} ajoutés.`);
+        toast.success(tx(`${matchedCount} élèves mis à jour, ${newStudents.length} ajoutés.`, `تم تحديث ${matchedCount} تلميذ وإضافة ${newStudents.length}.`, `${matchedCount} students updated, ${newStudents.length} added.`));
       } else {
         importedStudents.forEach(s => {
           if (s.note !== null) {
@@ -680,13 +774,13 @@ export const DiagnosticEvaluation: React.FC = () => {
           classes: prev.classes.map(c => c.id === importTargetClass.id ? { ...c, students: importedStudents } : c)
         }));
 
-        toast.success(`${importedStudents.length} élèves importés.`);
+        toast.success(tx(`${importedStudents.length} élèves importés.`, `تم استيراد ${importedStudents.length} تلميذ.`, `${importedStudents.length} students imported.`));
       }
 
       setImportTargetClass(null);
     } catch (err: any) {
       console.error(err);
-      toast.error(`Erreur : ${err.message || "Fichier invalide"}`);
+      toast.error(tx("Fichier invalide ou illisible", "ملف غير صالح أو غير مقروء", "Invalid or unreadable file"));
     } finally {
       setImportingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -698,44 +792,48 @@ export const DiagnosticEvaluation: React.FC = () => {
     setNotesDraft(prev => ({ ...prev, [String(studentId)]: val }));
   };
 
-  const handleSaveNotes = async () => {
-    if (!currentClass) return;
+  const handleSaveNotes = async (): Promise<boolean> => {
+    if (!currentClass || savingNotes) return false;
 
-    const storedNotes = getStoredStudentNotes();
+    // Validation : 0–20 (virgule ou point, 2 décimales max) ou « ABS »
+    const invalid = currentClass.students.filter(s => !isValidNoteInput(notesDraft[String(s.id)] ?? ""));
+    if (invalid.length > 0) {
+      const names = invalid.slice(0, 5).map(s => s.name).join(", ") + (invalid.length > 5 ? "…" : "");
+      toast.error(tx(
+        `Notes invalides (0 à 20 ou ABS) : ${names}`,
+        `نقط غير صالحة (من 0 إلى 20 أو ABS): ${names}`,
+        `Invalid grades (0 to 20 or ABS): ${names}`
+      ));
+      return false;
+    }
 
-    const updatedStudents = currentClass.students.map(s => {
-      const raw = notesDraft[String(s.id)];
-      let finalNote: number | string | null = null;
+    setSavingNotes(true);
+    try {
+      const storedNotes = getStoredStudentNotes();
 
-      if (raw !== undefined && raw !== "" && raw !== null) {
-        if (raw.trim().toUpperCase() === "ABS") {
-          finalNote = "ABS";
-        } else {
-          const parsed = parseFloat(raw.replace(",", "."));
-          if (!isNaN(parsed) && parsed >= 0 && parsed <= 20) {
-            finalNote = Math.round(parsed * 100) / 100;
-          }
-        }
-      }
+      const updatedStudents = currentClass.students.map(s => {
+        const finalNote = parseNoteInput(notesDraft[String(s.id)] ?? "");
+        storedNotes[String(s.id)] = finalNote;
+        return { ...s, note: finalNote };
+      });
 
-      storedNotes[String(s.id)] = finalNote;
-      return { ...s, note: finalNote };
-    });
+      await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
 
-    await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
+      updateAppData(prev => ({
+        ...prev,
+        classes: prev.classes.map(c => c.id === currentClass.id ? { ...c, students: updatedStudents } : c)
+      }));
+      flushPendingSave();
 
-    updateAppData(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => c.id === currentClass.id ? { ...c, students: updatedStudents } : c)
-    }));
-
-    toast.success(
-      lang === "ar"
-        ? "✅ تم حفظ النقط ومزامنتها سحابياً بنجاح"
-        : lang === "en"
-        ? "✅ Grades saved and synchronized to Cloud"
-        : "✅ Notes enregistrées et synchronisées dans le Cloud"
-    );
+      toast.success(tx("✅ Notes enregistrées et synchronisées", "✅ تم حفظ النقط ومزامنتها بنجاح", "✅ Grades saved and synchronized"));
+      return true;
+    } catch (e) {
+      console.error("Diagnostic: notes save failed", e);
+      toast.error(tx("Impossible d'enregistrer les notes", "تعذر حفظ النقط", "Could not save the grades"));
+      return false;
+    } finally {
+      setSavingNotes(false);
+    }
   };
 
   const handleAddStudent = async () => {
@@ -754,9 +852,13 @@ export const DiagnosticEvaluation: React.FC = () => {
       note: finalNote
     };
 
-    const storedNotes = getStoredStudentNotes();
-    storedNotes[newId] = finalNote;
-    await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
+    try {
+      const storedNotes = getStoredStudentNotes();
+      storedNotes[newId] = finalNote;
+      await saveStoredStudentNotes(storedNotes, currentClass.id, user?.id);
+    } catch (e) {
+      console.error("Diagnostic: note save failed", e);
+    }
 
     updateAppData(prev => ({
       ...prev,
@@ -777,7 +879,7 @@ export const DiagnosticEvaluation: React.FC = () => {
     setNewStudentName("");
     setNewStudentMassar("");
     setNewStudentNote("");
-    toast.success(t.addStudentBtn);
+    toast.success(tx("Élève ajouté", "تمت إضافة التلميذ", "Student added"));
   };
 
   const handleDeleteStudent = (studentId: string | number, studentName: string) => {
@@ -906,7 +1008,7 @@ export const DiagnosticEvaluation: React.FC = () => {
           : "✅ Modifications et paramètres enregistrés avec succès dans le Cloud"
       );
     } catch (e) {
-      toast.error(lang === "ar" ? "تعذر حفظ الإعدادات" : "Erreur d'enregistrement");
+      toast.error(tx("Erreur d'enregistrement des paramètres", "تعذر حفظ الإعدادات", "Could not save the settings"));
     }
   };
 
@@ -1224,7 +1326,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
           <Button
             size="sm"
-            onClick={() => setCurrentTab("preview")}
+            onClick={() => guardLeave(() => setCurrentTab("preview"))}
             className="md:hidden text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
           >
             <Eye className="w-4 h-4" />
@@ -1257,7 +1359,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         <Button
           variant={currentTab === "classes" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setCurrentTab("classes")}
+          onClick={() => guardLeave(() => setCurrentTab("classes"))}
           className="text-xs gap-2 shrink-0 rounded-xl"
         >
           <Building className="w-4 h-4" />
@@ -1277,7 +1379,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         <Button
           variant={currentTab === "stats" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setCurrentTab("stats")}
+          onClick={() => guardLeave(() => setCurrentTab("stats"))}
           className="text-xs gap-2 shrink-0 rounded-xl"
         >
           <PieChartIcon className="w-4 h-4" />
@@ -1287,7 +1389,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         <Button
           variant={currentTab === "observations" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setCurrentTab("observations")}
+          onClick={() => guardLeave(() => setCurrentTab("observations"))}
           className="text-xs gap-2 shrink-0 rounded-xl"
         >
           <ClipboardCheck className="w-4 h-4" />
@@ -1297,7 +1399,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         <Button
           variant={currentTab === "config" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setCurrentTab("config")}
+          onClick={() => guardLeave(() => setCurrentTab("config"))}
           className="text-xs gap-2 shrink-0 rounded-xl"
         >
           <SettingsIcon className="w-4 h-4" />
@@ -1307,7 +1409,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         <Button
           variant={currentTab === "preview" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setCurrentTab("preview")}
+          onClick={() => guardLeave(() => setCurrentTab("preview"))}
           className="text-xs gap-2 shrink-0 rounded-xl font-bold text-indigo-600 dark:text-indigo-400"
         >
           <Printer className="w-4 h-4" />
@@ -1391,11 +1493,11 @@ export const DiagnosticEvaluation: React.FC = () => {
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => {
+                          onClick={() => guardLeave(() => {
                             setActiveClassId(cls.id);
                             setClassGradingModes(prev => ({ ...prev, [cls.id]: "manual" }));
                             setCurrentTab("notes");
-                          }}
+                          })}
                           className="w-full h-9 px-2 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                         >
                           <Edit3 className="w-3.5 h-3.5 shrink-0" />
@@ -1419,11 +1521,11 @@ export const DiagnosticEvaluation: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
+                        onClick={() => guardLeave(() => {
                           setActiveClassId(cls.id);
                           setClassGradingModes(prev => ({ ...prev, [cls.id]: "quiz" }));
                           setCurrentTab("notes");
-                        }}
+                        })}
                         className="w-full h-8 px-2 text-xs font-semibold gap-1.5 border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/60 shadow-2xs"
                       >
                         <Zap className="w-3.5 h-3.5 shrink-0 text-amber-500" />
@@ -1434,7 +1536,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                         <button
                           onClick={() => handleDownloadExcelForClass(cls)}
                           className="text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 hover:underline"
-                          title={lang === "ar" ? "تحميل اللائحة بصيغة Excel" : "Télécharger la liste au format Excel"}
+                          title={tx("Télécharger la liste au format Excel", "تحميل اللائحة بصيغة Excel", "Download the list as Excel")}
                         >
                           <Download className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{t.downloadClassTemplateBtn}</span>
@@ -1477,7 +1579,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                   key={c.id}
                   variant={c.id === activeClassId ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setActiveClassId(c.id)}
+                  onClick={() => { if (c.id !== activeClassId) guardLeave(() => setActiveClassId(c.id)); }}
                   className="text-xs shrink-0 rounded-lg gap-1.5"
                 >
                   <span>{c.nom}</span>
@@ -1501,11 +1603,14 @@ export const DiagnosticEvaluation: React.FC = () => {
 
               <Button
                 size="sm"
-                onClick={handleSaveNotes}
+                onClick={() => { void handleSaveNotes(); }}
+                disabled={savingNotes}
+                aria-busy={savingNotes}
                 className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-semibold"
               >
-                <CheckCircle className="w-4 h-4" />
+                {savingNotes ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 <span>{t.saveNotesBtn}</span>
+                {notesDirty && !savingNotes && <span className="h-2 w-2 rounded-full bg-amber-300" aria-label={tx("Modifications non enregistrées", "تعديلات غير محفوظة", "Unsaved changes")} />}
               </Button>
             </div>
           </div>
@@ -1563,13 +1668,13 @@ export const DiagnosticEvaluation: React.FC = () => {
                             {availableQuizzes.direct.length > 0 && (
                               <>
                                 <div className="px-2 py-1 text-[10px] font-bold uppercase text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40">
-                                  {lang === "ar" ? `اختبارات هذا الفصل (${currentClass?.nom})` : `Quiz de cette classe (${currentClass?.nom})`}
+                                  {tx(`Quiz de cette classe (${currentClass?.nom})`, `اختبارات هذا الفصل (${currentClass?.nom})`, `Quizzes of this class (${currentClass?.nom})`)}
                                 </div>
                                 {availableQuizzes.direct.map(q => (
                                   <SelectItem key={q.id} value={q.id} className="text-xs">
                                     <span className="font-semibold">{q.title}</span>
-                                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                                      ({new Date(q.exam_date).toLocaleDateString()})
+                                    <span className="text-[10px] text-muted-foreground ml-1.5 rtl:ml-0 rtl:mr-1.5">
+                                      ({new Date(q.exam_date).toLocaleDateString(dateLocale)})
                                     </span>
                                   </SelectItem>
                                 ))}
@@ -1578,13 +1683,13 @@ export const DiagnosticEvaluation: React.FC = () => {
                             {availableQuizzes.other.length > 0 && (
                               <>
                                 <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-500 bg-muted/40 mt-1">
-                                  {lang === "ar" ? "اختبارات المقررات الأخرى" : "Quiz d'autres cours"}
+                                  {tx("Quiz d'autres cours", "اختبارات المقررات الأخرى", "Quizzes from other courses")}
                                 </div>
                                 {availableQuizzes.other.map(q => (
                                   <SelectItem key={q.id} value={q.id} className="text-xs">
                                     <span>{q.title}</span>
-                                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                                      ({new Date(q.exam_date).toLocaleDateString()})
+                                    <span className="text-[10px] text-muted-foreground ml-1.5 rtl:ml-0 rtl:mr-1.5">
+                                      ({new Date(q.exam_date).toLocaleDateString(dateLocale)})
                                     </span>
                                   </SelectItem>
                                 ))}
@@ -1660,7 +1765,7 @@ export const DiagnosticEvaluation: React.FC = () => {
           {currentClass && currentClass.students.length > 0 ? (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
+                <table className="w-full text-left rtl:text-right text-xs sm:text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 font-semibold border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="py-3 px-4 w-12 text-center">{t.numCol}</th>
@@ -1676,7 +1781,8 @@ export const DiagnosticEvaluation: React.FC = () => {
                       const noteVal = notesDraft[String(student.id)] ?? (student.note !== null ? String(student.note) : "");
                       const parsedNum = parseFloat(noteVal.replace(",", "."));
                       const isAbs = noteVal.trim().toUpperCase() === "ABS";
-                      const isValidNum = !isNaN(parsedNum) && parsedNum >= 0 && parsedNum <= 20;
+                      const isValidNum = !isAbs && isValidNoteInput(noteVal) && noteVal.trim() !== "";
+                      const isInvalid = !isValidNoteInput(noteVal);
 
                       let badgeText = t.notGradedBadge;
                       let badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
@@ -1714,11 +1820,19 @@ export const DiagnosticEvaluation: React.FC = () => {
                           <td className="py-2.5 px-4 text-center">
                             <Input
                               type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              dir="ltr"
                               value={noteVal}
                               onChange={(e) => handleNoteChange(student.id, e.target.value)}
-                              placeholder="0-20 ou ABS"
-                              className="h-8 w-28 text-center font-bold font-mono mx-auto text-xs"
+                              placeholder={tx("0-20 ou ABS", "0-20 أو ABS", "0-20 or ABS")}
+                              aria-label={tx(`Note de ${student.name}`, `نقطة ${student.name}`, `Grade of ${student.name}`)}
+                              aria-invalid={isInvalid}
+                              className={`h-9 w-28 text-center font-bold font-mono mx-auto text-sm ${isInvalid ? "border-rose-500 bg-rose-50 text-rose-700 focus-visible:ring-rose-500 dark:bg-rose-950/30" : ""}`}
                             />
+                            {isInvalid && (
+                              <span className="mt-0.5 block text-[10px] font-semibold text-rose-600">{tx("0 à 20 ou ABS", "من 0 إلى 20 أو ABS", "0 to 20 or ABS")}</span>
+                            )}
                           </td>
                           <td className="py-2.5 px-4 text-center">
                             <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClass}`}>
@@ -1731,7 +1845,8 @@ export const DiagnosticEvaluation: React.FC = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleNoteChange(student.id, "ABS")}
-                                className="h-7 px-2 text-[10px] text-slate-500 hover:text-slate-700"
+                                className="h-8 min-w-[32px] px-2 text-[11px] text-slate-500 hover:text-slate-700"
+                                aria-label={tx(`Marquer ${student.name} absent`, `تسجيل ${student.name} غائباً`, `Mark ${student.name} absent`)}
                               >
                                 {t.setAbsBtn}
                               </Button>
@@ -1739,7 +1854,9 @@ export const DiagnosticEvaluation: React.FC = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteStudent(student.id, student.name)}
-                                className="h-7 w-7 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                aria-label={tx(`Retirer ${student.name}`, `حذف ${student.name}`, `Remove ${student.name}`)}
+                                title={tx("Retirer l'élève", "حذف التلميذ", "Remove student")}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
@@ -1906,7 +2023,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                     {reportStats.classes_stats.map((stat, idx) => (
                       <React.Fragment key={idx}>
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                          <td rowSpan={2} className="border border-slate-300 dark:border-slate-700 p-2 font-bold italic text-left pl-4">
+                          <td rowSpan={2} className="border border-slate-300 dark:border-slate-700 p-2 font-bold italic text-left rtl:text-right pl-4 rtl:pl-2 rtl:pr-4">
                             {stat.nom}
                           </td>
                           <td className="border border-slate-300 dark:border-slate-700 p-2 font-semibold bg-slate-50 dark:bg-slate-800/20">
@@ -2453,7 +2570,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                       chartBg={chartBgTheme}
                       onChartBg={setChartBgTheme}
                     />
-                    <Button variant="outline" size="sm" onClick={() => setCurrentTab("observations")} className="w-full justify-start gap-1.5 text-xs">
+                    <Button variant="outline" size="sm" onClick={() => guardLeave(() => setCurrentTab("observations"))} className="w-full justify-start gap-1.5 text-xs">
                       <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
                       {L("تعديل الملاحظات والمقترحات (4)", "Modifier observations & propositions (onglet 4)", "Edit observations & proposals (tab 4)")}
                     </Button>
@@ -2536,7 +2653,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                     <Edit3 className="w-3.5 h-3.5" />
                     {L("تعديل", "Modifier", "Edit")}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setCurrentTab("config")} className="gap-1.5 text-xs">
+                  <Button variant="ghost" size="sm" onClick={() => guardLeave(() => setCurrentTab("config"))} className="gap-1.5 text-xs">
                     <SettingsIcon className="w-3.5 h-3.5" />
                     {L("كل الإعدادات", "Tous les paramètres", "All settings")}
                   </Button>
@@ -2876,7 +2993,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                 const def = resetDiagnosticDataToDefaults();
                 setAppData(prev => ({ ...prev, config: def.config }));
                 setIsResetDefaultsOpen(false);
-                toast.success(t.resetDefaultsBtn);
+                toast.success(tx("Paramètres par défaut rétablis", "تمت استعادة الإعدادات الافتراضية", "Default settings restored"));
               }}
             >
               {lang === "ar" ? "استعادة" : lang === "fr" ? "Rétablir" : "Reset"}
@@ -2986,7 +3103,7 @@ export const DiagnosticEvaluation: React.FC = () => {
 
           <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button variant="outline" size="sm" onClick={() => setIsQuickEditConfigOpen(false)}>
-              {lang === "ar" ? "إلغاء" : "Annuler"}
+              {tx("Annuler", "إلغاء", "Cancel")}
             </Button>
             <Button
               size="sm"
@@ -2997,16 +3114,70 @@ export const DiagnosticEvaluation: React.FC = () => {
                     config: { ...editConfigDraft }
                   }));
                   setIsQuickEditConfigOpen(false);
-                  toast.success(
-                    lang === "ar"
-                      ? "تم حفظ التعديلات وتحديث التقرير بنجاح"
-                      : "Modifications enregistrées et rapport actualisé avec succès"
-                  );
+                  toast.success(tx(
+                    "Modifications enregistrées et rapport actualisé avec succès",
+                    "تم حفظ التعديلات وتحديث التقرير بنجاح",
+                    "Changes saved and report updated"
+                  ));
                 }
               }}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs"
             >
-              {lang === "ar" ? "حفظ وتحديث التقرير" : "Enregistrer et actualiser le rapport"}
+              {tx("Enregistrer et actualiser le rapport", "حفظ وتحديث التقرير", "Save and update the report")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notes non enregistrées : confirmation avant de quitter la saisie */}
+      <Dialog open={!!pendingLeave} onOpenChange={(o) => { if (!o) setPendingLeave(null); }}>
+        <DialogContent className="w-[95vw] max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {tx("Notes non enregistrées", "نقط غير محفوظة", "Unsaved grades")}
+            </DialogTitle>
+            <DialogDescription>
+              {tx(
+                "Vous avez modifié des notes sans les enregistrer. Que voulez-vous faire ?",
+                "لقد عدلت نقطاً دون حفظها. ماذا تريد أن تفعل؟",
+                "You changed grades without saving them. What do you want to do?"
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setPendingLeave(null)}>
+              {tx("Rester", "البقاء", "Stay")}
+            </Button>
+            <Button
+              variant="outline"
+              className="text-rose-600"
+              onClick={() => {
+                const action = pendingLeave;
+                setPendingLeave(null);
+                // On abandonne les modifications : retour aux notes enregistrées
+                if (currentClass) {
+                  const initial: Record<string, string> = {};
+                  currentClass.students.forEach(st => { initial[String(st.id)] = st.note !== null && st.note !== undefined ? String(st.note) : ""; });
+                  setNotesDraft(initial);
+                }
+                action?.();
+              }}
+            >
+              {tx("Quitter sans enregistrer", "الخروج دون حفظ", "Leave without saving")}
+            </Button>
+            <Button
+              disabled={savingNotes}
+              onClick={async () => {
+                const action = pendingLeave;
+                const ok = await handleSaveNotes();
+                setPendingLeave(null);
+                if (ok) action?.();
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {savingNotes && <Loader2 className="h-4 w-4 animate-spin" />}
+              {tx("Enregistrer", "حفظ", "Save")}
             </Button>
           </DialogFooter>
         </DialogContent>

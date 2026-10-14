@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import React, { Suspense } from "react";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CourseProvider } from "@/contexts/CourseContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -58,8 +59,15 @@ const PageLoader = () => (
   </div>
 );
 
+/** Erreur d'affichage d'une page : message + bouton « Recharger » ; effacée en changeant de page */
+const RouteErrorBoundary = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+};
+
 const App = () => {
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
@@ -73,6 +81,7 @@ const App = () => {
                   <Sonner />
                   <BrowserRouter>
                     <FirstLoginDialog />
+                    <RouteErrorBoundary>
                     <Suspense fallback={<PageLoader />}>
                     <Routes>
                       <Route path="/" element={<Index />} />
@@ -109,6 +118,7 @@ const App = () => {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                     </Suspense>
+                    </RouteErrorBoundary>
                   </BrowserRouter>
                 </TooltipProvider>
               </NotificationProvider>
@@ -119,6 +129,7 @@ const App = () => {
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 

@@ -1,8 +1,9 @@
 import { toast } from "sonner";
 import { translateToArabic } from "./arabic-translations";
+import { translateToFrench } from "./french-translations";
 
-// Intercept all Sonner toast calls to automatically translate to Arabic
-// when Arabic is the active language.
+// Intercept all Sonner toast calls to automatically translate (anglais → arabe / français)
+// according to the active language.
 
 function getActiveLanguage(): string {
   try {
@@ -45,24 +46,28 @@ function processToastArgs(args: any[]): any[] {
       args[1] = { ...args[1], description: friendlyAccessError(args[1].description, lang) };
     }
   }
-  if (lang !== "ar" || args.length === 0) return args;
+  if ((lang !== "ar" && lang !== "fr") || args.length === 0) return args;
+  const translate = lang === "ar" ? translateToArabic : translateToFrench;
 
   const [message, options] = args;
   let translatedMessage = message;
 
   if (typeof message === "string") {
-    translatedMessage = translateToArabic(message);
+    translatedMessage = translate(message);
   }
 
   let translatedOptions = options;
   if (options && typeof options === "object") {
     translatedOptions = { ...options };
     if (typeof options.description === "string") {
-      translatedOptions.description = translateToArabic(options.description);
+      translatedOptions.description = translate(options.description);
     }
   }
 
-  return [translatedMessage, translatedOptions];
+  const out = [translatedMessage, translatedOptions];
+  // arguments supplémentaires éventuels conservés
+  for (let i = 2; i < args.length; i++) out.push(args[i]);
+  return out;
 }
 
 export function setupToastInterceptor() {

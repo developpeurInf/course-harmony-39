@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 const CreateRoom = () => {
   const { user } = useAuth();
-  const { addRoom } = useCourses();
+  const { addRoom, rooms } = useCourses();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   
@@ -24,27 +24,34 @@ const CreateRoom = () => {
     is_visible: true
   });
   const [loading, setLoading] = useState(false);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name.trim()) {
-      toast.error(language === "ar" ? "اسم القسم مطلوب" : t("Class name is required"));
+    const name = formData.name.trim().replace(/\s+/g, " ");
+    if (!name) {
+      toast.error(tr("Le nom de la classe est obligatoire", "اسم القسم مطلوب", "Class name is required"));
       return;
     }
+    if (rooms.some(r => r.name.trim().toLowerCase() === name.toLowerCase())) {
+      toast.error(tr("Une classe porte déjà ce nom", "يوجد قسم بهذا الاسم", "A class with this name already exists"));
+      return;
+    }
+    if (loading) return;
 
     setLoading(true);
     try {
-      await addRoom({
-        name: formData.name.trim(),
+      // Le contexte affiche lui-même le message de succès / d'erreur
+      const ok = await addRoom({
+        name,
         description: formData.description?.trim() || null,
         is_visible: formData.is_visible
-      });
-      
-      toast.success(language === "ar" ? "تم إنشاء القسم بنجاح!" : t("Class created successfully!"));
+      } as any);
+      if (!ok) return;
       navigate('/class-management');
     } catch (error) {
-      toast.error(language === "ar" ? "فشل في إنشاء القسم" : t("Failed to create class"));
+      toast.error(tr("Impossible de créer la classe", "فشل في إنشاء القسم", "Failed to create class"));
       console.error("Error creating class:", error);
     } finally {
       setLoading(false);
@@ -54,11 +61,18 @@ const CreateRoom = () => {
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/class-management')}>
-          <ArrowLeft className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          onClick={() => navigate('/class-management')}
+          aria-label={tr("Retour à la gestion des classes", "العودة إلى إدارة الأقسام", "Back to class management")}
+          title={tr("Retour", "رجوع", "Back")}
+        >
+          <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl sm:text-3xl font-bold">
             {language === "ar" ? "إنشاء قسم جديد" : t("Create New Class")}
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -112,7 +126,7 @@ const CreateRoom = () => {
               />
             </div>
 
-            <div className="flex items-center space-x-2 rtl:space-x-reverse">
+            <div className="flex items-center gap-2">
               <Switch
                 id="visibility"
                 checked={formData.is_visible}
@@ -125,7 +139,7 @@ const CreateRoom = () => {
 
             <div className="flex gap-2 pt-4">
               <Button type="submit" className="flex-1" disabled={loading}>
-                <Building className="mr-2 h-4 w-4" />
+                <Building className="h-4 w-4" />
                 {loading 
                   ? (language === "ar" ? "جاري الإنشاء..." : language === "fr" ? "Création..." : "Creating...")
                   : (language === "ar" ? "إنشاء قسم" : t("Create Class"))}

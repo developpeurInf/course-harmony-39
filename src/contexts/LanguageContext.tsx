@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useLayoutEffect } from "react";
+import React, { createContext, useContext, useState, useLayoutEffect, useCallback, useMemo } from "react";
 import { translateToArabic } from "@/lib/arabic-translations";
 import { translateToFrench } from "@/lib/french-translations";
 
@@ -1491,6 +1491,21 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+/**
+ * Contenus saisis par les utilisateurs (énoncés, éditeurs, formules) : jamais traduits
+ * automatiquement. Les libellés de l'interface (y compris ceux des quiz) restent traduits.
+ */
+const NO_TRANSLATE_SELECTOR = '[data-no-translate], [contenteditable=""], [contenteditable="true"], .ProseMirror, .quiz-question-html, .math-content';
+const isInsideNoTranslate = (node: Node | null): boolean => {
+  const el = node ? (node.nodeType === 1 ? (node as Element) : node.parentElement) : null;
+  if (!el || typeof el.closest !== "function") return false;
+  try {
+    return !!el.closest(NO_TRANSLATE_SELECTOR);
+  } catch {
+    return false;
+  }
+};
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Get saved language or default to French
   const [language, setLanguageState] = useState<Language>(() => {
@@ -1500,11 +1515,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   // Changement de langue instantané, sans rechargement de la page
   // (avant : la page s'affichait traduite, puis se rechargeait et s'affichait une 2e fois).
-  const setLanguage = (newLang: Language) => {
-    if (newLang === language) return;
+  const setLanguage = useCallback((newLang: Language) => {
     try { localStorage.setItem("maataoui-language", newLang); } catch { /* stockage indisponible */ }
-    setLanguageState(newLang);
-  };
+    setLanguageState(prev => (prev === newLang ? prev : newLang));
+  }, []);
 
   // Save language to localStorage and handle RTL and Arabic translation
   // useLayoutEffect : la traduction / restauration du DOM se fait avant l'affichage (pas de flash)
@@ -1550,7 +1564,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           }
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (["SCRIPT", "STYLE", "CODE", "PRE"].includes(el.tagName)) return;
+          if (["SCRIPT", "STYLE", "CODE", "PRE", "TEXTAREA"].includes(el.tagName)) return;
+          // contenu saisi par l'utilisateur : on ne descend pas dedans
+          try {
+            if (el.matches && el.matches(NO_TRANSLATE_SELECTOR)) return;
+          } catch { /* sélecteur non supporté */ }
           
           if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
             if (el.placeholder) {
@@ -1581,9 +1599,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           if (mutation.type === "childList") {
+            if (isInsideNoTranslate(mutation.target)) continue;
             mutation.addedNodes.forEach((node) => translateNode(node));
           } else if (mutation.type === "characterData") {
             const node = mutation.target;
+            if (isInsideNoTranslate(node)) continue;
             const val = node.nodeValue;
             if (val && val.trim()) {
               const trimmed = val.trim();
@@ -1636,7 +1656,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   // Translation function
-  const t = (key: string): string => {
+  const t = useCallback((key: string): string => {
     if (translations[key]) {
       if (language === "en") {
         return translations[key].en || key;
@@ -1657,15 +1677,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       if (fr && fr !== key) return fr;
     }
     return key;
-  };
+  }, [language]);
 
   // Get text direction based on language
-  const getDirection = (): "ltr" | "rtl" => {
+  const getDirection = useCallback((): "ltr" | "rtl" => {
     return language === "ar" ? "rtl" : "ltr";
-  };
+  }, [language]);
+
+  const value = useMemo(() => ({ language, setLanguage, t, getDirection }), [language, setLanguage, t, getDirection]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, getDirection }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

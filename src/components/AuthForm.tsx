@@ -5,10 +5,43 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { Eye, EyeOff, ArrowLeft, GraduationCap, MailCheck, RefreshCw } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, GraduationCap, MailCheck, RefreshCw, Presentation, KeyRound } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const USER_TYPE_KEY = "auth-last-user-type";
+
+function readLastUserType(): "student" | "professor" | null {
+  try {
+    const v = localStorage.getItem(USER_TYPE_KEY);
+    return v === "student" || v === "professor" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Exécute un appel de connexion d'AuthContext en capturant le message d'erreur qu'il
+ * affiche par toast (AuthContext ne lève pas d'exception) pour l'afficher aussi sous le formulaire.
+ */
+async function captureToastError<T>(fn: () => Promise<T>): Promise<{ result: T | undefined; message: string | null }> {
+  let message: string | null = null;
+  const t = toast as any;
+  const original = t.error;
+  t.error = (msg: any, ...rest: any[]) => {
+    if (message === null) message = typeof msg === "string" ? msg : null;
+    return original(msg, ...rest);
+  };
+  try {
+    const result = await fn();
+    return { result, message };
+  } catch (err: any) {
+    return { result: undefined, message: (err && err.message) || "Login failed" };
+  } finally {
+    t.error = original;
+  }
+}
 
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,7 +52,16 @@ const AuthForm = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [userType, setUserType] = useState<"student" | "professor" | null>(null);
+  const [userType, setUserTypeState] = useState<"student" | "professor" | null>(null);
+  const [lastUserType] = useState<"student" | "professor" | null>(readLastUserType);
+  const [formError, setFormError] = useState<string | null>(null);
+  const setUserType = (v: "student" | "professor" | null) => {
+    setUserTypeState(v);
+    setFormError(null);
+    if (v) {
+      try { localStorage.setItem(USER_TYPE_KEY, v); } catch { /* stockage indisponible */ }
+    }
+  };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -29,6 +71,22 @@ const AuthForm = () => {
 
   const { login, register, resetPassword, loginStudent, verifyOtp, resendOtp } = useAuth();
   const { t, language } = useLanguage();
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
+  const isRtl = language === "ar";
+
+  // Messages d'erreur d'AuthContext (anglais / français) → texte clair dans la langue courante
+  const friendlyLoginError = (msg: string | null): string => {
+    const m = msg || "";
+    if (/invalid (email|username) or password/i.test(m) || /invalid login credentials/i.test(m)) {
+      return userType === "student"
+        ? tr("Code Massar ou mot de passe incorrect.", "رمز مسار أو كلمة المرور غير صحيحة.", "Incorrect Massar code or password.")
+        : tr("E-mail ou mot de passe incorrect.", "البريد الإلكتروني أو كلمة المرور غير صحيحة.", "Incorrect email or password.");
+    }
+    if (/suspendu|banned/i.test(m)) return tr("Compte suspendu : contactez l'administration.", "الحساب موقوف: يرجى الاتصال بالإدارة.", "Account suspended: please contact the administration.");
+    if (/not confirmed/i.test(m)) return tr("E-mail non confirmé. Saisissez le code de vérification.", "البريد الإلكتروني غير مؤكد. أدخل رمز التحقق.", "Email not confirmed. Please enter the verification code.");
+    if (!m || /login failed/i.test(m)) return tr("Connexion impossible. Vérifiez votre connexion Internet et réessayez.", "تعذر تسجيل الدخول. تحقق من اتصالك بالإنترنت وأعد المحاولة.", "Unable to sign in. Check your internet connection and try again.");
+    return m;
+  };
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -41,7 +99,7 @@ const AuthForm = () => {
   const handleVerifyOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!otpCode || otpCode.trim().length < 6) {
-      toast.error("Please enter the confirmation code or link");
+      toast.error(tr("Saisissez le code ou le lien de confirmation", "أدخل رمز أو رابط التأكيد", "Please enter the confirmation code or link"));
       return;
     }
 
@@ -69,6 +127,7 @@ const AuthForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setFormError(null);
 
     try {
       if (isResetMode) {
@@ -76,11 +135,10 @@ const AuthForm = () => {
         setIsResetMode(false);
         setEmail("");
       } else if (isLogin) {
-        if (userType === "student") {
-          await loginStudent(username, password);
-        } else {
-          await login(email, password, "professor");
-        }
+        const { result, message } = await captureToastError(() =>
+          userType === "student" ? loginStudent(username, password) : login(email, password, "professor")
+        );
+        if (!result) setFormError(friendlyLoginError(message));
       } else {
         const assignedRole: UserRole = userType === "professor" ? "professor" : role;
         const success = await register(email, password, name, assignedRole);
@@ -129,8 +187,40 @@ const AuthForm = () => {
 
   // If no user type selected, show selection
   if (!userType && !isResetMode && !isOtpMode) {
+    // L'élève est le cas le plus fréquent : bouton principal, sauf si le dernier choix était « Professeur »
+    const professorFirst = lastUserType === "professor";
+    const studentBtn = (
+      <Button
+        key="student"
+        type="button"
+        onClick={() => {
+          setUserType("student");
+          setRole("student");
+        }}
+        className="w-full h-14 flex items-center justify-center gap-2.5 text-base"
+        variant={professorFirst ? "outline" : "default"}
+      >
+        <GraduationCap className="h-5 w-5" />
+        {t("Student")}
+      </Button>
+    );
+    const professorBtn = (
+      <Button
+        key="professor"
+        type="button"
+        onClick={() => {
+          setUserType("professor");
+          setRole("professor");
+        }}
+        className={cn("w-full flex items-center justify-center gap-2.5", professorFirst ? "h-14 text-base" : "h-12")}
+        variant={professorFirst ? "default" : "outline"}
+      >
+        <Presentation className="h-5 w-5" />
+        {t("Professor")}
+      </Button>
+    );
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+      <div className="min-h-[calc(100vh-4.5rem)] flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
             <div className="text-center mb-4">
@@ -143,28 +233,8 @@ const AuthForm = () => {
               {t("Choose your account type to continue")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              onClick={() => {
-                setUserType("professor");
-                setRole("professor");
-              }} 
-              className="w-full h-12 flex items-center justify-center gap-2"
-              variant="default"
-            >
-              <GraduationCap className="h-5 w-5" />
-              {t("Professor")}
-            </Button>
-            <Button 
-              onClick={() => {
-                setUserType("student");
-                setRole("student");
-              }} 
-              className="w-full h-12"
-              variant="outline"
-            >
-              {t("Student")}
-            </Button>
+          <CardContent className="flex flex-col gap-3">
+            {professorFirst ? [professorBtn, studentBtn] : [studentBtn, professorBtn]}
           </CardContent>
         </Card>
       </div>
@@ -172,10 +242,10 @@ const AuthForm = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+    <div className="min-h-[calc(100vh-4.5rem)] flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4 relative">
+          <div className="flex items-center justify-center mb-4 relative min-h-[40px]">
             {(isResetMode || isOtpMode || userType) && (
               <Button
                 variant="ghost"
@@ -193,9 +263,11 @@ const AuthForm = () => {
                     setPassword("");
                   }
                 }}
-                className="absolute left-0 top-0"
+                className="absolute left-0 top-0 h-10 w-10 p-0 rtl:left-auto rtl:right-0"
+                aria-label={tr("Retour", "رجوع", "Back")}
+                title={tr("Retour", "رجوع", "Back")}
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className={cn("h-5 w-5", isRtl && "rotate-180")} />
               </Button>
             )}
             <div className="text-center">
@@ -311,7 +383,7 @@ const AuthForm = () => {
                   >
                     <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", resending && "animate-spin")} />
                     {resendCooldown > 0
-                      ? (t(`Renvoyer le mail dans ${resendCooldown}s`))
+                      ? tr(`Renvoyer le mail dans ${resendCooldown} s`, `إعادة الإرسال بعد ${resendCooldown} ث`, `Resend email in ${resendCooldown}s`)
                       : t("Vous n'avez rien reçu ? Renvoyer")}
                   </Button>
 
@@ -334,7 +406,14 @@ const AuthForm = () => {
                   <Label htmlFor="username">{t("Code Massar")}</Label>
                   <Input
                     id="username"
+                    name="username"
                     type="text"
+                    inputMode="text"
+                    autoComplete="username"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    dir="ltr"
                     placeholder={t("Enter your Code Massar")}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -347,7 +426,12 @@ const AuthForm = () => {
                   <Label htmlFor="email">{t("Email")}</Label>
                   <Input
                     id="email"
+                    name="email"
                     type="email"
+                    autoComplete={isResetMode ? "email" : "username"}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder={t("Enter your email")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -360,13 +444,23 @@ const AuthForm = () => {
               {!isResetMode && (
                 <div className="space-y-2">
                   <Label htmlFor="password">
-                    {userType === "student" && isLogin ? t("Temporary Password") : t("Password")}
+                    {tr("Mot de passe", "كلمة المرور", "Password")}
+                    {userType === "student" && isLogin && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}{tr("(donné par ton professeur)", "(يمنحها لك أستاذك)", "(given by your teacher)")}
+                      </span>
+                    )}
                   </Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder={userType === "student" && isLogin ? t("Enter your temporary password") : t("Enter your password")}
+                      name="password"
+                      autoComplete={isLogin ? "current-password" : "new-password"}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder={t("Enter your password")}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -377,7 +471,7 @@ const AuthForm = () => {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent rtl:right-auto rtl:left-0"
+                      className="absolute right-0 top-0 h-full min-w-[40px] px-3 hover:bg-transparent rtl:right-auto rtl:left-0"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? t("Hide password") : t("Show password")}
                     >
@@ -416,9 +510,28 @@ const AuthForm = () => {
                 </>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              {formError && (
+                <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {formError}
+                </p>
+              )}
+
+              <Button type="submit" className="w-full h-11" disabled={loading}>
                 {getButtonText()}
               </Button>
+
+              {userType === "student" && isLogin && !isResetMode && (
+                <p className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <KeyRound className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    {tr(
+                      "Mot de passe oublié ? Demande à ton professeur de le réinitialiser.",
+                      "نسيت كلمة المرور؟ اطلب من أستاذك إعادة تعيينها.",
+                      "Forgot your password? Ask your teacher to reset it."
+                    )}
+                  </span>
+                </p>
+              )}
 
               {!isResetMode && (
                 <div className="space-y-4">

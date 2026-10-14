@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sigma, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -36,6 +36,57 @@ export default function MathSymbolBar({ onInsert, disabled }: { onInsert: (text:
   const lang = (language === "ar" || language === "en" ? language : "fr") as "fr" | "ar" | "en";
   const [open, setOpen] = useState(false);
   const [row, setRow] = useState(0);
+  const keysRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef({ row, disabled, onInsert });
+  stateRef.current = { row, disabled, onInsert };
+
+  const insertKey = (key: Key) => {
+    const tpl = key.s || key.k;
+    const caret = tpl.indexOf("§");
+    const text = tpl.replace("§", "");
+    stateRef.current.onInsert(text, caret >= 0 ? caret : text.length);
+  };
+
+  // iPhone / iPad : un « touchstart » sans preventDefault fait perdre le focus au champ
+  // et ferme le clavier. Les écouteurs tactiles de React sont passifs : on passe donc par
+  // un écouteur natif { passive: false } et on insère le symbole au « touchend ».
+  useEffect(() => {
+    const el = keysRef.current;
+    if (!el) return;
+    let startBtn: HTMLElement | null = null;
+    let sx = 0;
+    let sy = 0;
+    const onStart = (e: TouchEvent) => {
+      const btn = (e.target as HTMLElement | null)?.closest ? (e.target as HTMLElement).closest("button[data-key-idx]") as HTMLElement | null : null;
+      if (!btn || stateRef.current.disabled) return;
+      e.preventDefault();
+      startBtn = btn;
+      const t = e.touches[0];
+      sx = t ? t.clientX : 0;
+      sy = t ? t.clientY : 0;
+    };
+    const onEnd = (e: TouchEvent) => {
+      const btn = startBtn;
+      startBtn = null;
+      if (!btn || stateRef.current.disabled) return;
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      if (t && (Math.abs(t.clientX - sx) > 12 || Math.abs(t.clientY - sy) > 12)) return;
+      const idx = Number(btn.getAttribute("data-key-idx"));
+      const key = ROWS[stateRef.current.row]?.keys[idx];
+      if (key) insertKey(key);
+    };
+    const onCancel = () => { startBtn = null; };
+    el.addEventListener("touchstart", onStart, { passive: false } as any);
+    el.addEventListener("touchend", onEnd, { passive: false } as any);
+    el.addEventListener("touchcancel", onCancel);
+    return () => {
+      el.removeEventListener("touchstart", onStart as any);
+      el.removeEventListener("touchend", onEnd as any);
+      el.removeEventListener("touchcancel", onCancel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <div className="rounded-xl border bg-muted/30">
@@ -74,20 +125,17 @@ export default function MathSymbolBar({ onInsert, disabled }: { onInsert: (text:
                 : "Les parenthèses délimitent : √(32)×5 ≠ √(32×5)"}
             </p>
           )}
-          <div className="flex flex-wrap gap-1" dir="ltr">
-            {ROWS[row].keys.map(({ k, s, wide }) => (
+          <div ref={keysRef} className="flex flex-wrap gap-1" dir="ltr">
+            {ROWS[row].keys.map(({ k, s, wide }, idx) => (
               <button
                 key={k}
                 type="button"
+                data-key-idx={idx}
+                aria-label={k}
                 disabled={disabled}
                 // mousedown + preventDefault : le champ garde le focus (et le curseur) sur PC
                 onMouseDown={e => e.preventDefault()}
-                onClick={() => {
-                  const tpl = s || k;
-                  const caret = tpl.indexOf("§");
-                  const text = tpl.replace("§", "");
-                  onInsert(text, caret >= 0 ? caret : text.length);
-                }}
+                onClick={() => insertKey({ k, s, wide })}
                 className={`h-10 ${wide ? "min-w-[52px]" : "min-w-[40px]"} rounded-lg border px-2 font-serif text-base ${s ? "border-indigo-200 bg-indigo-50/60 dark:border-indigo-800 dark:bg-indigo-950/30" : "bg-background"} hover:border-indigo-400 hover:bg-indigo-50 active:scale-95 dark:hover:bg-indigo-950/40`}
               >
                 {k}

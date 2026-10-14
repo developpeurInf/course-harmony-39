@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAccess } from "@/contexts/AccessContext";
 import {
-  addDaysIso, adminInvoke, db, fmtDate, fromDateInput, PageTitle, PAYMENT_METHODS, StatusBadge, toDateInput, useT,
+  adminInvoke, copyWithToast, db, endDateInput, fmtDate, fromDateInput, localDateStr, PageTitle, PAYMENT_METHODS, StatusBadge, useT,
 } from "./adminShared";
-import { DeleteTeacherDialog, EditTeacherDialog, toggleTeacherSuspension } from "./TeacherDialogs";
+import { DeleteTeacherDialog, EditTeacherDialog, suspensionConfirm } from "./TeacherDialogs";
+import { useConfirm } from "./ConfirmDialog";
 
 export interface PlanRow {
   id: string;
@@ -41,6 +42,7 @@ export default function AdminTeachers() {
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const canManage = adminCan("admin.teachers.manage");
+  const { ask, dialog: confirmDialog } = useConfirm();
 
   const load = async () => {
     setLoading(true);
@@ -67,28 +69,34 @@ export default function AdminTeachers() {
   // Actions d'une ligne : voir, modifier, suspendre / réactiver, supprimer
   const RowActions = ({ r, labels }: { r: any; labels?: boolean }) => {
     const suspended = r.account_status === "suspended";
-    const btn = "inline-flex h-8 items-center justify-center gap-1 rounded-md border bg-background px-2 text-xs font-medium hover:bg-muted";
+    const btn = `inline-flex h-9 items-center justify-center gap-1 rounded-md border bg-background text-xs font-medium hover:bg-muted ${labels ? "px-2.5" : "w-9"}`;
+    const lView = L("Voir la fiche", "عرض البطاقة", "View");
+    const lEdit = L("Modifier", "تعديل", "Edit");
+    const lToggle = suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend");
+    const lDel = L("Supprimer", "حذف", "Delete");
+    const who = r.name ? ` : ${r.name}` : "";
     return (
       <div className={`flex items-center gap-1.5 ${labels ? "flex-wrap" : "justify-end"}`}>
-        <Link to={`/admin/teachers/${r.user_id}`} className={btn} title={L("Voir la fiche", "عرض البطاقة", "View")}>
-          <Eye className="h-3.5 w-3.5" />{labels && L("Voir", "عرض", "View")}
+        <Link to={`/admin/teachers/${r.user_id}`} className={btn} title={lView} aria-label={labels ? undefined : lView + who}>
+          <Eye className="h-3.5 w-3.5" aria-hidden="true" />{labels && L("Voir", "عرض", "View")}
         </Link>
         {canManage && (
           <>
-            <button type="button" className={btn} onClick={() => setEditing(r)} title={L("Modifier", "تعديل", "Edit")}>
-              <Pencil className="h-3.5 w-3.5" />{labels && L("Modifier", "تعديل", "Edit")}
+            <button type="button" className={btn} onClick={() => setEditing(r)} title={lEdit} aria-label={labels ? undefined : lEdit + who}>
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />{labels && lEdit}
             </button>
             <button
               type="button"
-              className={`${btn} ${suspended ? "text-emerald-700" : "text-amber-700"}`}
-              onClick={async () => { if (await toggleTeacherSuspension(r, L)) void load(); }}
-              title={suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend")}
+              className={`${btn} ${suspended ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}
+              onClick={() => ask(suspensionConfirm(r, L, () => void load()))}
+              title={lToggle}
+              aria-label={labels ? undefined : lToggle + who}
             >
-              {suspended ? <PlayCircle className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
-              {labels && (suspended ? L("Réactiver", "إعادة التفعيل", "Reactivate") : L("Suspendre", "توقيف", "Suspend"))}
+              {suspended ? <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" /> : <Ban className="h-3.5 w-3.5" aria-hidden="true" />}
+              {labels && lToggle}
             </button>
-            <button type="button" className={`${btn} text-red-600`} onClick={() => setDeleting(r)} title={L("Supprimer", "حذف", "Delete")}>
-              <Trash2 className="h-3.5 w-3.5" />{labels && L("Supprimer", "حذف", "Delete")}
+            <button type="button" className={`${btn} text-red-600`} onClick={() => setDeleting(r)} title={lDel} aria-label={labels ? undefined : lDel + who}>
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />{labels && lDel}
             </button>
           </>
         )}
@@ -114,9 +122,9 @@ export default function AdminTeachers() {
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground ltr:left-3 rtl:right-3" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder={L("Nom, e-mail, école, ville…", "الاسم، البريد، المؤسسة، المدينة…", "Name, email, school, city…")} className="ltr:pl-9 rtl:pr-9" />
+          <Input value={q} onChange={e => setQ(e.target.value)} aria-label={L("Rechercher", "بحث", "Search")} placeholder={L("Nom, e-mail, école, ville…", "الاسم، البريد، المؤسسة، المدينة…", "Name, email, school, city…")} className="ltr:pl-9 rtl:pr-9" />
         </div>
-        <select value={status} onChange={e => setStatus(e.target.value)} className={`${selectCls} sm:w-44`}>
+        <select aria-label={L("Statut", "الحالة", "Status")} value={status} onChange={e => setStatus(e.target.value)} className={`${selectCls} sm:w-44`}>
           <option value="all">{L("Tous les statuts", "كل الحالات", "All statuses")}</option>
           <option value="active">{L("Actif", "نشط", "Active")}</option>
           <option value="trial">{L("Essai", "تجريبي", "Trial")}</option>
@@ -125,7 +133,7 @@ export default function AdminTeachers() {
           <option value="suspended">{L("Suspendu", "موقوف", "Suspended")}</option>
           <option value="none">{L("Sans abonnement", "بدون اشتراك", "No subscription")}</option>
         </select>
-        <select value={plan} onChange={e => setPlan(e.target.value)} className={`${selectCls} sm:w-44`}>
+        <select aria-label={L("Offre", "العرض", "Plan")} value={plan} onChange={e => setPlan(e.target.value)} className={`${selectCls} sm:w-44`}>
           <option value="all">{L("Toutes les offres", "كل العروض", "All plans")}</option>
           {plans.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
@@ -202,6 +210,7 @@ export default function AdminTeachers() {
       <CreateTeacherDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={load} />
       {editing && <EditTeacherDialog open={!!editing} onOpenChange={(v: boolean) => !v && setEditing(null)} teacher={editing} onSaved={load} />}
       <DeleteTeacherDialog teacher={deleting} onClose={() => setDeleting(null)} onDeleted={load} />
+      {confirmDialog}
     </div>
   );
 }
@@ -217,7 +226,7 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
   const [copied, setCopied] = useState(false);
   const empty = {
     name: "", email: "", phone: "", school: "", city: "", subject: "Mathématiques", password: "",
-    plan_id: "", kind: "trial", starts: toDateInput(new Date().toISOString()), ends: "", price: "",
+    plan_id: "", kind: "trial", starts: localDateStr(new Date()), ends: "", price: "",
     payment_amount: "", payment_method: "transfer", payment_reference: "",
   };
   const [f, setF] = useState(empty);
@@ -242,10 +251,9 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
   useEffect(() => {
     if (!selected) return;
     const days = f.kind === "trial" ? selected.trial_days || selected.duration_days : selected.duration_days;
-    const startIso = fromDateInput(f.starts) || new Date().toISOString();
     setF(prev => ({
       ...prev,
-      ends: days ? toDateInput(addDaysIso(startIso, days)) : "",
+      ends: days ? endDateInput(f.starts, days) : "",
       price: prev.price || (f.kind === "paid" ? String(selected.price_mad || "") : ""),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,8 +306,8 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
                 type="button"
                 variant="outline"
                 className="gap-1.5"
-                onClick={() => {
-                  navigator.clipboard?.writeText(credentials).then(() => setCopied(true)).catch(() => undefined);
+                onClick={async () => {
+                  if (await copyWithToast(credentials, L)) setCopied(true);
                 }}
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -312,32 +320,32 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
           <form onSubmit={submit} className="space-y-4">
             <fieldset className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>{L("Nom complet", "الاسم الكامل", "Full name")} *</Label>
-                <Input required value={f.name} onChange={e => set("name", e.target.value)} />
+                <Label htmlFor="new-teacher-1">{L("Nom complet", "الاسم الكامل", "Full name")} *</Label>
+                <Input id="new-teacher-1" required value={f.name} onChange={e => set("name", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>{L("E-mail (identifiant)", "البريد الإلكتروني (المعرف)", "Email (login)")} *</Label>
-                <Input required type="email" dir="ltr" value={f.email} onChange={e => set("email", e.target.value)} />
+                <Label htmlFor="new-teacher-2">{L("E-mail (identifiant)", "البريد الإلكتروني (المعرف)", "Email (login)")} *</Label>
+                <Input id="new-teacher-2" required type="email" dir="ltr" value={f.email} onChange={e => set("email", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>{L("Mot de passe provisoire", "كلمة مرور مؤقتة", "Temporary password")}</Label>
-                <Input dir="ltr" value={f.password} onChange={e => set("password", e.target.value)} placeholder={L("Vide = généré automatiquement", "فارغ = يُنشأ تلقائيا", "Empty = generated")} />
+                <Label htmlFor="new-teacher-3">{L("Mot de passe provisoire", "كلمة مرور مؤقتة", "Temporary password")}</Label>
+                <Input id="new-teacher-3" dir="ltr" value={f.password} onChange={e => set("password", e.target.value)} placeholder={L("Vide = généré automatiquement", "فارغ = يُنشأ تلقائيا", "Empty = generated")} />
               </div>
               <div className="space-y-1.5">
-                <Label>{L("Téléphone", "الهاتف", "Phone")}</Label>
-                <Input dir="ltr" value={f.phone} onChange={e => set("phone", e.target.value)} />
+                <Label htmlFor="new-teacher-4">{L("Téléphone", "الهاتف", "Phone")}</Label>
+                <Input id="new-teacher-4" dir="ltr" value={f.phone} onChange={e => set("phone", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>{L("Matière", "المادة", "Subject")}</Label>
-                <Input value={f.subject} onChange={e => set("subject", e.target.value)} />
+                <Label htmlFor="new-teacher-5">{L("Matière", "المادة", "Subject")}</Label>
+                <Input id="new-teacher-5" value={f.subject} onChange={e => set("subject", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>{L("Établissement", "المؤسسة", "School")}</Label>
-                <Input value={f.school} onChange={e => set("school", e.target.value)} />
+                <Label htmlFor="new-teacher-6">{L("Établissement", "المؤسسة", "School")}</Label>
+                <Input id="new-teacher-6" value={f.school} onChange={e => set("school", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>{L("Ville", "المدينة", "City")}</Label>
-                <Input value={f.city} onChange={e => set("city", e.target.value)} />
+                <Label htmlFor="new-teacher-7">{L("Ville", "المدينة", "City")}</Label>
+                <Input id="new-teacher-7" value={f.city} onChange={e => set("city", e.target.value)} />
               </div>
             </fieldset>
 
@@ -346,50 +354,50 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
                 <legend className="px-1 text-sm font-bold">{L("Abonnement", "الاشتراك", "Subscription")}</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label>{L("Offre", "العرض", "Plan")}</Label>
-                    <select className={selectCls} value={f.plan_id} onChange={e => set("plan_id", e.target.value)}>
+                    <Label htmlFor="new-teacher-8">{L("Offre", "العرض", "Plan")}</Label>
+                    <select id="new-teacher-8" className={selectCls} value={f.plan_id} onChange={e => set("plan_id", e.target.value)}>
                       <option value="">{L("Aucune (plus tard)", "لا شيء (لاحقا)", "None (later)")}</option>
                       {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>{L("Type", "النوع", "Type")}</Label>
-                    <select className={selectCls} value={f.kind} onChange={e => set("kind", e.target.value)} disabled={!f.plan_id}>
+                    <Label htmlFor="new-teacher-9">{L("Type", "النوع", "Type")}</Label>
+                    <select id="new-teacher-9" className={selectCls} value={f.kind} onChange={e => set("kind", e.target.value)} disabled={!f.plan_id}>
                       <option value="trial">{L("Essai", "تجريبي", "Trial")}</option>
                       <option value="paid">{L("Payant", "مؤدى عنه", "Paid")}</option>
                       <option value="free">{L("Offert", "مجاني", "Free")}</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>{L("Début", "البداية", "Start")}</Label>
-                    <Input type="date" value={f.starts} onChange={e => set("starts", e.target.value)} disabled={!f.plan_id} />
+                    <Label htmlFor="new-teacher-10">{L("Début", "البداية", "Start")}</Label>
+                    <Input id="new-teacher-10" type="date" value={f.starts} onChange={e => set("starts", e.target.value)} disabled={!f.plan_id} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>{L("Fin (vide = sans fin)", "النهاية (فارغ = بدون نهاية)", "End (empty = none)")}</Label>
-                    <Input type="date" value={f.ends} onChange={e => set("ends", e.target.value)} disabled={!f.plan_id} />
+                    <Label htmlFor="new-teacher-11">{L("Fin (vide = sans fin)", "النهاية (فارغ = بدون نهاية)", "End (empty = none)")}</Label>
+                    <Input id="new-teacher-11" type="date" value={f.ends} onChange={e => set("ends", e.target.value)} disabled={!f.plan_id} />
                   </div>
                   {f.kind === "paid" && (
                     <div className="space-y-1.5">
-                      <Label>{L("Prix convenu (MAD)", "الثمن المتفق عليه (درهم)", "Agreed price (MAD)")}</Label>
-                      <Input type="number" min="0" step="0.01" value={f.price} onChange={e => set("price", e.target.value)} />
+                      <Label htmlFor="new-teacher-12">{L("Prix convenu (MAD)", "الثمن المتفق عليه (درهم)", "Agreed price (MAD)")}</Label>
+                      <Input id="new-teacher-12" type="number" min="0" step="0.01" value={f.price} onChange={e => set("price", e.target.value)} />
                     </div>
                   )}
                 </div>
                 {f.kind === "paid" && adminCan("admin.payments.manage") && (
                   <div className="grid gap-3 border-t pt-3 sm:grid-cols-3">
                     <div className="space-y-1.5">
-                      <Label>{L("Montant déjà payé", "المبلغ المؤدى", "Amount paid")}</Label>
-                      <Input type="number" min="0" step="0.01" value={f.payment_amount} onChange={e => set("payment_amount", e.target.value)} placeholder="0" />
+                      <Label htmlFor="new-teacher-13">{L("Montant déjà payé", "المبلغ المؤدى", "Amount paid")}</Label>
+                      <Input id="new-teacher-13" type="number" min="0" step="0.01" value={f.payment_amount} onChange={e => set("payment_amount", e.target.value)} placeholder="0" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>{L("Moyen", "الوسيلة", "Method")}</Label>
-                      <select className={selectCls} value={f.payment_method} onChange={e => set("payment_method", e.target.value)}>
+                      <Label htmlFor="new-teacher-14">{L("Moyen", "الوسيلة", "Method")}</Label>
+                      <select id="new-teacher-14" className={selectCls} value={f.payment_method} onChange={e => set("payment_method", e.target.value)}>
                         {PAYMENT_METHODS.map(m => <option key={m.id} value={m.id}>{L(m.fr, m.ar, m.en)}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>{L("Référence", "المرجع", "Reference")}</Label>
-                      <Input value={f.payment_reference} onChange={e => set("payment_reference", e.target.value)} />
+                      <Label htmlFor="new-teacher-15">{L("Référence", "المرجع", "Reference")}</Label>
+                      <Input id="new-teacher-15" value={f.payment_reference} onChange={e => set("payment_reference", e.target.value)} />
                     </div>
                   </div>
                 )}

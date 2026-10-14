@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { SubscriptionStatus } from "@/contexts/AccessContext";
 import { MODULE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
+import { toast } from "sonner";
 
 /** Client non typé pour les tables de l'administration (absentes des types générés) */
 export const db = supabase as any;
@@ -23,6 +24,12 @@ export const permLabel = (key: string, lang: Lang) => {
 export const moduleLabel = (key: string, lang: Lang) => {
   const m = MODULE_LABELS[key];
   return m ? m[lang] : key;
+};
+
+/** Message d'erreur générique dans la langue courante (hors composant React) */
+export const genericError = () => {
+  const l = typeof document !== "undefined" ? document.documentElement.lang : "fr";
+  return l === "ar" ? "خطأ" : l === "en" ? "Error" : "Erreur";
 };
 
 /** Appel de la fonction serveur admin-teachers : renvoie { data } ou { error } */
@@ -46,7 +53,7 @@ export async function adminInvoke(action: string, body: Record<string, unknown>)
     if (data?.error) return { error: data.error };
     return { data };
   } catch (e: any) {
-    return { error: e?.message || "Erreur" };
+    return { error: e?.message || genericError() };
   }
 }
 
@@ -102,7 +109,11 @@ export const PAYMENT_METHODS: { id: string; fr: string; ar: string; en: string }
 export const fmtDate = (d: string | null | undefined, lang: Lang) => {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleDateString(lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR", {
+    // colonne « date » (AAAA-MM-JJ) : jour local, sans décalage UTC
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    const x = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d);
+    if (isNaN(x.getTime())) return d.slice(0, 10);
+    return x.toLocaleDateString(lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR", {
       day: "2-digit", month: "short", year: "numeric",
     });
   } catch {
@@ -110,16 +121,106 @@ export const fmtDate = (d: string | null | undefined, lang: Lang) => {
   }
 };
 
-export const fmtMoney = (n: number | string | null | undefined) => {
+/** Montant en dirhams, formaté selon la langue (ar : « درهم », ar-MA ; en : « MAD », en-GB ; fr : « MAD », fr-FR) */
+export const fmtMoney = (n: number | string | null | undefined, lang: Lang = "fr") => {
   const v = Number(n || 0);
-  return `${v.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} MAD`;
+  const locale = lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR";
+  let txt: string;
+  try {
+    txt = v.toLocaleString(locale, { maximumFractionDigits: 2 });
+  } catch {
+    txt = String(Math.round(v * 100) / 100);
+  }
+  return lang === "ar" ? `${txt} درهم` : `${txt} MAD`;
 };
 
-/** date ISO → valeur d'un <input type="date"> */
-export const toDateInput = (d: string | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
-/** valeur d'un <input type="date"> → ISO (fin de journée pour une date de fin) */
-export const fromDateInput = (v: string, endOfDay = false) => (v ? new Date(`${v}T${endOfDay ? "23:59:59" : "00:00:00"}`).toISOString() : null);
-export const addDaysIso = (iso: string, days: number) => new Date(new Date(iso).getTime() + days * 86400000).toISOString();
+const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+/** Date locale → « AAAA-MM-JJ » (jour du fuseau de l'appareil, pas UTC) */
+export const localDateStr = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+/** date ISO → valeur d'un <input type="date"> (date LOCALE, cohérente avec fromDateInput) */
+export const toDateInput = (d: string | null | undefined) => {
+  if (!d) return "";
+  const x = new Date(d);
+  return isNaN(x.getTime()) ? "" : localDateStr(x);
+};
+/** valeur d'un <input type="date"> → ISO (minuit local, ou fin de journée locale pour une date de fin) */
+export const fromDateInput = (v: string, endOfDay = false) => {
+  if (!v) return null;
+  const [y, m, d] = v.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  // constructeur numérique : toujours interprété en heure locale (y compris iOS 12)
+  return new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0).toISOString();
+};
+/** Ajoute des jours CALENDAIRES en heure locale (l'heure locale est conservée, même en cas de changement d'heure) */
+export const addDaysIso = (iso: string, days: number) => {
+  const d = new Date(iso);
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+};
+
+/** Date de fin INCLUSIVE (valeur d'input) d'une durée de `days` jours commençant le jour `startInput` :
+ *  30 jours à partir du 13/10 → fin le 11/11 à 23:59:59 (exactement 30 jours, pas 31) */
+export const endDateInput = (startInput: string, days: number) => {
+  const [y, m, d] = (startInput || "").split("-").map(Number);
+  const base = y && m && d ? new Date(y, m - 1, d) : new Date();
+  base.setDate(base.getDate() + Math.max(1, days) - 1);
+  return localDateStr(base);
+};
+
+/** Copie dans le presse-papiers ; repli execCommand pour les navigateurs anciens / contexte non sécurisé (iOS 12) */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    const nav: any = typeof navigator !== "undefined" ? navigator : null;
+    if (nav && nav.clipboard && typeof nav.clipboard.writeText === "function" && (window as any).isSecureContext !== false) {
+      await nav.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* repli ci-dessous */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    // hors écran mais sélectionnable (iOS exige un élément éditable, police ≥ 16px pour éviter le zoom)
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.width = "1px";
+    ta.style.height = "1px";
+    ta.style.opacity = "0";
+    ta.style.fontSize = "16px";
+    document.body.appendChild(ta);
+    ta.contentEditable = "true";
+    ta.readOnly = false;
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Copie + toast traduit */
+export async function copyWithToast(text: string, L: (fr: string, ar: string, en: string) => string): Promise<boolean> {
+  const ok = await copyText(text);
+  if (ok) toast.success(L("Copié", "تم النسخ", "Copied"));
+  else toast.error(L("Copie impossible : sélectionnez le texte", "تعذر النسخ: حدد النص يدويا", "Copy failed: select the text"));
+  return ok;
+}
+
+/** « J-12 » traduit */
+export const daysLeftLabel = (n: number, L: (fr: string, ar: string, en: string) => string) =>
+  L(`J-${n}`, `متبقي ${n} يوم`, `D-${n}`);
 
 export function PageTitle({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (

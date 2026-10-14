@@ -1,7 +1,7 @@
 import { accessStore } from "@/contexts/AccessContext";
 import { RequirePermission } from "@/components/access/AccessUi";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useDeferredValue, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, Exam } from "@/contexts/CourseContext";
 import { Button } from "@/components/ui/button";
@@ -46,12 +46,13 @@ import {
   AlertCircle,
   CheckCircle,
   CheckCircle2,
-  Timer
+  Timer,
+  X
 } from "lucide-react";
-import QuizBuilder from "@/components/QuizBuilder";
-import QuizTaker from "@/components/QuizTaker";
-import QuizResults from "@/components/QuizResults";
-import QuizDetails from "@/components/QuizDetails";
+import QuizTaker, { type QuizPhase } from "@/components/QuizTaker";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { useNow } from "@/hooks/useNow";
+import { toLocalDateInput, toLocalTimeInput, formatDecimal } from "@/lib/formatDate";
 import { format } from "date-fns";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ViewToggle from "@/components/ViewToggle";
@@ -60,7 +61,17 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { toast } from "sonner";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
-import { isSmallScreen } from "@/lib/device";
+
+// Outils enseignant chargés à la demande : les élèves ne les téléchargent jamais
+const QuizBuilder = lazyWithRetry(() => import("@/components/QuizBuilder"));
+const QuizResults = lazyWithRetry(() => import("@/components/QuizResults"));
+const QuizDetails = lazyWithRetry(() => import("@/components/QuizDetails"));
+
+const LazyFallback = () => (
+  <div className="flex items-center justify-center py-16" role="status" aria-live="polite">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+);
 
 const Exams = () => {
   const { t, language } = useLanguage();
@@ -78,7 +89,8 @@ const Exams = () => {
     getVisibleExamsForStudent,
     refreshData,
     quizQuestions,
-    quizSubmissions
+    quizSubmissions,
+    loading: dataLoading
   } = useCourses();
 
   // Nombre de questions et total des points de chaque quiz
@@ -92,22 +104,40 @@ const Exams = () => {
     return m;
   }, [quizQuestions]);
 
-  // Meilleure copie de l'élève connecté pour chaque quiz
+  // Note retenue de l'élève connecté pour chaque quiz : même règle que le tableau de bord
+  // (Paramètres → « tentative retenue » : dernière, meilleure ou moyenne)
   const mySubmissions = useMemo(() => {
     const m: Record<string, { score: number; total: number; count: number }> = {};
     if (!user) return m;
+    const groups = new Map<string, any[]>();
     (quizSubmissions || []).filter(sub => sub.student_id === user.id).forEach((sub: any) => {
-      const prev = m[sub.exam_id];
-      const score = Number(sub.score) || 0;
-      const total = Number(sub.total_points) || 0;
-      if (!prev || score > prev.score) m[sub.exam_id] = { score, total, count: (prev?.count || 0) + 1 };
-      else prev.count += 1;
+      groups.set(sub.exam_id, [...(groups.get(sub.exam_id) || []), sub]);
+    });
+    const time = (x: any) => new Date(x.submitted_at || 0).getTime() || 0;
+    const pct = (x: any) => (Number(x.total_points) > 0 ? (Number(x.score) || 0) / Number(x.total_points) : 0);
+    groups.forEach((list, examId) => {
+      const sorted = [...list].sort((a, b) => time(b) - time(a)); // plus récente d'abord
+      const latest = sorted[0];
+      let score = Number(latest.score) || 0;
+      let total = Number(latest.total_points) || 0;
+      if (prefs.attemptPolicy === "best") {
+        const best = sorted.reduce((acc, x) => (pct(x) > pct(acc) ? x : acc), latest);
+        score = Number(best.score) || 0;
+        total = Number(best.total_points) || 0;
+      } else if (prefs.attemptPolicy === "average" && total > 0) {
+        const avg = sorted.reduce((a, x) => a + pct(x), 0) / sorted.length;
+        score = Math.round(avg * total * 100) / 100;
+      }
+      m[examId] = { score, total, count: sorted.length };
     });
     return m;
-  }, [quizSubmissions, user]);
+  }, [quizSubmissions, user, prefs.attemptPolicy]);
 
   const dateLocale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
-  const fmtScore = (sc: number, tot: number) => `${String(sc).replace(".", ",")}/${tot}`;
+  const fmtScore = (sc: number, tot: number) => `${formatDecimal(sc, language, 2)}/${tot}`;
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  // Statuts (à venir / disponible / expiré) recalculés toutes les 30 s
+  const nowTs = useNow();
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -115,7 +145,17 @@ const Exams = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
+  // Cartes par défaut pour les élèves et sur tablette / téléphone (< 1024 px), tableau sinon
+  const [viewMode, setViewMode] = useState<"grid" | "table">(() => {
+    if (user?.role !== "professor") return "grid";
+    try {
+      return typeof window !== "undefined" && window.innerWidth < 1024 ? "grid" : "table";
+    } catch {
+      return "table";
+    }
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [quizPhase, setQuizPhase] = useState<QuizPhase>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
   const submitLockRef = useRef(false);
@@ -167,8 +207,23 @@ const Exams = () => {
   };
   
   const [examSearch, setExamSearch] = useState("");
+  const deferredSearch = useDeferredValue(examSearch);
   // Filter exams based on user role and selected course
-  const userExams = isProfessor ? exams : (user ? getVisibleExamsForStudent(user.id) : []);
+  const userExams = useMemo(
+    () => (isProfessor ? exams : user ? getVisibleExamsForStudent(user.id) : []),
+    [isProfessor, exams, user, getVisibleExamsForStudent]
+  );
+  // Index : cours par id, nombre d'élèves ayant rendu chaque quiz
+  const courseById = useMemo(() => new Map(courses.map(c => [c.id, c] as [string, typeof c])), [courses]);
+  const submittersByExam = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    (quizSubmissions || []).forEach(x => {
+      const set = m.get(x.exam_id) || new Set<string>();
+      set.add(x.student_id);
+      m.set(x.exam_id, set);
+    });
+    return m;
+  }, [quizSubmissions]);
 
   // Lien direct « ?quiz=<id> » (carte « À faire maintenant » du tableau de bord élève)
   const openedQuizRef = useRef<string | null>(null);
@@ -182,12 +237,14 @@ const Exams = () => {
       setShowQuizTaker(target);
     }
   }, [location.search, userExams, isProfessor]);
-  const courseFilteredExams = selectedCourseFilter === "all" 
-    ? userExams 
-    : userExams.filter(exam => exam.course_id === selectedCourseFilter);
-  const displayedExams = courseFilteredExams.filter(exam =>
-    matchesText(examSearch, exam.title, (exam.description || "").replace(/<!--[\s\S]*?-->/g, ""), (courses.find(c => c.id === exam.course_id) || ({} as any)).title, exam.type === "quiz" ? "quiz" : "examen exam امتحان")
-  );
+  const displayedExams = useMemo(() => {
+    const byCourse = selectedCourseFilter === "all"
+      ? userExams
+      : userExams.filter(exam => exam.course_id === selectedCourseFilter);
+    return byCourse.filter(exam =>
+      matchesText(deferredSearch, exam.title, (exam.description || "").replace(/<!--[\s\S]*?-->/g, ""), (courseById.get(exam.course_id) || ({} as any)).title, exam.type === "quiz" ? "quiz" : "examen exam امتحان")
+    );
+  }, [userExams, selectedCourseFilter, deferredSearch, courseById]);
 
   // Filter courses based on user role for the course dropdown (both room & enrollments)
   const availableCourses = isProfessor 
@@ -213,7 +270,7 @@ const Exams = () => {
       }
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateInput(new Date());
 
     setTitle("");
     setDescription("");
@@ -228,25 +285,11 @@ const Exams = () => {
     setCurrentExam(null);
   };
 
-  // Format date for input field
-  const formatDateForInput = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toISOString().split('T')[0];
-    } catch {
-      return "";
-    }
-  };
+  // Date locale (yyyy-MM-dd) pour <input type="date"> — jamais via toISOString (UTC)
+  const formatDateForInput = (dateString: string) => toLocalDateInput(dateString);
 
-  // Format time for input field
-  const formatTimeForInput = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toTimeString().substring(0, 5);
-    } catch {
-      return "";
-    }
-  };
+  // Heure locale (HH:mm) pour <input type="time">
+  const formatTimeForInput = (dateString: string) => toLocalTimeInput(dateString);
 
   // Combine date and time to ISO string
   const combineDateTime = (date: string, time: string) => {
@@ -263,7 +306,7 @@ const Exams = () => {
 
   // Helper to determine dynamic Quiz availability and time window
   const getQuizStatus = (exam: Exam) => {
-    const now = new Date().getTime();
+    const now = nowTs;
     const fromTime = exam.available_from ? new Date(exam.available_from).getTime() : new Date(exam.exam_date).getTime();
     const untilTime = exam.available_until ? new Date(exam.available_until).getTime() : null;
 
@@ -301,9 +344,7 @@ const Exams = () => {
     if (examObj && examObj.type === 'quiz') {
       return getQuizStatus(examObj).status === 'expired';
     }
-    const now = new Date();
-    const examDateVal = new Date(dateString);
-    return examDateVal < now;
+    return new Date(dateString).getTime() < nowTs;
   };
 
   // Add new exam
@@ -415,11 +456,20 @@ const Exams = () => {
   };
 
   // Delete exam
-  const handleDeleteExam = () => {
-    if (currentExam) {
-      deleteExam(currentExam.id);
-      setIsDeleteDialogOpen(false);
-      resetForm();
+  const handleDeleteExam = async () => {
+    if (!currentExam || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const ok = await deleteExam(currentExam.id);
+      if (ok !== false) {
+        setIsDeleteDialogOpen(false);
+        resetForm();
+      }
+    } catch (err) {
+      console.error("Error deleting exam:", err);
+      toast.error(tr("Échec de la suppression", "فشل الحذف", "Delete failed"));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -461,8 +511,8 @@ const Exams = () => {
 
   // Get course name from ID
   const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId);
-    return course ? course.title : "Unknown Course";
+    const course = courseById.get(courseId);
+    return course ? course.title : tr("Cours inconnu", "درس غير معروف", "Unknown course");
   };
 
   // Format exam date and time
@@ -758,14 +808,24 @@ const Exams = () => {
 
       {/* Quiz Builder */}
       {showQuizBuilder && (
-        <QuizBuilder examId={showQuizBuilder} onClose={() => setShowQuizBuilder(null)} />
+        <Suspense fallback={<LazyFallback />}>
+          <QuizBuilder examId={showQuizBuilder} onClose={() => setShowQuizBuilder(null)} />
+        </Suspense>
       )}
 
       {/* Quiz Taker Modal */}
       {showQuizTaker && (
-        <Dialog open={!!showQuizTaker} onOpenChange={() => setShowQuizTaker(null)}>
+        <Dialog
+          open={!!showQuizTaker}
+          onOpenChange={(open) => {
+            // Pendant le quiz, seule la confirmation « Quitter » ferme la fenêtre
+            if (!open && quizPhase !== "running") setShowQuizTaker(null);
+          }}
+        >
           <DialogContent
             className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden p-0 flex flex-col"
+            // Pendant le quiz : pas de croix (bouton « Quitter » avec confirmation dans le quiz)
+            hideClose={quizPhase === "running"}
             // Évite de perdre le quiz en cours par un clic à l'extérieur ou la touche Échap
             onInteractOutside={(e) => e.preventDefault()}
             onEscapeKeyDown={(e) => e.preventDefault()}
@@ -777,7 +837,7 @@ const Exams = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-              <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} />
+              <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} onPhaseChange={setQuizPhase} />
             </div>
           </DialogContent>
         </Dialog>
@@ -786,19 +846,43 @@ const Exams = () => {
       {/* Quiz Results Modal */}
       {showQuizResults && (
         <Dialog open={!!showQuizResults} onOpenChange={() => setShowQuizResults(null)}>
-          <DialogContent className={`w-[96vw] ${isProfessor ? "max-w-6xl" : "max-w-4xl"} max-h-[92vh] overflow-hidden p-0 flex flex-col`}>
-            <DialogHeader className="sr-only">
-              <DialogTitle>{language === "fr" ? "Résultats du quiz" : language === "ar" ? "نتائج الاختبار" : "Quiz Results"}</DialogTitle>
-              <DialogDescription>
-                {language === "fr" ? "Détails des résultats" : language === "ar" ? "تفاصيل النتائج" : "Detailed quiz results"}
-              </DialogDescription>
+          <DialogContent
+            className={`w-[96vw] ${isProfessor ? "max-w-6xl" : "max-w-4xl"} max-h-[92vh] overflow-hidden p-0 flex flex-col`}
+            // Croix par défaut masquée : bouton de fermeture explicite dans l'en-tête ci-dessous
+            hideClose
+          >
+            <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-4 py-2.5 sm:px-6 text-start">
+              <div className="min-w-0">
+                <DialogTitle className="truncate text-base">
+                  {language === "fr" ? "Résultats du quiz" : language === "ar" ? "نتائج الاختبار" : "Quiz Results"}
+                  {(() => {
+                    const ex = exams.find(e => e.id === showQuizResults);
+                    return ex ? <span className="font-normal text-muted-foreground"> · {ex.title}</span> : null;
+                  })()}
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  {language === "fr" ? "Détails des résultats" : language === "ar" ? "تفاصيل النتائج" : "Detailed quiz results"}
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setShowQuizResults(null)}
+                aria-label={tr("Fermer", "إغلاق", "Close")}
+                title={tr("Fermer", "إغلاق", "Close")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-              {isProfessor ? (
-                <RequirePermission perm="quiz.results_view"><QuizDetails examId={showQuizResults} /></RequirePermission>
-              ) : (
-                <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
-              )}
+              <Suspense fallback={<LazyFallback />}>
+                {isProfessor ? (
+                  <RequirePermission perm="quiz.results_view"><QuizDetails examId={showQuizResults} /></RequirePermission>
+                ) : (
+                  <QuizResults examId={showQuizResults} onClose={() => setShowQuizResults(null)} />
+                )}
+              </Suspense>
             </div>
           </DialogContent>
         </Dialog>
@@ -838,7 +922,18 @@ const Exams = () => {
         </p>
       </div>
 
-      {displayedExams.length > 0 ? (
+      {dataLoading && userExams.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" aria-busy="true" aria-label={tr("Chargement…", "جارٍ التحميل…", "Loading…")}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="rounded-lg border p-4 space-y-3">
+              <div className="h-4 w-2/3 rounded bg-muted motion-safe:animate-pulse" />
+              <div className="h-3 w-1/3 rounded bg-muted motion-safe:animate-pulse" />
+              <div className="h-3 w-full rounded bg-muted motion-safe:animate-pulse" />
+              <div className="h-8 w-1/2 rounded bg-muted motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : displayedExams.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {displayedExams.map((exam) => {
@@ -866,18 +961,18 @@ const Exams = () => {
                         </CardDescription>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[10px]">
+                        <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[11px]">
                           {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
                         </Badge>
                         {!exam.is_visible && (
-                          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                          <Badge variant="outline" className="text-[11px] text-amber-600 border-amber-300">
                             {language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}
                           </Badge>
                         )}
                         {exam.type === 'quiz' ? (
                           <Badge 
                             variant="outline"
-                            className={`text-[10px] font-medium ${
+                            className={`text-[11px] font-medium ${
                               quizStatus.status === 'available'
                                 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-300'
                                 : quizStatus.status === 'upcoming'
@@ -889,9 +984,9 @@ const Exams = () => {
                           </Badge>
                         ) : (
                           isPastExam(exam.exam_date, exam) ? (
-                            <Badge variant="secondary" className="text-[10px]">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
+                            <Badge variant="secondary" className="text-[11px]">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
                           ) : (
-                            <Badge className="text-[10px]">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
+                            <Badge className="text-[11px]">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
                           )
                         )}
                       </div>
@@ -911,7 +1006,7 @@ const Exams = () => {
                             {quizStats[exam.id].points} {language === "ar" ? "نقطة" : "pts"}
                           </span>
                           {(() => {
-                            const n = new Set((quizSubmissions || []).filter(x => x.exam_id === exam.id).map(x => x.student_id)).size;
+                            const n = submittersByExam.get(exam.id)?.size || 0;
                             return n > 0 ? (
                               <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300">
                                 {n} {language === "ar" ? "ورقة" : language === "fr" ? "copie(s)" : "submission(s)"}
@@ -989,9 +1084,10 @@ const Exams = () => {
                                <Button 
                                  variant="ghost" 
                                  size="icon"
-                                 className="h-8 w-8 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                 className="h-9 w-9 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
                                  onClick={() => setShowQuizResults(exam.id)}
                                  title={language === "ar" ? "التفاصيل والنتائج" : language === "fr" ? "Détails et résultats" : "Details & results"}
+                                 aria-label={language === "ar" ? "التفاصيل والنتائج" : language === "fr" ? "Détails et résultats" : "Details & results"}
                                >
                                  <Trophy className="h-4 w-4" />
                                </Button>
@@ -999,9 +1095,12 @@ const Exams = () => {
                              <Button 
                                variant="ghost" 
                                size="icon"
-                               className="h-8 w-8"
+                               className="h-9 w-9"
                                onClick={() => handleToggleVisibility(exam.id)}
                                title={exam.is_visible 
+                                 ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer aux élèves" : "Hide from students")
+                                 : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
+                               aria-label={exam.is_visible 
                                  ? (language === "ar" ? "إخفاء عن التلاميذ" : language === "fr" ? "Masquer aux élèves" : "Hide from students")
                                  : (language === "ar" ? "إظهار للتلاميذ" : language === "fr" ? "Rendre visible aux élèves" : "Make visible to students")}
                              >
@@ -1016,18 +1115,20 @@ const Exams = () => {
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-9 w-9"
                               onClick={() => openEditDialog(exam)}
                               title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
+                              aria-label={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-8 w-8 text-destructive"
+                              className="h-9 w-9 text-destructive"
                               onClick={() => openDeleteDialog(exam)}
                               title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
+                              aria-label={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
@@ -1037,7 +1138,7 @@ const Exams = () => {
                         <div className="flex justify-end w-full items-center gap-2">
                           {mySubmissions[exam.id] ? (
                             <>
-                              <Badge variant="outline" className="mr-auto rtl:mr-0 rtl:ml-auto border-emerald-300 bg-emerald-500/10 text-[10px] text-emerald-700">
+                              <Badge variant="outline" className="mr-auto rtl:mr-0 rtl:ml-auto border-emerald-300 bg-emerald-500/10 text-[11px] text-emerald-700">
                                 <CheckCircle2 className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
                                 {language === "ar" ? "تم الاجتياز" : language === "fr" ? "Terminé" : "Done"}
                               </Badge>
@@ -1079,9 +1180,9 @@ const Exams = () => {
                       ) : (
                         <div className="text-xs text-muted-foreground">
                           {isPastExam(exam.exam_date, exam) ? (
-                            language === "ar" ? "امتحان منتهي" : "Examen terminé"
+                            tr("Examen terminé", "امتحان منتهي", "Exam finished")
                           ) : (
-                            language === "ar" ? "امتحان حضوري مجدول" : "Examen programmé"
+                            tr("Examen programmé", "امتحان حضوري مجدول", "Exam scheduled")
                           )}
                         </div>
                       )}
@@ -1151,11 +1252,11 @@ const Exams = () => {
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col gap-1">
-                          <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[10px] w-fit">
+                          <Badge variant={exam.type === 'quiz' ? 'default' : 'secondary'} className="text-[11px] w-fit">
                             {exam.type === 'quiz' ? (language === 'ar' ? 'اختبار' : 'Quiz') : (language === 'ar' ? 'امتحان' : language === 'fr' ? 'Examen' : 'Exam')}
                           </Badge>
                           {exam.type === 'quiz' && (exam as any).quiz_mode === 'sequential_timed' && (
-                            <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700 dark:text-amber-400">
+                            <Badge variant="outline" className="text-[11px] w-fit border-amber-300 text-amber-700 dark:text-amber-400">
                               <Timer className="h-2.5 w-2.5 mr-0.5" />
                               {language === "fr" ? "Séquentiel" : language === "ar" ? "ترتيب موقوت" : "Sequential"}
                             </Badge>
@@ -1167,7 +1268,7 @@ const Exams = () => {
                           {exam.type === 'quiz' ? (
                             <Badge 
                               variant="outline"
-                              className={`text-[10px] w-fit ${
+                              className={`text-[11px] w-fit ${
                                 quizStatus.status === 'available'
                                   ? 'bg-emerald-500/10 text-emerald-600 border-emerald-300'
                                   : quizStatus.status === 'upcoming'
@@ -1179,13 +1280,13 @@ const Exams = () => {
                             </Badge>
                           ) : (
                             isPastExam(exam.exam_date, exam) ? (
-                              <Badge variant="outline" className="w-fit text-[10px]">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
+                              <Badge variant="outline" className="w-fit text-[11px]">{language === "ar" ? "منتهي" : language === "fr" ? "Terminé" : "Past"}</Badge>
                             ) : (
-                              <Badge variant="default" className="w-fit text-[10px]">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
+                              <Badge variant="default" className="w-fit text-[11px]">{language === "ar" ? "قادم" : language === "fr" ? "À venir" : "Upcoming"}</Badge>
                             )
                           )}
                           {!exam.is_visible && (
-                            <Badge variant="outline" className="w-fit text-[10px] text-amber-600 border-amber-300">
+                            <Badge variant="outline" className="w-fit text-[11px] text-amber-600 border-amber-300">
                               {language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden"}
                             </Badge>
                           )}
@@ -1198,9 +1299,10 @@ const Exams = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-primary hover:bg-primary/10"
+                                className="h-9 w-9 text-primary hover:bg-primary/10"
                                 onClick={() => setShowQuizBuilder(exam.id)}
                                 title={language === "ar" ? "الأسئلة" : language === "fr" ? "Créateur de Quiz" : "Quiz Builder"}
+                                aria-label={language === "ar" ? "الأسئلة" : language === "fr" ? "Créateur de Quiz" : "Quiz Builder"}
                               >
                                 <PlusCircle className="h-3.5 w-3.5" />
                               </Button>
@@ -1209,9 +1311,10 @@ const Exams = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                className="h-9 w-9 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
                                 onClick={() => setShowQuizResults(exam.id)}
                                 title={language === "ar" ? "التفاصيل والنتائج" : language === "fr" ? "Détails et résultats" : "Details & results"}
+                                aria-label={language === "ar" ? "التفاصيل والنتائج" : language === "fr" ? "Détails et résultats" : "Details & results"}
                               >
                                 <Trophy className="h-3.5 w-3.5" />
                               </Button>
@@ -1219,18 +1322,20 @@ const Exams = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9"
                               onClick={() => openEditDialog(exam)}
                               title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
+                              aria-label={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
                             >
                               <Edit className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-destructive"
+                              className="h-9 w-9 text-destructive"
                               onClick={() => openDeleteDialog(exam)}
                               title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
+                              aria-label={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -1516,23 +1621,24 @@ const Exams = () => {
       </Dialog>
 
       {/* Delete Exam Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(o) => { if (!isDeleting) setIsDeleteDialogOpen(o); }}>
         <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>{language === "ar" ? "حذف الامتحان" : language === "fr" ? "Supprimer l'examen" : "Delete Exam"}</DialogTitle>
             <DialogDescription>
               {language === "ar" 
-                ? `هل أنت متأكد من رغبتك في حذف ${currentExam?.title}؟ لا يمكن التراجع عن هذا الإجراء.` 
+                ? `هل أنت متأكد من رغبتك في حذف ${currentExam?.title}؟ ستُحذف أيضاً جميع أوراق التلاميذ ونتائجهم المرتبطة به. لا يمكن التراجع عن هذا الإجراء.` 
                 : language === "fr"
-                ? `Êtes-vous sûr de vouloir supprimer ${currentExam?.title} ? Cette action est irréversible.`
-                : `Are you sure you want to delete ${currentExam?.title}? This action cannot be undone.`}
+                ? `Êtes-vous sûr de vouloir supprimer ${currentExam?.title} ? Toutes les copies et notes des élèves liées seront aussi supprimées. Cette action est irréversible.`
+                : `Are you sure you want to delete ${currentExam?.title}? All related student submissions and scores will also be deleted. This action cannot be undone.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button variant="destructive" onClick={handleDeleteExam}>
+            <Button variant="destructive" onClick={handleDeleteExam} disabled={isDeleting} className="gap-2">
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
               {language === "ar" ? "حذف الامتحان" : language === "fr" ? "Supprimer l'examen" : "Delete Exam"}
             </Button>
           </DialogFooter>

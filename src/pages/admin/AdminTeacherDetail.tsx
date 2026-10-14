@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, KeyRound, Ban, PlayCircle, Pencil, CalendarPlus, RefreshCw, Repeat, XCircle, Plus, Printer, Copy, Check, Trash2 } from "lucide-react";
+import { ArrowLeft, KeyRound, Ban, PlayCircle, Pencil, CalendarPlus, RefreshCw, Repeat, XCircle, Plus, Printer, Copy, Check, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAccess } from "@/contexts/AccessContext";
 import { MODULE_LABELS } from "@/lib/permissions";
 import {
-  addDaysIso, adminInvoke, db, fmtDate, fmtMoney, fromDateInput, moduleLabel, PAYMENT_METHODS, permLabel,
-  StatusBadge, toDateInput, useT, type Lang,
+  addDaysIso, adminInvoke, copyWithToast, db, endDateInput, fmtDate, fmtMoney, fromDateInput, localDateStr, moduleLabel,
+  PAYMENT_METHODS, permLabel, StatusBadge, toDateInput, useT, type Lang,
 } from "./adminShared";
 import type { PlanRow } from "./AdminTeachers";
 import { AuditList } from "./AdminAudit";
-import { DeleteTeacherDialog, EditTeacherDialog, toggleTeacherSuspension } from "./TeacherDialogs";
+import { DeleteTeacherDialog, EditTeacherDialog, suspensionConfirm } from "./TeacherDialogs";
+import { useConfirm } from "./ConfirmDialog";
 
 const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm";
 type Tab = "subscription" | "payments" | "permissions" | "journal";
@@ -36,17 +37,25 @@ export default function AdminTeacherDetail() {
   const [extendOpen, setExtendOpen] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<any>(null);
+  const [loadError, setLoadError] = useState("");
   const navigate = useNavigate();
+  const { ask, dialog: confirmDialog } = useConfirm();
 
   const load = async () => {
-    const [{ data: list }, { data: acc }, { data: s }, { data: p }, { data: pl }] = await Promise.all([
+    const [{ data: list, error: listError }, { data: acc }, { data: s }, { data: p }, { data: pl }] = await Promise.all([
       db.rpc("admin_teachers"),
       db.from("teacher_accounts").select("*").eq("user_id", id).maybeSingle(),
       db.from("subscriptions").select("*, plans(name)").eq("teacher_id", id).order("starts_at", { ascending: false }),
       db.from("payments").select("*").eq("teacher_id", id).order("paid_at", { ascending: false }),
       db.from("plans").select("*").order("sort_order"),
     ]);
-    setTeacher((list || []).find((t: any) => t.user_id === id) || null);
+    if (listError) {
+      setLoadError(listError.message);
+      return;
+    }
+    const found = (list || []).find((t: any) => t.user_id === id) || null;
+    setLoadError(found ? "" : L("Professeur introuvable.", "الأستاذ غير موجود.", "Teacher not found."));
+    setTeacher(found);
     setAccount(acc);
     setSubs(s || []);
     setPayments(p || []);
@@ -57,6 +66,19 @@ export default function AdminTeacherDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  if (loadError && !teacher) {
+    return (
+      <div>
+        <Link to="/admin/teachers" className="mb-3 inline-flex min-h-[36px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+          {L("Professeurs", "الأساتذة", "Teachers")}
+        </Link>
+        <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          {L("Impossible de charger la fiche : ", "تعذر تحميل البطاقة: ", "Could not load the record: ")}{loadError}
+        </p>
+      </div>
+    );
+  }
   if (!teacher) return <div className="h-40 animate-pulse rounded-xl bg-muted" />;
 
   // même règle que subscription_status() : commencé, non arrêté, la fin la plus lointaine
@@ -65,21 +87,37 @@ export default function AdminTeacherDetail() {
     .sort((a, b) => (a.ends_at === null ? -1 : b.ends_at === null ? 1 : new Date(b.ends_at).getTime() - new Date(a.ends_at).getTime()))[0] || null;
   const suspended = teacher.account_status === "suspended";
 
-  const resetPassword = async () => {
-    if (!confirm(L("Générer un nouveau mot de passe provisoire ?", "إنشاء كلمة مرور مؤقتة جديدة؟", "Generate a new temporary password?"))) return;
-    const { data, error } = await adminInvoke("reset_password", { user_id: id });
-    if (error) return toast.error(error);
-    setSecret(data.password);
-  };
-  const toggleSuspend = async () => {
-    if (await toggleTeacherSuspension(teacher, L)) void load();
-  };
-  const cancelCurrent = async () => {
+  const resetPassword = () => ask({
+    title: L("Générer un nouveau mot de passe provisoire ?", "إنشاء كلمة مرور مؤقتة جديدة؟", "Generate a new temporary password?"),
+    description: L("L'ancien mot de passe ne fonctionnera plus.", "لن تعمل كلمة المرور القديمة بعد الآن.", "The old password will stop working."),
+    confirmLabel: L("Générer", "إنشاء", "Generate"),
+    onConfirm: async () => {
+      const { data, error } = await adminInvoke("reset_password", { user_id: id });
+      if (error) {
+        toast.error(error);
+        return false;
+      }
+      setSecret(data.password);
+    },
+  });
+  const toggleSuspend = () => ask(suspensionConfirm(teacher, L, () => void load()));
+  const cancelCurrent = () => {
     if (!current) return;
-    if (!confirm(L("Arrêter l'abonnement en cours dès maintenant ? Le compte passera en lecture seule.", "إيقاف الاشتراك الحالي الآن؟ سيصبح الحساب للقراءة فقط.", "Stop the current subscription now? The account becomes read-only."))) return;
-    const { error } = await db.from("subscriptions").update({ canceled_at: new Date().toISOString() }).eq("id", current.id);
-    if (error) return toast.error(error.message);
-    void load();
+    ask({
+      title: L("Arrêter l'abonnement en cours ?", "إيقاف الاشتراك الحالي؟", "Stop the current subscription?"),
+      description: L("Il s'arrête dès maintenant. Le compte passera en lecture seule.", "يتوقف الآن. سيصبح الحساب للقراءة فقط.", "It stops now. The account becomes read-only."),
+      confirmLabel: L("Arrêter", "إيقاف", "Stop"),
+      destructive: true,
+      onConfirm: async () => {
+        const { error } = await db.from("subscriptions").update({ canceled_at: new Date().toISOString() }).eq("id", current.id);
+        if (error) {
+          toast.error(error.message);
+          return false;
+        }
+        toast.success(L("Abonnement arrêté", "تم إيقاف الاشتراك", "Subscription stopped"));
+        void load();
+      },
+    });
   };
 
   const tabs: { id: Tab; label: string }[] = [
@@ -91,7 +129,7 @@ export default function AdminTeacherDetail() {
 
   return (
     <div>
-      <Link to="/admin/teachers" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link to="/admin/teachers" className="mb-3 inline-flex min-h-[36px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
         {L("Professeurs", "الأساتذة", "Teachers")}
       </Link>
@@ -112,7 +150,7 @@ export default function AdminTeacherDetail() {
               {L("Créé le", "أنشئ في", "Created")} {fmtDate(teacher.created_at, lang)} · {L("Dernière connexion", "آخر دخول", "Last login")} {fmtDate(teacher.last_sign_in_at, lang)}
             </p>
             {suspended && account?.suspended_reason && (
-              <p className="mt-1 text-xs font-medium text-red-600">{L("Motif", "السبب", "Reason")} : {account.suspended_reason}</p>
+              <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{L("Motif", "السبب", "Reason")} : {account.suspended_reason}</p>
             )}
           </div>
           {adminCan("admin.teachers.manage") && (
@@ -143,7 +181,7 @@ export default function AdminTeacherDetail() {
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`-mb-px flex-shrink-0 border-b-2 px-3 py-2 text-sm font-semibold ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`-mb-px min-h-[40px] flex-shrink-0 border-b-2 px-3 py-2 text-sm font-semibold ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {t.label}
           </button>
@@ -207,12 +245,12 @@ export default function AdminTeacherDetail() {
                           </span>
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {fmtDate(s.starts_at, lang)} → {s.ends_at ? fmtDate(s.ends_at, lang) : L("sans fin", "بدون نهاية", "no end")}
+                          {fmtDate(s.starts_at, lang)} {lang === "ar" ? "←" : "→"} {s.ends_at ? fmtDate(s.ends_at, lang) : L("sans fin", "بدون نهاية", "no end")}
                           {s.canceled_at ? ` · ${L("arrêté le", "أوقف في", "stopped")} ${fmtDate(s.canceled_at, lang)}` : ""}
                           {s.notes ? ` · ${s.notes}` : ""}
                         </p>
                       </div>
-                      {s.price_mad ? <span className="text-xs font-semibold">{fmtMoney(s.price_mad)}</span> : null}
+                      {s.price_mad ? <span className="text-xs font-semibold">{fmtMoney(s.price_mad, lang)}</span> : null}
                     </li>
                   ))}
                 </ul>
@@ -244,6 +282,7 @@ export default function AdminTeacherDetail() {
       />
       <ExtendDialog open={extendOpen} onOpenChange={setExtendOpen} current={current} onSaved={load} />
       <PaymentDialog open={payOpen} onOpenChange={setPayOpen} teacherId={id} subs={subs} onSaved={load} />
+      {confirmDialog}
 
       <Dialog open={!!secret} onOpenChange={v => !v && setSecret(null)}>
         <DialogContent className="sm:max-w-md">
@@ -263,9 +302,9 @@ function CopyBox({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-2">
-      <pre className="whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm" dir="ltr">{text}</pre>
-      <Button type="button" variant="outline" className="gap-1.5" onClick={() => navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => undefined)}>
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{L("Copier", "نسخ", "Copy")}
+      <pre className="select-all whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm" dir="ltr" style={{ WebkitUserSelect: "text", userSelect: "text" }}>{text}</pre>
+      <Button type="button" variant="outline" className="gap-1.5" onClick={async () => { if (await copyWithToast(text, L)) setCopied(true); }}>
+        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? L("Copié", "تم النسخ", "Copied") : L("Copier", "نسخ", "Copy")}
       </Button>
     </div>
   );
@@ -287,24 +326,27 @@ function SubscriptionDialog({ mode, onClose, teacherId, plans, current, onSaved 
   useEffect(() => {
     if (!mode) return;
     const now = new Date();
-    // Renouvellement : repart de la fin actuelle si elle n'est pas dépassée, sinon d'aujourd'hui
-    const start = mode === "renew" && current?.ends_at && new Date(current.ends_at) > now ? new Date(current.ends_at) : now;
+    // Renouvellement : repart le jour qui suit la fin actuelle si elle n'est pas dépassée, sinon d'aujourd'hui
+    // (+1 s : une fin à 23:59:59 locale donne le lendemain, en date locale)
+    const start = mode === "renew" && current?.ends_at && new Date(current.ends_at) > now ? new Date(new Date(current.ends_at).getTime() + 1000) : now;
     const pid = mode === "renew" ? current?.plan_id : (current?.plan_id && plans.find(p => p.id === current.plan_id)?.is_active ? current.plan_id : available[0]?.id);
-    setF({ plan_id: pid || "", kind: "paid", starts: toDateInput(start.toISOString()), ends: "", price: "", notes: "", stopCurrent: true });
+    setF({ plan_id: pid || "", kind: "paid", starts: localDateStr(start), ends: "", price: "", notes: "", stopCurrent: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   useEffect(() => {
     if (!plan) return;
     const days = f.kind === "trial" ? plan.trial_days || plan.duration_days : plan.duration_days;
-    const startIso = fromDateInput(f.starts) || new Date().toISOString();
-    setF((prev: any) => ({ ...prev, ends: days ? toDateInput(addDaysIso(startIso, days)) : "", price: f.kind === "paid" ? String(plan.price_mad || "") : "" }));
+    setF((prev: any) => ({ ...prev, ends: days ? endDateInput(f.starts, days) : "", price: f.kind === "paid" ? String(plan.price_mad || "") : "" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.plan_id, f.kind, f.starts]);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!plan) return;
+    if (f.ends && f.starts && f.ends < f.starts) {
+      return toast.error(L("La date de fin précède la date de début.", "تاريخ النهاية قبل تاريخ البداية.", "The end date is before the start date."));
+    }
     setSaving(true);
     const startsAt = fromDateInput(f.starts) || new Date().toISOString();
     // Changement d'offre : l'abonnement en cours s'arrête au début du nouveau
@@ -320,7 +362,7 @@ function SubscriptionDialog({ mode, onClose, teacherId, plans, current, onSaved 
     const { error } = await db.from("subscriptions").insert({
       teacher_id: teacherId, plan_id: plan.id, kind: f.kind, starts_at: startsAt,
       ends_at: f.ends ? fromDateInput(f.ends, true) : null, grace_days: plan.grace_days ?? 7,
-      price_mad: f.kind === "paid" && f.price ? Number(f.price) : null, notes: f.notes || (mode === "renew" ? "Renouvellement" : null),
+      price_mad: f.kind === "paid" && f.price ? Number(f.price) : null, notes: f.notes || (mode === "renew" ? L("Renouvellement", "تجديد", "Renewal") : null),
     });
     setSaving(false);
     if (error) return toast.error(error.message);
@@ -330,7 +372,7 @@ function SubscriptionDialog({ mode, onClose, teacherId, plans, current, onSaved 
   };
 
   return (
-    <Dialog open={!!mode} onOpenChange={v => !v && onClose()}>
+    <Dialog open={!!mode} onOpenChange={v => !v && !saving && onClose()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "renew" ? L("Renouveler l'abonnement", "تجديد الاشتراك", "Renew subscription") : L("Attribuer une offre", "منح عرض", "Assign a plan")}</DialogTitle>
@@ -343,47 +385,50 @@ function SubscriptionDialog({ mode, onClose, teacherId, plans, current, onSaved 
         <form onSubmit={save} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>{L("Offre", "العرض", "Plan")}</Label>
-              <select className={selectCls} value={f.plan_id || ""} onChange={e => setF({ ...f, plan_id: e.target.value })} required>
+              <Label htmlFor="sub-dlg-1">{L("Offre", "العرض", "Plan")}</Label>
+              <select id="sub-dlg-1" className={selectCls} value={f.plan_id || ""} onChange={e => setF({ ...f, plan_id: e.target.value })} required>
                 {available.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Type", "النوع", "Type")}</Label>
-              <select className={selectCls} value={f.kind || "paid"} onChange={e => setF({ ...f, kind: e.target.value })}>
+              <Label htmlFor="sub-dlg-2">{L("Type", "النوع", "Type")}</Label>
+              <select id="sub-dlg-2" className={selectCls} value={f.kind || "paid"} onChange={e => setF({ ...f, kind: e.target.value })}>
                 <option value="paid">{L("Payant", "مؤدى عنه", "Paid")}</option>
                 <option value="trial">{L("Essai", "تجريبي", "Trial")}</option>
                 <option value="free">{L("Offert", "مجاني", "Free")}</option>
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Début", "البداية", "Start")}</Label>
-              <Input type="date" value={f.starts || ""} onChange={e => setF({ ...f, starts: e.target.value })} required />
+              <Label htmlFor="sub-dlg-3">{L("Début", "البداية", "Start")}</Label>
+              <Input id="sub-dlg-3" type="date" value={f.starts || ""} onChange={e => setF({ ...f, starts: e.target.value })} required />
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Fin (vide = sans fin)", "النهاية (فارغ = بدون نهاية)", "End (empty = none)")}</Label>
-              <Input type="date" value={f.ends || ""} onChange={e => setF({ ...f, ends: e.target.value })} />
+              <Label htmlFor="sub-dlg-4">{L("Fin (vide = sans fin)", "النهاية (فارغ = بدون نهاية)", "End (empty = none)")}</Label>
+              <Input id="sub-dlg-4" type="date" value={f.ends || ""} onChange={e => setF({ ...f, ends: e.target.value })} />
             </div>
             {f.kind === "paid" && (
               <div className="space-y-1.5">
-                <Label>{L("Prix (MAD)", "الثمن (درهم)", "Price (MAD)")}</Label>
-                <Input type="number" min="0" step="0.01" value={f.price || ""} onChange={e => setF({ ...f, price: e.target.value })} />
+                <Label htmlFor="sub-dlg-5">{L("Prix (MAD)", "الثمن (درهم)", "Price (MAD)")}</Label>
+                <Input id="sub-dlg-5" type="number" min="0" step="0.01" value={f.price || ""} onChange={e => setF({ ...f, price: e.target.value })} />
               </div>
             )}
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>{L("Note", "ملاحظة", "Note")}</Label>
-              <Input value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
+              <Label htmlFor="sub-dlg-6">{L("Note", "ملاحظة", "Note")}</Label>
+              <Input id="sub-dlg-6" value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
             </div>
           </div>
           {mode === "assign" && current && (
-            <label className="flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-0.5" checked={!!f.stopCurrent} onChange={e => setF({ ...f, stopCurrent: e.target.checked })} />
+            <label className="flex min-h-[40px] cursor-pointer items-center gap-3 text-sm">
+              <input type="checkbox" className="h-5 w-5 flex-shrink-0" checked={!!f.stopCurrent} onChange={e => setF({ ...f, stopCurrent: e.target.checked })} />
               <span>{L("Arrêter l'abonnement en cours au début du nouveau", "إيقاف الاشتراك الحالي عند بداية الجديد", "Stop the current subscription when the new one starts")}</span>
             </label>
           )}
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={onClose}>{L("Annuler", "إلغاء", "Cancel")}</Button>
-            <Button type="submit" disabled={saving || !plan}>{L("Enregistrer", "حفظ", "Save")}</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
+            <Button type="submit" disabled={saving || !plan}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving ? L("Enregistrement…", "جار الحفظ…", "Saving…") : L("Enregistrer", "حفظ", "Save")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -394,34 +439,46 @@ function SubscriptionDialog({ mode, onClose, teacherId, plans, current, onSaved 
 function ExtendDialog({ open, onOpenChange, current, onSaved }: any) {
   const { L, lang } = useT();
   const [days, setDays] = useState("30");
+  const [saving, setSaving] = useState(false);
+  const n = Math.floor(Number(days));
+  // base : fin actuelle si elle n'est pas dépassée, sinon maintenant ; ajout en jours calendaires locaux
+  const base = current?.ends_at && new Date(current.ends_at) > new Date() ? current.ends_at : new Date().toISOString();
+  const newEnd = n > 0 ? addDaysIso(base, n) : null;
   const save = async () => {
-    const n = Number(days);
-    if (!current?.ends_at || !n) return;
-    const base = new Date(current.ends_at) > new Date() ? current.ends_at : new Date().toISOString();
-    const { error } = await db.from("subscriptions").update({ ends_at: addDaysIso(base, n) }).eq("id", current.id);
+    if (!current?.ends_at || !newEnd) return;
+    setSaving(true);
+    const { error } = await db.from("subscriptions").update({ ends_at: newEnd }).eq("id", current.id);
+    setSaving(false);
     if (error) return toast.error(error.message);
     toast.success(L("Abonnement prolongé", "تم تمديد الاشتراك", "Subscription extended"));
     onOpenChange(false);
     onSaved();
   };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={v => !saving && onOpenChange(v)}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{L("Prolonger l'abonnement", "تمديد الاشتراك", "Extend subscription")}</DialogTitle>
           <DialogDescription>{L("Fin actuelle", "النهاية الحالية", "Current end")} : {fmtDate(current?.ends_at, lang)}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap gap-2">
-          {[7, 15, 30, 90].map(n => (
-            <button key={n} type="button" onClick={() => setDays(String(n))} className={`rounded-full border px-3 py-1 text-sm ${days === String(n) ? "border-primary bg-primary text-primary-foreground" : ""}`}>
-              +{n} {L("j", "ي", "d")}
+          {[7, 15, 30, 90].map(x => (
+            <button key={x} type="button" onClick={() => setDays(String(x))} aria-pressed={days === String(x)} className={`h-9 rounded-full border px-3 text-sm ${days === String(x) ? "border-primary bg-primary text-primary-foreground" : ""}`}>
+              +{x} {L("j", "ي", "d")}
             </button>
           ))}
         </div>
-        <Input type="number" min="1" value={days} onChange={e => setDays(e.target.value)} />
+        <div className="space-y-1.5">
+          <Label htmlFor="extend-days">{L("Nombre de jours", "عدد الأيام", "Number of days")}</Label>
+          <Input id="extend-days" type="number" min="1" value={days} onChange={e => setDays(e.target.value)} />
+          {newEnd && <p className="text-xs text-muted-foreground">{L("Nouvelle fin", "النهاية الجديدة", "New end")} : <b>{fmtDate(newEnd, lang)}</b></p>}
+        </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
-          <Button onClick={save}>{L("Prolonger", "تمديد", "Extend")}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
+          <Button onClick={save} disabled={saving || !newEnd}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {L("Prolonger", "تمديد", "Extend")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -435,8 +492,8 @@ function PaymentsTab({ teacher, payments, subs, onAdd, canAdd }: any) {
   const total = payments.reduce((s: number, p: any) => s + Number(p.amount_mad || 0), 0);
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <h2 className="text-sm font-bold">{L("Paiements", "الأداءات", "Payments")} · {fmtMoney(total)}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+        <h2 className="text-sm font-bold">{L("Paiements", "الأداءات", "Payments")} · {fmtMoney(total, lang)}</h2>
         {canAdd && (
           <Button size="sm" className="gap-1.5" onClick={onAdd}><Plus className="h-3.5 w-3.5" />{L("Enregistrer un paiement", "تسجيل أداء", "Record a payment")}</Button>
         )}
@@ -451,12 +508,12 @@ function PaymentsTab({ teacher, payments, subs, onAdd, canAdd }: any) {
             return (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                 <div className="min-w-0">
-                  <p className="font-semibold">{fmtMoney(p.amount_mad)} <span className="text-xs font-normal text-muted-foreground">· {method ? L(method.fr, method.ar, method.en) : p.method}</span></p>
+                  <p className="font-semibold">{fmtMoney(p.amount_mad, lang)} <span className="text-xs font-normal text-muted-foreground">· {method ? L(method.fr, method.ar, method.en) : p.method}</span></p>
                   <p className="text-xs text-muted-foreground">
                     {fmtDate(p.paid_at, lang)}{sub ? ` · ${sub.plans?.name}` : ""}{p.reference ? ` · ${L("réf.", "مرجع", "ref.")} ${p.reference}` : ""}{p.receipt_number ? ` · ${L("reçu", "وصل", "receipt")} ${p.receipt_number}` : ""}
                   </p>
                 </div>
-                <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => printReceipt(p, teacher, sub, lang)}>
+                <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => printReceipt(p, teacher, sub, lang, L)}>
                   <Printer className="h-3.5 w-3.5" />{L("Reçu", "وصل", "Receipt")}
                 </Button>
               </li>
@@ -468,23 +525,37 @@ function PaymentsTab({ teacher, payments, subs, onAdd, canAdd }: any) {
   );
 }
 
-function printReceipt(p: any, teacher: any, sub: any, lang: Lang) {
+function printReceipt(p: any, teacher: any, sub: any, lang: Lang, L: (fr: string, ar: string, en: string) => string) {
   const w = window.open("", "_blank", "width=720,height=900");
-  if (!w) return;
+  if (!w) {
+    toast.error(L(
+      "Fenêtre bloquée : autorisez les fenêtres pop-up pour imprimer le reçu.",
+      "تم حظر النافذة: اسمح بالنوافذ المنبثقة لطباعة الوصل.",
+      "Pop-up blocked: allow pop-ups to print the receipt."
+    ));
+    return;
+  }
   const method = PAYMENT_METHODS.find(m => m.id === p.method);
   const esc = (s: any) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Reçu ${esc(p.receipt_number || "")}</title>
-  <style>body{font-family:Arial,sans-serif;max-width:640px;margin:32px auto;color:#111}h1{font-size:22px;margin:0}
-  .muted{color:#666;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:8px;border-bottom:1px solid #ddd}
-  .total{font-size:20px;font-weight:bold}</style></head><body>
-  <h1>Reçu de paiement</h1><p class="muted">Math infini · ${esc(new Date().toLocaleDateString("fr-FR"))}</p>
+  const locale = lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR";
+  const dir = lang === "ar" ? "rtl" : "ltr";
+  const arrow = lang === "ar" ? "←" : "→";
+  const number = p.receipt_number || String(p.id).slice(0, 8).toUpperCase();
+  const period = sub ? ` (${esc(fmtDate(sub.starts_at, lang))} ${arrow} ${esc(sub.ends_at ? fmtDate(sub.ends_at, lang) : L("sans fin", "بدون نهاية", "no end"))})` : "";
+  const row = (k: string, v: string, cls = "") => `<tr><td class="k">${esc(k)}</td><td${cls ? ` class="${cls}"` : ""}>${v}</td></tr>`;
+  w.document.write(`<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${esc(L("Reçu", "وصل", "Receipt"))} ${esc(number)}</title>
+  <style>body{font-family:Arial,Tahoma,sans-serif;max-width:640px;margin:32px auto;padding:0 16px;color:#111;direction:${dir};text-align:${lang === "ar" ? "right" : "left"}}h1{font-size:22px;margin:0}
+  .muted{color:#666;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:8px;border-bottom:1px solid #ddd;vertical-align:top}
+  td.k{color:#555;width:40%}.total{font-size:20px;font-weight:bold}.ltr{direction:ltr;unicode-bidi:embed}</style></head><body>
+  <h1>${esc(L("Reçu de paiement", "وصل الأداء", "Payment receipt"))}</h1><p class="muted">Math infini · ${esc(new Date().toLocaleDateString(locale))}</p>
   <table>
-  <tr><td>N° de reçu</td><td>${esc(p.receipt_number || p.id.slice(0, 8).toUpperCase())}</td></tr>
-  <tr><td>Professeur</td><td>${esc(teacher.name)} (${esc(teacher.email)})</td></tr>
-  <tr><td>Date du paiement</td><td>${esc(fmtDate(p.paid_at, lang))}</td></tr>
-  <tr><td>Offre</td><td>${esc(sub?.plans?.name || "—")}${sub ? ` (${esc(fmtDate(sub.starts_at, lang))} → ${esc(sub.ends_at ? fmtDate(sub.ends_at, lang) : "sans fin")})` : ""}</td></tr>
-  <tr><td>Moyen de paiement</td><td>${esc(method?.fr || p.method)}${p.reference ? ` · réf. ${esc(p.reference)}` : ""}</td></tr>
-  <tr><td>Montant</td><td class="total">${esc(fmtMoney(p.amount_mad))}</td></tr>
+  ${row(L("N° de reçu", "رقم الوصل", "Receipt no."), `<span class="ltr">${esc(number)}</span>`)}
+  ${row(L("Professeur", "الأستاذ", "Teacher"), `${esc(teacher.name)} (<span class="ltr">${esc(teacher.email)}</span>)`)}
+  ${row(L("Date du paiement", "تاريخ الأداء", "Payment date"), esc(fmtDate(p.paid_at, lang)))}
+  ${row(L("Offre", "العرض", "Plan"), `${esc(sub?.plans?.name || "—")}${period}`)}
+  ${row(L("Moyen de paiement", "وسيلة الأداء", "Payment method"), `${esc(method ? L(method.fr, method.ar, method.en) : p.method)}${p.reference ? ` · ${esc(L("réf.", "مرجع", "ref."))} <span class="ltr">${esc(p.reference)}</span>` : ""}`)}
+  ${row(L("Montant", "المبلغ", "Amount"), esc(fmtMoney(p.amount_mad, lang)), "total")}
   </table><script>window.onload=function(){window.print()}</script></body></html>`);
   w.document.close();
 }
@@ -492,15 +563,18 @@ function printReceipt(p: any, teacher: any, sub: any, lang: Lang) {
 function PaymentDialog({ open, onOpenChange, teacherId, subs, onSaved }: any) {
   const { L, lang } = useT();
   const [f, setF] = useState<any>({});
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (open) setF({ amount: "", paid_at: toDateInput(new Date().toISOString()), method: "transfer", reference: "", receipt: "", notes: "", subscription_id: subs[0]?.id || "" });
+    if (open) setF({ amount: "", paid_at: localDateStr(new Date()), method: "transfer", reference: "", receipt: "", notes: "", subscription_id: subs[0]?.id || "" });
   }, [open, subs]);
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     const { error } = await db.from("payments").insert({
       teacher_id: teacherId, subscription_id: f.subscription_id || null, amount_mad: Number(f.amount), paid_at: f.paid_at,
       method: f.method, reference: f.reference || null, receipt_number: f.receipt || null, notes: f.notes || null,
     });
+    setSaving(false);
     if (error) return toast.error(error.message);
     toast.success(L("Paiement enregistré", "تم تسجيل الأداء", "Payment recorded"));
     onOpenChange(false);
@@ -513,42 +587,45 @@ function PaymentDialog({ open, onOpenChange, teacherId, subs, onSaved }: any) {
         <form onSubmit={save} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>{L("Montant (MAD)", "المبلغ (درهم)", "Amount (MAD)")} *</Label>
-              <Input required type="number" min="0.01" step="0.01" value={f.amount || ""} onChange={e => setF({ ...f, amount: e.target.value })} />
+              <Label htmlFor="pay-dlg-7">{L("Montant (MAD)", "المبلغ (درهم)", "Amount (MAD)")} *</Label>
+              <Input id="pay-dlg-7" required type="number" min="0.01" step="0.01" value={f.amount || ""} onChange={e => setF({ ...f, amount: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Date", "التاريخ", "Date")}</Label>
-              <Input type="date" value={f.paid_at || ""} onChange={e => setF({ ...f, paid_at: e.target.value })} />
+              <Label htmlFor="pay-dlg-8">{L("Date", "التاريخ", "Date")}</Label>
+              <Input id="pay-dlg-8" type="date" value={f.paid_at || ""} onChange={e => setF({ ...f, paid_at: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Moyen", "الوسيلة", "Method")}</Label>
-              <select className={selectCls} value={f.method} onChange={e => setF({ ...f, method: e.target.value })}>
+              <Label htmlFor="pay-dlg-9">{L("Moyen", "الوسيلة", "Method")}</Label>
+              <select id="pay-dlg-9" className={selectCls} value={f.method} onChange={e => setF({ ...f, method: e.target.value })}>
                 {PAYMENT_METHODS.map(m => <option key={m.id} value={m.id}>{L(m.fr, m.ar, m.en)}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Abonnement concerné", "الاشتراك المعني", "Subscription")}</Label>
-              <select className={selectCls} value={f.subscription_id} onChange={e => setF({ ...f, subscription_id: e.target.value })}>
+              <Label htmlFor="pay-dlg-10">{L("Abonnement concerné", "الاشتراك المعني", "Subscription")}</Label>
+              <select id="pay-dlg-10" className={selectCls} value={f.subscription_id} onChange={e => setF({ ...f, subscription_id: e.target.value })}>
                 <option value="">—</option>
                 {subs.map((s: any) => <option key={s.id} value={s.id}>{s.plans?.name} · {fmtDate(s.starts_at, lang)}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label>{L("Référence (virement…)", "المرجع", "Reference")}</Label>
-              <Input value={f.reference || ""} onChange={e => setF({ ...f, reference: e.target.value })} />
+              <Label htmlFor="pay-dlg-11">{L("Référence (virement…)", "المرجع", "Reference")}</Label>
+              <Input id="pay-dlg-11" value={f.reference || ""} onChange={e => setF({ ...f, reference: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>{L("N° de reçu", "رقم الوصل", "Receipt no.")}</Label>
-              <Input value={f.receipt || ""} onChange={e => setF({ ...f, receipt: e.target.value })} />
+              <Label htmlFor="pay-dlg-12">{L("N° de reçu", "رقم الوصل", "Receipt no.")}</Label>
+              <Input id="pay-dlg-12" value={f.receipt || ""} onChange={e => setF({ ...f, receipt: e.target.value })} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>{L("Note", "ملاحظة", "Note")}</Label>
-            <Input value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
+            <Label htmlFor="pay-dlg-13">{L("Note", "ملاحظة", "Note")}</Label>
+            <Input id="pay-dlg-13" value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
-            <Button type="submit">{L("Enregistrer", "حفظ", "Save")}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving ? L("Enregistrement…", "جار الحفظ…", "Saving…") : L("Enregistrer", "حفظ", "Save")}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -721,7 +798,7 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
               const used = r?.used ?? 0;
               const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
               return (
-                <li key={p.key} className={`flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between ${changed ? "border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-950/30" : ""}`}>
+                <li key={p.key} className={`flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between ${changed ? "border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-950/30 rtl:border-l-0 rtl:border-r-4" : ""}`}>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       {!isQuota && (
@@ -747,14 +824,15 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                         </div>
                       </div>
                     )}
-                    {ov?.expires_at && <p className="mt-0.5 text-[11px] text-amber-700">{L("Exception jusqu'au", "استثناء إلى غاية", "Override until")} {fmtDate(ov.expires_at, lang)}</p>}
+                    {ov?.expires_at && <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">{L("Exception jusqu'au", "استثناء إلى غاية", "Override until")} {fmtDate(ov.expires_at, lang)}</p>}
                   </div>
                   {canEdit && (
                     <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
                       {isQuota ? (
                         <>
                           <select
-                            className="h-8 rounded-md border bg-background px-2 text-xs"
+                            className="h-9 rounded-md border bg-background px-2 text-xs"
+                            aria-label={permLabel(p.key, lang)}
                             value={ov ? "allow" : "plan"}
                             disabled={saving}
                             onChange={e => setEffect(p.key, e.target.value === "plan" ? "plan" : "allow", r?.limit_value ?? null)}
@@ -766,7 +844,8 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                             <Input
                               type="number"
                               min="0"
-                              className="h-8 w-24 text-xs"
+                              className="h-9 w-24 text-xs"
+                              aria-label={`${permLabel(p.key, lang)} · ${L("Limite", "الحد", "Limit")}`}
                               value={ov.limit_value ?? ""}
                               placeholder="∞"
                               disabled={saving}
@@ -775,14 +854,15 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                           )}
                         </>
                       ) : (
-                        <div className="inline-flex rounded-md border p-0.5 text-[11px]">
+                        <div className="inline-flex rounded-md border p-0.5 text-[11px]" role="group" aria-label={permLabel(p.key, lang)}>
                           {(["plan", "allow", "deny"] as const).map(v => (
                             <button
                               key={v}
                               type="button"
                               disabled={saving}
                               onClick={() => value !== v && setEffect(p.key, v)}
-                              className={`rounded px-2 py-1 font-semibold ${value === v
+                              aria-pressed={value === v}
+                              className={`min-h-[32px] rounded px-2 py-1 font-semibold ${value === v
                                 ? v === "allow" ? "bg-emerald-600 text-white" : v === "deny" ? "bg-red-600 text-white" : "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
                                 : "text-muted-foreground"}`}
                             >
@@ -794,8 +874,9 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                       {ov && (
                         <Input
                           type="date"
-                          className="h-8 w-36 text-xs"
+                          className="h-9 w-36 text-xs"
                           title={L("Fin de l'exception (facultatif)", "نهاية الاستثناء (اختياري)", "Override end (optional)")}
+                          aria-label={`${permLabel(p.key, lang)} · ${L("Fin de l'exception (facultatif)", "نهاية الاستثناء (اختياري)", "Override end (optional)")}`}
                           value={toDateInput(ov.expires_at)}
                           disabled={saving}
                           onChange={e => edit(p.key, { ...ov, expires_at: e.target.value ? fromDateInput(e.target.value, true) : null })}
@@ -811,17 +892,17 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
       ))}
 
       {canEdit && dirty && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-amber-400 bg-background shadow lg:left-60 rtl:lg:left-0 rtl:lg:right-60-[0_-4px_16px_rgba(0,0,0,0.08)]">
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-amber-400 bg-background shadow-[0_-4px_16px_rgba(0,0,0,0.08)] ltr:lg:left-60 rtl:lg:right-60" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <p className="text-sm font-semibold text-amber-700">
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
               {L(`${changedKeys.length} modification(s) non validée(s)`, `${changedKeys.length} تعديل(ات) غير مؤكدة`, `${changedKeys.length} unsaved change(s)`)}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={cancel} disabled={saving}>
-                <XCircle className="mr-1 h-4 w-4" />{L("Annuler", "إلغاء", "Cancel")}
+                <XCircle className="h-4 w-4" />{L("Annuler", "إلغاء", "Cancel")}
               </Button>
               <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={saving}>
-                <Check className="mr-1 h-4 w-4" />{L("Valider", "تأكيد", "Validate")}
+                <Check className="h-4 w-4" />{L("Valider", "تأكيد", "Validate")}
               </Button>
             </div>
           </div>
@@ -842,7 +923,7 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
                 <p className="font-medium">{permLabel(k, lang)}</p>
                 <p className="text-xs text-muted-foreground">
                   <span className="line-through">{describeOv(k, saved[k] ?? null)}</span>
-                  {"  →  "}
+                  {lang === "ar" ? "  ←  " : "  →  "}
                   <span className="font-semibold text-foreground">{describeOv(k, draft[k])}</span>
                 </p>
               </li>
@@ -851,6 +932,7 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={saving}>{L("Retour", "رجوع", "Back")}</Button>
             <Button onClick={validate} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {saving ? L("Enregistrement…", "جار الحفظ…", "Saving…") : L("Confirmer", "تأكيد", "Confirm")}
             </Button>
           </DialogFooter>

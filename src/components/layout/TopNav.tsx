@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -21,7 +21,9 @@ import {
   ChevronDown,
   Sparkles,
   ShieldCheck,
-  GraduationCap
+  GraduationCap,
+  Crown,
+  PlusCircle
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -32,6 +34,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
 import { cn } from "@/lib/utils";
+import { usePopupMenu } from "@/components/ui/use-popup-menu";
 
 const TopNav = () => {
   const { user, logout } = useAuth();
@@ -42,33 +45,26 @@ const TopNav = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
+  const {
+    containerRef: userMenuRef,
+    triggerRef: userMenuTriggerRef,
+    menuRef: userMenuListRef,
+    menuId: userMenuId,
+    triggerProps: userMenuTriggerProps,
+  } = usePopupMenu(isUserMenuOpen, setIsUserMenuOpen);
 
   const isRtl = language === "ar";
   const isProfessor = user?.role === "professor";
 
-  // Close user dropdown when clicking / touching outside (compatible with iOS 12 Safari)
-  useEffect(() => {
-    if (!isUserMenuOpen) return;
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
+  const roleLabel = isProfessor ? tr("Professeur", "أستاذ", "Teacher") : tr("Élève", "تلميذ", "Student");
 
-    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-      document.removeEventListener("touchstart", handleOutsideClick);
-    };
-  }, [isUserMenuOpen]);
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
+    }
   };
 
   // Helper to determine the current page title & icon
@@ -145,6 +141,20 @@ const TopNav = () => {
         color: "text-slate-500 bg-slate-500/10"
       };
     }
+    if (path.startsWith("/subscription")) {
+      return {
+        title: tr("Mon abonnement", "اشتراكي", "My subscription"),
+        icon: Crown,
+        color: "text-amber-500 bg-amber-500/10"
+      };
+    }
+    if (path.startsWith("/create-room")) {
+      return {
+        title: tr("Créer une classe", "إنشاء قسم", "Create a class"),
+        icon: PlusCircle,
+        color: "text-teal-500 bg-teal-500/10"
+      };
+    }
     if (path.startsWith("/settings")) {
       return {
         title: language === "ar" ? "الإعدادات" : language === "fr" ? "Paramètres" : "Settings",
@@ -162,12 +172,12 @@ const TopNav = () => {
 
   const pageInfo = getPageInfo();
   const PageIcon = pageInfo.icon;
-  const firstName = user?.name ? user.name.split(' ')[0] : (isProfessor ? (language === "ar" ? "أستاذ" : "Professeur") : (language === "ar" ? "تلميذ" : "Élève"));
+  const firstName = user?.name ? user.name.split(' ')[0] : roleLabel;
 
   return (
     <header 
       dir={isRtl ? "rtl" : "ltr"}
-      className="sticky top-0 z-30 h-16 w-full bg-background/80 backdrop-blur-xl border-b border-border/70 shadow-xs flex items-center justify-between px-3 md:px-6 transition-all"
+      className="app-topnav sticky top-0 z-30 h-16 w-full flex-shrink-0 bg-background/80 backdrop-blur-xl border-b border-border/70 shadow-xs flex items-center justify-between px-3 md:px-6 transition-all"
     >
       {/* Left Section: Mobile Drawer Trigger + Current Page Info */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 max-w-[50vw] sm:max-w-[60vw] md:max-w-none">
@@ -177,14 +187,15 @@ const TopNav = () => {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="lg:hidden h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors flex-shrink-0"
-              aria-label="Menu"
+              className="lg:hidden h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors flex-shrink-0"
+              aria-label={tr("Ouvrir le menu", "فتح القائمة", "Open menu")}
             >
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
           <SheetContent 
             side={isRtl ? "right" : "left"} 
+            aria-label={tr("Menu de navigation", "قائمة التنقل", "Navigation menu")}
             className="p-0 w-72 max-w-[85vw] border-0 overflow-hidden bg-transparent shadow-2xl" 
             onClick={(e) => {
               if ((e.target as HTMLElement).closest('a')) {
@@ -223,15 +234,16 @@ const TopNav = () => {
       {/* Right Section: Compact Glass Toolbar & Profile Capsule */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
         {/* Controls Container Pill */}
-        <div className="flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xs">
+        <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xs">
           <LanguageSelector />
           <NotificationBell />
           <ThemeToggle />
         </div>
 
         {/* User Profile Capsule Dropdown */}
-        <div ref={userMenuRef} className="relative inline-block text-left">
+        <div ref={userMenuRef} className="relative inline-block">
           <Button 
+            ref={userMenuTriggerRef}
             type="button"
             variant="ghost" 
             onClick={(e) => {
@@ -245,8 +257,8 @@ const TopNav = () => {
                 ? "bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800" 
                 : "border-transparent hover:bg-slate-100 dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800"
             )}
-            aria-expanded={isUserMenuOpen}
-            aria-haspopup="true"
+            aria-label={tr("Menu du compte", "قائمة الحساب", "Account menu")}
+            {...userMenuTriggerProps}
           >
             <div className="relative flex-shrink-0 pointer-events-none">
               <Avatar className="h-7 w-7 ring-2 ring-primary/20">
@@ -255,15 +267,15 @@ const TopNav = () => {
                   {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || user?.name?.charAt(0) || "U"}
                 </AvatarFallback>
               </Avatar>
-              <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-1.5 ring-background" />
+              <span className="absolute -bottom-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-1.5 ring-background" />
             </div>
 
             <div className="hidden lg:flex flex-col items-start text-left rtl:text-right min-w-0 pointer-events-none">
               <span className="text-xs font-bold text-foreground truncate max-w-[100px] leading-tight">
-                {user?.name || (isProfessor ? (language === "ar" ? "أستاذ" : "Professeur") : (language === "ar" ? "تلميذ" : "Élève"))}
+                {user?.name || roleLabel}
               </span>
-              <span className="text-[10px] text-muted-foreground leading-tight">
-                {isProfessor ? (language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor") : (language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student")}
+              <span className="text-[11px] text-muted-foreground leading-tight">
+                {roleLabel}
               </span>
             </div>
 
@@ -272,7 +284,10 @@ const TopNav = () => {
 
           {isUserMenuOpen && (
             <div 
-              className="absolute top-full right-0 rtl:right-auto rtl:left-0 mt-1.5 w-64 p-1.5 rounded-2xl shadow-2xl border border-border/80 bg-card text-card-foreground z-50 animate-in fade-in-50 zoom-in-95 overflow-hidden"
+              ref={userMenuListRef}
+              id={userMenuId}
+              aria-label={tr("Menu du compte", "قائمة الحساب", "Account menu")}
+              className="absolute top-full right-0 rtl:right-auto rtl:left-0 mt-1.5 w-64 max-w-[calc(100vw-1rem)] p-1.5 rounded-2xl shadow-2xl border border-border/80 bg-card text-card-foreground z-50 animate-in fade-in-50 zoom-in-95 overflow-hidden"
               role="menu"
             >
               {/* Header with full user details */}
@@ -300,7 +315,7 @@ const TopNav = () => {
                           : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                       )}
                     >
-                      {isProfessor ? (language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor") : (language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student")}
+                      {roleLabel}
                     </Badge>
                   </div>
                 </div>
@@ -317,7 +332,7 @@ const TopNav = () => {
                   setIsUserMenuOpen(false);
                   setIsAvatarModalOpen(true);
                 }}
-                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors text-left rtl:text-right select-none"
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 min-h-[40px] text-sm font-medium hover:bg-primary/10 hover:text-primary focus:bg-primary/10 focus:outline-none transition-colors text-start select-none"
                 role="menuitem"
               >
                 <div className="p-1 rounded-lg bg-primary/10 text-primary">
@@ -340,7 +355,7 @@ const TopNav = () => {
                   setIsUserMenuOpen(false);
                   navigate("/profile");
                 }}
-                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left rtl:text-right select-none"
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 min-h-[40px] text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800 focus:outline-none transition-colors text-start select-none"
                 role="menuitem"
               >
                 <div className="p-1 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
@@ -357,7 +372,7 @@ const TopNav = () => {
                   setIsUserMenuOpen(false);
                   navigate("/settings");
                 }}
-                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left rtl:text-right select-none"
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 min-h-[40px] text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800 focus:outline-none transition-colors text-start select-none"
                 role="menuitem"
               >
                 <div className="p-1 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
@@ -376,11 +391,11 @@ const TopNav = () => {
                   setIsUserMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 dark:hover:bg-rose-500/15 transition-colors text-left rtl:text-right select-none"
+                className="w-full cursor-pointer rounded-xl flex items-center gap-2.5 px-3 py-2 min-h-[40px] text-sm font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 dark:hover:bg-rose-500/15 focus:bg-rose-500/10 focus:outline-none transition-colors text-start select-none"
                 role="menuitem"
               >
                 <div className="p-1 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className={cn("h-4 w-4", isRtl && "rotate-180")} />
                 </div>
                 <span>{t("nav.logout")}</span>
               </button>

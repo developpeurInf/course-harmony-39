@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, Eraser, Pencil, Check, X } from "lucide-react";
+import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, Eraser, Pencil, Check, X, Loader2 } from "lucide-react";
 import ClearRoomDialog from "@/components/ClearRoomDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { accessStore } from "@/contexts/AccessContext";
 import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { isSmallScreen } from "@/lib/device";
@@ -42,7 +43,6 @@ const ClassManagement = () => {
   const [renaming, setRenaming] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingCounts, setLoadingCounts] = useState(true);
-  const [roomsWithCounts, setRoomsWithCounts] = useState<Room[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "table">(() => (isSmallScreen() ? "grid" : "table"));
@@ -52,75 +52,75 @@ const ClassManagement = () => {
     is_visible: true
   });
 
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const iconBtn = "h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10";
+
+  // Suppression : une seule boîte de dialogue, état « occupé » + progression
+  const [deleteTarget, setDeleteTarget] = useState<Room | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<{ done: number; total: number; label: string } | null>(null);
+
+  // Clé stable : on ne recompte que si la liste des classes change réellement
+  const roomKey = rooms.map(r => r.id).join(",");
+  const [counts, setCounts] = useState<Record<string, NonNullable<Room["_count"]>>>({});
+
   useEffect(() => {
     fetchRoomsWithCounts();
-  }, [rooms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomKey, user?.id]);
+
+  const roomsWithCounts: Room[] = rooms.map(r => ({ ...(r as any), _count: counts[r.id] || { courses: 0, students: 0, exercises: 0, exams: 0 } }));
+
+  /** Lit toutes les lignes (pagination par 1000, limite par défaut de l'API). */
+  const fetchAll = async <T,>(make: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>): Promise<T[]> => {
+    const out: T[] = [];
+    const PAGE = 1000;
+    for (let from = 0; from < 100000; from += PAGE) {
+      const { data, error } = await make(from, from + PAGE - 1);
+      if (error) throw error;
+      out.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    return out;
+  };
 
   const fetchRoomsWithCounts = async () => {
     if (!user) return;
-    if (roomsWithCounts.length === 0) setLoadingCounts(true);
+    const roomIds = rooms.map(r => r.id);
+    if (roomIds.length === 0) {
+      setCounts({});
+      setLoadingCounts(false);
+      return;
+    }
+    if (Object.keys(counts).length === 0) setLoadingCounts(true);
     try {
-      const roomsWithCounts = await Promise.all(
-        rooms.map(async (room) => {
-          // Get courses count
-          const { count: coursesCount } = await supabase
-            .from('courses')
-            .select('*', { count: 'exact', head: true })
-            .eq('room_id', room.id);
+      // Requêtes groupées (au lieu de 6 requêtes par classe)
+      const [courses, directStudents, enrolled] = await Promise.all([
+        fetchAll<{ id: string; room_id: string }>((a, b) => supabase.from('courses').select('id, room_id').in('room_id', roomIds).range(a, b)),
+        fetchAll<{ id: string; room_id: string | null }>((a, b) => supabase.from('profiles').select('id, room_id').eq('role', 'student').in('room_id', roomIds).range(a, b)),
+        fetchAll<{ student_id: string; room_id: string | null }>((a, b) => supabase.from('enrollments').select('student_id, room_id').in('room_id', roomIds).range(a, b)),
+      ]);
+      const courseIds = courses.map(c => c.id);
+      const courseRoom: Record<string, string> = {};
+      courses.forEach(c => { courseRoom[c.id] = c.room_id; });
+      const [exercises, exams] = courseIds.length
+        ? await Promise.all([
+            fetchAll<{ course_id: string }>((a, b) => supabase.from('exercises').select('course_id').in('course_id', courseIds).range(a, b)),
+            fetchAll<{ course_id: string }>((a, b) => supabase.from('exams').select('course_id').in('course_id', courseIds).range(a, b)),
+          ])
+        : [[], []];
 
-          // Get students count: direct room assignment (imported via Excel) + enrolled students
-          const { count: directStudentsCount } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('room_id', room.id)
-            .eq('role', 'student');
-
-          const { count: enrolledStudentsCount } = await supabase
-            .from('enrollments')
-            .select('*', { count: 'exact', head: true })
-            .eq('room_id', room.id);
-
-          const studentsCount = (directStudentsCount || 0) + (enrolledStudentsCount || 0);
-
-          // Get exercises count
-          const { data: courses } = await supabase
-            .from('courses')
-            .select('id')
-            .eq('room_id', room.id);
-
-          const courseIds = courses?.map(c => c.id) || [];
-          
-          let exercisesCount = 0;
-          let examsCount = 0;
-          
-          if (courseIds.length > 0) {
-            const { count: exercisesCountResult } = await supabase
-              .from('exercises')
-              .select('*', { count: 'exact', head: true })
-              .in('course_id', courseIds);
-            
-            const { count: examsCountResult } = await supabase
-              .from('exams')
-              .select('*', { count: 'exact', head: true })
-              .in('course_id', courseIds);
-
-            exercisesCount = exercisesCountResult || 0;
-            examsCount = examsCountResult || 0;
-          }
-
-          return {
-            ...room,
-            _count: {
-              courses: coursesCount || 0,
-              students: studentsCount || 0,
-              exercises: exercisesCount,
-              exams: examsCount
-            }
-          };
-        })
-      );
-      
-      setRoomsWithCounts(roomsWithCounts);
+      const next: Record<string, NonNullable<Room["_count"]>> = {};
+      const students: Record<string, Set<string>> = {};
+      roomIds.forEach(id => { next[id] = { courses: 0, students: 0, exercises: 0, exams: 0 }; students[id] = new Set(); });
+      courses.forEach(c => { if (next[c.room_id]) next[c.room_id].courses++; });
+      // Élèves distincts : rattachement direct ∪ inscriptions
+      directStudents.forEach(p => { if (p.room_id && students[p.room_id]) students[p.room_id].add(p.id); });
+      enrolled.forEach(e => { if (e.room_id && students[e.room_id]) students[e.room_id].add(e.student_id); });
+      roomIds.forEach(id => { next[id].students = students[id].size; });
+      exercises.forEach(x => { const r = courseRoom[x.course_id]; if (r && next[r]) next[r].exercises++; });
+      exams.forEach(x => { const r = courseRoom[x.course_id]; if (r && next[r]) next[r].exams++; });
+      setCounts(next);
     } catch (error) {
       console.error('Error fetching room counts:', error);
     } finally {
@@ -128,25 +128,34 @@ const ClassManagement = () => {
     }
   };
 
+  const normName = (v: string) => v.trim().replace(/\s+/g, " ");
+  const nameTaken = (name: string, exceptId?: string) =>
+    rooms.some(r => r.id !== exceptId && r.name.trim().toLowerCase() === name.toLowerCase());
+
   const handleCreateRoom = async () => {
-    if (!formData.name.trim()) {
-      toast.error("Room name is required");
+    const name = normName(formData.name);
+    if (!name) {
+      toast.error(tr("Le nom de la classe est obligatoire", "اسم القسم مطلوب", "Class name is required"));
       return;
     }
-
+    if (nameTaken(name)) {
+      toast.error(tr("Une classe porte déjà ce nom", "يوجد قسم بهذا الاسم", "A class with this name already exists"));
+      return;
+    }
+    if (loading) return;
     setLoading(true);
     try {
-      await addRoom({
-        name: formData.name,
+      // Le contexte affiche lui-même le message de succès / d'erreur
+      const ok = await addRoom({
+        name,
         description: formData.description || null,
         is_visible: formData.is_visible
-      });
-      
-      toast.success("Class created successfully!");
+      } as any);
+      if (!ok) return;
       setIsCreateDialogOpen(false);
       setFormData({ name: "", description: "", is_visible: true });
     } catch (error) {
-      toast.error("Failed to create class");
+      toast.error(tr("Impossible de créer la classe", "تعذر إنشاء القسم", "Failed to create class"));
       console.error("Error creating room:", error);
     } finally {
       setLoading(false);
@@ -154,25 +163,28 @@ const ClassManagement = () => {
   };
 
   const handleEditRoom = async () => {
-    if (!editingRoom || !formData.name.trim()) {
-      toast.error("Room name is required");
+    const name = normName(formData.name);
+    if (!editingRoom || !name) {
+      toast.error(tr("Le nom de la classe est obligatoire", "اسم القسم مطلوب", "Class name is required"));
       return;
     }
-
+    if (nameTaken(name, editingRoom.id)) {
+      toast.error(tr("Une classe porte déjà ce nom", "يوجد قسم بهذا الاسم", "A class with this name already exists"));
+      return;
+    }
+    if (loading) return;
     setLoading(true);
     try {
       const ok = await updateRoom(editingRoom.id, {
-        name: formData.name.trim(),
+        name,
         description: formData.description || null,
         is_visible: formData.is_visible
-      });
+      } as any);
       if (!ok) return;
-      
-      toast.success(language === "ar" ? "تم تحديث القسم" : language === "fr" ? "Classe mise à jour" : "Class updated");
       setEditingRoom(null);
       setFormData({ name: "", description: "", is_visible: true });
     } catch (error) {
-      toast.error("Failed to update class");
+      toast.error(tr("Impossible de mettre à jour la classe", "تعذر تحديث القسم", "Failed to update class"));
       console.error("Error updating room:", error);
     } finally {
       setLoading(false);
@@ -180,72 +192,82 @@ const ClassManagement = () => {
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-    setLoading(true);
-    try {
-      // Manual cascading deletion since we don't have RPC function yet
-      // Delete enrollments first
-      await supabase.from('enrollments').delete().eq('room_id', roomId);
-      
-      // Get courses in this room
-      const { data: courses } = await supabase
-        .from('courses')
-        .select('id')
-        .eq('room_id', roomId);
-
-      if (courses && courses.length > 0) {
-        const courseIds = courses.map(c => c.id);
-        
-        // Delete quiz-related data
-        const { data: submissions } = await supabase
-          .from('quiz_submissions')
-          .select('id')
-          .in('exam_id', 
-            await supabase.from('exams').select('id').in('course_id', courseIds).then(res => 
-              res.data?.map(e => e.id) || []
-            )
-          );
-        
-        if (submissions && submissions.length > 0) {
-          const submissionIds = submissions.map(s => s.id);
-          await supabase.from('quiz_answers').delete().in('submission_id', submissionIds);
-          await supabase.from('quiz_submissions').delete().in('id', submissionIds);
-        }
-        
-        // Delete quiz questions and options
-        const { data: exams } = await supabase.from('exams').select('id').in('course_id', courseIds);
-        if (exams && exams.length > 0) {
-          const examIds = exams.map(e => e.id);
-          const { data: questions } = await supabase.from('quiz_questions').select('id').in('exam_id', examIds);
-          if (questions && questions.length > 0) {
-            const questionIds = questions.map(q => q.id);
-            await supabase.from('quiz_options').delete().in('question_id', questionIds);
-            await supabase.from('quiz_questions').delete().in('id', questionIds);
-          }
-        }
-        
-        // Delete exercises and exams
-        await supabase.from('exercises').delete().in('course_id', courseIds);
-        await supabase.from('exams').delete().in('course_id', courseIds);
-        
-        // Delete course materials
-        await supabase.from('course_materials').delete().in('course_id', courseIds);
-        
-        // Delete courses
-        await supabase.from('courses').delete().in('id', courseIds);
+    if (deleting) return;
+    // 1) Habilitation AVANT toute suppression
+    if (!accessStore.guard("class.delete")) return;
+    setDeleting(true);
+    const TOTAL = 10;
+    let step = 0;
+    const progress = (label: string) => { step++; setDeleteStep({ done: step, total: TOTAL, label }); };
+    const check = (res: { error: any }, what: string) => {
+      if (res.error) {
+        const err: any = new Error(what);
+        err.step = what;
+        err.cause = res.error;
+        throw err;
       }
-      
-      // Finally delete the room
-      await supabase.from('rooms').delete().eq('id', roomId);
-      
-      // Update local state
-      await deleteRoom(roomId);
-      
-      toast.success(language === "ar" ? "تم حذف القسم وكل محتواه" : language === "fr" ? "Classe et contenu supprimés" : "Class and all related data deleted");
-    } catch (error) {
-      toast.error("Failed to delete class");
+    };
+    try {
+      progress(tr("Analyse du contenu", "تحليل المحتوى", "Analysing content"));
+      const coursesRes = await supabase.from('courses').select('id').eq('room_id', roomId);
+      check(coursesRes, tr("lecture des cours", "قراءة الدروس", "reading courses"));
+      const courseIds = (coursesRes.data || []).map(c => c.id);
+
+      let examIds: string[] = [];
+      let submissionIds: string[] = [];
+      let questionIds: string[] = [];
+      if (courseIds.length > 0) {
+        const examsRes = await supabase.from('exams').select('id').in('course_id', courseIds);
+        check(examsRes, tr("lecture des examens", "قراءة الامتحانات", "reading exams"));
+        examIds = (examsRes.data || []).map(e => e.id);
+        if (examIds.length > 0) {
+          const [subsRes, qRes] = await Promise.all([
+            supabase.from('quiz_submissions').select('id').in('exam_id', examIds),
+            supabase.from('quiz_questions').select('id').in('exam_id', examIds),
+          ]);
+          check(subsRes, tr("lecture des copies", "قراءة الإجابات", "reading submissions"));
+          check(qRes, tr("lecture des questions", "قراءة الأسئلة", "reading questions"));
+          submissionIds = (subsRes.data || []).map(s => s.id);
+          questionIds = (qRes.data || []).map(q => q.id);
+        }
+      }
+
+      progress(tr("Réponses des élèves", "إجابات التلاميذ", "Student answers"));
+      if (submissionIds.length) check(await supabase.from('quiz_answers').delete().in('submission_id', submissionIds), tr("suppression des réponses", "حذف الإجابات", "deleting answers"));
+      progress(tr("Copies de quiz", "أوراق الاختبارات", "Quiz submissions"));
+      if (submissionIds.length) check(await supabase.from('quiz_submissions').delete().in('id', submissionIds), tr("suppression des copies", "حذف الأوراق", "deleting submissions"));
+      progress(tr("Options des questions", "خيارات الأسئلة", "Question options"));
+      if (questionIds.length) check(await supabase.from('quiz_options').delete().in('question_id', questionIds), tr("suppression des options", "حذف الخيارات", "deleting options"));
+      progress(tr("Questions", "الأسئلة", "Questions"));
+      if (questionIds.length) check(await supabase.from('quiz_questions').delete().in('id', questionIds), tr("suppression des questions", "حذف الأسئلة", "deleting questions"));
+      progress(tr("Exercices et examens", "التمارين والامتحانات", "Exercises and exams"));
+      if (courseIds.length) {
+        check(await supabase.from('exercises').delete().in('course_id', courseIds), tr("suppression des exercices", "حذف التمارين", "deleting exercises"));
+        check(await supabase.from('exams').delete().in('course_id', courseIds), tr("suppression des examens", "حذف الامتحانات", "deleting exams"));
+      }
+      progress(tr("Supports de cours", "موارد الدروس", "Course materials"));
+      if (courseIds.length) check(await supabase.from('course_materials').delete().in('course_id', courseIds), tr("suppression des supports", "حذف الموارد", "deleting materials"));
+      progress(tr("Cours", "الدروس", "Courses"));
+      if (courseIds.length) check(await supabase.from('courses').delete().in('id', courseIds), tr("suppression des cours", "حذف الدروس", "deleting courses"));
+      progress(tr("Inscriptions", "التسجيلات", "Enrollments"));
+      check(await supabase.from('enrollments').delete().eq('room_id', roomId), tr("suppression des inscriptions", "حذف التسجيلات", "deleting enrollments"));
+      progress(tr("Classe", "القسم", "Class"));
+      // Suppression de la classe : le contexte vérifie l'erreur et affiche le message de succès
+      const ok = await deleteRoom(roomId);
+      if (!ok) return;
+      setDeleteTarget(null);
+    } catch (error: any) {
       console.error("Error deleting room:", error);
+      toast.error(
+        tr(
+          `Suppression interrompue (${error?.step || "erreur"}). Le reste de la classe n'a pas été supprimé.`,
+          `توقف الحذف (${error?.step || "خطأ"}). لم يتم حذف باقي القسم.`,
+          `Deletion stopped (${error?.step || "error"}). The rest of the class was not deleted.`
+        )
+      );
     } finally {
-      setLoading(false);
+      setDeleting(false);
+      setDeleteStep(null);
     }
   };
 
@@ -273,11 +295,8 @@ const ClassManagement = () => {
     setRenaming(true);
     try {
       const ok = await updateRoom(room.id, { name });
-      if (ok) {
-        setRoomsWithCounts(prev => prev.map(r => (r.id === room.id ? { ...r, name } : r)));
-        toast.success(language === "ar" ? `تمت إعادة التسمية إلى « ${name} »` : language === "fr" ? `Classe renommée en « ${name} »` : `Class renamed to "${name}"`);
-        cancelRename();
-      }
+      // Le contexte affiche déjà le message de succès
+      if (ok) cancelRename();
     } finally {
       setRenaming(false);
     }
@@ -299,10 +318,10 @@ const ClassManagement = () => {
           disabled={renaming}
           maxLength={80}
         />
-        <Button type="submit" size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-emerald-600" disabled={renaming} title={language === "ar" ? "حفظ" : language === "fr" ? "Enregistrer" : "Save"}>
+        <Button type="submit" size="icon" variant="ghost" className={`${iconBtn} shrink-0 text-emerald-600`} disabled={renaming} title={tr("Enregistrer", "حفظ", "Save")} aria-label={tr("Enregistrer", "حفظ", "Save")}>
           <Check className="h-4 w-4" />
         </Button>
-        <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={cancelRename} disabled={renaming} title={language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}>
+        <Button type="button" size="icon" variant="ghost" className={`${iconBtn} shrink-0`} onClick={cancelRename} disabled={renaming} title={tr("Annuler", "إلغاء", "Cancel")} aria-label={tr("Annuler", "إلغاء", "Cancel")}>
           <X className="h-4 w-4" />
         </Button>
       </form>
@@ -312,7 +331,7 @@ const ClassManagement = () => {
         <button
           type="button"
           onClick={e => { e.stopPropagation(); startRename(room); }}
-          className="shrink-0 rounded p-1 text-muted-foreground opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100 group-hover/name:opacity-100"
+          className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded text-muted-foreground opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100 group-hover/name:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100"
           title={language === "ar" ? "إعادة التسمية" : language === "fr" ? "Renommer" : "Rename"}
           aria-label={language === "ar" ? "إعادة التسمية" : language === "fr" ? "Renommer" : "Rename"}
         >
@@ -320,6 +339,41 @@ const ClassManagement = () => {
         </button>
       </span>
     );
+
+  const renderActions = (room: Room) => (
+    <div className="flex gap-1 shrink-0">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={iconBtn}
+        onClick={() => openEditDialog(room)}
+        aria-label={tr(`Modifier la classe ${room.name}`, `تعديل القسم ${room.name}`, `Edit class ${room.name}`)}
+        title={tr("Modifier", "تعديل", "Edit")}
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={iconBtn}
+        onClick={() => setClearTarget(room)}
+        aria-label={tr(`Vider la classe ${room.name}`, `إفراغ القسم ${room.name}`, `Clear class ${room.name}`)}
+        title={tr("Vider la classe", "إفراغ القسم", "Clear class")}
+      >
+        <Eraser className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={iconBtn}
+        onClick={() => setDeleteTarget(room)}
+        aria-label={tr(`Supprimer la classe ${room.name}`, `حذف القسم ${room.name}`, `Delete class ${room.name}`)}
+        title={tr("Supprimer", "حذف", "Delete")}
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
 
   const openCreateDialog = () => {
     setFormData({ name: "", description: "", is_visible: true });
@@ -359,8 +413,8 @@ const ClassManagement = () => {
           />
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openCreateDialog} size="sm" className="sm:size-default">
-              <Plus className="mr-2 h-4 w-4" />
+            <Button onClick={openCreateDialog}>
+              <Plus className="h-4 w-4" />
               {t("Create New Class")}
             </Button>
           </DialogTrigger>
@@ -392,7 +446,7 @@ const ClassManagement = () => {
                   rows={3}
                 />
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
                 <Switch
                   id="visibility"
                   checked={formData.is_visible}
@@ -405,8 +459,8 @@ const ClassManagement = () => {
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 {t("app.cancel")}
               </Button>
-              <Button onClick={handleCreateRoom} disabled={loading}>
-                <Building className="mr-2 h-4 w-4" />
+              <Button onClick={handleCreateRoom} disabled={loading} aria-busy={loading}>
+                <Building className="h-4 w-4" />
                 {t("Create Class")}
               </Button>
             </DialogFooter>
@@ -481,57 +535,7 @@ const ClassManagement = () => {
                     </span>
                   </td>
                   <td className="p-4">
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(room)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setClearTarget(room)}
-                        title={language === "ar" ? "إفراغ القسم" : language === "fr" ? "Vider la classe" : "Clear class"}
-                      >
-                        <Eraser className="h-4 w-4 text-amber-500 hover:text-amber-600" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2">
-                              <AlertTriangle className="h-5 w-5 text-destructive" />
-                              {language === "ar" ? "حذف القسم" : language === "fr" ? "Supprimer la classe" : "Delete Class"}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {language === "ar" ? `سيتم حذف القسم "${room.name}" وكل محتواه نهائياً:` : language === "fr" ? `La classe « ${room.name} » et tout son contenu seront supprimés définitivement :` : `This will permanently delete the class "${room.name}" and ALL related content:`}
-                              <ul className="mt-2 list-disc list-inside space-y-1">
-                                <li>{room._count?.courses} {language === "ar" ? "دروس" : language === "fr" ? "cours" : "courses"}</li>
-                                <li>{room._count?.exercises} {language === "ar" ? "تمارين" : language === "fr" ? "exercices" : "exercises"}</li>
-                                <li>{room._count?.exams} {language === "ar" ? "امتحانات واختبارات" : language === "fr" ? "examens et quiz" : "exams & quizzes"}</li>
-                                <li>{room._count?.students} {language === "ar" ? "تسجيلات التلاميذ" : language === "fr" ? "inscriptions d'élèves" : "student enrollments"}</li>
-                              </ul>
-                              {language === "ar" ? "لا يمكن التراجع عن هذا الإجراء." : language === "fr" ? "Cette action est irréversible." : "This action cannot be undone."}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteRoom(room.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {language === "ar" ? "حذف كل شيء" : language === "fr" ? "Tout supprimer" : "Delete Everything"}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                    {renderActions(room)}
                   </td>
                 </tr>
               ))}
@@ -545,7 +549,7 @@ const ClassManagement = () => {
                 {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : language === "fr" ? "Créez votre première classe pour organiser vos cours et vos élèves" : "Create your first class to start organizing courses and students"}
               </p>
               <Button onClick={openCreateDialog}>
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 {language === "ar" ? "إنشاء أول قسم" : language === "fr" ? "Créer ma première classe" : "Create Your First Class"}
               </Button>
             </div>
@@ -566,57 +570,7 @@ const ClassManagement = () => {
                     {room.description || (language === "ar" ? "لا يوجد وصف" : language === "fr" ? "Aucune description" : "No description")}
                   </CardDescription>
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditDialog(room)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setClearTarget(room)}
-                    title={language === "ar" ? "إفراغ القسم" : language === "fr" ? "Vider la classe" : "Clear class"}
-                  >
-                    <Eraser className="h-4 w-4 text-amber-500 hover:text-amber-600" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                          <AlertTriangle className="h-5 w-5 text-destructive" />
-                          {language === "ar" ? "حذف القسم" : language === "fr" ? "Supprimer la classe" : "Delete Class"}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {language === "ar" ? `سيتم حذف القسم "${room.name}" وكل محتواه نهائياً:` : language === "fr" ? `La classe « ${room.name} » et tout son contenu seront supprimés définitivement :` : `This will permanently delete the class "${room.name}" and ALL related content:`}
-                          <ul className="mt-2 list-disc list-inside space-y-1">
-                            <li>{room._count?.courses} {language === "ar" ? "دروس" : language === "fr" ? "cours" : "courses"}</li>
-                            <li>{room._count?.exercises} {language === "ar" ? "تمارين" : language === "fr" ? "exercices" : "exercises"}</li>
-                            <li>{room._count?.exams} {language === "ar" ? "امتحانات واختبارات" : language === "fr" ? "examens et quiz" : "exams & quizzes"}</li>
-                            <li>{room._count?.students} {language === "ar" ? "تسجيلات التلاميذ" : language === "fr" ? "inscriptions d'élèves" : "student enrollments"}</li>
-                          </ul>
-                          {language === "ar" ? "لا يمكن التراجع عن هذا الإجراء." : language === "fr" ? "Cette action est irréversible." : "This action cannot be undone."}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>{language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeleteRoom(room.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          {language === "ar" ? "حذف كل شيء" : language === "fr" ? "Tout supprimer" : "Delete Everything"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                {renderActions(room)}
               </div>
             </CardHeader>
             <CardContent>
@@ -661,14 +615,62 @@ const ClassManagement = () => {
               {language === "ar" ? "أنشئ قسمك الأول لتنظيم الدروس والتلاميذ" : language === "fr" ? "Créez votre première classe pour organiser vos cours et vos élèves" : "Create your first class to start organizing courses and students"}
             </p>
             <Button onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               {language === "ar" ? "إنشاء أول قسم" : language === "fr" ? "Créer ma première classe" : "Create Your First Class"}
             </Button>
         </CardContent>
       </Card>
     )}
 
-    {/* Add missing imports at the top if needed */}
+      {/* Suppression d'une classe (une seule boîte, reste ouverte pendant l'opération) */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          {deleteTarget && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  {tr("Supprimer la classe", "حذف القسم", "Delete Class")}
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div>
+                    {tr(`La classe « ${deleteTarget.name} » et tout son contenu seront supprimés définitivement :`, `سيتم حذف القسم "${deleteTarget.name}" وكل محتواه نهائياً:`, `This will permanently delete the class "${deleteTarget.name}" and ALL related content:`)}
+                    <ul className="mt-2 list-disc list-inside space-y-1">
+                      <li>{deleteTarget._count?.courses} {tr("cours", "دروس", "courses")}</li>
+                      <li>{deleteTarget._count?.exercises} {tr("exercices", "تمارين", "exercises")}</li>
+                      <li>{deleteTarget._count?.exams} {tr("examens et quiz", "امتحانات واختبارات", "exams & quizzes")}</li>
+                      <li>{deleteTarget._count?.students} {tr("inscriptions d'élèves", "تسجيلات التلاميذ", "student enrollments")}</li>
+                    </ul>
+                    <p className="mt-2">{tr("Cette action est irréversible.", "لا يمكن التراجع عن هذا الإجراء.", "This action cannot be undone.")}</p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleting && deleteStep && (
+                <div className="space-y-2" role="status" aria-live="polite">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{tr("Suppression en cours…", "جارٍ الحذف…", "Deleting…")} {deleteStep.label} ({deleteStep.done}/{deleteStep.total})</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-destructive transition-all" style={{ width: `${Math.round((deleteStep.done / deleteStep.total) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>{tr("Annuler", "إلغاء", "Cancel")}</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  onClick={(e) => { e.preventDefault(); void handleDeleteRoom(deleteTarget.id); }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {tr("Tout supprimer", "حذف كل شيء", "Delete Everything")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ClearRoomDialog
         open={!!clearTarget}
@@ -710,7 +712,7 @@ const ClassManagement = () => {
                 rows={3}
               />
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <Switch
                 id="edit-visibility"
                 checked={formData.is_visible}
@@ -724,7 +726,7 @@ const ClassManagement = () => {
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button onClick={handleEditRoom} disabled={loading}>
-              <Edit className="mr-2 h-4 w-4" />
+              <Edit className="h-4 w-4" />
               {language === "ar" ? "تحديث القسم" : language === "fr" ? "Mettre à jour la classe" : "Update Class"}
             </Button>
           </DialogFooter>

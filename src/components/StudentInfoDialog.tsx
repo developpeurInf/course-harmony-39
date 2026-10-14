@@ -81,14 +81,14 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
           );
           setTimeout(() => setCopiedField(null), 2000);
         } catch (err) {
-          toast.error(t("Failed to copy to clipboard"));
+          toast.error(language === "ar" ? "تعذر النسخ" : language === "fr" ? "Copie impossible" : "Failed to copy to clipboard");
         } finally {
           document.body.removeChild(textArea);
         }
       }
     } catch (error) {
       console.error('Failed to copy:', error);
-      toast.error(t("Failed to copy to clipboard"));
+      toast.error(language === "ar" ? "تعذر النسخ" : language === "fr" ? "Copie impossible" : "Failed to copy to clipboard");
     }
   };
 
@@ -208,7 +208,9 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => copyToClipboard(field.value, field.label)}
-                    className="ml-2"
+                    className="h-9 w-9 shrink-0 p-0"
+                    aria-label={language === "ar" ? `نسخ ${field.label}` : language === "fr" ? `Copier ${field.label}` : `Copy ${field.label}`}
+                    title={language === "ar" ? "نسخ" : language === "fr" ? "Copier" : "Copy"}
                   >
                     {isCopied ? (
                       <Check className="h-4 w-4 text-green-600" />

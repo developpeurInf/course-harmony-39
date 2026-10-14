@@ -14,7 +14,8 @@ const RoomExercises = () => {
     if (user && roomId) {
       refreshData(roomId);
     }
-  }, [user, roomId]); // Removed refreshData from deps to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, roomId]); // dépendances stables : la classe uniquement (le contexte déduplique)
   
   // Redirect if no roomId
   if (!roomId) {

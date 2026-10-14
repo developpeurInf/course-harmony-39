@@ -37,7 +37,10 @@ import {
   Layers,
   MinusCircle,
   PenLine,
-  ShieldAlert
+  ShieldAlert,
+  LogOut,
+  WifiOff,
+  PlayCircle
 } from "lucide-react";
 import {
   useCourses,
@@ -53,13 +56,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQuizAntiCheat, type CheatEventType } from "@/hooks/useQuizAntiCheat";
+import { useQuizAntiCheat, type CheatEventType, type CheatEvent } from "@/hooks/useQuizAntiCheat";
 import { MathHtml, MathText, SimpleMathPreview } from "@/components/math/MathContent";
 import MathSymbolBar from "@/components/math/MathSymbolBar";
+import { formatDecimal, localeFor } from "@/lib/formatDate";
 
 interface QuizTakerProps {
   exam: Exam;
   onClose: () => void;
+  /** Informe le parent de la phase (ex. masquer la croix du dialogue pendant le quiz). */
+  onPhaseChange?: (phase: QuizPhase) => void;
 }
 
 /* ─────────────────────────────── Types internes ─────────────────────────────── */
@@ -88,7 +94,49 @@ interface QuestionResult {
   answered: boolean;
 }
 
-type Phase = "loading" | "blocked" | "intro" | "running" | "result";
+type Phase = "loading" | "error" | "blocked" | "intro" | "resume" | "running" | "result";
+export type QuizPhase = Phase;
+
+/** Tentative en cours sauvegardée sur l'appareil (reprise après rechargement / fermeture). */
+interface SavedAttempt {
+  v: 1;
+  answers: Record<string, StudentAnswer>;
+  locked: Record<string, boolean>;
+  index: number;
+  order: string[];
+  optionOrder: Record<string, string[]>;
+  deadline: number | null;
+  questionDeadline: number | null;
+  startTime: number;
+  focusLosses?: number;
+  events?: CheatEvent[];
+  pendingSubmit?: boolean;
+  savedAt: number;
+}
+
+const readSaved = (key: string | null): SavedAttempt | null => {
+  if (!key) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (!v || v.v !== 1 || typeof v.startTime !== "number" || !Array.isArray(v.order)) return null;
+    return v as SavedAttempt;
+  } catch {
+    return null;
+  }
+};
+const writeSaved = (key: string | null, data: SavedAttempt) => {
+  if (!key) return;
+  try { window.localStorage.setItem(key, JSON.stringify(data)); } catch { /* stockage plein ou bloqué */ }
+};
+const clearSaved = (key: string | null) => {
+  if (!key) return;
+  try { window.localStorage.removeItem(key); } catch { /* ignore */ }
+};
+
+const MAX_AUTO_RETRIES = 5;
+const RETRY_DELAY_MS = 10_000;
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -136,7 +184,7 @@ function gradeQuestion(item: QuizItem, ans?: StudentAnswer): QuestionResult {
 
 /* ─────────────────────────────── Composant ─────────────────────────────── */
 
-const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
+const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const { submitQuiz } = useCourses();
@@ -147,6 +195,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   );
 
   const [phase, setPhase] = useState<Phase>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [settings, setSettings] = useState<QuizSettings>(DEFAULT_QUIZ_SETTINGS);
   const [examDescription, setExamDescription] = useState<string>("");
   const [durationMinutes, setDurationMinutes] = useState<number>(exam.duration_minutes || 30);
@@ -168,6 +218,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [quitOpen, setQuitOpen] = useState(false);
   const [results, setResults] = useState<QuestionResult[] | null>(null);
   const [finalScore, setFinalScore] = useState<{ score: number; total: number; minutes: number } | null>(null);
   const [previousSubmission, setPreviousSubmission] = useState<any>(null);
@@ -175,11 +226,22 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   const [showReview, setShowReview] = useState(false);
   const [autoSubmitted, setAutoSubmitted] = useState(false);
   const [autoReason, setAutoReason] = useState<"time" | "cheat" | null>(null);
+  const [savedAttempt, setSavedAttempt] = useState<SavedAttempt | null>(null);
+  // Échec d'envoi (réseau) : bannière persistante + nouvelles tentatives automatiques
+  const [submitFailed, setSubmitFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [srMessage, setSrMessage] = useState("");
+  // Corrigé de la dernière copie (élève revenant sur un quiz déjà passé)
+  const [pastReview, setPastReview] = useState<QuestionResult[] | null>(null);
+  const [pastReviewLoading, setPastReviewLoading] = useState(false);
+  const [showPastReview, setShowPastReview] = useState(false);
 
   // Refs pour éviter les closures périmées dans les minuteurs
   const answersRef = useRef(answers);
   const answerAreaRef = useRef<HTMLTextAreaElement>(null);
   answersRef.current = answers;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const submittingRef = useRef(false);
@@ -187,8 +249,21 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   phaseRef.current = phase;
   const indexRef = useRef(index);
   indexRef.current = index;
+  const deadlineRef = useRef(deadline);
+  deadlineRef.current = deadline;
+  const questionDeadlineRef = useRef(questionDeadline);
+  questionDeadlineRef.current = questionDeadline;
+  // Incidents anti-triche d'avant un rechargement (restaurés depuis la sauvegarde)
+  const restoredEventsRef = useRef<CheatEvent[]>([]);
+  const lastSubmitArgsRef = useRef<{ auto: boolean; reason: "time" | "cheat" }>({ auto: false, reason: "time" });
 
+  const storageKey = user?.id ? `quiz-progress-${exam.id}-${user.id}` : null;
   const isSequential = settings.sequentialQuestions;
+
+  useEffect(() => {
+    onPhaseChange?.(phase);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   /* ───────────── Anti-triche ───────────── */
 
@@ -203,7 +278,11 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         return tr("La copie est désactivée pendant le quiz.", "النسخ معطل أثناء الاختبار.", "Copying is disabled during the quiz.");
       case "paste":
       case "drop":
-        return tr("Le collage est désactivé : écrivez votre réponse vous-même.", "اللصق معطل: اكتب إجابتك بنفسك.", "Pasting is disabled: type your answer yourself.");
+        return tr(
+          "Collage refusé : écris ta réponse toi-même. Le collage est signalé à l'enseignant.",
+          "تم رفض اللصق: اكتب إجابتك بنفسك. يتم إبلاغ الأستاذ باللصق.",
+          "Paste refused: type your answer yourself. Pasting is reported to the teacher."
+        );
       case "screenshot_key":
         return tr("Capture d'écran détectée et signalée à l'enseignant.", "تم رصد لقطة شاشة وإبلاغ الأستاذ.", "Screenshot detected and reported to the teacher.");
       case "print":
@@ -239,6 +318,118 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   antiCheatRef.current = antiCheat;
   const totalPoints = useMemo(() => baseItems.reduce((s, it) => s + (it.question.points || 1), 0), [baseItems]);
 
+  const allEvents = useCallback(
+    () => restoredEventsRef.current.concat(antiCheatRef.current.getEvents()),
+    []
+  );
+
+  /* ───────────── Sauvegarde locale de la tentative ───────────── */
+
+  const persistAttempt = useCallback(
+    (extra?: Partial<SavedAttempt>) => {
+      if (!storageKey || !startTimeRef.current) return;
+      const list = itemsRef.current;
+      const optionOrder: Record<string, string[]> = {};
+      list.forEach(it => {
+        optionOrder[it.question.id] = it.options.map(o => o.id);
+      });
+      const prev = readSaved(storageKey);
+      writeSaved(storageKey, {
+        v: 1,
+        answers: answersRef.current,
+        locked: lockedRef.current,
+        index: indexRef.current,
+        order: list.map(it => it.question.id),
+        optionOrder,
+        deadline: deadlineRef.current,
+        questionDeadline: questionDeadlineRef.current,
+        startTime: startTimeRef.current,
+        focusLosses: antiCheatRef.current.focusLosses,
+        events: allEvents().slice(-300),
+        pendingSubmit: prev && prev.startTime === startTimeRef.current ? prev.pendingSubmit : false,
+        savedAt: Date.now(),
+        ...(extra || {})
+      });
+    },
+    [storageKey, allEvents]
+  );
+
+  useEffect(() => {
+    if (phase !== "running") return;
+    persistAttempt();
+  }, [phase, answers, locked, index, items, deadline, questionDeadline, antiCheat.focusLosses, antiCheat.isAway, persistAttempt]);
+
+  // Sauvegarde aussi quand la page passe en arrière-plan / se ferme
+  useEffect(() => {
+    if (phase !== "running") return;
+    const save = () => persistAttempt();
+    const onVis = () => { if (document.visibilityState === "hidden") save(); };
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [phase, persistAttempt]);
+
+  /** Recharge une tentative sauvegardée (ordre des questions/options, réponses, échéance d'origine). */
+  const restoreAttempt = useCallback((saved: SavedAttempt, base: QuizItem[]) => {
+    const byId = new Map(base.map(it => [it.question.id, it] as [string, QuizItem]));
+    const ordered: QuizItem[] = [];
+    saved.order.forEach(id => {
+      const it = byId.get(id);
+      if (it) {
+        ordered.push(it);
+        byId.delete(id);
+      }
+    });
+    byId.forEach(it => ordered.push(it));
+    const withOptions = ordered.map(it => {
+      const ids = saved.optionOrder?.[it.question.id];
+      if (!ids || it.question.question_type !== "multiple_choice") return it;
+      const optById = new Map(it.options.map(o => [o.id, o] as [string, QuizOption]));
+      const opts: QuizOption[] = [];
+      ids.forEach(id => {
+        const o = optById.get(id);
+        if (o) {
+          opts.push(o);
+          optById.delete(id);
+        }
+      });
+      optById.forEach(o => opts.push(o));
+      return { ...it, options: opts };
+    });
+
+    antiCheatRef.current.reset();
+    restoredEventsRef.current = Array.isArray(saved.events) ? saved.events : [];
+    submittingRef.current = false;
+    itemsRef.current = withOptions;
+    answersRef.current = saved.answers || {};
+    lockedRef.current = saved.locked || {};
+    setItems(withOptions);
+    setAnswers(saved.answers || {});
+    setLocked(saved.locked || {});
+    const idx = Math.max(0, Math.min(withOptions.length - 1, saved.index || 0));
+    indexRef.current = idx;
+    setIndex(idx);
+    setResults(null);
+    setFinalScore(null);
+    setShowReview(false);
+    setAutoSubmitted(false);
+    setAutoReason(null);
+    // Envoi en échec avant le rechargement : on relance les essais (sauf temps écoulé,
+    // l'envoi automatique de fin de temps s'en charge immédiatement)
+    setSubmitFailed(!!saved.pendingSubmit && !(saved.deadline !== null && saved.deadline <= Date.now()));
+    setRetryCount(0);
+    startTimeRef.current = saved.startTime;
+    setNow(Date.now());
+    deadlineRef.current = saved.deadline;
+    setDeadline(saved.deadline);
+    setQuestionDeadline(saved.questionDeadline ?? null);
+    setSavedAttempt(null);
+    setPhase("running");
+  }, []);
+
   /* ───────────── Chargement ───────────── */
 
   useEffect(() => {
@@ -246,53 +437,60 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
     const load = async () => {
       setPhase("loading");
+      setLoadError(null);
       try {
-        // 1) Paramètres à jour, lus directement depuis la base (l'enseignant a pu les modifier)
-        let parsed = parseExamAvailability(exam) as any;
-        const { data: freshExam } = await supabase.from("exams").select("*").eq("id", exam.id).maybeSingle();
-        if (freshExam) parsed = parseExamAvailability(freshExam) as any;
-        const s: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS, ...(parsed.quiz_settings || {}) };
-        if (parsed.quiz_mode === "sequential_timed") s.sequentialQuestions = true;
-        if (cancelled) return;
-        setSettings(s);
-        setExamDescription(parsed.description || "");
-        setDurationMinutes(parsed.duration_minutes || exam.duration_minutes || 30);
-
-        // 2) Tentatives précédentes
-        let latest: any = null;
-        if (user?.id) {
-          const { data: subData } = await supabase
-            .from("quiz_submissions")
+        // Requêtes indépendantes en parallèle : paramètres à jour, tentatives, questions
+        const [examRes, subRes, qRes] = await Promise.all([
+          supabase.from("exams").select("*").eq("id", exam.id).maybeSingle(),
+          user?.id
+            ? supabase
+                .from("quiz_submissions")
+                .select("*")
+                .eq("exam_id", exam.id)
+                .eq("student_id", user.id)
+                .order("submitted_at", { ascending: false })
+            : Promise.resolve({ data: [] as any[], error: null } as any),
+          supabase
+            .from("quiz_questions")
             .select("*")
             .eq("exam_id", exam.id)
-            .eq("student_id", user.id)
-            .order("submitted_at", { ascending: false });
-          if (subData && subData.length > 0) {
-            latest = subData[0];
-            if (!cancelled) {
-              setPreviousSubmission(latest);
-              setAttemptsCount(subData.length);
-            }
-          }
-        }
+            .order("question_order", { ascending: true })
+        ]);
+        if (examRes.error) throw examRes.error;
+        if (subRes.error) throw subRes.error;
+        if (qRes.error) throw qRes.error;
+
+        // 1) Paramètres (l'enseignant a pu les modifier)
+        let parsed = parseExamAvailability(exam) as any;
+        if (examRes.data) parsed = parseExamAvailability(examRes.data as any) as any;
+        const s: QuizSettings = { ...DEFAULT_QUIZ_SETTINGS, ...(parsed.quiz_settings || {}) };
+        if (parsed.quiz_mode === "sequential_timed") s.sequentialQuestions = true;
+
+        // 2) Tentatives précédentes
+        const subData = (subRes.data || []) as any[];
+        const latest: any = subData.length > 0 ? subData[0] : null;
 
         // 3) Questions + options
-        const { data: qData } = await supabase
-          .from("quiz_questions")
-          .select("*")
-          .eq("exam_id", exam.id)
-          .order("question_order", { ascending: true });
-        const qList = (qData || []) as QuizQuestion[];
-
+        // (pas de sélection imbriquée : deux clés étrangères quiz_options → quiz_questions la rendent ambiguë)
+        const qList = (qRes.data || []) as QuizQuestion[];
         let oList: QuizOption[] = [];
         if (qList.length > 0) {
-          const { data: oData } = await supabase
+          const { data: oData, error: oErr } = await supabase
             .from("quiz_options")
             .select("*")
             .in("question_id", qList.map(q => q.id))
             .order("option_order", { ascending: true });
+          if (oErr) throw oErr;
           oList = (oData || []) as QuizOption[];
         }
+        if (cancelled) return;
+
+        setSettings(s);
+        setExamDescription(parsed.description || "");
+        const dur = parsed.duration_minutes || exam.duration_minutes || 30;
+        setDurationMinutes(dur);
+        setPreviousSubmission(latest);
+        setAttemptsCount(subData.length);
 
         const built: QuizItem[] = qList.map(q => {
           const { cleanText, timeLimitSeconds } = parseQuestionText(q.question);
@@ -311,15 +509,34 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           };
         });
 
-        if (cancelled) return;
         setBaseItems(built);
         setItems(built);
+
+        // Tentative en cours sauvegardée sur cet appareil ?
+        const saved = readSaved(storageKey);
+        const latestTime = latest?.submitted_at ? new Date(latest.submitted_at).getTime() : 0;
+        if (saved && built.length > 0 && (!latest || latestTime < saved.startTime)) {
+          if (saved.deadline !== null && saved.deadline <= Date.now()) {
+            // Temps écoulé pendant l'absence : envoi automatique des réponses sauvegardées
+            restoreAttempt(saved, built);
+            return;
+          }
+          setSavedAttempt(saved);
+          setPhase("resume");
+          return;
+        }
+        if (saved) clearSaved(storageKey);
+
         setPhase(latest && !s.allowMultipleAttempts ? "blocked" : "intro");
       } catch (err) {
         console.error("Error loading quiz data:", err);
         if (!cancelled) {
-          toast.error(tr("Impossible de charger le quiz.", "تعذر تحميل الاختبار.", "Unable to load the quiz."));
-          setPhase("intro");
+          setLoadError(
+            typeof navigator !== "undefined" && navigator.onLine === false
+              ? tr("Pas de connexion Internet.", "لا يوجد اتصال بالإنترنت.", "No Internet connection.")
+              : tr("Impossible de charger le quiz.", "تعذر تحميل الاختبار.", "Unable to load the quiz.")
+          );
+          setPhase("error");
         }
       }
     };
@@ -329,7 +546,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exam.id, user?.id]);
+  }, [exam.id, user?.id, reloadKey]);
 
   /* ───────────── Démarrage d'une tentative ───────────── */
 
@@ -350,7 +567,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     setShowReview(false);
     setAutoSubmitted(false);
     setAutoReason(null);
+    setSubmitFailed(false);
+    setRetryCount(0);
     antiCheatRef.current.reset();
+    restoredEventsRef.current = [];
     submittingRef.current = false;
 
     const start = Date.now();
@@ -366,7 +586,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   useEffect(() => {
     if (phase !== "running") return;
-    const id = setInterval(() => setNow(Date.now()), 250);
+    // 1 s suffit (affichage à la seconde) : 4× moins de rendus qu'avant
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [phase]);
 
@@ -383,6 +604,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   const timeLeft = deadline ? Math.max(0, Math.ceil((deadline - now) / 1000)) : null;
   const questionTimeLeft = questionDeadline ? Math.max(0, Math.ceil((questionDeadline - now) / 1000)) : null;
+  const timeUp = timeLeft === 0;
 
   /* ───────────── Navigation & verrouillage ───────────── */
 
@@ -432,6 +654,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
   const selectOption = (item: QuizItem, optionId: string) => {
     const qid = item.question.id;
+    if (timeUp || submitFailed) return;
     if (locked[qid]) {
       notifyLocked();
       return;
@@ -452,16 +675,17 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     }
   };
 
-  const setTextAnswer = (item: QuizItem, text: string) => {
+  /**
+   * @param inputType type d'insertion natif (InputEvent.inputType) : seul un collage /
+   * glisser-déposer est refusé — la dictée vocale (« insertText » / « insertReplacementText »)
+   * insère aussi de longs blocs et ne doit pas être signalée.
+   */
+  const setTextAnswer = (item: QuizItem, text: string, inputType?: string) => {
     const qid = item.question.id;
-    if (locked[qid]) return;
-    // Anti-triche : un bloc de texte inséré d'un coup = collage (presse-papiers du clavier Android…)
-    if (antiCheatOn) {
-      const prevLen = (answersRef.current[qid]?.text || "").length;
-      if (text.length - prevLen > 40) {
-        antiCheatRef.current.recordSuspiciousInput(`+${text.length - prevLen} caractères`);
-        return;
-      }
+    if (locked[qid] || timeUp || submitFailed) return;
+    if (antiCheatOn && inputType && /^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(inputType)) {
+      antiCheatRef.current.recordSuspiciousInput(inputType);
+      return;
     }
     setAnswers(prev => ({ ...prev, [qid]: { selected: [], text } }));
   };
@@ -476,6 +700,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         return;
       }
       submittingRef.current = true;
+      lastSubmitArgsRef.current = { auto, reason };
       setIsSubmitting(true);
       setConfirmOpen(false);
 
@@ -484,7 +709,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       const graded = list.map(it => gradeQuestion(it, ans[it.question.id]));
       const earned = graded.reduce((s, r) => s + r.earned, 0);
       const total = list.reduce((s, it) => s + (it.question.points || 1), 0);
-      const minutes = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 60000));
+      const end = deadlineRef.current ? Math.min(Date.now(), deadlineRef.current) : Date.now();
+      const minutes = Math.max(1, Math.round((end - startTimeRef.current) / 60000));
 
       const answerRecords = graded.map(r => {
         const a = r.answer;
@@ -508,6 +734,19 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         };
       });
 
+      const markFailed = () => {
+        submittingRef.current = false;
+        setSubmitFailed(true);
+        persistAttempt({ pendingSubmit: true });
+        toast.error(
+          tr(
+            "Échec de l'envoi. Tes réponses sont sauvegardées sur cet appareil : nouvel essai automatique.",
+            "فشل الإرسال. إجاباتك محفوظة على هذا الجهاز: ستتم إعادة المحاولة تلقائياً.",
+            "Submission failed. Your answers are saved on this device: retrying automatically."
+          )
+        );
+      };
+
       try {
         const success = await submitQuiz(
           {
@@ -518,7 +757,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             time_taken_minutes: minutes,
             is_completed: true,
             ...(() => {
-              const events = antiCheatRef.current.getEvents();
+              const events = allEvents();
               return events.length > 0 ? { anti_cheat_events: events.length, anti_cheat_log: events } : {};
             })()
           } as any,
@@ -526,6 +765,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         );
 
         if (success) {
+          clearSaved(storageKey);
+          restoredEventsRef.current = [];
+          setSubmitFailed(false);
+          setRetryCount(0);
           setResults(graded);
           setFinalScore({ score: earned, total, minutes });
           setPreviousSubmission({ score: earned, total_points: total, submitted_at: new Date().toISOString() });
@@ -537,59 +780,95 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           setPhase("result");
           toast.success(tr("Quiz envoyé avec succès", "تم إرسال الاختبار بنجاح", "Quiz submitted successfully"));
         } else {
-          submittingRef.current = false;
+          markFailed();
         }
       } catch (err) {
         console.error("Error submitting quiz:", err);
-        toast.error(tr("Échec de l'envoi du quiz", "فشل إرسال الاختبار", "Failed to submit quiz"));
-        submittingRef.current = false;
+        markFailed();
       } finally {
         setIsSubmitting(false);
       }
     },
-    [user, exam.id, submitQuiz, tr]
+    [user, exam.id, submitQuiz, tr, storageKey, persistAttempt, allEvents]
   );
   submitRef.current = (auto = false, reason: "time" | "cheat" = "time") => {
     void handleSubmit(auto, reason);
   };
 
-  // Avertissements avant la fin du temps (1 min et 10 s)
-  const warnedRef = useRef<{ min: boolean; ten: boolean }>({ min: false, ten: false });
+  const retrySubmit = useCallback(() => {
+    const { auto, reason } = lastSubmitArgsRef.current;
+    void handleSubmit(auto, reason);
+  }, [handleSubmit]);
+
+  // Nouvel essai automatique toutes les 10 s (5 fois max) quand le réseau est disponible,
+  // et immédiatement au retour de la connexion.
+  useEffect(() => {
+    if (phase !== "running" || !submitFailed) return;
+    const onOnline = () => {
+      if (!submittingRef.current) retrySubmit();
+    };
+    window.addEventListener("online", onOnline);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (retryCount < MAX_AUTO_RETRIES) {
+      timer = setTimeout(() => {
+        if (submittingRef.current) return;
+        // Hors ligne : on attend l'événement « online »
+        if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+        setRetryCount(c => c + 1);
+        retrySubmit();
+      }, RETRY_DELAY_MS);
+    }
+    return () => {
+      window.removeEventListener("online", onOnline);
+      if (timer) clearTimeout(timer);
+    };
+  }, [phase, submitFailed, retryCount, isSubmitting, retrySubmit]);
+
+  // Avertissements avant la fin du temps (5 min, 1 min et 10 s) : toast + annonce lecteur d'écran
+  const warnedRef = useRef<{ five: boolean; min: boolean; ten: boolean }>({ five: false, min: false, ten: false });
   useEffect(() => {
     if (phase !== "running" || timeLeft === null) {
-      warnedRef.current = { min: false, ten: false };
+      warnedRef.current = { five: false, min: false, ten: false };
       return;
     }
     const vibrate = () => { try { (navigator as any).vibrate?.(200); } catch { /* ignore */ } };
+    if (durationMinutes > 5 && timeLeft <= 300 && timeLeft > 60 && !warnedRef.current.five) {
+      warnedRef.current.five = true;
+      setSrMessage(tr("Il reste 5 minutes.", "تبقّت 5 دقائق.", "5 minutes left."));
+    }
     if (durationMinutes > 1 && timeLeft <= 60 && timeLeft > 10 && !warnedRef.current.min) {
       warnedRef.current.min = true;
       vibrate();
-      toast.warning(tr("Plus qu'une minute !", "تبقّت دقيقة واحدة!", "One minute left!"));
+      const msg = tr("Plus qu'une minute !", "تبقّت دقيقة واحدة!", "One minute left!");
+      setSrMessage(msg);
+      toast.warning(msg);
     }
     if (timeLeft <= 10 && timeLeft > 0 && !warnedRef.current.ten) {
       warnedRef.current.ten = true;
       vibrate();
       const left = items.filter(it => !isAnswered(it, answers[it.question.id])).length;
-      toast.warning(
+      const msg =
         left > 0
           ? tr(`10 secondes ! ${left} question(s) sans réponse.`, `10 ثوانٍ! ${left} سؤال بدون جواب.`, `10 seconds! ${left} unanswered question(s).`)
-          : tr("10 secondes restantes !", "تبقّت 10 ثوانٍ!", "10 seconds left!")
-      );
+          : tr("10 secondes restantes !", "تبقّت 10 ثوانٍ!", "10 seconds left!");
+      setSrMessage(msg);
+      toast.warning(msg);
     }
   }, [phase, timeLeft, durationMinutes, items, answers, tr]);
 
   // Fin du temps global → envoi automatique
   useEffect(() => {
-    if (phase === "running" && timeLeft === 0) {
+    if (phase === "running" && timeLeft === 0 && !submitFailed) {
       toast.warning(tr("Temps écoulé ! Envoi automatique…", "انتهى الوقت! جارٍ الإرسال التلقائي…", "Time is up! Submitting…"));
       handleSubmit(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, timeLeft, handleSubmit, tr]);
 
   // Fin du temps d'une question (mode séquentiel) → question suivante ou envoi
   const expiredRef = useRef<string | null>(null);
   useEffect(() => {
-    if (phase !== "running" || !isSequential || questionTimeLeft !== 0) return;
+    if (phase !== "running" || !isSequential || questionTimeLeft !== 0 || submitFailed) return;
     const key = `${index}-${questionDeadline}`;
     if (expiredRef.current === key) return;
     expiredRef.current = key;
@@ -598,21 +877,31 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     } else {
       handleSubmit(true);
     }
-  }, [phase, isSequential, questionTimeLeft, index, items.length, questionDeadline, goTo, handleSubmit]);
+  }, [phase, isSequential, questionTimeLeft, index, items.length, questionDeadline, goTo, handleSubmit, submitFailed]);
 
   /* ───────────── Raccourcis clavier ───────────── */
 
   useEffect(() => {
     if (phase !== "running") return;
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)) return;
-      if (confirmOpen) return;
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      // Ne pas détourner Entrée / lettres sur un bouton, une option, un champ de saisie…
+      if (
+        target &&
+        (target.isContentEditable ||
+          (typeof target.closest === "function" &&
+            target.closest('button, a, input, textarea, select, [role="radio"], [role="checkbox"], [role="button"]')))
+      )
+        return;
+      // … ni quand une fenêtre de confirmation / d'avertissement est ouverte
+      if (confirmOpen || quitOpen || antiCheatRef.current.warningOpen) return;
+      if (document.querySelector('[role="alertdialog"]')) return;
       const it = items[index];
       if (!it) return;
-      const key = e.key.toLowerCase();
-      const letterIdx = "abcdefgh".indexOf(key);
-      const numIdx = "12345678".indexOf(key);
+      const key = (e.key || "").toLowerCase();
+      const letterIdx = key.length === 1 ? "abcdefgh".indexOf(key) : -1;
+      const numIdx = key.length === 1 ? "12345678".indexOf(key) : -1;
       const optIdx = letterIdx >= 0 ? letterIdx : numIdx;
       if (optIdx >= 0 && it.question.question_type !== "short_answer" && it.options[optIdx]) {
         e.preventDefault();
@@ -625,6 +914,60 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  /* ───────────── Corrigé de la dernière copie ───────────── */
+
+  const loadPastReview = useCallback(async () => {
+    const sub = previousSubmission;
+    if (!sub?.id) return;
+    setPastReviewLoading(true);
+    try {
+      const { data, error } = await supabase.from("quiz_answers").select("*").eq("submission_id", sub.id);
+      if (error) throw error;
+      const rows = (data || []) as any[];
+      const byQ = new Map(rows.map(r => [r.question_id, r] as [string, any]));
+      const graded = baseItems.map(it => {
+        const row = byQ.get(it.question.id);
+        let ans: StudentAnswer | undefined;
+        if (row) {
+          if (it.question.question_type === "short_answer") {
+            ans = { selected: [], text: row.text_answer || "" };
+          } else if (it.multi && row.text_answer) {
+            const texts = String(row.text_answer).split(" ; ").map((t: string) => t.trim());
+            ans = { selected: it.options.filter(o => texts.includes(o.option_text.trim())).map(o => o.id), text: "" };
+          } else {
+            ans = { selected: row.selected_option_id ? [row.selected_option_id] : [], text: "" };
+          }
+        }
+        const r = gradeQuestion(it, ans);
+        if (row && r.gradable) {
+          return { ...r, isCorrect: !!row.is_correct, earned: Number(row.points_earned) || 0 };
+        }
+        return r;
+      });
+      setPastReview(graded);
+      setShowPastReview(true);
+      setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    } catch (err) {
+      console.error("Error loading past answers:", err);
+      toast.error(tr("Impossible de charger le corrigé.", "تعذر تحميل التصحيح.", "Unable to load the correction."));
+    } finally {
+      setPastReviewLoading(false);
+    }
+  }, [previousSubmission, baseItems, tr]);
+
+  const togglePastReview = () => {
+    if (showPastReview) {
+      setShowPastReview(false);
+      return;
+    }
+    if (pastReview) {
+      setShowPastReview(true);
+      setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+    void loadPastReview();
+  };
 
   /* ───────────── Helpers d'affichage ───────────── */
 
@@ -641,15 +984,106 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   };
 
   const mention = (pct: number) => {
-    if (pct >= 90) return { label: tr("Excellent !", "ممتاز!", "Excellent!"), color: "text-emerald-600", ring: "#059669" };
-    if (pct >= 75) return { label: tr("Très bien", "جيد جداً", "Very good"), color: "text-sky-600", ring: "#0284c7" };
-    if (pct >= 60) return { label: tr("Bien", "جيد", "Good"), color: "text-indigo-600", ring: "#4f46e5" };
-    if (pct >= 50) return { label: tr("Passable", "مقبول", "Fair"), color: "text-amber-600", ring: "#d97706" };
-    return { label: tr("À retravailler", "يحتاج إلى مراجعة", "Needs work"), color: "text-rose-600", ring: "#e11d48" };
+    if (pct >= 90) return { label: tr("Excellent !", "ممتاز!", "Excellent!"), color: "text-emerald-600 dark:text-emerald-400", ring: "#059669" };
+    if (pct >= 75) return { label: tr("Très bien", "جيد جداً", "Very good"), color: "text-sky-600 dark:text-sky-400", ring: "#0284c7" };
+    if (pct >= 60) return { label: tr("Bien", "جيد", "Good"), color: "text-indigo-600 dark:text-indigo-400", ring: "#4f46e5" };
+    if (pct >= 50) return { label: tr("Passable", "مقبول", "Fair"), color: "text-amber-600 dark:text-amber-400", ring: "#d97706" };
+    return { label: tr("À retravailler", "يحتاج إلى مراجعة", "Needs work"), color: "text-rose-600 dark:text-rose-400", ring: "#e11d48" };
   };
 
   const unansweredCount = items.filter(it => !isAnswered(it, answers[it.question.id])).length;
   const answeredCount = items.length - unansweredCount;
+  /** Note sur 20 avec le séparateur décimal de la langue (12,5 en fr/ar, 12.5 en en) */
+  const note20 = (score: number, total: number) => formatDecimal(total > 0 ? (score / total) * 20 : 0, language);
+  const canReview = settings.allowReview && settings.showResultsImmediately;
+
+  /** Corrigé détaillé (après l'envoi ou pour revoir la dernière copie) */
+  const renderReviewList = (graded: QuestionResult[]) => (
+    <div ref={reviewRef} className="space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+      {graded.map((r, i) => {
+        const tone = !r.gradable
+          ? "border-slate-200 dark:border-slate-800"
+          : r.isCorrect
+          ? "border-emerald-300 dark:border-emerald-900"
+          : "border-rose-300 dark:border-rose-900";
+        const pts = r.item.question.points || 1;
+        return (
+          <div key={r.item.question.id} className={`rounded-2xl border-2 bg-card p-5 ${tone}`}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-sm font-bold">{i + 1}</span>
+                {r.gradable ? (
+                  r.isCorrect ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4" /> {tr("Correct", "صحيح", "Correct")}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 dark:text-rose-400">
+                      <XCircle className="h-4 w-4" />
+                      {r.answered ? tr("Incorrect", "خطأ", "Incorrect") : tr("Sans réponse", "بدون جواب", "Unanswered")}
+                    </span>
+                  )
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <PenLine className="h-4 w-4" /> {tr("Correction par l'enseignant", "يصححه الأستاذ", "Graded by teacher")}
+                  </span>
+                )}
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full tabular-nums ${r.isCorrect ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
+                <span dir="ltr">{formatDecimal(r.earned, language, 2)}/{pts}</span> {tr("pt", "نقطة", "pt")}
+              </span>
+            </div>
+            <MathHtml className="quiz-question-html text-sm font-medium mb-3" html={r.item.html} />
+
+            {r.item.question.question_type === "short_answer" ? (
+              <div className="rounded-xl bg-muted/50 p-3 text-sm">
+                <span className="text-xs font-semibold text-muted-foreground block mb-1">{tr("Votre réponse", "إجابتك", "Your answer")}</span>
+                {r.answer?.text?.trim() || <em className="text-muted-foreground">—</em>}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {r.item.options.map(opt => {
+                  const chosen = !!r.answer?.selected.includes(opt.id);
+                  const cls = opt.is_correct
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-800"
+                    : chosen
+                    ? "border-rose-300 bg-rose-50 text-rose-900 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-800"
+                    : "border-border text-muted-foreground";
+                  return (
+                    <div key={opt.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${cls}`}>
+                      {opt.is_correct ? <Check className="h-4 w-4 shrink-0" /> : chosen ? <X className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
+                      <MathText className="flex-1" text={optionLabel(opt)} />
+                      {chosen && (
+                        <span className="text-[11px] font-bold uppercase tracking-wide opacity-80">
+                          {tr("Votre choix", "اختيارك", "Your pick")}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  /** Bouton « Voir le corrigé » de la dernière copie (quiz déjà passé) */
+  const pastReviewButton = canReview && previousSubmission?.id ? (
+    <Button
+      variant="outline"
+      onClick={togglePastReview}
+      disabled={pastReviewLoading}
+      aria-expanded={showPastReview}
+      className="w-full h-11 rounded-xl gap-2 font-semibold"
+    >
+      {pastReviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : showPastReview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      {showPastReview
+        ? tr("Masquer le corrigé", "إخفاء التصحيح", "Hide correction")
+        : tr("Voir le corrigé", "عرض التصحيح", "See the correction")}
+    </Button>
+  ) : null;
 
   /* ═══════════════════════════════ RENDU ═══════════════════════════════ */
 
@@ -659,11 +1093,85 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
       <div className="flex flex-col items-center justify-center py-24 gap-4" dir={isRtl ? "rtl" : "ltr"}>
         <div className="relative">
           <div className="h-16 w-16 rounded-full border-4 border-primary/15" />
-          <Loader2 className="h-16 w-16 text-primary animate-spin absolute inset-0" />
+          <Loader2 className="h-16 w-16 text-primary animate-spin absolute top-0 left-0" />
         </div>
         <p className="text-sm font-medium text-muted-foreground">
           {tr("Préparation de votre quiz…", "جارٍ تحضير الاختبار…", "Preparing your quiz…")}
         </p>
+      </div>
+    );
+  }
+
+  // ─── Erreur de chargement ───
+  if (phase === "error") {
+    return (
+      <div className="max-w-md mx-auto py-16 text-center space-y-4" dir={isRtl ? "rtl" : "ltr"} role="alert">
+        <div className="mx-auto h-14 w-14 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <WifiOff className="h-7 w-7" />
+        </div>
+        <p className="text-lg font-bold">{loadError || tr("Impossible de charger le quiz.", "تعذر تحميل الاختبار.", "Unable to load the quiz.")}</p>
+        <p className="text-sm text-muted-foreground">
+          {tr(
+            "Vérifie ta connexion puis réessaie.",
+            "تحقق من اتصالك ثم أعد المحاولة.",
+            "Check your connection and try again."
+          )}
+        </p>
+        <div className="flex flex-col-reverse sm:flex-row gap-3 justify-center">
+          <Button variant="outline" onClick={onClose} className="h-11 rounded-xl px-6">
+            {tr("Fermer", "إغلاق", "Close")}
+          </Button>
+          <Button onClick={() => setReloadKey(k => k + 1)} className="h-11 rounded-xl px-6 gap-2 font-semibold">
+            <RefreshCw className="h-4 w-4" />
+            {tr("Réessayer", "إعادة المحاولة", "Try again")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Tentative en cours sauvegardée sur cet appareil ───
+  if (phase === "resume" && savedAttempt) {
+    const remaining = savedAttempt.deadline ? Math.max(0, Math.ceil((savedAttempt.deadline - Date.now()) / 1000)) : null;
+    const answeredSaved = baseItems.filter(it => isAnswered(it, savedAttempt.answers?.[it.question.id])).length;
+    return (
+      <div className="max-w-xl mx-auto animate-in fade-in zoom-in-95 duration-300" dir={isRtl ? "rtl" : "ltr"}>
+        <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
+          <div className="bg-gradient-to-br from-primary to-primary/80 p-8 text-center text-primary-foreground">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white/15 flex items-center justify-center">
+              <PlayCircle className="h-8 w-8" />
+            </div>
+            <h2 className="text-2xl font-bold">{tr("Quiz en cours", "اختبار قيد الإنجاز", "Quiz in progress")}</h2>
+            <p className="mt-2 text-sm text-primary-foreground/80">
+              {tr(
+                "Tes réponses ont été sauvegardées sur cet appareil. Le chrono a continué pendant ton absence.",
+                "تم حفظ إجاباتك على هذا الجهاز. استمر العد التنازلي أثناء غيابك.",
+                "Your answers were saved on this device. The timer kept running while you were away."
+              )}
+            </p>
+          </div>
+          <div className="p-6 space-y-5 text-center">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border p-3">
+                <p className="text-xs font-semibold text-muted-foreground">{tr("Temps restant", "الوقت المتبقي", "Time left")}</p>
+                <p className="text-2xl font-extrabold tabular-nums" dir="ltr">{remaining === null ? "∞" : formatTimer(remaining)}</p>
+              </div>
+              <div className="rounded-2xl border p-3">
+                <p className="text-xs font-semibold text-muted-foreground">{tr("Réponses", "الإجابات", "Answers")}</p>
+                <p className="text-2xl font-extrabold tabular-nums" dir="ltr">{answeredSaved}/{baseItems.length}</p>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <Button variant="outline" onClick={onClose} className="h-11 rounded-xl sm:flex-1">
+                {tr("Plus tard", "لاحقاً", "Later")}
+              </Button>
+              <Button onClick={() => restoreAttempt(savedAttempt, baseItems)} className="h-11 rounded-xl sm:flex-1 gap-2 font-bold">
+                <PlayCircle className="h-4 w-4" />
+                {tr("Reprendre", "متابعة", "Resume")}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -695,13 +1203,22 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                 <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                   {tr("Votre note", "نقطتك", "Your score")}
                 </p>
-                <p className="text-4xl font-extrabold tabular-nums">
-                  {sc}
+                <p className="text-4xl font-extrabold tabular-nums" dir="ltr">
+                  {formatDecimal(Number(sc) || 0, language, 2)}
                   <span className="text-xl text-muted-foreground font-semibold"> / {tot}</span>
                 </p>
                 <p className={`text-sm font-semibold ${mention(pct).color}`}>
-                  {pct}% · {mention(pct).label}
+                  {pct}% · <span dir="ltr">{note20(Number(sc) || 0, Number(tot) || 0)}/20</span> · {mention(pct).label}
                 </p>
+                {!canReview && (
+                  <p className="pt-2 text-xs text-muted-foreground">
+                    {tr(
+                      "Ton enseignant n'a pas activé la consultation du corrigé pour ce quiz.",
+                      "لم يفعّل أستاذك الاطلاع على التصحيح لهذا الاختبار.",
+                      "Your teacher hasn't enabled viewing the correction for this quiz."
+                    )}
+                  </p>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -712,11 +1229,13 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                 )}
               </p>
             )}
+            {pastReviewButton}
             <Button onClick={onClose} className="w-full h-11 rounded-xl font-semibold">
               {tr("Fermer", "إغلاق", "Close")}
             </Button>
           </div>
         </div>
+        {showPastReview && pastReview && <div className="mt-5">{renderReviewList(pastReview)}</div>}
       </div>
     );
   }
@@ -867,15 +1386,17 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                   <p className="text-sky-800/80 dark:text-sky-300/80 text-xs">
                     {settings.showResultsImmediately
                       ? tr(
-                          `Dernière note : ${previousSubmission.score} / ${previousSubmission.total_points} pts`,
-                          `آخر نقطة: ${previousSubmission.score} / ${previousSubmission.total_points}`,
-                          `Last score: ${previousSubmission.score} / ${previousSubmission.total_points} pts`
+                          `Dernière note : ${formatDecimal(Number(previousSubmission.score) || 0, language, 2)} / ${previousSubmission.total_points} pts`,
+                          `آخر نقطة: ${formatDecimal(Number(previousSubmission.score) || 0, language, 2)} / ${previousSubmission.total_points}`,
+                          `Last score: ${formatDecimal(Number(previousSubmission.score) || 0, language, 2)} / ${previousSubmission.total_points} pts`
                         )
                       : tr("Votre tentative précédente a été enregistrée.", "تم حفظ محاولتك السابقة.", "Your previous attempt was saved.")}
                   </p>
                 </div>
               </div>
             )}
+            {pastReviewButton}
+            {showPastReview && pastReview && renderReviewList(pastReview)}
 
             {/* Consignes */}
             <div className="rounded-2xl border bg-muted/30 p-5">
@@ -936,8 +1457,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
     const pending = graded.filter(r => !r.gradable && r.answered).length;
     const R = 54;
     const C = 2 * Math.PI * R;
-    // La correction détaillée révèle la note : elle n'est proposée que si les résultats sont visibles
-    const canReview = settings.allowReview && settings.showResultsImmediately;
+    // La correction détaillée révèle la note : elle n'est proposée que si les résultats sont visibles (canReview)
 
     return (
       <div className="max-w-3xl mx-auto space-y-5 animate-in fade-in zoom-in-95 duration-300" dir={isRtl ? "rtl" : "ltr"}>
@@ -960,7 +1480,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             {settings.showResultsImmediately ? (
               <>
                 <div className="mx-auto w-40 h-40 rounded-full bg-card shadow-xl ring-8 ring-card flex items-center justify-center relative">
-                  <svg viewBox="0 0 128 128" className="absolute inset-0 -rotate-90">
+                  <svg viewBox="0 0 128 128" className="absolute top-0 left-0 h-full w-full -rotate-90">
                     <circle cx="64" cy="64" r={R} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/60" />
                     <circle
                       cx="64"
@@ -978,11 +1498,11 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                   <div className="text-center">
                     <div className="text-4xl font-extrabold tabular-nums">{pct}%</div>
                     <div className="text-xs font-semibold text-muted-foreground tabular-nums">
-                      <span dir="ltr">{finalScore.score}/{finalScore.total}</span> {tr("pts", "نقطة", "pts")}
+                      <span dir="ltr">{formatDecimal(finalScore.score, language, 2)}/{finalScore.total}</span> {tr("pts", "نقطة", "pts")}
                     </div>
                     {finalScore.total > 0 && (
                       <div className="mt-0.5 text-[11px] font-bold text-primary tabular-nums">
-                        <span dir="ltr">{(Math.round((finalScore.score / finalScore.total) * 200) / 10).toString().replace(".", ",")}/20</span>
+                        <span dir="ltr">{note20(finalScore.score, finalScore.total)}/20</span>
                       </div>
                     )}
                   </div>
@@ -991,10 +1511,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { icon: <CheckCircle2 className="h-5 w-5" />, v: correct, l: tr("Correctes", "صحيحة", "Correct"), c: "text-emerald-600 bg-emerald-500/10" },
-                    { icon: <XCircle className="h-5 w-5" />, v: wrong, l: tr("Incorrectes", "خاطئة", "Wrong"), c: "text-rose-600 bg-rose-500/10" },
-                    { icon: <MinusCircle className="h-5 w-5" />, v: empty, l: tr("Sans réponse", "بدون جواب", "Unanswered"), c: "text-slate-500 bg-slate-500/10" },
-                    { icon: <Clock className="h-5 w-5" />, v: `${finalScore.minutes}′`, l: tr("Durée", "المدة", "Time"), c: "text-amber-600 bg-amber-500/10" }
+                    { icon: <CheckCircle2 className="h-5 w-5" />, v: correct, l: tr("Correctes", "صحيحة", "Correct"), c: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" },
+                    { icon: <XCircle className="h-5 w-5" />, v: wrong, l: tr("Incorrectes", "خاطئة", "Wrong"), c: "text-rose-600 dark:text-rose-400 bg-rose-500/10" },
+                    { icon: <MinusCircle className="h-5 w-5" />, v: empty, l: tr("Sans réponse", "بدون جواب", "Unanswered"), c: "text-slate-500 dark:text-slate-400 bg-slate-500/10" },
+                    { icon: <Clock className="h-5 w-5" />, v: `${finalScore.minutes}′`, l: tr("Durée", "المدة", "Time"), c: "text-amber-600 dark:text-amber-400 bg-amber-500/10" }
                   ].map((s, i) => (
                     <div key={i} className="rounded-2xl border p-3 flex items-center gap-3">
                       <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${s.c}`}>{s.icon}</div>
@@ -1065,76 +1585,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         </div>
 
         {/* Corrigé détaillé */}
-        {canReview && showReview && (
-          <div ref={reviewRef} className="space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-            {graded.map((r, i) => {
-              const tone = !r.gradable
-                ? "border-slate-200 dark:border-slate-800"
-                : r.isCorrect
-                ? "border-emerald-300 dark:border-emerald-900"
-                : "border-rose-300 dark:border-rose-900";
-              const pts = r.item.question.points || 1;
-              return (
-                <div key={r.item.question.id} className={`rounded-2xl border-2 bg-card p-5 ${tone}`}>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-sm font-bold">{i + 1}</span>
-                      {r.gradable ? (
-                        r.isCorrect ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
-                            <CheckCircle2 className="h-4 w-4" /> {tr("Correct", "صحيح", "Correct")}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600">
-                            <XCircle className="h-4 w-4" />
-                            {r.answered ? tr("Incorrect", "خطأ", "Incorrect") : tr("Sans réponse", "بدون جواب", "Unanswered")}
-                          </span>
-                        )
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500">
-                          <PenLine className="h-4 w-4" /> {tr("Correction par l'enseignant", "يصححه الأستاذ", "Graded by teacher")}
-                        </span>
-                      )}
-                    </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full tabular-nums ${r.isCorrect ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                      <span dir="ltr">{r.earned}/{pts}</span> {tr("pt", "نقطة", "pt")}
-                    </span>
-                  </div>
-                  <MathHtml className="quiz-question-html text-sm font-medium mb-3" html={r.item.html} />
-
-                  {r.item.question.question_type === "short_answer" ? (
-                    <div className="rounded-xl bg-muted/50 p-3 text-sm">
-                      <span className="text-xs font-semibold text-muted-foreground block mb-1">{tr("Votre réponse", "إجابتك", "Your answer")}</span>
-                      {r.answer?.text?.trim() || <em className="text-muted-foreground">—</em>}
-                    </div>
-                  ) : (
-                    <div className="grid gap-2">
-                      {r.item.options.map(opt => {
-                        const chosen = !!r.answer?.selected.includes(opt.id);
-                        const cls = opt.is_correct
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-800"
-                          : chosen
-                          ? "border-rose-300 bg-rose-50 text-rose-900 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-800"
-                          : "border-border text-muted-foreground";
-                        return (
-                          <div key={opt.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${cls}`}>
-                            {opt.is_correct ? <Check className="h-4 w-4 shrink-0" /> : chosen ? <X className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
-                            <MathText className="flex-1" text={optionLabel(opt)} />
-                            {chosen && (
-                              <span className="text-[10px] font-bold uppercase tracking-wide opacity-80">
-                                {tr("Votre choix", "اختيارك", "Your pick")}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {canReview && showReview && renderReviewList(graded)}
       </div>
     );
   }
@@ -1164,7 +1615,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
   // Nom + code Massar (l'e-mail technique « @student.internal » n'est jamais affiché)
   const rawEmail = user?.email || "";
   const idLabel = /@student\.internal$/i.test(rawEmail) ? rawEmail.split("@")[0].toUpperCase() : rawEmail;
-  const watermarkText = `${user?.name || ""} · ${idLabel} · ${new Date(startTimeRef.current || Date.now()).toLocaleString(isRtl ? "ar-MA" : "fr-FR")}`;
+  const watermarkText = `${user?.name || ""} · ${idLabel} · ${new Date(startTimeRef.current || Date.now()).toLocaleString(localeFor(language))}`;
 
   return (
     <div
@@ -1177,7 +1628,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         <>
           {/* Questions masquées dès que l'élève quitte l'onglet / l'application */}
           {antiCheat.isAway && (
-            <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-6 text-center">
+            <div className="fixed top-0 left-0 h-full w-full z-[100] bg-background flex items-center justify-center p-6 text-center">
               <div className="max-w-sm space-y-3">
                 <ShieldAlert className="h-12 w-12 mx-auto text-rose-500" />
                 <p className="text-lg font-bold">{tr("Quiz masqué", "الاختبار مخفي", "Quiz hidden")}</p>
@@ -1234,10 +1685,13 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           </AlertDialog>
         </>
       )}
+      {/* Annonces pour lecteurs d'écran (5 min, 1 min, 10 s) — le chrono lui-même n'est pas « live » */}
+      <div className="sr-only" aria-live="assertive" aria-atomic="true">{srMessage}</div>
+
       {/* Barre supérieure */}
       <div className="sticky top-0 z-20 -mx-3 sm:-mx-6 -mt-3 sm:-mt-6 mb-5 px-3 sm:px-6 pt-3 sm:pt-4 pb-3 bg-background/85 backdrop-blur-md border-b">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-lg font-bold truncate">{exam.title}</h2>
             <p className="text-xs text-muted-foreground">
               {tr(
@@ -1247,22 +1701,59 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               )}
             </p>
           </div>
-          {timeLeft !== null && (
-            <div
-              className={`flex items-center gap-2 rounded-2xl px-3.5 py-2 font-mono text-base font-bold tabular-nums shadow-sm border transition-colors ${
-                globalLow
-                  ? "bg-rose-500 text-white border-rose-500 animate-pulse"
-                  : timeLeft <= 300
-                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
-                  : "bg-card text-foreground"
-              }`}
-              aria-live="polite"
+          <div className="flex shrink-0 items-center gap-2">
+            {timeLeft !== null && (
+              <div
+                className={`flex items-center gap-2 rounded-2xl px-3 sm:px-3.5 py-2 font-mono text-base font-bold tabular-nums shadow-sm border transition-colors ${
+                  globalLow
+                    ? "bg-rose-500 text-white border-rose-500 motion-safe:animate-pulse"
+                    : timeLeft <= 300
+                    ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
+                    : "bg-card text-foreground"
+                }`}
+                role="timer"
+                aria-label={tr("Temps restant", "الوقت المتبقي", "Time left")}
+                dir="ltr"
+              >
+                <Clock className="h-4 w-4" />
+                {formatTimer(timeLeft)}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setQuitOpen(true)}
+              className="h-10 rounded-xl gap-1.5 px-2.5 sm:px-3 text-sm font-semibold"
+              aria-label={tr("Quitter le quiz", "مغادرة الاختبار", "Leave the quiz")}
             >
-              <Clock className="h-4 w-4" />
-              {formatTimer(timeLeft)}
-            </div>
-          )}
+              <LogOut className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
+              <span className="hidden sm:inline">{tr("Quitter", "مغادرة", "Leave")}</span>
+            </Button>
+          </div>
         </div>
+        {submitFailed && (
+          <div role="alert" className="mt-3 flex flex-col gap-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex items-start gap-2">
+              <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {tr(
+                  "L'envoi a échoué. Tes réponses sont sauvegardées sur cet appareil ; nouvel essai automatique dès que la connexion revient.",
+                  "فشل الإرسال. إجاباتك محفوظة على هذا الجهاز؛ ستتم إعادة المحاولة تلقائياً عند عودة الاتصال.",
+                  "Submission failed. Your answers are saved on this device; it will retry automatically when the connection is back."
+                )}
+              </span>
+            </span>
+            <Button
+              size="sm"
+              onClick={() => { setRetryCount(0); retrySubmit(); }}
+              disabled={isSubmitting}
+              className="h-10 shrink-0 gap-2 rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {tr("Réessayer l'envoi", "إعادة محاولة الإرسال", "Retry sending")}
+            </Button>
+          </div>
+        )}
         <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
           <div
             className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
@@ -1286,7 +1777,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           {qPct !== null && (
             <div className="h-1.5 bg-muted">
               <div
-                className={`h-full transition-all duration-300 ease-linear ${qLow ? "bg-rose-500" : "bg-amber-500"}`}
+                className={`h-full motion-safe:transition-all motion-safe:duration-1000 ease-linear ${qLow ? "bg-rose-500" : "bg-amber-500"}`}
                 style={{ width: `${qPct}%` }}
               />
             </div>
@@ -1315,8 +1806,11 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               {qLimit && questionTimeLeft !== null && (
                 <span
                   className={`ms-auto inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-mono text-sm font-bold tabular-nums ${
-                    qLow ? "bg-rose-500/10 text-rose-600 animate-pulse" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                    qLow ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 motion-safe:animate-pulse" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
                   }`}
+                  role="timer"
+                  aria-label={tr("Temps restant pour cette question", "الوقت المتبقي لهذا السؤال", "Time left for this question")}
+                  dir="ltr"
                 >
                   <Timer className="h-4 w-4" />
                   {formatTimer(questionTimeLeft)}
@@ -1341,7 +1835,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                       type="button"
                       role={item.multi ? "checkbox" : "radio"}
                       aria-checked={selected}
-                      disabled={disabled}
+                      disabled={disabled || timeUp || submitFailed}
                       onClick={() => selectOption(item, opt.id)}
                       className={`group relative flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-start transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/25 ${
                         selected
@@ -1393,7 +1887,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                       type="button"
                       role="radio"
                       aria-checked={selected}
-                      disabled={disabled}
+                      disabled={disabled || timeUp || submitFailed}
                       onClick={() => selectOption(item, opt.id)}
                       className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 p-6 sm:p-8 transition-all duration-200 focus:outline-none focus-visible:ring-4 ${
                         isTrue ? "focus-visible:ring-emerald-500/25" : "focus-visible:ring-rose-500/25"
@@ -1435,23 +1929,25 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                   ref={answerAreaRef}
                   placeholder={tr("Rédigez votre réponse ici…", "اكتب إجابتك هنا…", "Write your answer here…")}
                   value={ans?.text || ""}
-                  onChange={e => setTextAnswer(item, e.target.value)}
-                  disabled={isLocked}
+                  onChange={e => setTextAnswer(item, e.target.value, ((e.nativeEvent as InputEvent | undefined)?.inputType) || "")}
+                  disabled={isLocked || timeUp || submitFailed}
                   rows={5}
                   className="rounded-2xl border-2 text-base p-4 focus-visible:ring-primary/25 resize-y"
                 />
                 <MathSymbolBar
-                  disabled={isLocked}
+                  disabled={isLocked || timeUp || submitFailed}
                   onInsert={(sym, caret) => {
                     const el = answerAreaRef.current;
                     const cur = ans?.text || "";
                     const start = el ? el.selectionStart : cur.length;
                     const end = el ? el.selectionEnd : cur.length;
+                    // Focus synchrone (dans le geste de l'utilisateur) : iOS garde le clavier ouvert
+                    try { el?.focus(); } catch { /* ignore */ }
                     setTextAnswer(item, cur.slice(0, start) + sym + cur.slice(end));
                     requestAnimationFrame(() => {
                       if (!el) return;
                       const pos = start + caret;
-                      try { el.focus(); el.setSelectionRange(pos, pos); } catch { /* ancien iOS */ }
+                      try { el.setSelectionRange(pos, pos); } catch { /* ancien iOS */ }
                     });
                   }}
                 />
@@ -1487,13 +1983,13 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             )}
 
             {!isLast ? (
-              <Button onClick={goNext} className="h-11 rounded-xl px-6 gap-2 font-semibold shadow-sm">
+              <Button onClick={goNext} disabled={timeUp || submitFailed} className="h-11 rounded-xl px-6 gap-2 font-semibold shadow-sm">
                 {tr("Suivant", "التالي", "Next")}
                 <ArrowRight className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </Button>
             ) : (
               <Button
-                onClick={() => setConfirmOpen(true)}
+                onClick={() => (submitFailed ? retrySubmit() : setConfirmOpen(true))}
                 disabled={isSubmitting}
                 className="h-11 rounded-xl px-6 gap-2 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
               >
@@ -1505,7 +2001,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
         </div>
 
         {/* Panneau de navigation */}
-        <aside className="order-first lg:order-none">
+        <aside aria-label={tr("Navigation entre les questions", "التنقل بين الأسئلة", "Question navigation")}>
           <div className="lg:sticky lg:top-28 rounded-3xl border bg-card p-4 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold">{tr("Questions", "الأسئلة", "Questions")}</p>
@@ -1517,13 +2013,21 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
               {items.map((it, i) => {
                 const st = navState(i);
                 const lockedQ = !!locked[it.question.id];
+                const answeredQ = isAnswered(it, answers[it.question.id]);
+                const stateLabel = [
+                  answeredQ ? tr("répondue", "مُجاب", "answered") : tr("sans réponse", "بدون جواب", "not answered"),
+                  ...(lockedQ ? [tr("verrouillée", "مقفل", "locked")] : [])
+                ].join(", ");
+                const chipLabel = `${tr("Question", "السؤال", "Question")} ${i + 1} : ${stateLabel}`;
                 return (
                   <button
                     key={it.question.id}
                     type="button"
                     disabled={isSequential}
                     onClick={() => goTo(i)}
-                    title={`${tr("Question", "السؤال", "Question")} ${i + 1}`}
+                    title={chipLabel}
+                    aria-label={chipLabel}
+                    aria-current={st === "current" ? "step" : undefined}
                     className={`relative h-10 w-10 shrink-0 rounded-xl text-sm font-bold transition-all ${
                       st === "current"
                         ? "bg-primary text-primary-foreground shadow-md scale-105"
@@ -1534,7 +2038,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
                   >
                     {i + 1}
                     {lockedQ && (
-                      <Lock className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-card p-0.5 text-slate-500" />
+                      <Lock aria-hidden="true" className="absolute -top-1 -right-1 rtl:right-auto rtl:-left-1 h-3.5 w-3.5 rounded-full bg-card p-0.5 text-slate-500" />
                     )}
                   </button>
                 );
@@ -1557,7 +2061,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
             {!isSequential && (
               <Button
                 variant="outline"
-                onClick={() => setConfirmOpen(true)}
+                onClick={() => (submitFailed ? retrySubmit() : setConfirmOpen(true))}
                 disabled={isSubmitting}
                 className="flex w-full h-10 rounded-xl gap-2 font-semibold border-emerald-500/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
               >
@@ -1568,6 +2072,39 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose }) => {
           </div>
         </aside>
       </div>
+
+      {/* Confirmation de sortie (le chrono continue, les réponses restent sur l'appareil) */}
+      <AlertDialog open={quitOpen} onOpenChange={setQuitOpen}>
+        <AlertDialogContent className="rounded-3xl" dir={isRtl ? "rtl" : "ltr"}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <LogOut className={`h-5 w-5 text-rose-600 ${isRtl ? "rotate-180" : ""}`} />
+              {tr("Quitter le quiz ?", "مغادرة الاختبار؟", "Leave the quiz?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr(
+                "Tes réponses sont sauvegardées sur cet appareil et le chrono continue.",
+                "إجاباتك محفوظة على هذا الجهاز والعد التنازلي مستمر.",
+                "Your answers are saved on this device and the timer keeps running."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl">{tr("Continuer le quiz", "متابعة الاختبار", "Keep going")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                persistAttempt();
+                setQuitOpen(false);
+                onClose();
+              }}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-2"
+            >
+              <LogOut className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
+              {tr("Quitter", "مغادرة", "Leave")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmation d'envoi */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

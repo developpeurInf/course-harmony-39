@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { db, fmtDate, PageTitle, permLabel, useT } from "./adminShared";
 
 /** Libellé lisible d'une ligne du journal */
@@ -28,7 +29,7 @@ function describe(row: any, L: (fr: string, ar: string, en: string) => string, l
   if (t === "teacher_permission_overrides") {
     const key = n.permission_key || o.permission_key;
     const eff = a === "delete" ? L("selon l'offre", "حسب العرض", "per plan") : n.effect === "allow" ? L("autorisé", "مسموح", "allowed") : L("interdit", "ممنوع", "denied");
-    return `${permLabel(key, lang)} → ${eff}${n.limit_value != null ? ` (${n.limit_value})` : ""}`;
+    return `${permLabel(key, lang)} ${lang === "ar" ? "←" : "→"} ${eff}${n.limit_value != null ? ` (${n.limit_value})` : ""}`;
   }
   if (t === "plans") return L(`Offre « ${n.name || o.name} » (${verb})`, `العرض « ${n.name || o.name} » (${verb})`, `Plan “${n.name || o.name}” (${verb})`);
   if (t === "plan_permissions") return L(`Contenu d'offre : ${permLabel(n.permission_key || o.permission_key, lang)} (${verb})`, `محتوى العرض: ${permLabel(n.permission_key || o.permission_key, lang)} (${verb})`, `Plan content: ${permLabel(n.permission_key || o.permission_key, lang)} (${verb})`);
@@ -47,12 +48,21 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
   const [names, setNames] = useState<Record<string, string>>({});
   const [q, setQ] = useState("");
   const [max, setMax] = useState(limit);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const arrow = lang === "ar" ? "←" : "→";
 
   useEffect(() => {
+    let alive = true;
     (async () => {
+      setLoading(true);
       let query = db.from("audit_log").select("*").order("created_at", { ascending: false }).limit(max);
       if (teacherId) query = query.eq("teacher_id", teacherId);
-      const { data } = await query;
+      const { data, error: err } = await query;
+      if (!alive) return;
+      setLoading(false);
+      setError(err ? err.message : "");
+      if (err) toast.error(L(`Chargement du journal impossible : ${err.message}`, `تعذر تحميل السجل: ${err.message}`, `Could not load the log: ${err.message}`));
       const list = (data || []) as any[];
       setRows(list);
       const ids = Array.from(new Set(list.flatMap(r => [r.actor_id, r.teacher_id]).filter(Boolean)));
@@ -60,9 +70,13 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
         const { data: profs } = await db.from("profiles").select("id, name, email").in("id", ids);
         const m: Record<string, string> = {};
         (profs || []).forEach((p: any) => (m[p.id] = p.name || p.email));
-        setNames(m);
+        if (alive) setNames(m);
       }
     })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId, max]);
 
   const filtered = useMemo(() => {
@@ -73,9 +87,23 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
 
   return (
     <div className="space-y-3">
-      <Input value={q} onChange={e => setQ(e.target.value)} placeholder={L("Filtrer…", "تصفية…", "Filter…")} />
+      <Input value={q} onChange={e => setQ(e.target.value)} aria-label={L("Filtrer le journal", "تصفية السجل", "Filter the log")} placeholder={L("Filtrer…", "تصفية…", "Filter…")} />
+      {q.trim() && !loading && (
+        <p className="text-xs text-muted-foreground">
+          {L(
+            `Filtre appliqué aux ${rows.length} dernières actions chargées (${filtered.length} résultat(s)).`,
+            `التصفية مطبقة على آخر ${rows.length} عملية محملة (${filtered.length} نتيجة).`,
+            `Filter applied to the last ${rows.length} loaded actions (${filtered.length} result(s)).`
+          )}
+          {rows.length >= max && ` ${L("« Afficher plus » pour chercher plus loin.", "« عرض المزيد » للبحث أبعد.", "Use “Show more” to search further back.")}`}
+        </p>
+      )}
       <div className="overflow-hidden rounded-xl border bg-card">
-        {filtered.length === 0 ? (
+        {loading && rows.length === 0 ? (
+          <div className="h-32 animate-pulse bg-muted/40" />
+        ) : error && rows.length === 0 ? (
+          <p role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">{L("Impossible de charger le journal : ", "تعذر تحميل السجل: ", "Could not load the log: ")}{error}</p>
+        ) : filtered.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">{L("Aucune action enregistrée.", "لا توجد أي عملية.", "No recorded action.")}</p>
         ) : (
           <ul className="divide-y">
@@ -86,7 +114,7 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
                   {new Date(r.created_at).toLocaleString(lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR")}
                   {" · "}
                   {r.actor_id ? names[r.actor_id] || L("administrateur", "مسؤول", "admin") : L("système", "النظام", "system")}
-                  {!teacherId && r.teacher_id ? ` → ${names[r.teacher_id] || ""}` : ""}
+                  {!teacherId && r.teacher_id ? ` ${arrow} ${names[r.teacher_id] || ""}` : ""}
                 </p>
               </li>
             ))}
@@ -94,7 +122,7 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
         )}
       </div>
       {rows.length >= max && (
-        <Button variant="outline" size="sm" onClick={() => setMax(max + 200)}>{L("Afficher plus", "عرض المزيد", "Show more")}</Button>
+        <Button variant="outline" size="sm" disabled={loading} onClick={() => setMax(max + 200)}>{loading ? L("Chargement…", "جار التحميل…", "Loading…") : L("Afficher plus", "عرض المزيد", "Show more")}</Button>
       )}
     </div>
   );

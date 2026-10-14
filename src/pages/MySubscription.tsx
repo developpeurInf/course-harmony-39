@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, XCircle, Send, Crown } from "lucide-react";
+import { CheckCircle2, XCircle, Send, Crown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { MODULE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
-import { SubscriptionBanner } from "@/components/access/AccessUi";
+import { Label } from "@/components/ui/label";
 
 const db = supabase as any;
 
@@ -24,7 +24,7 @@ const STATUS: Record<string, { fr: string; ar: string; en: string; cls: string }
 /** « Mon abonnement » : offre, dates, consommation, contenu, offres disponibles */
 export default function MySubscription() {
   const { user } = useAuth();
-  const { access, enforced, refresh } = useAccess();
+  const { access, enforced, refresh, loading: accessLoading } = useAccess();
   const { language } = useLanguage();
   const lang = (language === "ar" || language === "en" ? language : "fr") as "fr" | "ar" | "en";
   const L = (fr: string, ar: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : fr);
@@ -34,16 +34,23 @@ export default function MySubscription() {
   const [wanted, setWanted] = useState<string>("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
   const load = async () => {
-    const [{ data: p }, { data: c }, { data: r }] = await Promise.all([
-      db.from("plans").select("*").eq("is_active", true).order("sort_order"),
-      db.from("plan_permissions").select("*"),
-      db.from("subscription_requests").select("*").order("created_at", { ascending: false }).limit(5),
-    ]);
-    setPlans(p || []);
-    setContent(c || []);
-    setRequests(r || []);
+    try {
+      const [{ data: p }, { data: c }, { data: r }] = await Promise.all([
+        db.from("plans").select("*").eq("is_active", true).order("sort_order"),
+        db.from("plan_permissions").select("*"),
+        db.from("subscription_requests").select("*").order("created_at", { ascending: false }).limit(5),
+      ]);
+      setPlans(p || []);
+      setContent(c || []);
+      setRequests(r || []);
+    } catch (e) {
+      console.error("MySubscription load failed", e);
+    } finally {
+      setLoadingData(false);
+    }
   };
   useEffect(() => {
     void refresh();
@@ -52,6 +59,17 @@ export default function MySubscription() {
   }, []);
 
   const sub = access?.subscription;
+  /** Prix selon la langue (ar : درهم) */
+  const fmtPrice = (n: unknown) => {
+    const v = Number(n);
+    if (!v) return "—";
+    try {
+      const num = v.toLocaleString(lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR");
+      return lang === "ar" ? `${num} درهم` : `${num} MAD`;
+    } catch {
+      return lang === "ar" ? `${v} درهم` : `${v} MAD`;
+    }
+  };
   const fmt = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR") : "—");
   const featuresByModule = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -68,15 +86,32 @@ export default function MySubscription() {
   };
 
   const sendRequest = async () => {
-    if (!user) return;
+    if (!user || sending) return;
     setSending(true);
-    const { error } = await db.from("subscription_requests").insert({ teacher_id: user.id, plan_id: wanted || sub?.plan_id || null, message: message || null });
+    let error: any = null;
+    try {
+      ({ error } = await db.from("subscription_requests").insert({ teacher_id: user.id, plan_id: wanted || sub?.plan_id || null, message: message || null }));
+    } catch (e) {
+      error = e;
+    }
     setSending(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      console.error("Subscription request failed", error);
+      return toast.error(L("Impossible d'envoyer la demande. Réessayez plus tard.", "تعذر إرسال الطلب. حاول لاحقاً.", "Could not send the request. Please try again later."));
+    }
     toast.success(L("Demande envoyée à l'administration", "تم إرسال الطلب إلى الإدارة", "Request sent to the administration"));
     setMessage("");
     void load();
   };
+
+  if (accessLoading && !access) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground" role="status">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="sr-only">{L("Chargement…", "جارٍ التحميل…", "Loading…")}</span>
+      </div>
+    );
+  }
 
   if (!enforced || !access) {
     return (
@@ -90,7 +125,6 @@ export default function MySubscription() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
-      <SubscriptionBanner />
       <div>
         <h1 className="text-2xl font-bold">{L("Mon abonnement", "اشتراكي", "My subscription")}</h1>
         <p className="text-sm text-muted-foreground">{L("Votre offre, ses limites et ce qu'elle contient.", "عرضك وحدوده ومحتواه.", "Your plan, its limits and what it includes.")}</p>
@@ -123,7 +157,7 @@ export default function MySubscription() {
                 return (
                   <li key={k} className="flex justify-between gap-2 text-xs">
                     <span className="font-medium">{PERMISSION_LABELS[k]?.[lang] || k}</span>
-                    <span className="text-muted-foreground">{q.limit === null ? "∞" : `${q.limit} Mo`}</span>
+                    <span className="text-muted-foreground">{q.limit === null ? "∞" : `${q.limit} ${L("Mo", "ميغابايت", "MB")}`}</span>
                   </li>
                 );
               }
@@ -177,7 +211,7 @@ export default function MySubscription() {
                   {plans.map(p => (
                     <th key={p.id} className="px-2 py-2 text-center">
                       <span className={`block font-bold ${p.id === sub?.plan_id ? "text-primary" : "text-foreground"}`}>{p.name}</span>
-                      <span className="font-normal">{Number(p.price_mad) ? `${Number(p.price_mad).toLocaleString("fr-FR")} MAD` : "—"}</span>
+                      <span className="font-normal">{fmtPrice(p.price_mad)}</span>
                     </th>
                   ))}
                 </tr>
@@ -214,12 +248,17 @@ export default function MySubscription() {
           </p>
         ) : (
           <div className="mt-3 space-y-3">
-            <select className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-72" value={wanted} onChange={e => setWanted(e.target.value)}>
+            {loadingData && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{L("Chargement des offres…", "جارٍ تحميل العروض…", "Loading plans…")}</p>
+            )}
+            <Label htmlFor="sub-wanted-plan" className="block text-xs">{L("Offre souhaitée", "العرض المطلوب", "Requested plan")}</Label>
+            <select id="sub-wanted-plan" className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-72" value={wanted} onChange={e => setWanted(e.target.value)}>
               <option value="">{L("Renouveler mon offre actuelle", "تجديد عرضي الحالي", "Renew my current plan")}</option>
               {plans.filter(p => p.id !== sub?.plan_id).map(p => <option key={p.id} value={p.id}>{L("Passer à", "الانتقال إلى", "Switch to")} {p.name}</option>)}
             </select>
-            <Textarea rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder={L("Message (facultatif)", "رسالة (اختياري)", "Message (optional)")} />
-            <Button onClick={sendRequest} disabled={sending} className="gap-1.5"><Send className="h-4 w-4" />{L("Envoyer la demande", "إرسال الطلب", "Send request")}</Button>
+            <Label htmlFor="sub-request-message" className="block text-xs">{L("Message (facultatif)", "رسالة (اختياري)", "Message (optional)")}</Label>
+            <Textarea id="sub-request-message" rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder={L("Message (facultatif)", "رسالة (اختياري)", "Message (optional)")} />
+            <Button onClick={sendRequest} disabled={sending} className="gap-1.5">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{L("Envoyer la demande", "إرسال الطلب", "Send request")}</Button>
           </div>
         )}
       </section>

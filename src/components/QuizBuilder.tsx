@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle, Zap } from "lucide-react";
+import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle, Zap, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import QuickQuizImport from "@/components/QuickQuizImport";
 import { useCourses, QuizQuestion, QuizOption, serializeQuestionText, parseQuestionText, serializeExamDescription, parseExamAvailability, QuizSettings as QuizSettingsType, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -74,6 +74,33 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(DEFAULT_QUIZ_SETTINGS);
+  const [deletingQuestion, setDeletingQuestion] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+
+  /* ---------- Suivi des modifications non enregistrées ---------- */
+  const normHtml = (html: string) => (html || "").replace(/<p>\s*<\/p>/g, "").replace(/&nbsp;/g, " ").trim();
+  const makeFormKey = (q: { question: string; question_type: string; points: number; timeMins: number; timeSecs: number }, opts: { option_text: string; is_correct: boolean }[]) =>
+    JSON.stringify([normHtml(q.question), q.question_type, q.points, q.timeMins, q.timeSecs, opts.map(o => [o.option_text.trim(), !!o.is_correct])]);
+  const makeSettingsKey = (st: QuizSettingsType, seq: boolean) => JSON.stringify({ ...st, sequentialQuestions: seq });
+  const [savedFormKey, setSavedFormKey] = useState(() =>
+    makeFormKey({ question: "", question_type: "multiple_choice", points: 1, timeMins: 0, timeSecs: 0 }, [1, 2, 3, 4].map(() => ({ option_text: "", is_correct: false })))
+  );
+  const [savedSettingsKey, setSavedSettingsKey] = useState<string | null>(null);
+  const formDirty = makeFormKey(currentQuestion, currentOptions) !== savedFormKey;
+  const settingsDirty = savedSettingsKey !== null && makeSettingsKey(quizSettings, isSequentialMode) !== savedSettingsKey;
+  const isDirty = formDirty || settingsDirty;
+
+  /** Fermeture demandée (X, Échap, clic extérieur, Annuler) : confirmation si modifications */
+  const requestClose = () => {
+    if (saving) return;
+    if (isDirty) {
+      setConfirmLeave(true);
+      return;
+    }
+    onClose();
+  };
 
   const emptyMcqOptions = () => [
     { option_text: "", is_correct: false, option_order: 1 },
@@ -177,17 +204,11 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       // Quiz jamais configuré : on part des paramètres par défaut de l'enseignant
       const hasSaved = /<!--QUIZ_SETTINGS:/.test(data.description || "");
       const loadedSettings = hasSaved ? (parsed.quiz_settings || DEFAULT_QUIZ_SETTINGS) : { ...DEFAULT_QUIZ_SETTINGS, ...prefs.quizDefaults };
+      const seq = !!(loadedSettings.sequentialQuestions || parsed.quiz_mode === 'sequential_timed');
       setQuizSettings(loadedSettings);
-      setIsSequentialMode(loadedSettings.sequentialQuestions || parsed.quiz_mode === 'sequential_timed');
+      setIsSequentialMode(seq);
+      setSavedSettingsKey(makeSettingsKey(loadedSettings, seq));
     }
-  };
-
-  const handleSequentialToggle = (checked: boolean) => {
-    setIsSequentialMode(checked);
-    setQuizSettings(prev => ({
-      ...prev,
-      sequentialQuestions: checked
-    }));
   };
 
   const handleSettingsChange = (newSettings: QuizSettingsType) => {
@@ -232,15 +253,18 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   };
 
   const resetForm = () => {
-    setCurrentQuestion({
+    const q = {
       question: "",
-      question_type: "multiple_choice",
+      question_type: "multiple_choice" as const,
       points: 1,
       question_order: questions.length + 1,
       timeMins: 0,
       timeSecs: 0,
-    });
-    setCurrentOptions(emptyMcqOptions());
+    };
+    const opts = emptyMcqOptions();
+    setCurrentQuestion(q);
+    setCurrentOptions(opts);
+    setSavedFormKey(makeFormKey(q, opts));
     setEditingQuestionId(null);
   };
 
@@ -354,39 +378,41 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
     const timeMins = timeLimitSeconds ? Math.floor(timeLimitSeconds / 60) : 0;
     const timeSecs = timeLimitSeconds ? timeLimitSeconds % 60 : 0;
 
-    setCurrentQuestion({
+    const q = {
       question: cleanText,
       question_type: question.question_type,
       points: question.points,
       question_order: question.question_order,
       timeMins,
       timeSecs,
-    });
+    };
+    setCurrentQuestion(q);
 
     const questionOptions = getQuestionOptions(question.id);
+    let opts: { option_text: string; is_correct: boolean; option_order: number }[] = [];
     if (question.question_type === 'multiple_choice') {
-      const editOptions = [...Array(Math.max(4, questionOptions.length))].map((_, index) => {
+      opts = [...Array(Math.max(4, questionOptions.length))].map((_, index) => {
         const existingOption = questionOptions[index];
         return existingOption 
           ? { option_text: existingOption.option_text, is_correct: existingOption.is_correct, option_order: index + 1 }
           : { option_text: "", is_correct: false, option_order: index + 1 };
       });
-      setCurrentOptions(editOptions);
     } else if (question.question_type === 'true_false') {
-      setCurrentOptions([
+      opts = [
         { option_text: "True", is_correct: questionOptions.find(opt => /^(true|vrai)$/i.test(opt.option_text.trim()))?.is_correct || false, option_order: 1 },
         { option_text: "False", is_correct: questionOptions.find(opt => /^(false|faux)$/i.test(opt.option_text.trim()))?.is_correct || false, option_order: 2 }
-      ]);
-    } else {
-      setCurrentOptions([]);
+      ];
     }
+    setCurrentOptions(opts);
+    setSavedFormKey(makeFormKey(q, opts));
 
     setEditingQuestionId(question.id);
   };
 
-  const handleDeleteQuestion = async (questionId: string) => {
+  const handleDeleteQuestion = async (questionId: string): Promise<boolean> => {
     try {
-      await supabase.from('quiz_options').delete().eq('question_id', questionId);
+      const { error: optError } = await supabase.from('quiz_options').delete().eq('question_id', questionId);
+      if (optError) throw optError;
       const { error } = await supabase.from('quiz_questions').delete().eq('id', questionId);
       if (error) throw error;
 
@@ -400,9 +426,36 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         : language === "fr" ? "Question supprimée"
         : "Question deleted"
       );
+      return true;
     } catch (error) {
       console.error('Error deleting question:', error);
-      toast.error("Failed to delete question");
+      toast.error(tr("Impossible de supprimer la question", "تعذر حذف السؤال", "Failed to delete question"));
+      return false;
+    }
+  };
+
+  /** Monte / descend une question : échange les question_order des deux questions (2 mises à jour) */
+  const moveQuestion = async (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (reordering || j < 0 || j >= questions.length) return;
+    const a = questions[index];
+    const b = questions[j];
+    let oa = a.question_order;
+    let ob = b.question_order;
+    if (oa === ob || oa == null || ob == null) { oa = index + 1; ob = j + 1; }
+    setReordering(true);
+    try {
+      const r1 = await supabase.from('quiz_questions').update({ question_order: ob }).eq('id', a.id);
+      if (r1.error) throw r1.error;
+      const r2 = await supabase.from('quiz_questions').update({ question_order: oa }).eq('id', b.id);
+      if (r2.error) throw r2.error;
+      await loadQuestions();
+    } catch (error) {
+      console.error('Error reordering questions:', error);
+      toast.error(tr("Impossible de changer l'ordre", "تعذر تغيير الترتيب", "Could not reorder questions"));
+      await loadQuestions();
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -454,6 +507,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
         return;
       }
       await refreshData();
+      setSavedSettingsKey(makeSettingsKey(finalSettings, isSequentialMode));
     }
 
     toast.success(
@@ -465,7 +519,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
       <DialogContent className="h-full max-h-full w-screen max-w-none rounded-none sm:h-auto sm:max-h-[92vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-2xl overflow-hidden flex flex-col p-0 gap-0 border shadow-2xl bg-card">
         {/* Header */}
         <div className="p-3 pr-12 rtl:pr-3 rtl:pl-12 sm:p-5 sm:pr-14 sm:rtl:pr-5 sm:rtl:pl-14 border-b bg-muted/20 flex flex-wrap items-center justify-between gap-2">
@@ -490,16 +544,17 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Sequential mode toggle */}
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${isSequentialMode ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400' : 'bg-muted/30 border-muted text-muted-foreground'}`}>
-              <Timer className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{language === "fr" ? "Séquentiel minuté" : language === "ar" ? "ترتيب موقوت" : "Sequential timed"}</span>
-              <Switch
-                checked={isSequentialMode}
-                onCheckedChange={handleSequentialToggle}
-                className="scale-75"
-              />
-            </div>
+            {/* Mode séquentiel : lecture seule (se règle dans l'onglet Paramètres) */}
+            {isSequentialMode && (
+              <Badge
+                variant="outline"
+                className="gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400"
+                title={tr("Réglable dans l'onglet Paramètres", "يُضبط في تبويب الإعدادات", "Set in the Settings tab")}
+              >
+                <Timer className="h-3.5 w-3.5" />
+                {tr("Séquentiel minuté", "ترتيب موقوت", "Sequential timed")}
+              </Badge>
+            )}
             <Badge variant="secondary" className="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10">
               {language === "ar" ? `المجموع: ${totalPoints} نقطة` : language === "fr" ? `Total : ${totalPoints} pts` : `Total: ${totalPoints} pts`}
             </Badge>
@@ -599,8 +654,8 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                   {q.question_type === 'multiple_choice'
                                     ? 'QCM'
                                     : q.question_type === 'true_false'
-                                    ? (language === 'ar' ? 'ص/خ' : 'V/F')
-                                    : (language === 'ar' ? 'مباشرة' : 'Directe')}
+                                    ? tr('V/F', 'ص/خ', 'T/F')
+                                    : tr('Directe', 'مباشرة', 'Short')}
                                 </Badge>
                                 <span className="text-[10px] font-semibold text-muted-foreground">
                                   {q.points} {language === "ar" ? "نقطة" : q.points > 1 ? "pts" : "pt"}
@@ -621,7 +676,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
                               {/* Options preview for QCM */}
                               {q.question_type === 'multiple_choice' && qOpts.length > 0 && (
-                                <div className="mt-2 space-y-1 pl-1 bg-muted/20 p-2 rounded-lg border border-muted/30">
+                                <div className="mt-2 space-y-1 bg-muted/20 p-2 rounded-lg border border-muted/30">
                                   {qOpts.map((opt, oIdx) => (
                                     <div key={opt.id} className="text-[11px] flex items-center gap-1.5">
                                       <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold shrink-0 ${
@@ -633,7 +688,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                         text={opt.option_text}
                                         className={`truncate flex-1 ${opt.is_correct ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-muted-foreground'}`}
                                       />
-                                      {opt.is_correct && <Check className="w-3 h-3 text-emerald-600 shrink-0 ml-auto" />}
+                                      {opt.is_correct && <Check className="w-3 h-3 text-emerald-600 shrink-0 ml-auto rtl:ml-0 rtl:mr-auto" />}
                                     </div>
                                   ))}
                                 </div>
@@ -646,32 +701,56 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                     <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                       {/^(true|vrai)$/i.test(qOpts.find(o => o.is_correct)?.option_text || '') 
-                                        ? (language === 'ar' ? 'صحيح' : 'Vrai') 
-                                        : (language === 'ar' ? 'خطأ' : 'Faux')}
+                                        ? tr('Vrai', 'صحيح', 'True') 
+                                        : tr('Faux', 'خطأ', 'False')}
                                     </span>
                                   )}
                                 </div>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <div className="grid grid-cols-2 gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                onClick={() => handleEditQuestion(q)}
-                                title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
+                                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                onClick={() => moveQuestion(idx, -1)}
+                                disabled={reordering || idx === 0}
+                                aria-label={tr(`Monter la question ${idx + 1}`, `تقديم السؤال ${idx + 1}`, `Move question ${idx + 1} up`)}
+                                title={tr("Monter", "تقديم", "Move up")}
                               >
-                                <Edit2 className="h-3 w-3" />
+                                <ArrowUp className="h-4 w-4" />
                               </Button>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                onClick={() => setQuestionToDelete(q)}
-                                title={language === "ar" ? "حذف" : language === "fr" ? "Supprimer" : "Delete"}
+                                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                onClick={() => moveQuestion(idx, 1)}
+                                disabled={reordering || idx === questions.length - 1}
+                                aria-label={tr(`Descendre la question ${idx + 1}`, `تأخير السؤال ${idx + 1}`, `Move question ${idx + 1} down`)}
+                                title={tr("Descendre", "تأخير", "Move down")}
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <ArrowDown className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                onClick={() => handleEditQuestion(q)}
+                                aria-label={tr(`Modifier la question ${idx + 1}`, `تعديل السؤال ${idx + 1}`, `Edit question ${idx + 1}`)}
+                                title={tr("Modifier", "تعديل", "Edit")}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                onClick={() => setQuestionToDelete(q)}
+                                aria-label={tr(`Supprimer la question ${idx + 1}`, `حذف السؤال ${idx + 1}`, `Delete question ${idx + 1}`)}
+                                title={tr("Supprimer", "حذف", "Delete")}
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>
@@ -700,7 +779,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                   </h3>
                   {editingQuestionId && (
                     <Button variant="ghost" size="sm" onClick={resetForm} className="h-7 text-xs text-muted-foreground">
-                      <X className="h-3.5 w-3.5 mr-1" />
+                      <X className="h-3.5 w-3.5" />
                       {language === "ar" ? "إلغاء التعديل" : language === "fr" ? "Annuler" : "Cancel"}
                     </Button>
                   )}
@@ -755,7 +834,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                         {language === "fr" ? "Durée pour cette question" : language === "ar" ? "مدة هذا السؤال" : "Time for this question"}
                       </Label>
                       {previewTimeSecs > 0 && (
-                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto">
+                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 dark:text-amber-400 ml-auto rtl:ml-0 rtl:mr-auto">
                           {currentQuestion.timeMins > 0 && `${currentQuestion.timeMins}min `}{currentQuestion.timeSecs > 0 && `${currentQuestion.timeSecs}s`}
                         </Badge>
                       )}
@@ -873,7 +952,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                             )}
                           </div>
 
-                          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold select-none pr-1">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold select-none pr-1 rtl:pr-0 rtl:pl-1">
                             <input
                               type="checkbox"
                               checked={opt.is_correct}
@@ -995,7 +1074,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
           <Button
             type="button"
             variant="outline"
-            onClick={onClose}
+            onClick={requestClose}
             className="text-xs font-medium"
           >
             {language === "ar" ? "إلغاء التعديلات" : language === "fr" ? "Annuler les modifications" : "Cancel modifications"}
@@ -1004,9 +1083,10 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
           <Button
             type="button"
             onClick={handleSaveAllAndClose}
+            disabled={saving}
             className="text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
           >
-            <Save className="h-3.5 w-3.5" />
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             {language === "ar" ? "حفظ التعديلات" : language === "fr" ? "Sauvegarder les modifications" : "Save modifications"}
           </Button>
         </div>
@@ -1022,7 +1102,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
       />
 
       {/* Delete Question Confirmation Dialog */}
-      <Dialog open={!!questionToDelete} onOpenChange={(open) => { if (!open) setQuestionToDelete(null); }}>
+      <Dialog open={!!questionToDelete} onOpenChange={(open) => { if (!open && !deletingQuestion) setQuestionToDelete(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -1037,23 +1117,57 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setQuestionToDelete(null)}>
+            <Button variant="outline" onClick={() => setQuestionToDelete(null)} disabled={deletingQuestion}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
             <Button 
               variant="destructive" 
+              disabled={deletingQuestion}
               onClick={async () => {
-                if (questionToDelete) {
-                  await handleDeleteQuestion(questionToDelete.id);
-                  setQuestionToDelete(null);
+                if (!questionToDelete || deletingQuestion) return;
+                setDeletingQuestion(true);
+                try {
+                  const ok = await handleDeleteQuestion(questionToDelete.id);
+                  if (ok) setQuestionToDelete(null);
+                } finally {
+                  setDeletingQuestion(false);
                 }
               }}
             >
-              {language === "ar" ? "حذف السؤال" : language === "fr" ? "Supprimer la question" : "Delete Question"}
+              {deletingQuestion && <Loader2 className="h-4 w-4 animate-spin" />}
+              {deletingQuestion ? tr("Suppression…", "جارٍ الحذف…", "Deleting…") : tr("Supprimer la question", "حذف السؤال", "Delete Question")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Quitter sans enregistrer ? */}
+      <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
+        <AlertDialogContent className="w-[95vw] max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {tr("Quitter sans enregistrer ?", "الخروج دون حفظ؟", "Leave without saving?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr(
+                "Certaines modifications (question en cours ou paramètres) ne sont pas enregistrées. Elles seront perdues.",
+                "بعض التعديلات (السؤال الحالي أو الإعدادات) غير محفوظة وستضيع.",
+                "Some changes (current question or settings) are not saved. They will be lost."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr("Rester", "البقاء", "Stay")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setConfirmLeave(false); onClose(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {tr("Quitter", "خروج", "Leave")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

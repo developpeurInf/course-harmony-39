@@ -12,8 +12,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatCard } from "@/components/ui/stat-card";
 import {
   BookOpen, FileText, Calendar, Users, Building, Award, Clock, CheckCircle2,
-  RefreshCw, ArrowRight, GraduationCap, Target, Sparkles, Trophy, Activity, EyeOff, ClipboardList, Play, Timer
+  RefreshCw, ArrowRight, GraduationCap, Target, Sparkles, Trophy, Activity, EyeOff, ClipboardList, Play, Timer, AlertTriangle
 } from "lucide-react";
+import { useNow } from "@/hooks/useNow";
+import { formatDecimal } from "@/lib/formatDate";
 
 interface RecentSubmission {
   id: string;
@@ -75,8 +77,9 @@ const Dashboard = () => {
   const {
     courses, exercises, exams, enrollments, rooms, refreshData,
     getVisibleCoursesForStudent, getVisibleExercisesForStudent, getVisibleExamsForStudent,
-    quizSubmissions
+    quizSubmissions, loading: dataLoading
   } = useCourses();
+  const nowTs = useNow();
 
   const isRtl = language === "ar";
   const { prefs } = usePreferences();
@@ -94,6 +97,8 @@ const Dashboard = () => {
   const [passRate, setPassRate] = useState<number | null>(null);
   const [submissionsCount, setSubmissionsCount] = useState<number>(0);
   const [week, setWeek] = useState<DayPoint[]>([]);
+  const [metricsError, setMetricsError] = useState(false);
+  const [metricsLoaded, setMetricsLoaded] = useState(false);
 
   /* ───────────── listes filtrées ───────────── */
 
@@ -130,7 +135,7 @@ const Dashboard = () => {
   // Élève : quiz ouverts maintenant et pas encore passés
   const quizzesToDo = useMemo(() => {
     if (isProfessor || !user?.id) return [];
-    const now = Date.now();
+    const now = nowTs;
     const done = new Set((quizSubmissions || []).filter(sub => sub.student_id === user.id).map(sub => sub.exam_id));
     return displayExams
       .filter(ex => ex.type === "quiz" && !done.has(ex.id))
@@ -144,27 +149,37 @@ const Dashboard = () => {
         const ub = (b as any).available_until ? new Date((b as any).available_until).getTime() : Infinity;
         return ua - ub;
       });
-  }, [displayExams, quizSubmissions, isProfessor, user]);
+  }, [displayExams, quizSubmissions, isProfessor, user, nowTs]);
 
   const upcomingExercises = useMemo(() => {
-    const now = Date.now(), limit = now + 14 * 86400000;
+    const now = nowTs, limit = now + 14 * 86400000;
     return displayExercises
       .filter(ex => { const d = new Date(ex.due_date).getTime(); return d >= now && d <= limit; })
       .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-  }, [displayExercises]);
+  }, [displayExercises, nowTs]);
+
+  // Élève : exercices dont la date limite est dépassée depuis moins de 14 jours
+  const overdueExercises = useMemo(() => {
+    if (isProfessor) return [];
+    const now = nowTs, from = now - 14 * 86400000;
+    return displayExercises
+      .filter(ex => { const d = new Date(ex.due_date).getTime(); return d < now && d >= from; })
+      .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
+  }, [displayExercises, nowTs, isProfessor]);
 
   const upcomingExams = useMemo(() => {
-    const now = Date.now(), limit = now + 14 * 86400000;
+    const now = nowTs, limit = now + 14 * 86400000;
     return displayExams
       .filter(ex => { const d = new Date(ex.exam_date).getTime(); return d >= now && d <= limit; })
       .sort((a, b) => new Date(a.exam_date).getTime() - new Date(b.exam_date).getTime());
-  }, [displayExams]);
+  }, [displayExams, nowTs]);
 
   /* ───────────── indicateurs dynamiques ───────────── */
 
   const loadDynamicMetrics = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
+    setMetricsError(false);
     try {
       const examTitle = new Map(displayExams.map(e => [e.id, e.title]));
 
@@ -187,12 +202,13 @@ const Dashboard = () => {
         const examIds = displayExams.map(e => e.id);
         let subs: { id: string; exam_id: string; student_id: string; score: number | null; total_points: number | null; submitted_at: string }[] = [];
         if (examIds.length > 0) {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from("quiz_submissions")
             .select("id, exam_id, student_id, score, total_points, submitted_at")
             .in("exam_id", examIds)
             .eq("is_completed", true)
             .order("submitted_at", { ascending: false });
+          if (error) throw error;
           subs = data || [];
         }
         setSubmissionsCount(subs.length);
@@ -214,7 +230,7 @@ const Dashboard = () => {
           return {
             id: s.id,
             exam_id: s.exam_id,
-            exam_title: examTitle.get(s.exam_id) || "Quiz",
+            exam_title: examTitle.get(s.exam_id) || tr("Quiz", "اختبار", "Quiz"),
             student_id: s.student_id,
             student_name: p?.name || tr("Élève", "تلميذ", "Student"),
             student_avatar: p?.avatar_url,
@@ -260,12 +276,13 @@ const Dashboard = () => {
         setWeek(days);
       } else {
         // Élève : ses propres résultats
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("quiz_submissions")
           .select("id, exam_id, student_id, score, total_points, submitted_at")
           .eq("student_id", user.id)
           .eq("is_completed", true)
           .order("submitted_at", { ascending: false });
+        if (error) throw error;
         const subs = data || [];
         setSubmissionsCount(subs.length);
         const latest = new Map<string, (typeof subs)[number]>();
@@ -276,7 +293,7 @@ const Dashboard = () => {
         setRecentSubmissions(Array.from(latest.values()).slice(0, 6).map(s => ({
           id: s.id,
           exam_id: s.exam_id,
-          exam_title: examTitle.get(s.exam_id) || exams.find(e => e.id === s.exam_id)?.title || "Quiz",
+          exam_title: examTitle.get(s.exam_id) || exams.find(e => e.id === s.exam_id)?.title || tr("Quiz", "اختبار", "Quiz"),
           student_id: s.student_id,
           student_name: user.name || "",
           score: s.score || 0,
@@ -285,8 +302,10 @@ const Dashboard = () => {
           submitted_at: s.submitted_at,
         })));
       }
+      setMetricsLoaded(true);
     } catch (err) {
       console.error("Failed to load dashboard dynamic metrics:", err);
+      setMetricsError(true);
     } finally {
       setLoading(false);
     }
@@ -298,7 +317,7 @@ const Dashboard = () => {
   }, [loadDynamicMetrics]);
 
   const handleRefresh = () => {
-    refreshData();
+    refreshData(undefined, { force: true });
     loadDynamicMetrics();
   };
 
@@ -306,8 +325,7 @@ const Dashboard = () => {
 
   const fmtNote20 = (pct: number | null) => {
     if (pct === null) return "—";
-    const v = (Math.round((pct / 5) * 10) / 10).toFixed(1);
-    return language === "en" ? v : v.replace(".", ",");
+    return formatDecimal(pct / 5, language);
   };
 
   const relative = (iso: string) => {
@@ -321,7 +339,7 @@ const Dashboard = () => {
 
   const until = (iso: string) => {
     const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-    const ms = new Date(iso).getTime() - Date.now();
+    const ms = new Date(iso).getTime() - nowTs;
     const h = Math.round(ms / 3600000);
     if (h < 24) return rtf.format(Math.max(0, h), "hour");
     return rtf.format(Math.round(h / 24), "day");
@@ -344,6 +362,11 @@ const Dashboard = () => {
   };
 
   const maxWeek = Math.max(1, ...week.map(d => Math.max(d.activeStudents, d.submissions)));
+  const weekSummary = week
+    .map(d => `${d.label} : ${d.activeStudents} ${tr("actifs", "نشطون", "active")}, ${d.submissions} ${tr("copies", "أوراق", "submissions")}`)
+    .join(" ; ");
+  const firstLoad = (loading && !metricsLoaded) || (dataLoading && courses.length === 0);
+  const Pulse = ({ className }: { className: string }) => <div className={`rounded-xl bg-muted motion-safe:animate-pulse ${className}`} />;
 
   /* ═══════════════════════════════ RENDU ═══════════════════════════════ */
 
@@ -382,8 +405,21 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {metricsError && (
+        <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {tr("Impossible de charger les résultats. Vérifie ta connexion.", "تعذر تحميل النتائج. تحقق من الاتصال.", "Unable to load results. Check your connection.")}
+          </span>
+          <Button variant="outline" onClick={handleRefresh} disabled={loading} className="h-10 gap-2 bg-background">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {tr("Réessayer", "إعادة المحاولة", "Try again")}
+          </Button>
+        </div>
+      )}
+
       {/* ── Aucune classe ── */}
-      {isProfessor && professorRooms.length === 0 && (
+      {isProfessor && professorRooms.length === 0 && !firstLoad && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center py-12 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Building className="h-8 w-8" /></div>
@@ -423,16 +459,18 @@ const Dashboard = () => {
                         <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{ex.duration_minutes} {tr("min", "دقيقة", "min")}</span>
                       ) : null}
                       {until && (
-                        <span className="inline-flex items-center gap-1 text-rose-600">
+                        <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400">
                           <Timer className="h-3.5 w-3.5" />
                           {tr("jusqu'au", "إلى غاية", "until")} {until.toLocaleString(locale, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       )}
                     </p>
                   </div>
-                  <Button onClick={() => navigate(`/exams?quiz=${ex.id}`)} className="h-10 shrink-0 gap-2 bg-emerald-600 font-semibold text-white hover:bg-emerald-700">
-                    <Play className="h-4 w-4" />
-                    {tr("Commencer", "ابدأ", "Start")}
+                  <Button asChild className="h-10 shrink-0 gap-2 bg-emerald-600 font-semibold text-white hover:bg-emerald-700">
+                    <Link to={`/exams?quiz=${ex.id}`}>
+                      <Play className="h-4 w-4" />
+                      {tr("Commencer", "ابدأ", "Start")}
+                    </Link>
                   </Button>
                 </div>
               );
@@ -471,22 +509,30 @@ const Dashboard = () => {
                 <CardTitle className="text-base flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />{tr("Activité des 7 derniers jours", "نشاط آخر 7 أيام", "Last 7 days activity")}</CardTitle>
                 <CardDescription className="mt-1.5">{tr("Élèves actifs et copies de quiz rendues chaque jour", "التلاميذ النشطون والأوراق المسلمة يومياً", "Active students and quiz submissions per day")}</CardDescription>
               </div>
-              <Link to="/reports"><Button variant="ghost" size="sm" className="gap-1 text-xs">{tr("Rapports", "التقارير", "Reports")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Button></Link>
+              <Button asChild variant="ghost" size="sm" className="gap-1 text-xs"><Link to="/reports">{tr("Rapports", "التقارير", "Reports")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>
             </CardHeader>
             <CardContent>
-              <div className="flex h-[200px] items-end gap-2 sm:gap-4 border-b pb-1">
+              {firstLoad && week.length === 0 ? (
+                <Pulse className="h-[200px] w-full" />
+              ) : (
+              <div className="flex h-[200px] items-end gap-2 sm:gap-4 border-b pb-1 pt-5" role="img" aria-label={`${tr("Activité des 7 derniers jours", "نشاط آخر 7 أيام", "Last 7 days activity")} — ${weekSummary}`}>
                 {week.map((d, i) => (
-                  <div key={i} className="group flex h-full flex-1 flex-col justify-end">
+                  <div key={i} className="group flex h-full flex-1 flex-col justify-end" aria-hidden="true">
                     <div className="relative flex flex-1 items-end justify-center gap-1">
-                      <div className="pointer-events-none absolute -top-1 left-1/2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-popover px-2 py-1 text-[11px] shadow-md ring-1 ring-border opacity-0 transition-opacity group-hover:opacity-100">
-                        <b>{d.activeStudents}</b> {tr("actifs", "نشطون", "active")} · <b>{d.submissions}</b> {tr("copies", "أوراق", "subs")}
+                      {/* Valeurs toujours visibles (pas seulement au survol : tablettes / téléphones) */}
+                      <div className="flex h-full w-1/2 max-w-[22px] flex-col items-center justify-end">
+                        <span className="mb-0.5 text-[11px] font-bold tabular-nums leading-none text-primary">{d.activeStudents}</span>
+                        <div className="w-full rounded-t-md bg-gradient-to-t from-primary to-primary/60 motion-safe:transition-all motion-safe:duration-700" style={{ height: `${(d.activeStudents / maxWeek) * 85}%`, minHeight: d.activeStudents ? 4 : 0 }} />
                       </div>
-                      <div className="w-1/2 max-w-[22px] rounded-t-md bg-gradient-to-t from-primary to-primary/60 transition-all duration-700 group-hover:opacity-90" style={{ height: `${(d.activeStudents / maxWeek) * 100}%`, minHeight: d.activeStudents ? 4 : 0 }} />
-                      <div className="w-1/2 max-w-[22px] rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400 transition-all duration-700 group-hover:opacity-90" style={{ height: `${(d.submissions / maxWeek) * 100}%`, minHeight: d.submissions ? 4 : 0 }} />
+                      <div className="flex h-full w-1/2 max-w-[22px] flex-col items-center justify-end">
+                        <span className="mb-0.5 text-[11px] font-bold tabular-nums leading-none text-emerald-600 dark:text-emerald-400">{d.submissions}</span>
+                        <div className="w-full rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-400 motion-safe:transition-all motion-safe:duration-700" style={{ height: `${(d.submissions / maxWeek) * 85}%`, minHeight: d.submissions ? 4 : 0 }} />
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+              )}
               <div className="mt-2 flex gap-2 sm:gap-4">
                 {week.map((d, i) => (
                   <span key={i} className={`flex-1 text-center text-[11px] capitalize ${d.isToday ? "font-bold text-primary" : "text-muted-foreground"}`}>{d.label}</span>
@@ -507,21 +553,27 @@ const Dashboard = () => {
               <CardDescription className="mt-1.5">{tr("Note obtenue sur le total de points du quiz", "النقطة المحصل عليها من مجموع نقط الاختبار", "Score out of the quiz total points")}</CardDescription>
             </div>
             {isProfessor && professorRooms.length > 0 && (
-              <Link to={trackingLink}><Button variant="ghost" size="sm" className="gap-1 text-xs">{tr("Suivi", "التتبع", "Tracking")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Button></Link>
+              <Button asChild variant="ghost" size="sm" className="gap-1 text-xs"><Link to={trackingLink}>{tr("Suivi", "التتبع", "Tracking")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>
             )}
           </CardHeader>
           <CardContent className={isProfessor ? "space-y-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>
-            {recentSubmissions.length > 0 ? recentSubmissions.map(sub => {
+            {firstLoad && recentSubmissions.length === 0 ? (
+              [0, 1, 2].map(i => <Pulse key={i} className="h-16 w-full" />)
+            ) : recentSubmissions.length > 0 ? recentSubmissions.map(sub => {
               const tone = scoreTone(sub.pct, passPct);
               return (
-                <div key={sub.id} className="group flex items-center gap-3 rounded-2xl border p-3 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md">
+                <Link
+                  key={sub.id}
+                  to={isProfessor ? `/exams` : `/exams?quiz=${sub.exam_id}`}
+                  className="group flex items-center gap-3 rounded-2xl border p-3 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   {isProfessor ? (
                     <Avatar className="h-10 w-10 shrink-0">
                       <AvatarImage src={sub.student_avatar || undefined} />
                       <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">{initials(sub.student_name)}</AvatarFallback>
                     </Avatar>
                   ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600"><Trophy className="h-5 w-5" /></div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400"><Trophy className="h-5 w-5" /></div>
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{isProfessor ? sub.student_name : sub.exam_title}</p>
@@ -529,11 +581,11 @@ const Dashboard = () => {
                   </div>
                   <div className="shrink-0 text-end">
                     <span dir="ltr" className={`inline-flex items-baseline gap-0.5 rounded-xl px-2.5 py-1 text-sm font-extrabold tabular-nums ring-1 ${tone.pill}`}>
-                      {sub.score}<span className="text-[11px] font-semibold opacity-70">/{sub.total_points}</span>
+                      {formatDecimal(sub.score, language, 2)}<span className="text-[11px] font-semibold opacity-70">/{sub.total_points}</span>
                     </span>
                     <p dir="ltr" className="mt-1 text-[11px] font-medium text-muted-foreground tabular-nums">{Math.round(sub.pct)} % · {fmtNote20(sub.pct)}/20</p>
                   </div>
-                </div>
+                </Link>
               );
             }) : (
               <div className="col-span-full flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
@@ -545,6 +597,37 @@ const Dashboard = () => {
         </Card>
       </div>
 
+      {/* ── Élève : exercices en retard (14 derniers jours) ── */}
+      {!isProfessor && overdueExercises.length > 0 && (
+        <Card className="border-rose-300 dark:border-rose-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-rose-700 dark:text-rose-300">
+              <AlertTriangle className="h-5 w-5" />
+              {tr("En retard", "متأخر", "Overdue")}
+              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold text-white">{overdueExercises.length}</span>
+            </CardTitle>
+            <CardDescription>{tr("Exercices dont la date limite est passée (14 derniers jours).", "تمارين تجاوزت موعد التسليم (آخر 14 يوماً).", "Exercises past their due date (last 14 days).")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {overdueExercises.slice(0, 5).map(ex => (
+                <li key={ex.id}>
+                  <Link to={`/exercises?course=${ex.course_id}`} className="flex items-center gap-3 rounded-2xl border p-2.5 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{ex.title}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{courses.find(c => c.id === ex.course_id)?.title}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                      {new Date(ex.due_date).toLocaleDateString(locale, { day: "numeric", month: "short" })}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Échéances ── */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {[
@@ -553,7 +636,7 @@ const Dashboard = () => {
             title: t("dashboard.deadlines"),
             desc: t("dashboard.deadlines.desc"),
             icon: <Clock className="h-5 w-5 text-indigo-500" />,
-            items: upcomingExercises.slice(0, 5).map(ex => ({ id: ex.id, title: ex.title, course: courses.find(c => c.id === ex.course_id)?.title, date: ex.due_date, badge: null as string | null })),
+            items: upcomingExercises.slice(0, 5).map(ex => ({ id: ex.id, title: ex.title, course: courses.find(c => c.id === ex.course_id)?.title, date: ex.due_date, badge: null as string | null, to: `/exercises?course=${ex.course_id}` })),
             empty: t("dashboard.no.deadlines"),
             tone: "indigo" as const,
           },
@@ -562,7 +645,7 @@ const Dashboard = () => {
             title: t("dashboard.upcoming.exams"),
             desc: t("dashboard.upcoming.exams.desc"),
             icon: <Calendar className="h-5 w-5 text-emerald-500" />,
-            items: upcomingExams.slice(0, 5).map(ex => ({ id: ex.id, title: ex.title, course: courses.find(c => c.id === ex.course_id)?.title, date: ex.exam_date, badge: ex.type === "quiz" ? "Quiz" : tr("Examen", "امتحان", "Exam") })),
+            items: upcomingExams.slice(0, 5).map(ex => ({ id: ex.id, title: ex.title, course: courses.find(c => c.id === ex.course_id)?.title, date: ex.exam_date, badge: ex.type === "quiz" ? tr("Quiz", "اختبار", "Quiz") : tr("Examen", "امتحان", "Exam"), to: ex.type === "quiz" && !isProfessor ? `/exams?quiz=${ex.id}` : `/exams?course=${ex.course_id}` })),
             empty: t("dashboard.no.exams"),
             tone: "emerald" as const,
           },
@@ -579,18 +662,20 @@ const Dashboard = () => {
               {block.items.length > 0 ? (
                 <ul className="space-y-2">
                   {block.items.map(it => (
-                    <li key={it.id} className="flex items-center gap-3 rounded-2xl border p-2.5 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                    <li key={it.id}>
+                    <Link to={it.to} className="flex items-center gap-3 rounded-2xl border p-2.5 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       <DateTile iso={it.date} tone={block.tone} />
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
                           <span className="truncate">{it.title}</span>
-                          {it.badge && <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{it.badge}</span>}
+                          {it.badge && <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">{it.badge}</span>}
                         </p>
                         <p className="truncate text-[11px] text-muted-foreground">{it.course}</p>
                       </div>
                       <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
                         {until(it.date)}
                       </span>
+                    </Link>
                     </li>
                   ))}
                 </ul>
@@ -615,18 +700,27 @@ const Dashboard = () => {
             </CardDescription>
           </div>
           {isProfessor && (
-            <Link to="/courses"><Button variant="outline" size="sm" className="gap-1 text-xs">{tr("Gérer les cours", "إدارة الدروس", "Manage courses")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Button></Link>
+            <Button asChild variant="outline" size="sm" className="gap-1 text-xs"><Link to="/courses">{tr("Gérer les cours", "إدارة الدروس", "Manage courses")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>
           )}
         </CardHeader>
         <CardContent>
-          {displayCourses.length > 0 ? (
+          {dataLoading && displayCourses.length === 0 ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+              {[0, 1, 2].map(i => <Pulse key={i} className="h-28 w-full" />)}
+            </div>
+          ) : displayCourses.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {displayCourses.map((course) => {
                 const nStudents = enrollments.filter(e => e.course_id === course.id).length;
-                const nEx = exercises.filter(e => e.course_id === course.id).length;
-                const nExams = exams.filter(e => e.course_id === course.id).length;
+                const nEx = (isProfessor ? exercises : displayExercises).filter(e => e.course_id === course.id).length;
+                const nExams = (isProfessor ? exams : displayExams).filter(e => e.course_id === course.id).length;
                 return (
-                  <Card key={course.id} className="card-hover overflow-hidden cursor-pointer" onClick={() => navigate(isProfessor ? "/courses" : `/courses`)}>
+                  <Link
+                    key={course.id}
+                    to={isProfessor && course.room_id ? `/rooms/${course.room_id}/courses` : "/courses"}
+                    className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                  <Card className="card-hover h-full overflow-hidden">
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -636,7 +730,7 @@ const Dashboard = () => {
                           <div className="flex items-start justify-between gap-2">
                             <p className="truncate font-semibold" title={course.title}>{course.title}</p>
                             {!course.is_visible && (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                                 <EyeOff className="h-3 w-3" />{t("dashboard.hidden")}
                               </span>
                             )}
@@ -653,6 +747,7 @@ const Dashboard = () => {
                       </div>
                     </CardContent>
                   </Card>
+                  </Link>
                 );
               })}
             </div>

@@ -12,12 +12,12 @@ const ViewToggle = ({ view, onViewChange }: ViewToggleProps) => {
   const gridLabel = language === "ar" ? "عرض البطاقات" : language === "fr" ? "Vue en cartes" : "Card view";
   const listLabel = language === "ar" ? "عرض الجدول" : language === "fr" ? "Vue en liste" : "List view";
   return (
-    <div className="flex items-center gap-1 border rounded-md p-1" role="group">
+    <div className="flex items-center gap-1 border rounded-lg p-0.5" role="group">
       <Button
         variant={view === "grid" ? "default" : "ghost"}
         size="sm"
         onClick={() => onViewChange("grid")}
-        className="h-8"
+        className="h-10 w-10 p-0"
         aria-label={gridLabel}
         title={gridLabel}
         aria-pressed={view === "grid"}
@@ -28,7 +28,7 @@ const ViewToggle = ({ view, onViewChange }: ViewToggleProps) => {
         variant={view === "table" ? "default" : "ghost"}
         size="sm"
         onClick={() => onViewChange("table")}
-        className="h-8"
+        className="h-10 w-10 p-0"
         aria-label={listLabel}
         title={listLabel}
         aria-pressed={view === "table"}

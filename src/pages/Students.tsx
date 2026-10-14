@@ -32,9 +32,9 @@ import {
   BookOpen,
   UserPlus,
   UserMinus,
-  LayoutGrid,
-  LayoutList
+  Loader2
 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ViewToggle from "@/components/ViewToggle";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
@@ -43,6 +43,23 @@ import { StudentExcelManager } from "@/components/StudentExcelManager";
 import StudentSearchBar from "@/components/StudentSearchBar";
 import { matchesStudent, type StudentSearchMode } from "@/lib/search";
 import { isSmallScreen } from "@/lib/device";
+
+/** Mot de passe aléatoire (crypto.getRandomValues, repli Math.random). */
+const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+const makePassword = (len = 8) => {
+  let out = '';
+  try {
+    const c: Crypto | undefined = (window as any).crypto || (window as any).msCrypto;
+    if (c && c.getRandomValues) {
+      const buf = new Uint32Array(len);
+      c.getRandomValues(buf);
+      for (let i = 0; i < len; i++) out += PASSWORD_CHARS.charAt(buf[i] % PASSWORD_CHARS.length);
+      return out;
+    }
+  } catch { /* repli */ }
+  for (let i = 0; i < len; i++) out += PASSWORD_CHARS.charAt(Math.floor(Math.random() * PASSWORD_CHARS.length));
+  return out;
+};
 
 const Students = () => {
   const { roomId } = useParams();
@@ -66,11 +83,11 @@ const Students = () => {
     email: "",
     password: ""
   });
-
-  // Redirect to dashboard if not a professor or no roomId
-  if (!user || user.role !== "professor" || !roomId) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [unenrollTarget, setUnenrollTarget] = useState<{ student: any; course: { id: string; title: string } } | null>(null);
+  const [unenrolling, setUnenrolling] = useState(false);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
 
   // Fetch students
   useEffect(() => {
@@ -81,7 +98,7 @@ const Students = () => {
         setStudents(studentsList);
       } catch (error) {
         console.error("Failed to fetch students:", error);
-        toast.error("Failed to load students");
+        toast.error(tr("Impossible de charger les élèves", "تعذر تحميل التلاميذ", "Failed to load students"));
       } finally {
         setLoading(false);
       }
@@ -90,7 +107,13 @@ const Students = () => {
     if (user?.role === "professor") {
       fetchStudents();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, getStudents]);
+
+  // Redirect to dashboard if not a professor or no roomId (après les hooks)
+  if (!user || user.role !== "professor" || !roomId) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   // Filter students by professor's courses
   const professorCourses = courses.filter(c => c.professor_id === user?.id);
@@ -141,7 +164,7 @@ const Students = () => {
 
   // Handle student enrollment
   const handleEnrollStudent = async () => {
-    if (!selectedStudent || !enrollCourseId) return;
+    if (!selectedStudent || !enrollCourseId || enrolling) return;
 
     // Check if already enrolled
     const alreadyEnrolled = enrollments.some(e => 
@@ -150,11 +173,12 @@ const Students = () => {
     );
 
     if (alreadyEnrolled) {
-      toast.error("Student is already enrolled in this course");
+      toast.error(tr("L'élève est déjà inscrit à ce cours", "التلميذ مسجل بالفعل في هذا الدرس", "Student is already enrolled in this course"));
       return;
     }
 
-    const success = await enrollStudent(enrollCourseId, selectedStudent.id);
+    setEnrolling(true);
+    const success = await enrollStudent(enrollCourseId, selectedStudent.id).finally(() => setEnrolling(false));
     if (success) {
       setIsEnrollDialogOpen(false);
       setSelectedStudent(null);
@@ -169,11 +193,15 @@ const Students = () => {
       e.course_id === courseId
     );
     
-    if (!enrollment) return;
+    if (!enrollment || unenrolling) return;
 
-    const success = await removeEnrollment(enrollment.id);
-    if (success) {
-      toast.success("Student removed from course");
+    // Le contexte affiche lui-même le message de succès / d'erreur
+    setUnenrolling(true);
+    try {
+      const success = await removeEnrollment(enrollment.id);
+      if (success) setUnenrollTarget(null);
+    } finally {
+      setUnenrolling(false);
     }
   };
 
@@ -184,18 +212,24 @@ const Students = () => {
 
 
   const handleAddStudent = async () => {
-    if (!newStudentData.name || !newStudentData.email || !newStudentData.password) {
-      toast.error("Please fill in all fields");
+    if (addingStudent) return;
+    if (!newStudentData.name.trim() || !newStudentData.email.trim() || !newStudentData.password.trim()) {
+      toast.error(tr("Veuillez remplir tous les champs", "يرجى ملء جميع الحقول", "Please fill in all fields"));
       return;
     }
 
-    const success = await addStudent(newStudentData.email, newStudentData.password, newStudentData.name);
-    if (success) {
-      setIsAddStudentDialogOpen(false);
-      setNewStudentData({ name: "", email: "", password: "" });
-      // Refresh students list
-      const updatedStudents = await getStudents();
-      setStudents(updatedStudents);
+    setAddingStudent(true);
+    try {
+      const success = await addStudent(newStudentData.email.trim(), newStudentData.password.trim(), newStudentData.name.trim());
+      if (success) {
+        setIsAddStudentDialogOpen(false);
+        setNewStudentData({ name: "", email: "", password: "" });
+        // Refresh students list
+        const updatedStudents = await getStudents();
+        setStudents(updatedStudents);
+      }
+    } finally {
+      setAddingStudent(false);
     }
   };
 
@@ -209,14 +243,6 @@ const Students = () => {
       </div>
     );
   }
-
-  // Debug logging
-  console.log('Students page debug:', {
-    totalStudents: students.length,
-    filteredStudents: filteredStudents.length,
-    userRole: user?.role,
-    professorStudents: professorStudents.length
-  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -235,10 +261,10 @@ const Students = () => {
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <ViewToggle view={viewMode} onViewChange={setViewMode} />
           <Button 
-            onClick={() => setIsAddStudentDialogOpen(true)}
+            onClick={() => { setNewStudentData({ name: "", email: "", password: makePassword(8) }); setIsAddStudentDialogOpen(true); }}
             className="text-xs sm:text-sm font-semibold"
           >
-            <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
+            <Plus className="h-4 w-4" />
             {t("students.add")}
           </Button>
         </div>
@@ -327,16 +353,17 @@ const Students = () => {
                   {/* Course List */}
                   <div className="space-y-1">
                     {getStudentCourses(student.id).slice(0, 3).map(course => (
-                      <div key={course.id} className="flex items-center justify-between text-sm">
-                        <span className="truncate">{course.title}</span>
+                      <div key={course.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="truncate min-w-0">{course.title}</span>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 text-destructive hover:text-destructive"
-                          onClick={() => handleRemoveEnrollment(student.id, course.id)}
-                          title="Remove from course"
+                          className="h-9 w-9 shrink-0 text-destructive hover:text-destructive"
+                          onClick={() => setUnenrollTarget({ student, course })}
+                          title={tr("Désinscrire du cours", "إلغاء التسجيل من الدرس", "Remove from course")}
+                          aria-label={tr(`Désinscrire ${student.name} du cours ${course.title}`, `إلغاء تسجيل ${student.name} من درس ${course.title}`, `Remove ${student.name} from ${course.title}`)}
                         >
-                          <UserMinus className="h-3 w-3" />
+                          <UserMinus className="h-4 w-4" />
                         </Button>
                       </div>
                     ))}
@@ -353,7 +380,7 @@ const Students = () => {
                     className="w-full"
                     onClick={() => openEnrollDialog(student)}
                   >
-                    <UserPlus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-4 w-4" />
                     {t("students.enroll.in.course")}
                   </Button>
                 </CardContent>
@@ -416,10 +443,10 @@ const Students = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-xs h-8"
+                          className="text-xs"
                           onClick={() => openEnrollDialog(student)}
                         >
-                          <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                          <UserPlus className="h-3.5 w-3.5" />
                           {t("students.enroll")}
                         </Button>
                       </TableCell>
@@ -489,65 +516,110 @@ const Students = () => {
             </Button>
             <Button 
               onClick={handleEnrollStudent}
-              disabled={!enrollCourseId}
+              disabled={!enrollCourseId || enrolling}
             >
-              {t("students.enroll")} {t("student.name")}
+              {enrolling && <Loader2 className="h-4 w-4 animate-spin" />}
+              {tr("Inscrire l'élève", "تسجيل التلميذ", "Enroll student")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Unenroll confirmation */}
+      <AlertDialog open={!!unenrollTarget} onOpenChange={(o) => { if (!o && !unenrolling) setUnenrollTarget(null); }}>
+        <AlertDialogContent className="w-[95vw] max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr("Désinscrire l'élève ?", "إلغاء تسجيل التلميذ؟", "Remove student from course?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr(
+                `${unenrollTarget?.student?.name || ""} ne sera plus inscrit au cours « ${unenrollTarget?.course.title || ""} ».`,
+                `لن يبقى ${unenrollTarget?.student?.name || ""} مسجلاً في درس « ${unenrollTarget?.course.title || ""} ».`,
+                `${unenrollTarget?.student?.name || ""} will no longer be enrolled in "${unenrollTarget?.course.title || ""}".`
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unenrolling}>{tr("Annuler", "إلغاء", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={unenrolling}
+              onClick={(e) => { e.preventDefault(); if (unenrollTarget) void handleRemoveEnrollment(unenrollTarget.student.id, unenrollTarget.course.id); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {unenrolling && <Loader2 className="h-4 w-4 animate-spin" />}
+              {tr("Désinscrire", "إلغاء التسجيل", "Remove")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Add Student Dialog */}
-      <Dialog open={isAddStudentDialogOpen} onOpenChange={setIsAddStudentDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isAddStudentDialogOpen} onOpenChange={(o) => { if (!addingStudent) setIsAddStudentDialogOpen(o); }}>
+        <DialogContent className="w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Student</DialogTitle>
+            <DialogTitle>{tr("Ajouter un élève", "إضافة تلميذ", "Add New Student")}</DialogTitle>
             <DialogDescription>
-              Create a new student account. They will receive an email to verify their account.
+              {tr(
+                "Créez le compte de l'élève puis communiquez-lui son e-mail et son mot de passe temporaire.",
+                "أنشئ حساب التلميذ ثم أبلغه ببريده الإلكتروني وكلمة المرور المؤقتة.",
+                "Create the student's account, then give them their email and temporary password."
+              )}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">{tr("Nom complet", "الاسم الكامل", "Full Name")}</Label>
               <Input
                 id="name"
-                placeholder="Enter student's full name"
+                placeholder={tr("Nom et prénom de l'élève", "اسم التلميذ الكامل", "Student's full name")}
                 value={newStudentData.name}
                 onChange={(e) => setNewStudentData(prev => ({ ...prev, name: e.target.value }))}
+                disabled={addingStudent}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{tr("E-mail", "البريد الإلكتروني", "Email")}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter student's email"
+                dir="ltr"
+                placeholder={tr("E-mail de l'élève", "البريد الإلكتروني للتلميذ", "Student's email")}
                 value={newStudentData.email}
                 onChange={(e) => setNewStudentData(prev => ({ ...prev, email: e.target.value }))}
+                disabled={addingStudent}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Temporary Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter temporary password"
-                value={newStudentData.password}
-                onChange={(e) => setNewStudentData(prev => ({ ...prev, password: e.target.value }))}
-              />
+              <Label htmlFor="password">{tr("Mot de passe temporaire", "كلمة المرور المؤقتة", "Temporary Password")}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="password"
+                  type="text"
+                  dir="ltr"
+                  autoComplete="off"
+                  className="font-mono"
+                  placeholder={tr("Mot de passe temporaire", "كلمة المرور المؤقتة", "Temporary password")}
+                  value={newStudentData.password}
+                  onChange={(e) => setNewStudentData(prev => ({ ...prev, password: e.target.value }))}
+                  disabled={addingStudent}
+                />
+                <Button type="button" variant="outline" onClick={() => setNewStudentData(prev => ({ ...prev, password: makePassword(8) }))} disabled={addingStudent}>
+                  {tr("Générer", "توليد", "Generate")}
+                </Button>
+              </div>
             </div>
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddStudentDialogOpen(false)}>
-              Cancel
+            <Button variant="outline" onClick={() => setIsAddStudentDialogOpen(false)} disabled={addingStudent}>
+              {tr("Annuler", "إلغاء", "Cancel")}
             </Button>
             <Button 
               onClick={handleAddStudent}
-              disabled={!newStudentData.name || !newStudentData.email || !newStudentData.password}
+              disabled={addingStudent || !newStudentData.name.trim() || !newStudentData.email.trim() || !newStudentData.password.trim()}
             >
-              Add Student
+              {addingStudent && <Loader2 className="h-4 w-4 animate-spin" />}
+              {addingStudent ? tr("Création…", "جارٍ الإنشاء…", "Creating…") : tr("Ajouter l'élève", "إضافة التلميذ", "Add Student")}
             </Button>
           </DialogFooter>
         </DialogContent>

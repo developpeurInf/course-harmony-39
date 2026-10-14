@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import {
   DEFAULT_QUIZ_SETTINGS,
   parseExamAvailability,
@@ -122,6 +123,9 @@ const exitDuration = (e: CheatEvent) => {
 
 const QuizDetails = ({ examId }: Props) => {
   const { language } = useLanguage();
+  const { prefs } = usePreferences();
+  const passPct = (prefs.passThreshold || 10) * 5; // seuil /20 → %
+  const excellentPct = (prefs.levelExcellent || 14) * 5;
   const tr = useCallback(
     (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en),
     [language]
@@ -306,7 +310,7 @@ const QuizDetails = ({ examId }: Props) => {
       med: median(p),
       max: p.length ? Math.max(...p) : 0,
       min: p.length ? Math.min(...p) : 0,
-      passRate: p.length ? (p.filter((v) => v >= 50).length / p.length) * 100 : 0,
+      passRate: p.length ? (p.filter((v) => v >= passPct).length / p.length) * 100 : 0,
       avgTime: times.length ? times.reduce((a, b) => a + b, 0) / times.length : 0,
       studentsWithExits: rows.filter((r) => r.exits.length > 0).length,
       totalExits: allExits.length,
@@ -315,7 +319,7 @@ const QuizDetails = ({ examId }: Props) => {
       studentsWithIncidents: rows.filter((r) => r.log.length > 0).length,
       incidentsByType,
     };
-  }, [rows, students]);
+  }, [rows, students, passPct]);
 
   const buckets = useMemo(() => {
     const defs = [
@@ -380,8 +384,8 @@ const QuizDetails = ({ examId }: Props) => {
   };
 
   const gradeTone = (p: number) =>
-    p >= 80 ? "text-emerald-600 dark:text-emerald-400"
-      : p >= 50 ? "text-sky-600 dark:text-sky-400"
+    p >= excellentPct ? "text-emerald-600 dark:text-emerald-400"
+      : p >= passPct ? "text-sky-600 dark:text-sky-400"
       : "text-rose-600 dark:text-rose-400";
 
   /* ───────────── Export CSV ───────────── */
@@ -504,7 +508,7 @@ const QuizDetails = ({ examId }: Props) => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi icon={Users} label={tr("Participation", "المشاركة", "Participation")} value={`${stats.count}/${stats.enrolled || stats.count}`} sub={stats.enrolled ? `${Math.round(participation)} % ${tr("de la classe", "من القسم", "of the class")}` : undefined} />
         <Kpi icon={Target} label={tr("Moyenne", "المعدل", "Average")} value={stats.count ? `${num(to20(stats.avg))}/20` : "—"} sub={stats.count ? `${Math.round(stats.avg)} % · ${tr("médiane", "الوسيط", "median")} ${num(to20(stats.med))}/20` : undefined} tone={stats.count ? gradeTone(stats.avg) : undefined} />
-        <Kpi icon={Trophy} label={tr("Réussite (≥ 10/20)", "النجاح (≥ 10/20)", "Pass rate (≥ 10/20)")} value={stats.count ? `${Math.round(stats.passRate)} %` : "—"} sub={stats.count ? `${tr("max", "الأعلى", "max")} ${num(to20(stats.max))} · ${tr("min", "الأدنى", "min")} ${num(to20(stats.min))}` : undefined} />
+        <Kpi icon={Trophy} label={tr(`Réussite (≥ ${num(prefs.passThreshold || 10)}/20)`, `النجاح (≥ ${num(prefs.passThreshold || 10)}/20)`, `Pass rate (≥ ${num(prefs.passThreshold || 10)}/20)`)} value={stats.count ? `${Math.round(stats.passRate)} %` : "—"} sub={stats.count ? `${tr("max", "الأعلى", "max")} ${num(to20(stats.max))} · ${tr("min", "الأدنى", "min")} ${num(to20(stats.min))}` : undefined} />
         <Kpi icon={LogOut} label={tr("Sorties du quiz", "مغادرات الاختبار", "Quiz exits")} value={String(stats.totalExits)} sub={`${stats.studentsWithExits} ${tr("élève(s) · hors quiz", "تلميذ · خارج الاختبار", "student(s) · away")} ${fmtDur(stats.totalAway)}`} tone={stats.totalExits ? "text-rose-600 dark:text-rose-400" : undefined} />
       </div>
 

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { accessStore } from "@/contexts/AccessContext";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -218,9 +218,13 @@ interface CourseContextType {
   exercises: Exercise[];
   exams: Exam[];
   enrollments: Enrollment[];
+  /** Colonnes réduites : id, exam_id, points, question_order (le texte des questions est lu à la demande) */
   quizQuestions: QuizQuestion[];
+  /** @deprecated plus chargé globalement : toujours [] (lire quiz_options à la demande) */
   quizOptions: QuizOption[];
+  /** Colonnes réduites : id, exam_id, student_id, score, total_points, submitted_at, is_completed */
   quizSubmissions: QuizSubmission[];
+  /** @deprecated plus chargé globalement : toujours [] (lire quiz_answers à la demande) */
   quizAnswers: QuizAnswer[];
   loading: boolean;
   
@@ -273,10 +277,60 @@ interface CourseContextType {
   getVisibleExamsForStudent: (studentId: string) => Exam[];
   
   // Utility functions
-  refreshData: (roomId?: string) => Promise<void>;
+  /**
+   * Relit les données du périmètre (vue globale ou une classe). Un même périmètre relu il y a
+   * moins de 30 s n'est pas relu au montage d'une autre page ; `{ force: true }` force la relecture.
+   * Les appels identiques simultanés partagent la même requête.
+   */
+  refreshData: (roomId?: string, opts?: { force?: boolean }) => Promise<void>;
 }
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
+
+/** Langue active (le contexte de langue est monté à côté de celui-ci, pas au-dessus) */
+const activeLang = (): string => {
+  try {
+    return localStorage.getItem("maataoui-language") || "fr";
+  } catch {
+    return "fr";
+  }
+};
+/** Message traduit (fr / ar / en) selon la langue active */
+const trc = (fr: string, ar: string, en: string): string => {
+  const l = activeLang();
+  return l === "ar" ? ar : l === "en" ? en : fr;
+};
+/**
+ * Toast d'échec : une erreur d'habilitation renvoyée par la base (offre / quota / règle « hab: »)
+ * est transmise telle quelle (l'intercepteur de toasts la rend lisible) ; sinon message traduit.
+ */
+const toastFail = (fr: string, ar: string, en: string, err?: { message?: string } | null) => {
+  const m = err && typeof err.message === "string" ? err.message : "";
+  if (m && /(PERMISSION|QUOTA):|"hab:|Changement de rôle non autorisé/.test(m)) {
+    toast.error(m);
+  } else {
+    toast.error(trc(fr, ar, en));
+  }
+};
+
+/** Retire la colonne de jointure (courses / exams) ajoutée pour filtrer côté base */
+const stripJoin = <T,>(row: any, key: string): T => {
+  if (row && typeof row === "object" && key in row) {
+    const copy = { ...row };
+    delete copy[key];
+    return copy as T;
+  }
+  return row as T;
+};
+
+/** Durée pendant laquelle un même périmètre n'est pas relu au montage d'une page */
+const REFRESH_TTL_MS = 30 * 1000;
+
+const EMPTY_OPTIONS: QuizOption[] = [];
+const EMPTY_ANSWERS: QuizAnswer[] = [];
+
+const QUESTION_COLUMNS = "id, exam_id, points, question_order";
+const SUBMISSION_COLUMNS = "id, exam_id, student_id, score, total_points, submitted_at, is_completed";
 
 export function CourseProvider({ children }: { children: React.ReactNode }) {
   // Créations identiques en cours (double-clic, double envoi…) : on renvoie la même promesse
@@ -293,196 +347,227 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return p;
   };
   const { user } = useAuth();
+  const userId = user?.id;
+  const userRole = user?.role;
+  const userRoomId = user?.room_id;
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
-  const [quizOptions, setQuizOptions] = useState<QuizOption[]>([]);
   const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmission[]>([]);
-  const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load initial data
-  useEffect(() => {
-    if (user) {
-      refreshData();
-    }
-  }, [user]);
+  // Dernières valeurs connues, lisibles depuis des fonctions stables (sans closure périmée)
+  const hasDataRef = useRef(false);
+  hasDataRef.current = courses.length > 0 || rooms.length > 0 || exercises.length > 0 || exams.length > 0;
 
-  const refreshData = useCallback(async (roomId?: string) => {
-    if (!user) return;
-    
-    if (courses.length === 0 && rooms.length === 0 && exercises.length === 0 && exams.length === 0) {
-      setLoading(true);
+  // Périmètre actuellement chargé + requêtes en cours (anti-doublons)
+  const lastFetchRef = useRef<{ key: string; at: number; href: string } | null>(null);
+  const inFlightRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
+  const fetchSeqRef = useRef(0);
+  /** room_id du périmètre affiché ('' = vue globale) */
+  const scopeRoomRef = useRef<string>("");
+
+  const refreshData = useCallback(async (roomId?: string, opts?: { force?: boolean }): Promise<void> => {
+    if (!userId) return;
+    const scopeKey = `${userId}|${userRole || ""}|${userRoomId || ""}|${roomId || ""}`;
+    const force = !!(opts && opts.force);
+    const href = typeof window !== "undefined" ? window.location.pathname + window.location.search : "";
+
+    // 1. Même requête déjà en cours : on la réutilise
+    const inFlight = inFlightRef.current;
+    if (!force && inFlight && inFlight.key === scopeKey) return inFlight.promise;
+
+    // 2. Même périmètre lu il y a moins de 30 s lors d'une navigation (montage d'une autre page) :
+    //    inutile de tout relire. Un appel depuis la même page (après une modification) relit.
+    const last = lastFetchRef.current;
+    if (!force && last && last.key === scopeKey && Date.now() - last.at < REFRESH_TTL_MS && (last.href === "*" || last.href !== href)) {
+      last.href = href;
+      return;
     }
-    try {
-      // Fetch rooms first - always get all rooms for the professor
-      let roomsQuery = supabase.from('rooms').select('*').order('created_at', { ascending: false });
-      if (user.role === 'professor') {
-        roomsQuery = roomsQuery.eq('professor_id', user.id);
-      }
-      
-      // For courses, exercises, and exams - filter by room if provided
-      let coursesQuery = supabase.from('courses').select('*').order('created_at', { ascending: false });
-      let exercisesQuery = supabase.from('exercises').select('*').order('created_at', { ascending: false });
-      let examsQuery = supabase.from('exams').select('*').order('created_at', { ascending: false });
-      
-      if (roomId) {
-        
-        // Filter courses by room
-        coursesQuery = coursesQuery.eq('room_id', roomId);
-        
-        // For exercises and exams, we need to join with courses to filter by room
-        exercisesQuery = supabase
-          .from('exercises')
-          .select(`
-            *,
-            courses!inner (
-              room_id
-            )
-          `)
-          .eq('courses.room_id', roomId)
-          .order('created_at', { ascending: false });
-          
-        examsQuery = supabase
-          .from('exams')
-          .select(`
-            *,
-            courses!inner (
-              room_id
-            )
-          `)
-          .eq('courses.room_id', roomId)
-          .order('created_at', { ascending: false });
-      } else {
-        // Global view: isolate data by professor or student class
-        if (user.role === 'professor') {
-          coursesQuery = coursesQuery.eq('professor_id', user.id);
-          exercisesQuery = supabase
-            .from('exercises')
-            .select(`
-              *,
-              courses!inner (
-                professor_id
-              )
-            `)
-            .eq('courses.professor_id', user.id)
-            .order('created_at', { ascending: false });
-          examsQuery = supabase
-            .from('exams')
-            .select(`
-              *,
-              courses!inner (
-                professor_id
-              )
-            `)
-            .eq('courses.professor_id', user.id)
-            .order('created_at', { ascending: false });
-        } else if (user.role === 'student' && user.room_id) {
-          coursesQuery = coursesQuery.eq('room_id', user.room_id).eq('is_visible', true);
-          exercisesQuery = supabase
-            .from('exercises')
-            .select(`
-              *,
-              courses!inner (
-                room_id,
-                is_visible
-              )
-            `)
-            .eq('courses.room_id', user.room_id)
-            .eq('is_visible', true)
-            .order('created_at', { ascending: false });
-          examsQuery = supabase
-            .from('exams')
-            .select(`
-              *,
-              courses!inner (
-                room_id,
-                is_visible
-              )
-            `)
-            .eq('courses.room_id', user.room_id)
-            .eq('is_visible', true)
-            .order('created_at', { ascending: false });
+
+    const seq = ++fetchSeqRef.current;
+    const run = async () => {
+      if (!hasDataRef.current) setLoading(true);
+      try {
+        // Fetch rooms first - always get all rooms for the professor
+        let roomsQuery = supabase.from('rooms').select('*').order('created_at', { ascending: false });
+        if (userRole === 'professor') {
+          roomsQuery = roomsQuery.eq('professor_id', userId);
         }
-      }
-      
-      // Fetch all data in parallel
-      const [roomsData, coursesData, exercisesData, examsData, enrollmentsData, questionsData, optionsData, submissionsData, answersData] = await Promise.all([
-        roomsQuery,
-        coursesQuery,
-        exercisesQuery,
-        examsQuery,
-        supabase.from('enrollments').select('*'),
-        supabase.from('quiz_questions').select('*').order('question_order', { ascending: true }),
-        supabase.from('quiz_options').select('*').order('option_order', { ascending: true }),
-        supabase.from('quiz_submissions').select('*').order('submitted_at', { ascending: false }),
-        supabase.from('quiz_answers').select('*')
-      ]);
 
-      if (roomsData.error) console.error('Rooms fetch error:', roomsData.error);
-      else setRooms(roomsData.data || []);
+        // For courses, exercises, and exams - filter by room if provided
+        let coursesQuery = supabase.from('courses').select('*').order('created_at', { ascending: false });
+        let exercisesQuery: any = supabase.from('exercises').select('*').order('created_at', { ascending: false });
+        let examsQuery: any = supabase.from('exams').select('*').order('created_at', { ascending: false });
 
-      if (coursesData.error) console.error('Courses fetch error:', coursesData.error);
-      else setCourses(coursesData.data || []);
+        // Filtre « par cours » appliqué aux questions / copies (via l'examen → le cours)
+        let examCourseFilter: { column: string; value: string } | null = null;
 
-      if (exercisesData.error) console.error('Exercises fetch error:', exercisesData.error);
-      else {
-        // Clean up the exercises data if it came from a join query
-        const cleanExercises = (exercisesData.data || []).map((exercise: any) => {
-          if (exercise.courses) {
-            const { courses, ...cleanExercise } = exercise;
-            return cleanExercise;
+        if (roomId) {
+          coursesQuery = coursesQuery.eq('room_id', roomId);
+          exercisesQuery = supabase
+            .from('exercises')
+            .select(`*, courses!inner ( room_id )`)
+            .eq('courses.room_id', roomId)
+            .order('created_at', { ascending: false });
+          examsQuery = supabase
+            .from('exams')
+            .select(`*, courses!inner ( room_id )`)
+            .eq('courses.room_id', roomId)
+            .order('created_at', { ascending: false });
+          examCourseFilter = { column: 'room_id', value: roomId };
+        } else if (userRole === 'professor') {
+          coursesQuery = coursesQuery.eq('professor_id', userId);
+          exercisesQuery = supabase
+            .from('exercises')
+            .select(`*, courses!inner ( professor_id )`)
+            .eq('courses.professor_id', userId)
+            .order('created_at', { ascending: false });
+          examsQuery = supabase
+            .from('exams')
+            .select(`*, courses!inner ( professor_id )`)
+            .eq('courses.professor_id', userId)
+            .order('created_at', { ascending: false });
+          examCourseFilter = { column: 'professor_id', value: userId };
+        } else if (userRole === 'student' && userRoomId) {
+          coursesQuery = coursesQuery.eq('room_id', userRoomId).eq('is_visible', true);
+          exercisesQuery = supabase
+            .from('exercises')
+            .select(`*, courses!inner ( room_id, is_visible )`)
+            .eq('courses.room_id', userRoomId)
+            .eq('is_visible', true)
+            .order('created_at', { ascending: false });
+          examsQuery = supabase
+            .from('exams')
+            .select(`*, courses!inner ( room_id, is_visible )`)
+            .eq('courses.room_id', userRoomId)
+            .eq('is_visible', true)
+            .order('created_at', { ascending: false });
+          examCourseFilter = { column: 'room_id', value: userRoomId };
+        }
+
+        // Inscriptions : un élève ne lit que les siennes
+        let enrollmentsQuery = supabase.from('enrollments').select('*');
+        if (userRole === 'student') enrollmentsQuery = enrollmentsQuery.eq('student_id', userId);
+
+        // Questions : seulement les colonnes utiles (nombre de questions / points par quiz),
+        // limitées aux examens du périmètre. Repli sans filtre si la jointure est refusée.
+        const questionsQuery = async () => {
+          if (examCourseFilter) {
+            const res = await (supabase as any)
+              .from('quiz_questions')
+              .select(`${QUESTION_COLUMNS}, exams!inner ( courses!inner ( ${examCourseFilter.column} ) )`)
+              .eq(`exams.courses.${examCourseFilter.column}`, examCourseFilter.value)
+              .order('question_order', { ascending: true });
+            if (!res.error) return res;
           }
-          return exercise;
-        });
-        setExercises(cleanExercises);
-      }
+          return (supabase as any).from('quiz_questions').select(QUESTION_COLUMNS).order('question_order', { ascending: true });
+        };
 
-      if (examsData.error) console.error('Exams fetch error:', examsData.error);
-      else {
-        // Clean up the exams data if it came from a join query and parse availability
-        const cleanExams = (examsData.data || []).map((exam: any) => {
-          let baseExam = exam;
-          if (exam.courses) {
-            const { courses, ...clean } = exam;
-            baseExam = clean;
+        // Copies : un élève ne lit que les siennes ; un professeur celles de ses examens
+        const submissionsQuery = async () => {
+          if (userRole === 'student') {
+            return (supabase as any)
+              .from('quiz_submissions')
+              .select(SUBMISSION_COLUMNS)
+              .eq('student_id', userId)
+              .order('submitted_at', { ascending: false });
           }
-          return parseExamAvailability(baseExam);
-        });
-        setExams(cleanExams);
+          if (examCourseFilter) {
+            const res = await (supabase as any)
+              .from('quiz_submissions')
+              .select(`${SUBMISSION_COLUMNS}, exams!inner ( courses!inner ( ${examCourseFilter.column} ) )`)
+              .eq(`exams.courses.${examCourseFilter.column}`, examCourseFilter.value)
+              .order('submitted_at', { ascending: false });
+            if (!res.error) return res;
+          }
+          return (supabase as any).from('quiz_submissions').select(SUBMISSION_COLUMNS).order('submitted_at', { ascending: false });
+        };
+
+        // Fetch all data in parallel
+        const [roomsData, coursesData, exercisesData, examsData, enrollmentsData, questionsData, submissionsData] = await Promise.all([
+          roomsQuery,
+          coursesQuery,
+          exercisesQuery,
+          examsQuery,
+          enrollmentsQuery,
+          questionsQuery(),
+          submissionsQuery(),
+        ]);
+
+        // Une requête plus récente a été lancée entre-temps : on ne l'écrase pas
+        if (seq !== fetchSeqRef.current) return;
+
+        if (roomsData.error) console.error('Rooms fetch error:', roomsData.error);
+        else setRooms(roomsData.data || []);
+
+        if (coursesData.error) console.error('Courses fetch error:', coursesData.error);
+        else setCourses(coursesData.data || []);
+
+        if (exercisesData.error) console.error('Exercises fetch error:', exercisesData.error);
+        else setExercises((exercisesData.data || []).map((e: any) => stripJoin<Exercise>(e, 'courses')));
+
+        if (examsData.error) console.error('Exams fetch error:', examsData.error);
+        else setExams((examsData.data || []).map((e: any) => parseExamAvailability(stripJoin<Exam>(e, 'courses'))));
+
+        if (enrollmentsData.error) console.error('Enrollments fetch error:', enrollmentsData.error);
+        else setEnrollments(enrollmentsData.data || []);
+
+        if (questionsData.error) console.error('Quiz questions fetch error:', questionsData.error);
+        else setQuizQuestions((questionsData.data || []).map((q: any) => stripJoin<QuizQuestion>(q, 'exams')));
+
+        if (submissionsData.error) console.error('Quiz submissions fetch error:', submissionsData.error);
+        else setQuizSubmissions((submissionsData.data || []).map((s: any) => stripJoin<QuizSubmission>(s, 'exams')));
+
+        scopeRoomRef.current = roomId || "";
+        lastFetchRef.current = { key: scopeKey, at: Date.now(), href: opts && (opts as any).__auto ? "*" : href };
+      } catch (error) {
+        console.error('Failed to refresh data:', error);
+      } finally {
+        if (seq === fetchSeqRef.current) setLoading(false);
       }
+    };
 
-      if (enrollmentsData.error) console.error('Enrollments fetch error:', enrollmentsData.error);
-      else setEnrollments(enrollmentsData.data || []);
+    const promise = run().finally(() => {
+      if (inFlightRef.current && inFlightRef.current.promise === promise) inFlightRef.current = null;
+    });
+    inFlightRef.current = { key: scopeKey, promise };
+    return promise;
+  }, [userId, userRole, userRoomId]);
 
-      if (questionsData.error) console.error('Quiz questions fetch error:', questionsData.error);
-      else setQuizQuestions((questionsData.data || []) as QuizQuestion[]);
-
-      if (optionsData.error) console.error('Quiz options fetch error:', optionsData.error);
-      else setQuizOptions(optionsData.data || []);
-
-      if (submissionsData.error) console.error('Quiz submissions fetch error:', submissionsData.error);
-      else setQuizSubmissions(submissionsData.data || []);
-
-      if (answersData.error) console.error('Quiz answers fetch error:', answersData.error);
-      else setQuizAnswers(answersData.data || []);
-
-    } catch (error) {
-      console.error('Failed to refresh data:', error);
-    } finally {
+  // Chargement initial (et à chaque changement de compte / rôle / classe)
+  useEffect(() => {
+    if (userId) {
+      void refreshData(undefined, { __auto: true } as any);
+    } else {
+      // Déconnexion : on vide les données (iPad partagé entre plusieurs élèves)
+      lastFetchRef.current = null;
+      inFlightRef.current = null;
+      fetchSeqRef.current++;
+      setRooms([]);
+      setCourses([]);
+      setExercises([]);
+      setExams([]);
+      setEnrollments([]);
+      setQuizQuestions([]);
+      setQuizSubmissions([]);
       setLoading(false);
     }
-  }, [user]);
+  }, [userId, userRole, userRoomId, refreshData]);
+
+  /** Faut-il ajouter un élément de cette classe aux listes affichées ? */
+  const inScope = (roomId?: string | null) => !scopeRoomRef.current || scopeRoomRef.current === (roomId || "");
 
   // Room operations
   const addRoom = async (room: Omit<Room, "id" | "created_at" | "updated_at" | "professor_id">): Promise<boolean> => {
     if (!accessStore.guard("class.create")) return false;
     if (!accessStore.guardQuota("classes.max")) return false;
     if (!user || user.role !== "professor") {
-      toast.error("Only professors can add rooms");
+      toast.error(trc("Seuls les professeurs peuvent créer une classe", "يمكن للأساتذة فقط إنشاء قسم", "Only professors can add rooms"));
       return false;
     }
 
@@ -496,16 +581,16 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .select()
         .single();
 
-      if (error) {
-        toast.error("Failed to add room");
+      if (error || !data) {
+        toastFail("Échec de la création de la classe", "فشل إنشاء القسم", "Failed to add room", error);
         return false;
       }
 
-      setRooms(prev => [data, ...prev]);
-      toast.success("Room added successfully");
+      setRooms(prev => [data as Room, ...prev.filter(r => r.id !== (data as Room).id)]);
+      toast.success(trc("Classe créée avec succès", "تم إنشاء القسم بنجاح", "Room added successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to add room");
+      toastFail("Échec de la création de la classe", "فشل إنشاء القسم", "Failed to add room");
       return false;
     }
   };
@@ -513,23 +598,25 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const updateRoom = async (roomId: string, updates: Partial<Room>): Promise<boolean> => {
     if (!accessStore.guard("class.edit")) return false;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('rooms')
         .update(updates)
-        .eq('id', roomId);
+        .eq('id', roomId)
+        .select();
 
       if (error) {
-        toast.error("Failed to update room");
+        toastFail("Échec de la mise à jour de la classe", "فشل تحديث القسم", "Failed to update room", error);
         return false;
       }
 
-      setRooms(prev => prev.map(room => 
-        room.id === roomId ? { ...room, ...updates } : room
+      const row = data && data[0] ? (data[0] as Room) : null;
+      setRooms(prev => prev.map(room =>
+        room.id === roomId ? (row ? { ...room, ...row } : { ...room, ...updates }) : room
       ));
-      toast.success("Room updated successfully");
+      toast.success(trc("Classe mise à jour avec succès", "تم تحديث القسم بنجاح", "Room updated successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to update room");
+      toastFail("Échec de la mise à jour de la classe", "فشل تحديث القسم", "Failed to update room");
       return false;
     }
   };
@@ -543,15 +630,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('id', roomId);
 
       if (error) {
-        toast.error("Failed to delete room");
+        toastFail("Échec de la suppression de la classe", "فشل حذف القسم", "Failed to delete room", error);
         return false;
       }
 
       setRooms(prev => prev.filter(room => room.id !== roomId));
-      toast.success("Room deleted successfully");
+      toast.success(trc("Classe supprimée avec succès", "تم حذف القسم بنجاح", "Room deleted successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to delete room");
+      toastFail("Échec de la suppression de la classe", "فشل حذف القسم", "Failed to delete room");
       return false;
     }
   };
@@ -568,7 +655,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const addCourseImpl = async (course: Omit<Course, "id" | "created_at" | "updated_at" | "professor_id">): Promise<Course | null> => {
     if (!accessStore.guard("course.edit")) return null;
     if (!user || user.role !== "professor") {
-      toast.error("Only professors can add courses");
+      toast.error(trc("Seuls les professeurs peuvent ajouter un cours", "يمكن للأساتذة فقط إضافة درس", "Only professors can add courses"));
       return null;
     }
 
@@ -582,29 +669,31 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .select()
         .single();
 
-      if (error) {
-        toast.error("Failed to add course: " + error.message);
+      if (error || !data) {
+        toastFail("Échec de l'ajout du cours", "فشل إضافة الدرس", "Failed to add course", error);
         return null;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData(course.room_id);
-      toast.success("Course added successfully");
-      
+      const created = data as Course;
+      if (inScope(created.room_id)) {
+        setCourses(prev => [created, ...prev.filter(c => c.id !== created.id)]);
+      }
+      toast.success(trc("Cours ajouté avec succès", "تمت إضافة الدرس بنجاح", "Course added successfully"));
+
       // Notify enrolled and room students
       setTimeout(async () => {
         await notifyStudentsAboutUpdate({
-          courseId: data.id,
+          courseId: created.id,
           roomId: course.room_id,
           title: course.title,
           itemType: 'course',
           action: 'add'
         });
       }, 500);
-      
-      return data;
+
+      return created;
     } catch (error) {
-      toast.error("Failed to add course");
+      toastFail("Échec de l'ajout du cours", "فشل إضافة الدرس", "Failed to add course");
       return null;
     }
   };
@@ -612,19 +701,23 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const updateCourse = async (courseId: string, updates: Partial<Course>): Promise<boolean> => {
     if (!accessStore.guard("course.edit")) return false;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('courses')
         .update(updates)
-        .eq('id', courseId);
+        .eq('id', courseId)
+        .select();
 
       if (error) {
-        toast.error("Failed to update course");
+        toastFail("Échec de la mise à jour du cours", "فشل تحديث الدرس", "Failed to update course", error);
         return false;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData();
-      toast.success("Course updated successfully");
+      const row = data && data[0] ? (data[0] as Course) : null;
+      setCourses(prev => prev
+        .map(c => (c.id === courseId ? (row ? { ...c, ...row } : { ...c, ...updates }) : c))
+        // déplacé dans une autre classe que celle affichée : on le retire de la liste
+        .filter(c => c.id !== courseId || inScope(c.room_id)));
+      toast.success(trc("Cours mis à jour avec succès", "تم تحديث الدرس بنجاح", "Course updated successfully"));
 
       // Notify enrolled and room students about modification
       const course = courses.find(c => c.id === courseId);
@@ -643,7 +736,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       return true;
     } catch (error) {
-      toast.error("Failed to update course");
+      toastFail("Échec de la mise à jour du cours", "فشل تحديث الدرس", "Failed to update course");
       return false;
     }
   };
@@ -656,110 +749,103 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       const courseTitle = courseToDelete?.title || 'Cours';
       const courseRoomId = courseToDelete?.room_id;
 
-      // First, delete all related data from the database
-      console.log('Deleting course and all related data for course:', courseId);
-      
       // Delete course materials
       const { error: materialsError } = await supabase
         .from('course_materials')
         .delete()
         .eq('course_id', courseId);
-      
+
       if (materialsError) console.error('Error deleting course materials:', materialsError);
-      
+
       // Get all exams for this course to delete quiz data
       const { data: courseExams } = await supabase
         .from('exams')
         .select('id')
         .eq('course_id', courseId);
-      
-      if (courseExams && courseExams.length > 0) {
-        const examIds = courseExams.map(e => e.id);
-        
+
+      const examIds = (courseExams || []).map(e => e.id);
+      if (examIds.length > 0) {
         // Delete quiz submissions and answers for these exams
         const { data: submissions } = await supabase
           .from('quiz_submissions')
           .select('id')
           .in('exam_id', examIds);
-        
+
         if (submissions && submissions.length > 0) {
           const submissionIds = submissions.map(s => s.id);
-          
-          // Delete quiz answers
+
           await supabase
             .from('quiz_answers')
             .delete()
             .in('submission_id', submissionIds);
-          
-          // Delete quiz submissions
+
           await supabase
             .from('quiz_submissions')
             .delete()
             .in('exam_id', examIds);
         }
-        
+
         // Delete quiz options
         const { data: questions } = await supabase
           .from('quiz_questions')
           .select('id')
           .in('exam_id', examIds);
-        
+
         if (questions && questions.length > 0) {
           const questionIds = questions.map(q => q.id);
-          
+
           await supabase
             .from('quiz_options')
             .delete()
             .in('question_id', questionIds);
-          
-          // Delete quiz questions
+
           await supabase
             .from('quiz_questions')
             .delete()
             .in('exam_id', examIds);
         }
       }
-      
+
       // Delete exercises for this course
       const { error: exercisesError } = await supabase
         .from('exercises')
         .delete()
         .eq('course_id', courseId);
-      
+
       if (exercisesError) {
         console.error('Error deleting exercises:', exercisesError);
-        toast.error("Failed to delete course exercises");
+        toastFail("Échec de la suppression des exercices du cours", "فشل حذف تمارين الدرس", "Failed to delete course exercises", exercisesError);
         return false;
       }
-      
+
       // Delete exams for this course
       const { error: examsError } = await supabase
         .from('exams')
         .delete()
         .eq('course_id', courseId);
-      
+
       if (examsError) {
         console.error('Error deleting exams:', examsError);
-        toast.error("Failed to delete course exams");
+        toastFail("Échec de la suppression des évaluations du cours", "فشل حذف تقييمات الدرس", "Failed to delete course exams", examsError);
         return false;
       }
-      
+
       // Delete enrollments
       const { error: enrollmentsError } = await supabase
         .from('enrollments')
         .delete()
         .eq('course_id', courseId);
-      
+
       if (enrollmentsError) console.error('Error deleting enrollments:', enrollmentsError);
-      
+
       // Delete notifications
       const { error: notificationsError } = await supabase
         .from('notifications')
         .delete()
         .eq('course_id', courseId);
-      
+
       if (notificationsError) console.error('Error deleting notifications:', notificationsError);
-      
+
       // Finally, delete the course itself
       const { error } = await supabase
         .from('courses')
@@ -768,13 +854,20 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error deleting course:', error);
-        toast.error("Failed to delete course");
+        toastFail("Échec de la suppression du cours", "فشل حذف الدرس", "Failed to delete course", error);
         return false;
       }
 
-      // Refresh all data from database to ensure consistency
-      await refreshData();
-      
+      // Mise à jour locale (cours + tout ce qui en dépend), sans tout relire
+      const removedExamIds = new Set<string>(examIds);
+      exams.forEach(e => { if (e.course_id === courseId) removedExamIds.add(e.id); });
+      setCourses(prev => prev.filter(c => c.id !== courseId));
+      setExercises(prev => prev.filter(e => e.course_id !== courseId));
+      setExams(prev => prev.filter(e => e.course_id !== courseId));
+      setEnrollments(prev => prev.filter(e => e.course_id !== courseId));
+      setQuizQuestions(prev => prev.filter(q => !removedExamIds.has(q.exam_id)));
+      setQuizSubmissions(prev => prev.filter(s => !removedExamIds.has(s.exam_id)));
+
       // Notify students about course deletion
       if (courseToDelete) {
         setTimeout(async () => {
@@ -788,11 +881,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         }, 500);
       }
 
-      toast.success("Course and all related data deleted successfully");
+      toast.success(trc("Cours et données associées supprimés avec succès", "تم حذف الدرس وجميع البيانات المرتبطة به بنجاح", "Course and all related data deleted successfully"));
       return true;
     } catch (error) {
       console.error('Exception deleting course:', error);
-      toast.error("Failed to delete course");
+      toastFail("Échec de la suppression du cours", "فشل حذف الدرس", "Failed to delete course");
       return false;
     }
   };
@@ -810,14 +903,14 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       const fileExt = file.name.split('.').pop();
       const fileName = `course_${Date.now()}.${fileExt}`;
       const filePath = `courses/${courseId}/${fileName}`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         console.error("Course PDF upload error:", uploadError);
-        toast.error("Failed to upload PDF: " + uploadError.message);
+        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", uploadError);
         return null;
       }
 
@@ -830,10 +923,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       // Update course with PDF URL
       await updateCourse(courseId, { pdf_url: publicUrl });
 
-      toast.success("PDF uploaded successfully");
+      toast.success(trc("PDF envoyé avec succès", "تم رفع ملف PDF بنجاح", "PDF uploaded successfully"));
       return publicUrl;
     } catch (error) {
-      toast.error("Failed to upload PDF");
+      toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF");
       return null;
     }
   };
@@ -848,21 +941,23 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .select()
         .single();
 
-      if (error) {
-        toast.error("Failed to add exercise: " + error.message);
+      if (error || !data) {
+        toastFail("Échec de l'ajout de l'exercice", "فشل إضافة التمرين", "Failed to add exercise", error);
         return null;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData();
-      toast.success("Exercise added successfully");
-      
-      // Notify enrolled and room students
+      const created = data as Exercise;
       const parentCourse = courses.find(c => c.id === exercise.course_id);
+      if (parentCourse || !scopeRoomRef.current) {
+        setExercises(prev => [created, ...prev.filter(e => e.id !== created.id)]);
+      }
+      toast.success(trc("Exercice ajouté avec succès", "تمت إضافة التمرين بنجاح", "Exercise added successfully"));
+
+      // Notify enrolled and room students
       setTimeout(async () => {
         await notifyStudentsAboutUpdate({
           courseId: exercise.course_id,
-          exerciseId: data.id,
+          exerciseId: created.id,
           roomId: parentCourse?.room_id,
           title: exercise.title,
           courseTitle: parentCourse?.title,
@@ -870,10 +965,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
           action: 'add'
         });
       }, 500);
-      
-      return data;
+
+      return created;
     } catch (error) {
-      toast.error("Failed to add exercise");
+      toastFail("Échec de l'ajout de l'exercice", "فشل إضافة التمرين", "Failed to add exercise");
       return null;
     }
   };
@@ -881,19 +976,20 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const updateExercise = async (exerciseId: string, updates: Partial<Exercise>): Promise<boolean> => {
     if (!accessStore.guard("exercise.edit")) return false;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('exercises')
         .update(updates)
-        .eq('id', exerciseId);
+        .eq('id', exerciseId)
+        .select();
 
       if (error) {
-        toast.error("Failed to update exercise");
+        toastFail("Échec de la mise à jour de l'exercice", "فشل تحديث التمرين", "Failed to update exercise", error);
         return false;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData();
-      toast.success("Exercise updated successfully");
+      const row = data && data[0] ? (data[0] as Exercise) : null;
+      setExercises(prev => prev.map(e => (e.id === exerciseId ? (row ? { ...e, ...row } : { ...e, ...updates }) : e)));
+      toast.success(trc("Exercice mis à jour avec succès", "تم تحديث التمرين بنجاح", "Exercise updated successfully"));
 
       // Notify enrolled and room students about modification
       const exercise = exercises.find(e => e.id === exerciseId);
@@ -915,7 +1011,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       return true;
     } catch (error) {
-      toast.error("Failed to update exercise");
+      toastFail("Échec de la mise à jour de l'exercice", "فشل تحديث التمرين", "Failed to update exercise");
       return false;
     }
   };
@@ -932,12 +1028,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('id', exerciseId);
 
       if (error) {
-        toast.error("Failed to delete exercise");
+        toastFail("Échec de la suppression de l'exercice", "فشل حذف التمرين", "Failed to delete exercise", error);
         return false;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData();
+      setExercises(prev => prev.filter(e => e.id !== exerciseId));
 
       // Notify students about exercise deletion
       if (exerciseToDelete) {
@@ -953,10 +1048,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         }, 500);
       }
 
-      toast.success("Exercise deleted successfully");
+      toast.success(trc("Exercice supprimé avec succès", "تم حذف التمرين بنجاح", "Exercise deleted successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to delete exercise");
+      toastFail("Échec de la suppression de l'exercice", "فشل حذف التمرين", "Failed to delete exercise");
       return false;
     }
   };
@@ -984,14 +1079,14 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       const fileExt = file.name.split('.').pop();
       const fileName = `exercise_${exerciseId}_${Date.now()}.${fileExt}`;
       const filePath = targetCourseId ? `courses/${targetCourseId}/${fileName}` : fileName;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         console.error("Exercise PDF upload error:", uploadError);
-        toast.error("Failed to upload PDF: " + uploadError.message);
+        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", uploadError);
         return null;
       }
 
@@ -1002,16 +1097,20 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       const publicUrl = data.publicUrl;
 
       // Update exercise with PDF URL
-      await supabase
+      const { error: updError } = await supabase
         .from('exercises')
         .update({ pdf_url: publicUrl })
         .eq('id', exerciseId);
+      if (updError) {
+        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", updError);
+        return null;
+      }
 
-      await refreshData();
-      toast.success("PDF uploaded successfully");
+      setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: publicUrl } : e)));
+      toast.success(trc("PDF envoyé avec succès", "تم رفع ملف PDF بنجاح", "PDF uploaded successfully"));
       return publicUrl;
     } catch (error) {
-      toast.error("Failed to upload PDF");
+      toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF");
       return null;
     }
   };
@@ -1044,24 +1143,24 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .select()
         .single();
 
-      if (error) {
+      if (error || !data) {
         console.error("Supabase insert exam error:", error);
-        toast.error("Failed to add exam");
+        toastFail("Échec de l'ajout de l'évaluation", "فشل إضافة التقييم", "Failed to add exam", error);
         return null;
       }
 
       const parsedExam = parseExamAvailability(data);
-
-      // Refresh data to ensure consistency
-      await refreshData();
-      toast.success("Exam added successfully");
-      
-      // Notify enrolled and room students
       const parentCourse = courses.find(c => c.id === exam.course_id);
+      if (parentCourse || !scopeRoomRef.current) {
+        setExams(prev => [parsedExam, ...prev.filter(e => e.id !== parsedExam.id)]);
+      }
+      toast.success(trc("Évaluation ajoutée avec succès", "تمت إضافة التقييم بنجاح", "Exam added successfully"));
+
+      // Notify enrolled and room students
       setTimeout(async () => {
         await notifyStudentsAboutUpdate({
           courseId: exam.course_id,
-          examId: data.id,
+          examId: parsedExam.id,
           roomId: parentCourse?.room_id,
           title: exam.title,
           examDate: exam.exam_date,
@@ -1069,11 +1168,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
           action: 'add'
         });
       }, 500);
-      
+
       return parsedExam;
     } catch (error) {
       console.error("addExam error:", error);
-      toast.error("Failed to add exam");
+      toastFail("Échec de l'ajout de l'évaluation", "فشل إضافة التقييم", "Failed to add exam");
       return null;
     }
   };
@@ -1109,21 +1208,29 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       delete dbUpdates.available_from;
       delete dbUpdates.available_until;
+      // champs calculés côté client (pas des colonnes)
+      delete dbUpdates.quiz_mode;
+      delete dbUpdates.quiz_settings;
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('exams')
         .update(dbUpdates)
-        .eq('id', examId);
+        .eq('id', examId)
+        .select();
 
       if (error) {
         console.error("Supabase update exam error:", error);
-        toast.error("Failed to update exam");
+        toastFail("Échec de la mise à jour de l'évaluation", "فشل تحديث التقييم", "Failed to update exam", error);
         return false;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData();
-      toast.success("Exam updated successfully");
+      const row = data && data[0] ? data[0] : null;
+      setExams(prev => prev.map(e => {
+        if (e.id !== examId) return e;
+        if (row) return parseExamAvailability(row);
+        return parseExamAvailability({ ...e, ...dbUpdates, description: dbUpdates.description !== undefined ? dbUpdates.description : e.description, available_until: updates.available_until !== undefined ? updates.available_until : e.available_until });
+      }));
+      toast.success(trc("Évaluation mise à jour avec succès", "تم تحديث التقييم بنجاح", "Exam updated successfully"));
 
       // Notify enrolled and room students about modification
       const exam = exams.find(e => e.id === examId);
@@ -1146,7 +1253,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       return true;
     } catch (error) {
       console.error("updateExam error:", error);
-      toast.error("Failed to update exam");
+      toastFail("Échec de la mise à jour de l'évaluation", "فشل تحديث التقييم", "Failed to update exam");
       return false;
     }
   };
@@ -1166,12 +1273,13 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('id', examId);
 
       if (error) {
-        toast.error("Failed to delete exam");
+        toastFail("Échec de la suppression de l'évaluation", "فشل حذف التقييم", "Failed to delete exam", error);
         return false;
       }
 
-      // Refresh data to ensure consistency
-      await refreshData();
+      setExams(prev => prev.filter(e => e.id !== examId));
+      setQuizQuestions(prev => prev.filter(q => q.exam_id !== examId));
+      setQuizSubmissions(prev => prev.filter(s => s.exam_id !== examId));
 
       // Notify students about exam deletion
       if (examToDelete) {
@@ -1187,10 +1295,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         }, 500);
       }
 
-      toast.success("Exam deleted successfully");
+      toast.success(trc("Évaluation supprimée avec succès", "تم حذف التقييم بنجاح", "Exam deleted successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to delete exam");
+      toastFail("Échec de la suppression de l'évaluation", "فشل حذف التقييم", "Failed to delete exam");
       return false;
     }
   };
@@ -1218,14 +1326,14 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       const fileExt = file.name.split('.').pop();
       const fileName = `exam_${examId}_${Date.now()}.${fileExt}`;
       const filePath = targetCourseId ? `courses/${targetCourseId}/${fileName}` : fileName;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         console.error("Exam PDF upload error:", uploadError);
-        toast.error("Failed to upload PDF: " + uploadError.message);
+        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", uploadError);
         return null;
       }
 
@@ -1236,16 +1344,20 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       const publicUrl = data.publicUrl;
 
       // Update exam with PDF URL
-      await supabase
+      const { error: updError } = await supabase
         .from('exams')
         .update({ pdf_url: publicUrl })
         .eq('id', examId);
+      if (updError) {
+        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", updError);
+        return null;
+      }
 
-      await refreshData();
-      toast.success("PDF uploaded successfully");
+      setExams(prev => prev.map(e => (e.id === examId ? { ...e, pdf_url: publicUrl } : e)));
+      toast.success(trc("PDF envoyé avec succès", "تم رفع ملف PDF بنجاح", "PDF uploaded successfully"));
       return publicUrl;
     } catch (error) {
-      toast.error("Failed to upload PDF");
+      toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF");
       return null;
     }
   };
@@ -1264,18 +1376,18 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         if (error.code === '23505') { // Unique constraint violation
-          toast.error("Student is already enrolled in this course");
+          toast.error(trc("L'élève est déjà inscrit à ce cours", "التلميذ مسجل بالفعل في هذا الدرس", "Student is already enrolled in this course"));
         } else {
-          toast.error("Failed to enroll student");
+          toastFail("Échec de l'inscription de l'élève", "فشل تسجيل التلميذ", "Failed to enroll student", error);
         }
         return false;
       }
 
-      setEnrollments(prev => [...prev, data]);
-      toast.success("Student enrolled successfully");
+      setEnrollments(prev => [...prev, data as Enrollment]);
+      toast.success(trc("Élève inscrit avec succès", "تم تسجيل التلميذ بنجاح", "Student enrolled successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to enroll student");
+      toastFail("Échec de l'inscription de l'élève", "فشل تسجيل التلميذ", "Failed to enroll student");
       return false;
     }
   };
@@ -1289,17 +1401,17 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('student_id', studentId);
 
       if (error) {
-        toast.error("Failed to unenroll student");
+        toastFail("Échec de la désinscription de l'élève", "فشل إلغاء تسجيل التلميذ", "Failed to unenroll student", error);
         return false;
       }
 
-      setEnrollments(prev => prev.filter(enr => 
+      setEnrollments(prev => prev.filter(enr =>
         !(enr.course_id === courseId && enr.student_id === studentId)
       ));
-      toast.success("Student unenrolled successfully");
+      toast.success(trc("Élève désinscrit avec succès", "تم إلغاء تسجيل التلميذ بنجاح", "Student unenrolled successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to unenroll student");
+      toastFail("Échec de la désinscription de l'élève", "فشل إلغاء تسجيل التلميذ", "Failed to unenroll student");
       return false;
     }
   };
@@ -1355,78 +1467,77 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('id', enrollmentId);
 
       if (error) {
-        toast.error("Failed to remove enrollment");
+        toastFail("Échec du retrait de l'inscription", "فشل إزالة التسجيل", "Failed to remove enrollment", error);
         return false;
       }
 
       setEnrollments(prev => prev.filter(enr => enr.id !== enrollmentId));
-      toast.success("Student removed from course successfully");
+      toast.success(trc("Élève retiré du cours avec succès", "تمت إزالة التلميذ من الدرس بنجاح", "Student removed from course successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to remove enrollment");
+      toastFail("Échec du retrait de l'inscription", "فشل إزالة التسجيل", "Failed to remove enrollment");
       return false;
     }
   };
 
   const getStudentCourses = (studentId: string): Course[] => {
-    const enrolledCourseIds = enrollments
+    const enrolledCourseIds = new Set(enrollments
       .filter(enr => enr.student_id === studentId)
-      .map(enr => enr.course_id);
-    
-    return courses.filter(course => enrolledCourseIds.includes(course.id));
+      .map(enr => enr.course_id));
+
+    return courses.filter(course => enrolledCourseIds.has(course.id));
   };
 
   const getVisibleCoursesForStudent = (studentId: string): Course[] => {
     // Get the student's room_id from user context if this is the current user
     const studentRoomId = user?.id === studentId ? user?.room_id : null;
-    
+
     // If we have the student's room, show all visible courses in that room
     if (studentRoomId) {
-      return courses.filter(course => 
+      return courses.filter(course =>
         course.is_visible && course.room_id === studentRoomId
       );
     }
-    
+
     // Fallback to enrollment-based filtering for other students (e.g., professor viewing)
-    const enrolledCourseIds = enrollments
+    const enrolledCourseIds = new Set(enrollments
       .filter(enr => enr.student_id === studentId)
-      .map(enr => enr.course_id);
-    
-    return courses.filter(course => 
-      course.is_visible && enrolledCourseIds.includes(course.id)
+      .map(enr => enr.course_id));
+
+    return courses.filter(course =>
+      course.is_visible && enrolledCourseIds.has(course.id)
     );
+  };
+
+  /** Cours accessibles à l'élève (classe + inscriptions), sans les cours masqués */
+  const accessibleCourseIdsFor = (studentId: string): Set<string> => {
+    const studentRoomId = user?.id === studentId ? user?.room_id : null;
+    const ids = new Set<string>();
+    if (studentRoomId) {
+      courses.forEach(c => { if (c.room_id === studentRoomId) ids.add(c.id); });
+    }
+    enrollments.forEach(enr => { if (enr.student_id === studentId) ids.add(enr.course_id); });
+    // un cours connu et masqué rend ses exercices / évaluations invisibles
+    courses.forEach(c => { if (c.is_visible === false) ids.delete(c.id); });
+    return ids;
   };
 
   const getVisibleExercisesForStudent = (studentId: string): Exercise[] => {
-    const studentRoomId = user?.id === studentId ? user?.room_id : null;
-    const accessibleCourseIds = new Set<string>();
-
-    if (studentRoomId) {
-      courses.filter(c => c.room_id === studentRoomId).forEach(c => accessibleCourseIds.add(c.id));
-    }
-
-    enrollments.filter(enr => enr.student_id === studentId).forEach(enr => accessibleCourseIds.add(enr.course_id));
-
-    return exercises.filter(exercise => 
-      exercise.is_visible && (accessibleCourseIds.has(exercise.course_id) || accessibleCourseIds.size === 0)
-    );
+    const accessibleCourseIds = accessibleCourseIdsFor(studentId);
+    if (accessibleCourseIds.size === 0) return [];
+    return exercises.filter(exercise => exercise.is_visible && accessibleCourseIds.has(exercise.course_id));
   };
 
   const getVisibleExamsForStudent = (studentId: string): Exam[] => {
-    const studentRoomId = user?.id === studentId ? user?.room_id : null;
-    const accessibleCourseIds = new Set<string>();
-
-    if (studentRoomId) {
-      courses.filter(c => c.room_id === studentRoomId).forEach(c => accessibleCourseIds.add(c.id));
-    }
-
-    enrollments.filter(enr => enr.student_id === studentId).forEach(enr => accessibleCourseIds.add(enr.course_id));
+    const accessibleCourseIds = accessibleCourseIdsFor(studentId);
+    if (accessibleCourseIds.size === 0) return [];
 
     // Un quiz encore vide (aucune question) n'est pas montré aux élèves
     const examsWithQuestions = new Set(quizQuestions.map(q => q.exam_id));
-    return exams.filter(exam => 
-      exam.is_visible && (accessibleCourseIds.has(exam.course_id) || accessibleCourseIds.size === 0)
-      && (exam.type !== 'quiz' || examsWithQuestions.has(exam.id) || quizSubmissions.some(sub => sub.exam_id === exam.id && sub.student_id === studentId))
+    const examsWithMySubmission = new Set(quizSubmissions.filter(sub => sub.student_id === studentId).map(sub => sub.exam_id));
+    return exams.filter(exam =>
+      exam.is_visible && accessibleCourseIds.has(exam.course_id)
+      && (exam.type !== 'quiz' || examsWithQuestions.has(exam.id) || examsWithMySubmission.has(exam.id))
     );
   };
 
@@ -1440,36 +1551,32 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        toast.error("Failed to add question");
+        toastFail("Échec de l'ajout de la question", "فشل إضافة السؤال", "Failed to add question", error);
         return null;
       }
 
       setQuizQuestions(prev => [...prev, data as QuizQuestion]);
-      toast.success("Question added successfully");
+      toast.success(trc("Question ajoutée avec succès", "تمت إضافة السؤال بنجاح", "Question added successfully"));
       return data as QuizQuestion;
     } catch (error) {
-      toast.error("Failed to add question");
+      toastFail("Échec de l'ajout de la question", "فشل إضافة السؤال", "Failed to add question");
       return null;
     }
   };
 
   const addQuizOption = async (option: Omit<QuizOption, "id" | "created_at">): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('quiz_options')
-        .insert([option])
-        .select()
-        .single();
+        .insert([option]);
 
       if (error) {
-        toast.error("Failed to add option");
+        toastFail("Échec de l'ajout de l'option", "فشل إضافة الخيار", "Failed to add option", error);
         return false;
       }
-
-      setQuizOptions(prev => [...prev, data]);
       return true;
     } catch (error) {
-      toast.error("Failed to add option");
+      toastFail("Échec de l'ajout de l'option", "فشل إضافة الخيار", "Failed to add option");
       return false;
     }
   };
@@ -1482,15 +1589,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('id', questionId);
 
       if (error) {
-        toast.error("Failed to update question");
+        toastFail("Échec de la mise à jour de la question", "فشل تحديث السؤال", "Failed to update question", error);
         return false;
       }
 
       setQuizQuestions(prev => prev.map(q => q.id === questionId ? { ...q, ...updates } : q));
-      toast.success("Question updated successfully");
+      toast.success(trc("Question mise à jour avec succès", "تم تحديث السؤال بنجاح", "Question updated successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to update question");
+      toastFail("Échec de la mise à jour de la question", "فشل تحديث السؤال", "Failed to update question");
       return false;
     }
   };
@@ -1503,16 +1610,15 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         .eq('id', questionId);
 
       if (error) {
-        toast.error("Failed to delete question");
+        toastFail("Échec de la suppression de la question", "فشل حذف السؤال", "Failed to delete question", error);
         return false;
       }
 
       setQuizQuestions(prev => prev.filter(q => q.id !== questionId));
-      setQuizOptions(prev => prev.filter(opt => opt.question_id !== questionId));
-      toast.success("Question deleted successfully");
+      toast.success(trc("Question supprimée avec succès", "تم حذف السؤال بنجاح", "Question deleted successfully"));
       return true;
     } catch (error) {
-      toast.error("Failed to delete question");
+      toastFail("Échec de la suppression de la question", "فشل حذف السؤال", "Failed to delete question");
       return false;
     }
   };
@@ -1521,9 +1627,8 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return quizQuestions.filter(q => q.exam_id === examId).sort((a, b) => a.question_order - b.question_order);
   };
 
-  const getQuizOptions = (questionId: string): QuizOption[] => {
-    return quizOptions.filter(opt => opt.question_id === questionId).sort((a, b) => a.option_order - b.option_order);
-  };
+  /** @deprecated les options ne sont plus chargées globalement (lire quiz_options à la demande) */
+  const getQuizOptions = (_questionId: string): QuizOption[] => EMPTY_OPTIONS;
 
   const submitQuiz = async (submission: Omit<QuizSubmission, "id" | "submitted_at">, answers: Omit<QuizAnswer, "id" | "submission_id" | "created_at">[]): Promise<boolean> => {
     try {
@@ -1544,9 +1649,9 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
           .single());
       }
 
-      if (submissionError) {
+      if (submissionError || !submissionData) {
         console.error("Supabase insert quiz_submissions error:", submissionError);
-        toast.error("Failed to submit quiz");
+        toastFail("Échec de l'envoi du quiz", "فشل إرسال الاختبار", "Failed to submit quiz", submissionError);
         return false;
       }
 
@@ -1577,19 +1682,21 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
         if (answersError) {
           console.error("Supabase insert quiz_answers error:", answersError);
-          toast.error("Failed to save answers");
+          toastFail("Échec de l'enregistrement des réponses", "فشل حفظ الإجابات", "Failed to save answers", answersError);
+          // Annule la copie incomplète : un nouvel essai d'envoi ne créera pas de doublon
+          try { await supabase.from('quiz_submissions').delete().eq('id', submissionData.id); } catch { /* ignore */ }
           return false;
         }
       }
 
-      // Update local state
-      setQuizSubmissions(prev => [...prev, submissionData]);
-      refreshData(); // Refresh to get the inserted answers
-      
+      // Mise à jour locale (les réponses détaillées ne sont pas gardées en mémoire)
+      const saved = submissionData as QuizSubmission;
+      setQuizSubmissions(prev => [saved, ...prev.filter(s => s.id !== saved.id)]);
+
       return true;
     } catch (error) {
       console.error("submitQuiz error:", error);
-      toast.error("Failed to submit quiz");
+      toastFail("Échec de l'envoi du quiz", "فشل إرسال الاختبار", "Failed to submit quiz");
       return false;
     }
   };
@@ -1741,56 +1848,61 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const addExam = (exam: Omit<Exam, "id" | "created_at" | "updated_at">) =>
     dedupeCreation(`exam:${JSON.stringify(exam)}`, () => addExamImpl(exam));
 
+  // Valeur du contexte recalculée seulement quand les données ou le compte changent :
+  // les fonctions recréées entre-temps sont équivalentes (mêmes données capturées).
+  const value = useMemo<CourseContextType>(() => ({
+    rooms,
+    courses,
+    exercises,
+    exams,
+    enrollments,
+    quizQuestions,
+    quizOptions: EMPTY_OPTIONS,
+    quizSubmissions,
+    quizAnswers: EMPTY_ANSWERS,
+    loading,
+    addRoom,
+    updateRoom,
+    deleteRoom,
+    toggleRoomVisibility,
+    addCourse,
+    updateCourse,
+    deleteCourse,
+    toggleCourseVisibility,
+    uploadCoursePdf,
+    addExercise,
+    updateExercise,
+    deleteExercise,
+    toggleExerciseVisibility,
+    uploadExercisePdf,
+    addExam,
+    updateExam,
+    deleteExam,
+    toggleExamVisibility,
+    uploadExamPdf,
+    addQuizQuestion,
+    addQuizOption,
+    updateQuizQuestion,
+    deleteQuizQuestion,
+    getQuizQuestions,
+    getQuizOptions,
+    submitQuiz,
+    getQuizSubmissions,
+    getStudentQuizSubmission,
+    enrollStudent,
+    unenrollStudent,
+    removeEnrollment,
+    getEnrolledStudents,
+    getStudentCourses,
+    getVisibleCoursesForStudent,
+    getVisibleExercisesForStudent,
+    getVisibleExamsForStudent,
+    refreshData
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [rooms, courses, exercises, exams, enrollments, quizQuestions, quizSubmissions, loading, user, refreshData]);
+
   return (
-    <CourseContext.Provider value={{
-      rooms,
-      courses,
-      exercises,
-      exams,
-      enrollments,
-      quizQuestions,
-      quizOptions,
-      quizSubmissions,
-      quizAnswers,
-      loading,
-      addRoom,
-      updateRoom,
-      deleteRoom,
-      toggleRoomVisibility,
-      addCourse,
-      updateCourse,
-      deleteCourse,
-      toggleCourseVisibility,
-      uploadCoursePdf,
-      addExercise,
-      updateExercise,
-      deleteExercise,
-      toggleExerciseVisibility,
-      uploadExercisePdf,
-      addExam,
-      updateExam,
-      deleteExam,
-      toggleExamVisibility,
-      uploadExamPdf,
-      addQuizQuestion,
-      addQuizOption,
-      updateQuizQuestion,
-      deleteQuizQuestion,
-      getQuizQuestions,
-      getQuizOptions,
-      submitQuiz,
-      getQuizSubmissions,
-      getStudentQuizSubmission,
-      enrollStudent,
-      unenrollStudent,
-      removeEnrollment,
-      getEnrolledStudents,
-      getStudentCourses,
-      getVisibleCoursesForStudent,
-      getVisibleExercisesForStudent,
-      getVisibleExamsForStudent,
-      refreshData
-    }}>
+    <CourseContext.Provider value={value}>
       {children}
     </CourseContext.Provider>
   );

@@ -37,15 +37,18 @@ const Row = ({ icon, title, desc, children }: { icon?: ReactNode; title: ReactNo
   </div>
 );
 
-function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode; icon?: ReactNode }[] }) {
+function Segmented<T extends string>({ value, onChange, options, groupLabel, buttonClassName = "py-1.5" }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode; icon?: ReactNode; ariaLabel?: string }[]; groupLabel?: string; buttonClassName?: string }) {
   return (
-    <div className="inline-flex rounded-xl bg-muted p-1">
+    <div className="inline-flex rounded-xl bg-muted p-1" role="group" aria-label={groupLabel}>
       {options.map(o => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+          aria-pressed={value === o.value}
+          aria-label={o.ariaLabel}
+          title={o.ariaLabel}
+          className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 ${buttonClassName} text-xs font-semibold transition-all ${
             value === o.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -81,6 +84,7 @@ const SectionCard = ({ id, icon, title, desc, onReset, resetLabel, children }: {
 const Settings = () => {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [isRequestingReset, setIsRequestingReset] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
   const { language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
@@ -231,21 +235,59 @@ const Settings = () => {
     }
   };
 
+  // Élève : une demande de réinitialisation est-elle déjà en attente ?
+  useEffect(() => {
+    if (!user?.id || user.role !== "student") return;
+    let cancelled = false;
+    supabase
+      .from("password_reset_requests")
+      .select("id")
+      .eq("student_id", user.id)
+      .eq("status", "pending")
+      .limit(1)
+      .then(({ data }) => { if (!cancelled) setResetPending(!!data && data.length > 0); }, () => undefined);
+    return () => { cancelled = true; };
+  }, [user?.id, user?.role]);
+
   const handleRequestPasswordReset = async () => {
-    if (!user || user.role !== "student") return;
+    if (!user || user.role !== "student" || resetPending) return;
     setIsRequestingReset(true);
     try {
-      const { data: enrollments, error: enrollError } = await supabase
+      // Pas de doublon : une demande en attente suffit
+      const { data: existing } = await supabase
+        .from("password_reset_requests")
+        .select("id")
+        .eq("student_id", user.id)
+        .eq("status", "pending")
+        .limit(1);
+      if (existing && existing.length > 0) {
+        setResetPending(true);
+        toast.info(tr("Une demande est déjà en attente auprès de ton professeur.", "يوجد طلب قيد الانتظار لدى أستاذك.", "A request is already pending with your teacher."));
+        return;
+      }
+      let professorId: string | null = null;
+      let roomId: string | null = null;
+      const { data: enrollments } = await supabase
         .from("enrollments")
         .select("courses!inner(professor_id, room_id)")
         .eq("student_id", user.id)
         .limit(1);
-      if (enrollError || !enrollments?.length) {
+      if (enrollments && enrollments.length > 0) {
+        professorId = (enrollments[0] as any).courses?.professor_id || null;
+        roomId = (enrollments[0] as any).courses?.room_id || null;
+      }
+      // Repli : le professeur de la classe de l'élève (rooms.professor_id)
+      if (!professorId && user.room_id) {
+        const { data: room } = await supabase.from("rooms").select("id, professor_id").eq("id", user.room_id).maybeSingle();
+        if (room) {
+          professorId = (room as any).professor_id || null;
+          roomId = (room as any).id || user.room_id;
+        }
+      }
+      if (!professorId) {
         toast.error(tr("Impossible de trouver votre professeur. Contactez le support.", "تعذّر العثور على أستاذك. يرجى التواصل مع الدعم.", "Unable to find your professor. Please contact support."));
         return;
       }
-      const professorId = (enrollments[0] as any).courses.professor_id;
-      const roomId = (enrollments[0] as any).courses.room_id;
       const { error: insertError } = await supabase
         .from("password_reset_requests")
         .insert({ student_id: user.id, professor_id: professorId, room_id: roomId, status: "pending" });
@@ -253,6 +295,7 @@ const Settings = () => {
         toast.error(tr("Échec de la demande de réinitialisation", "فشل في إرسال طلب إعادة التعيين", "Failed to request password reset"));
         return;
       }
+      setResetPending(true);
       toast.success(tr("Demande de réinitialisation envoyée à votre professeur", "تم إرسال طلب إعادة تعيين كلمة المرور إلى أستاذك", "Password reset request sent to your professor"));
     } catch (error) {
       console.error("Error requesting password reset:", error);
@@ -287,14 +330,22 @@ const Settings = () => {
     { value: "average", title: tr("Moyenne des tentatives", "معدل المحاولات", "Average of attempts"), desc: tr("Tient compte de tous les essais.", "تأخذ بعين الاعتبار جميع المحاولات.", "Takes every attempt into account.") },
   ];
 
+  // Seules les préférences pédagogiques (enseignant) dépendent de l'offre ;
+  // langue, thème, taille du texte, animations et mot de passe restent toujours modifiables.
+  const canEditSettings = accessStore.can("settings.edit");
+
   return (
-    <div className="container mx-auto max-w-6xl space-y-6 py-6" dir={isRtl ? "rtl" : "ltr"}>
-      {!accessStore.can("settings.edit") && (
+    <div className="mx-auto w-full max-w-6xl space-y-6 py-6" dir={isRtl ? "rtl" : "ltr"}>
+      {!canEditSettings && isProfessor && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          {isRtl ? "تعديل الإعدادات غير مدرج في عرضك." : "La modification des paramètres n'est pas incluse dans votre offre."}
+          {tr(
+            "La modification des paramètres pédagogiques n'est pas incluse dans votre offre.",
+            "تعديل الإعدادات البيداغوجية غير مدرج في عرضك.",
+            "Editing teaching settings is not included in your plan."
+          )}
         </p>
       )}
-      <fieldset disabled={!accessStore.can("settings.edit")} className="m-0 min-w-0 space-y-6 border-0 p-0">
+      <div className="space-y-6">
       {/* En-tête simple */}
       <div className="flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -342,6 +393,8 @@ const Settings = () => {
               <Segmented
                 value={theme as "light" | "dark" | "system"}
                 onChange={v => setTheme(v)}
+                groupLabel={tr("Thème", "المظهر", "Theme")}
+                buttonClassName="h-10"
                 options={[
                   { value: "light", label: tr("Clair", "فاتح", "Light"), icon: <Sun className="h-3.5 w-3.5" /> },
                   { value: "dark", label: tr("Sombre", "داكن", "Dark"), icon: <Moon className="h-3.5 w-3.5" /> },
@@ -407,10 +460,12 @@ const Settings = () => {
               <Segmented
                 value={prefs.fontScale}
                 onChange={v => update({ fontScale: v })}
+                groupLabel={tr("Taille du texte", "حجم النص", "Text size")}
+                buttonClassName="h-10 min-w-[40px]"
                 options={[
-                  { value: "normal", label: "A" },
-                  { value: "large", label: <span className="text-sm">A</span> },
-                  { value: "xlarge", label: <span className="text-base">A</span> },
+                  { value: "normal", label: "A", ariaLabel: tr("Texte normal", "نص عادي", "Normal text") },
+                  { value: "large", label: <span className="text-sm">A</span>, ariaLabel: tr("Texte grand", "نص كبير", "Large text") },
+                  { value: "xlarge", label: <span className="text-base">A</span>, ariaLabel: tr("Texte très grand", "نص كبير جداً", "Extra large text") },
                 ]}
               />
             </Row>
@@ -425,19 +480,19 @@ const Settings = () => {
               />
             </Row>
             <Row icon={<Sparkles className="h-4 w-4" />} title={tr("Réduire les animations", "تقليل الحركات", "Reduce motion")} desc={tr("Désactive les effets d'apparition et de survol (plus sobre, plus rapide sur les ordinateurs anciens).", "يعطل تأثيرات الظهور والتمرير.", "Turns off entrance and hover effects.")}>
-              <Switch checked={prefs.reduceMotion} onCheckedChange={v => update({ reduceMotion: v })} />
+              <Switch checked={prefs.reduceMotion} onCheckedChange={v => update({ reduceMotion: v })} aria-label={tr("Réduire les animations", "تقليل الحركات", "Reduce motion")} />
             </Row>
           </SectionCard>
 
           {/* ── Notifications ── */}
           <SectionCard id="notifications" icon={<Bell className="h-5 w-5" />} title={tr("Notifications", "الإشعارات", "Notifications")} desc={isProfessor ? tr("Comment être prévenu des nouvelles copies, demandes et événements.", "كيف يتم إخبارك بالأوراق والطلبات الجديدة.", "How you are alerted about new submissions and requests.") : tr("Comment être prévenu des nouveaux cours, exercices et quiz.", "كيف يتم إخبارك بالدروس والتمارين والاختبارات الجديدة.", "How you are alerted about new courses, exercises and quizzes.")} resetLabel={tr("Par défaut", "افتراضي", "Defaults")} onReset={() => reset("notifications")}>
             <Row icon={<Bell className="h-4 w-4" />} title={tr("Fenêtres d'alerte dans l'application", "نوافذ التنبيه داخل التطبيق", "In-app pop-ups")} desc={tr("Un message apparaît en bas de l'écran à chaque nouvelle notification. Les notifications restent toujours visibles dans la cloche.", "تظهر رسالة أسفل الشاشة عند كل إشعار جديد.", "A message appears for each new notification. They always remain in the bell.")}>
-              <Switch checked={prefs.notifyPopup} onCheckedChange={v => update({ notifyPopup: v })} />
+              <Switch checked={prefs.notifyPopup} onCheckedChange={v => update({ notifyPopup: v })} aria-label={tr("Fenêtres d'alerte dans l'application", "نوافذ التنبيه داخل التطبيق", "In-app pop-ups")} />
             </Row>
             <Row icon={<Volume2 className="h-4 w-4" />} title={tr("Signal sonore", "تنبيه صوتي", "Sound")} desc={tr("Un court son discret à l'arrivée d'une notification.", "صوت قصير عند وصول إشعار.", "A short, discreet sound for new notifications.")}>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={playNotificationSound}>{tr("Tester", "تجربة", "Test")}</Button>
-                <Switch checked={prefs.notifySound} onCheckedChange={v => update({ notifySound: v })} />
+                <Switch checked={prefs.notifySound} onCheckedChange={v => update({ notifySound: v })} aria-label={tr("Signal sonore", "تنبيه صوتي", "Sound")} />
               </div>
             </Row>
             <Row
@@ -452,7 +507,7 @@ const Settings = () => {
               }
             >
               {notifPermission === "granted" ? (
-                <Switch checked={prefs.notifyBrowser} onCheckedChange={v => update({ notifyBrowser: v })} />
+                <Switch checked={prefs.notifyBrowser} onCheckedChange={v => update({ notifyBrowser: v })} aria-label={tr("Notifications du système", "إشعارات النظام", "System notifications")} />
               ) : (
                 <Button size="sm" variant="outline" disabled={notifPermission === "denied" || notifPermission === "unsupported"} onClick={requestBrowserPermission}>
                   {tr("Autoriser", "السماح", "Allow")}
@@ -461,6 +516,8 @@ const Settings = () => {
             </Row>
           </SectionCard>
 
+          {/* ── Préférences pédagogiques (enseignant) : seules concernées par l'offre ── */}
+          <fieldset disabled={!canEditSettings} className="m-0 min-w-0 space-y-6 border-0 p-0">
           {/* ── Évaluation (enseignant) ── */}
           {isProfessor && (
             <SectionCard id="evaluation" icon={<GraduationCap className="h-5 w-5" />} title={tr("Évaluation et notation", "التقويم والتنقيط", "Assessment & grading")} desc={tr("Utilisés par le tableau de bord, le suivi pédagogique, le classement et les alertes.", "تُستعمل في لوحة التحكم والتتبع والترتيب والتنبيهات.", "Used by the dashboard, tracking, ranking and alerts.")} resetLabel={tr("Par défaut", "افتراضي", "Defaults")} onReset={() => reset("evaluation")}>
@@ -553,6 +610,7 @@ const Settings = () => {
               </div>
             </SectionCard>
           )}
+          </fieldset>
 
           {/* ── Sécurité ── */}
           <SectionCard id="security" icon={<ShieldCheck className="h-5 w-5" />} title={tr("Sécurité", "الأمان", "Security")} desc={user?.role === "student" ? tr("Votre mot de passe et sa réinitialisation.", "كلمة المرور وإعادة تعيينها.", "Your password and how to reset it.") : tr("Votre mot de passe et les demandes de réinitialisation des élèves.", "كلمة المرور وطلبات إعادة التعيين للتلاميذ.", "Your password and students' reset requests.")}>
@@ -561,10 +619,17 @@ const Settings = () => {
             </Row>
             {user?.role === "student" && (
               <Row icon={<AlertCircle className="h-4 w-4" />} title={tr("Mot de passe oublié ?", "نسيت كلمة المرور؟", "Forgot your password?")} desc={tr("Votre professeur recevra une demande et pourra réinitialiser votre mot de passe.", "سيتوصل أستاذك بطلب ويمكنه إعادة تعيين كلمة المرور.", "Your teacher will get a request and can reset your password.")}>
-                <Button variant="outline" onClick={handleRequestPasswordReset} disabled={isRequestingReset}>
-                  {isRequestingReset ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
-                  {tr("Demander une réinitialisation", "طلب إعادة التعيين", "Request a reset")}
-                </Button>
+                {resetPending ? (
+                  <span className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-amber-500/10 px-3 text-sm font-semibold text-amber-700 dark:text-amber-300" role="status">
+                    <Clock className="h-4 w-4" />
+                    {tr("Demande en attente", "طلب قيد الانتظار", "Request pending")}
+                  </span>
+                ) : (
+                  <Button variant="outline" onClick={handleRequestPasswordReset} disabled={isRequestingReset}>
+                    {isRequestingReset ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
+                    {tr("Demander une réinitialisation", "طلب إعادة التعيين", "Request a reset")}
+                  </Button>
+                )}
               </Row>
             )}
           </SectionCard>
@@ -572,7 +637,7 @@ const Settings = () => {
           {isProfessor && <PasswordResetManager />}
         </div>
       </div>
-      </fieldset>
+      </div>
 
       <ChangePasswordDialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen} />
     </div>

@@ -1,11 +1,10 @@
 import { accessStore } from "@/contexts/AccessContext";
 import { useState } from "react";
-import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -23,6 +22,7 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
+import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,10 +43,16 @@ const Profile = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [changePwdOpen, setChangePwdOpen] = useState(false);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const isStudent = user?.role === "student";
+  // Élève : code Massar (identifiant ou partie avant « @student.internal ») au lieu de l'e-mail technique
+  const rawEmail = user?.email || "";
+  const isInternalEmail = /@student\.internal$/i.test(rawEmail);
+  const massarCode = ((user as any)?.username || (isInternalEmail ? rawEmail.split("@")[0] : "") || "").toUpperCase();
   
-  // Form state
+  // Form state (le rôle n'est pas modifiable ici : il est géré par l'administrateur)
   const [name, setName] = useState(user?.name || "");
-  const [role, setRole] = useState<UserRole>(user?.role || "student");
 
   const handleSave = async () => {
     if (!accessStore.guard("profile.edit")) return;
@@ -55,8 +61,7 @@ const Profile = () => {
     setLoading(true);
     try {
       const success = await updateProfile({
-        name,
-        role
+        name
       });
       
       if (success) {
@@ -76,7 +81,6 @@ const Profile = () => {
 
   const handleCancel = () => {
     setName(user?.name || "");
-    setRole(user?.role || "student");
     setIsEditing(false);
   };
 
@@ -238,11 +242,20 @@ const Profile = () => {
                 )}
               </div>
 
+              {isStudent && (massarCode || isInternalEmail) ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{tr("Code Massar", "رمز مسار", "Massar code")}</p>
+                  <div className="p-2.5 bg-muted/60 rounded-md font-mono text-sm text-muted-foreground" dir="ltr">{massarCode || "—"}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {tr("C'est ton identifiant de connexion.", "هذا هو معرف تسجيل الدخول الخاص بك.", "This is your login ID.")}
+                  </p>
+                </div>
+              ) : (
               <div className="space-y-2">
-                <Label htmlFor="email" className="font-medium">
+                <p className="text-sm font-medium">
                   {language === "ar" ? "البريد الإلكتروني" : language === "fr" ? "Adresse email" : "Email Address"}
-                </Label>
-                <div className="p-2.5 bg-muted/60 rounded-md font-mono text-sm text-muted-foreground">{user.email}</div>
+                </p>
+                <div className="p-2.5 bg-muted/60 rounded-md font-mono text-sm text-muted-foreground break-all" dir="ltr">{user.email}</div>
                 <p className="text-xs text-muted-foreground">
                   {language === "ar" 
                     ? "لا يمكن تغيير البريد الإلكتروني. تواصل مع الدعم لتحديثه." 
@@ -251,34 +264,22 @@ const Profile = () => {
                     : "Email cannot be changed. Contact support if you need to update it."}
                 </p>
               </div>
+              )}
 
               <div className="space-y-2">
-                <Label htmlFor="role" className="font-medium">
+                <p className="text-sm font-medium">
                   {language === "ar" ? "الدور" : language === "fr" ? "Rôle" : "Role"}
-                </Label>
-                {isEditing ? (
-                  <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="student">
-                        {language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student"}
-                      </SelectItem>
-                      <SelectItem value="professor">
-                        {language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor"}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="p-2.5 bg-muted/60 rounded-md flex items-center gap-2">
-                    <Badge variant={user.role === "professor" ? "default" : "secondary"}>
-                      {user.role === "professor" 
-                        ? (language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor") 
-                        : (language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student")}
-                    </Badge>
-                  </div>
-                )}
+                </p>
+                <div className="p-2.5 bg-muted/60 rounded-md flex items-center gap-2">
+                  <Badge variant={user.role === "professor" ? "default" : "secondary"}>
+                    {user.role === "professor" 
+                      ? (language === "ar" ? "أستاذ" : language === "fr" ? "Professeur" : "Professor") 
+                      : (language === "ar" ? "تلميذ" : language === "fr" ? "Élève" : "Student")}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {tr("Le rôle est géré par l'administrateur.", "يتم تحديد الدور من طرف المسؤول.", "The role is managed by the administrator.")}
+                </p>
               </div>
 
               <div className="flex gap-2 pt-4 border-t border-border">
@@ -328,10 +329,12 @@ const Profile = () => {
             <CardContent className="space-y-5 pt-6">
               <div className="flex flex-col items-center">
                 {/* Interactive Instagram Avatar container */}
-                <div 
+                <button
+                  type="button"
                   onClick={() => setIsAvatarDialogOpen(true)}
-                  className="relative group cursor-pointer"
+                  className="relative group cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   title={language === "ar" ? "عرض / إدارة الصورة" : language === "fr" ? "Voir / Gérer la photo" : "View / Manage photo"}
+                  aria-label={language === "ar" ? "عرض / إدارة صورة الملف الشخصي" : language === "fr" ? "Voir / gérer la photo de profil" : "View / manage profile photo"}
                 >
                   <div className={`p-1 rounded-full transition-all duration-300 ${
                     user.avatar_url 
@@ -348,20 +351,25 @@ const Profile = () => {
                     </div>
                   </div>
 
-                  {/* Hover Overlay with Zoom Icon */}
-                  <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                  {/* Hover Overlay with Zoom Icon (souris uniquement) */}
+                  <div aria-hidden="true" className="absolute top-0 left-0 h-full w-full bg-black/40 rounded-full opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
                     <Maximize2 className="h-6 w-6 mb-1" />
                     <span className="text-[11px] font-medium">
                       {language === "ar" ? "تكبير" : language === "fr" ? "Agrandir" : "Zoom"}
                     </span>
                   </div>
 
+                  {/* Badge appareil photo toujours visible (tablettes / téléphones : pas de survol) */}
+                  <span aria-hidden="true" className="absolute bottom-1 right-1 rtl:right-auto rtl:left-1 z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow">
+                    <Camera className="h-4 w-4" />
+                  </span>
+
                   {avatarLoading && (
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-xs rounded-full flex items-center justify-center z-20">
+                    <div className="absolute top-0 left-0 h-full w-full bg-background/80 backdrop-blur-xs rounded-full flex items-center justify-center z-20">
                       <Loader2 className="h-7 w-7 animate-spin text-primary" />
                     </div>
                   )}
-                </div>
+                </button>
 
                 <div className="mt-4 text-center">
                   <h4 className="font-semibold text-sm">{user.name}</h4>
@@ -414,6 +422,7 @@ const Profile = () => {
                         onClick={() => setShowDeleteConfirm(true)}
                         disabled={avatarLoading}
                         title={language === "ar" ? "حذف الصورة" : language === "fr" ? "Supprimer la photo" : "Remove photo"}
+                        aria-label={language === "ar" ? "حذف الصورة" : language === "fr" ? "Supprimer la photo" : "Remove photo"}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -422,7 +431,7 @@ const Profile = () => {
                 </div>
 
                 <p className="text-[11px] text-muted-foreground mt-3 text-center">
-                  {language === "ar" ? "JPG أو PNG أو WEBP. الحد الأقصى 5 ميغابايت." : language === "fr" ? "JPG, PNG ou WEBP. Max 5 Mo." : "JPG, PNG or WEBP. Max 5MB."}
+                  {language === "ar" ? "JPG أو PNG أو WEBP أو GIF. الحد الأقصى 5 ميغابايت." : language === "fr" ? "JPG, PNG, WEBP ou GIF. Max 5 Mo." : "JPG, PNG, WEBP or GIF. Max 5MB."}
                 </p>
               </div>
             </CardContent>
@@ -447,27 +456,47 @@ const Profile = () => {
                       {language === "ar" ? "كلمة المرور" : language === "fr" ? "Mot de passe" : "Password"}
                     </h4>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {language === "ar" ? "إعادة تعيين عبر البريد الإلكتروني" : language === "fr" ? "Réinitialisation par email" : "Reset via email"}
+                      {tr("Choisis un nouveau mot de passe", "اختر كلمة مرور جديدة", "Choose a new password")}
                     </p>
                   </div>
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={handlePasswordReset}
-                    disabled={resetLoading}
-                    className="gap-1.5 cursor-pointer shrink-0"
+                    onClick={() => setChangePwdOpen(true)}
+                    className="h-9 gap-1.5 cursor-pointer shrink-0"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
-                    {resetLoading 
-                      ? (language === "ar" ? "جارٍ الإرسال..." : language === "fr" ? "Envoi..." : "Sending...") 
-                      : (language === "ar" ? "إعادة تعيين" : language === "fr" ? "Réinitialiser" : "Reset")}
+                    {tr("Changer", "تغيير", "Change")}
                   </Button>
                 </div>
+                {isStudent ? (
+                  <p className="text-xs text-muted-foreground">
+                    {tr(
+                      "Mot de passe oublié ? Demande à ton professeur de le réinitialiser.",
+                      "نسيت كلمة المرور؟ اطلب من أستاذك إعادة تعيينها.",
+                      "Forgot your password? Ask your teacher to reset it."
+                    )}
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePasswordReset}
+                    disabled={resetLoading}
+                    className="inline-flex min-h-[36px] items-center gap-1.5 text-xs font-medium text-primary underline-offset-4 hover:underline disabled:opacity-60"
+                  >
+                    {resetLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {resetLoading
+                      ? tr("Envoi…", "جارٍ الإرسال…", "Sending…")
+                      : tr("Mot de passe oublié ? Recevoir un lien par e-mail", "نسيت كلمة المرور؟ استلم رابطاً عبر البريد", "Forgot password? Get a link by email")}
+                  </button>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
 
       {/* Main Instagram-like Modal */}
       <ProfileAvatarDialog

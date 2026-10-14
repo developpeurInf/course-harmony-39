@@ -5,6 +5,9 @@
  * « ? Combien font 7 + 8 ». On donne à chaque paragraphe le sens de sa première lettre forte,
  * uniquement quand il diffère de celui de la page ; les paragraphes faits seulement de
  * chiffres ou de symboles ne sont pas touchés (ils gardent l'alignement de la page).
+ *
+ * Performances : un balayage complet au démarrage (et quand le sens de la page change),
+ * ensuite seuls les éléments touchés par les mutations sont retraités.
  */
 const SELECTOR = "p, h1, h2, h3, h4, h5, h6, li, blockquote, .bidi-auto";
 const RTL_CHAR = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
@@ -19,8 +22,8 @@ function firstStrongDir(text: string): "ltr" | "rtl" | null {
 }
 
 function pageDir(el: Element): "ltr" | "rtl" {
-  const parent = el.parentElement?.closest("[dir]");
-  const d = (parent?.getAttribute("dir") || document.documentElement.getAttribute("dir") || "ltr").toLowerCase();
+  const parent = el.parentElement ? el.parentElement.closest("[dir]") : null;
+  const d = ((parent && parent.getAttribute("dir")) || document.documentElement.getAttribute("dir") || "ltr").toLowerCase();
   return d === "rtl" ? "rtl" : "ltr";
 }
 
@@ -48,10 +51,51 @@ function fix(el: HTMLElement) {
 }
 
 let scheduled = false;
-function scan() {
+let fullScan = true;
+const pending: Element[] = [];
+
+/** Élément concerné par un nœud muté : lui-même (ou son parent pour un texte) */
+function elementOf(node: Node | null): Element | null {
+  if (!node) return null;
+  if (node.nodeType === 1) return node as Element;
+  return node.parentElement;
+}
+
+function processSubtree(root: Element, done: Set<Element>) {
+  // l'élément ciblé et ses ancêtres concernés (le texte d'un <p> a pu changer)
+  const host = root.closest ? root.closest(SELECTOR) : null;
+  if (host && !done.has(host)) {
+    done.add(host);
+    fix(host as HTMLElement);
+  }
+  // ses descendants concernés
+  const list = root.querySelectorAll ? root.querySelectorAll<HTMLElement>(SELECTOR) : null;
+  if (list) {
+    for (let i = 0; i < list.length; i++) {
+      if (!done.has(list[i])) {
+        done.add(list[i]);
+        fix(list[i]);
+      }
+    }
+  }
+}
+
+function run() {
   scheduled = false;
-  const list = document.querySelectorAll<HTMLElement>(SELECTOR);
-  for (let i = 0; i < list.length; i++) fix(list[i]);
+  if (fullScan) {
+    fullScan = false;
+    pending.length = 0;
+    const list = document.querySelectorAll<HTMLElement>(SELECTOR);
+    for (let i = 0; i < list.length; i++) fix(list[i]);
+    return;
+  }
+  const roots = pending.splice(0, pending.length);
+  const done = new Set<Element>();
+  for (let i = 0; i < roots.length; i++) {
+    const r = roots[i];
+    if (!r.isConnected && r.isConnected !== undefined) continue;
+    processSubtree(r, done);
+  }
 }
 
 export function startBidiAuto() {
@@ -59,9 +103,36 @@ export function startBidiAuto() {
   const schedule = () => {
     if (scheduled) return;
     scheduled = true;
-    window.setTimeout(scan, 120);
+    window.setTimeout(run, 120);
   };
-  const obs = new MutationObserver(schedule);
+  const obs = new MutationObserver((mutations) => {
+    for (let i = 0; i < mutations.length; i++) {
+      const m = mutations[i];
+      if (m.type === "attributes") {
+        const target = m.target as Element;
+        // sens / langue de la page changés : tout est à revoir
+        if (target === document.documentElement || target === document.body) {
+          fullScan = true;
+          continue;
+        }
+        // nos propres marques n'ont pas besoin d'être retraitées
+        if (target.getAttribute && target.getAttribute("data-bidi") === "1" && m.attributeName === "dir") continue;
+        pending.push(target);
+      } else if (m.type === "characterData") {
+        const el = elementOf(m.target);
+        if (el) pending.push(el);
+      } else {
+        const el = elementOf(m.target);
+        if (el) pending.push(el);
+        m.addedNodes.forEach((n) => {
+          if (n.nodeType === 1) pending.push(n as Element);
+        });
+      }
+    }
+    // très grosse rafale (changement de page complet) : un seul balayage est plus simple
+    if (pending.length > 400) fullScan = true;
+    schedule();
+  });
   obs.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["dir", "lang"] });
   schedule();
 }

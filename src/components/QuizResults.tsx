@@ -8,8 +8,8 @@ import { Trophy, User, Clock, Target, ShieldAlert } from "lucide-react";
 import { useCourses } from "@/contexts/CourseContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
 
 interface QuizSubmission {
   id: string;
@@ -51,6 +51,15 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
 
   const exam = exams.find(e => e.id === examId);
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const { prefs } = usePreferences();
+  const dateLocale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
+  const fmtSubmitted = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return iso;
+    }
+  };
   const isProfessor = user?.role === "professor";
 
   useEffect(() => {
@@ -138,11 +147,13 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
     return Math.round(((score || 0) / total) * 100);
   };
 
+  // Couleurs selon les seuils de l'enseignant (sur 20 → %)
   const getGradeColor = (percentage: number) => {
-    if (percentage >= 90) return "text-green-600";
-    if (percentage >= 80) return "text-blue-600";
-    if (percentage >= 70) return "text-yellow-600";
-    if (percentage >= 60) return "text-orange-600";
+    const n20 = percentage / 5;
+    if (n20 >= (prefs.levelExcellent || 14)) return "text-green-600";
+    if (n20 >= (prefs.levelGood || 12)) return "text-blue-600";
+    if (n20 >= (prefs.passThreshold || 10)) return "text-yellow-600";
+    if (n20 >= (prefs.levelStruggling || 8)) return "text-orange-600";
     return "text-red-600";
   };
 
@@ -264,7 +275,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {language === "ar" ? `تم التسليم: ${format(new Date(submission.submitted_at), "d MMM yyyy")}` : language === "fr" ? `Soumis le ${format(new Date(submission.submitted_at), "d MMM yyyy")}` : `Submitted ${format(new Date(submission.submitted_at), "MMM d, yyyy 'at' h:mm a")}`}
+                            {tr(`Soumis le ${fmtSubmitted(submission.submitted_at)}`, `تم التسليم: ${fmtSubmitted(submission.submitted_at)}`, `Submitted ${fmtSubmitted(submission.submitted_at)}`)}
                           </div>
                         </div>
                       </>
@@ -279,7 +290,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                     )}
                   </div>
                   
-                  <div className="text-right">
+                  <div className="text-end">
                     <div className={`text-2xl font-bold ${getGradeColor(percentage)}`}>
                       {submission.score}/{submission.total_points}
                     </div>
@@ -354,4 +365,4 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
   );
 };
 
-export default QuizResults;
+export default QuizResults;

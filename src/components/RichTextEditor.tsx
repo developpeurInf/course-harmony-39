@@ -34,6 +34,11 @@ import { Sigma } from 'lucide-react';
 import MathFormulaDialog from '@/components/math/MathFormulaDialog';
 import { MathHtml } from '@/components/math/MathContent';
 import { hasMath } from '@/lib/mathRender';
+import { uploadEditorImage } from '@/lib/courseMedia';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
+
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 interface RichTextEditorProps {
   content: string;
@@ -62,6 +67,9 @@ const RichTextEditor = ({
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [imageTab, setImageTab] = useState<"upload" | "url">("upload");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const { user } = useAuth();
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
 
   const editor = useEditor({
     extensions: [
@@ -107,33 +115,45 @@ const RichTextEditor = ({
     return null;
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const readAsDataUrl = (file: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+      reader.readAsDataURL(file);
+    });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || uploadingImage) return;
+    const resetInput = () => { if (fileInputRef.current) fileInputRef.current.value = ""; };
 
     if (!file.type.startsWith('image/')) {
-      toast.error(
-        language === "ar" ? "يرجى اختيار ملف صورة صالح" 
-        : language === "fr" ? "Veuillez sélectionner un fichier image valide" 
-        : "Please select a valid image file"
-      );
+      toast.error(tr("Veuillez sélectionner un fichier image valide", "يرجى اختيار ملف صورة صالح", "Please select a valid image file"));
+      resetInput();
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error(tr("Image trop lourde (8 Mo maximum)", "الصورة كبيرة جداً (8 ميغابايت كحد أقصى)", "Image too large (8 MB max)"));
+      resetInput();
       return;
     }
 
-    // Convert file to base64 data URL
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64Url = reader.result as string;
-      editor.chain().focus().setImage({ src: base64Url }).run();
+    setUploadingImage(true);
+    try {
+      // Compression (1280 px, JPEG 0.8) + envoi dans le stockage ; repli en base64 compressé
+      const { url, compressed } = await uploadEditorImage(file, user?.id);
+      const src = url || (await readAsDataUrl(compressed));
+      editor.chain().focus().setImage({ src }).run();
       setShowImageDialog(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      toast.success(
-        language === "ar" ? "تمت إضافة الصورة بنجاح" 
-        : language === "fr" ? "Image ajoutée à la question" 
-        : "Image added to question"
-      );
-    };
-    reader.readAsDataURL(file);
+      toast.success(tr("Image ajoutée", "تمت إضافة الصورة بنجاح", "Image added"));
+    } catch (err) {
+      console.error('Image insert failed', err);
+      toast.error(tr("Impossible d'ajouter l'image", "تعذرت إضافة الصورة", "Could not add the image"));
+    } finally {
+      setUploadingImage(false);
+      resetInput();
+    }
   };
 
   const addImageUrl = () => {
@@ -141,11 +161,7 @@ const RichTextEditor = ({
       editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
       setImageUrl("");
       setShowImageDialog(false);
-      toast.success(
-        language === "ar" ? "تمت إضافة الصورة بنجاح" 
-        : language === "fr" ? "Image ajoutée à la question" 
-        : "Image added to question"
-      );
+      toast.success(tr("Image ajoutée", "تمت إضافة الصورة بنجاح", "Image added"));
     }
   };
 
@@ -159,7 +175,7 @@ const RichTextEditor = ({
       toast.success(
         language === "ar" ? "تمت إضافة الرابط بنجاح" 
         : language === "fr" ? "Lien inséré avec succès" 
-        : "Link added to question"
+        : "Link inserted"
       );
     }
   };
@@ -174,7 +190,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('bold') ? 'bg-primary/15 text-primary font-bold' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('bold') ? 'bg-primary/15 text-primary font-bold' : 'hover:bg-muted'}`}
           title={language === "ar" ? "عريض (Ctrl+B)" : language === "fr" ? "Gras (Ctrl+B)" : "Bold (Ctrl+B)"}
         >
           <Bold className="h-3.5 w-3.5" />
@@ -185,7 +201,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('italic') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('italic') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "مائل (Ctrl+I)" : language === "fr" ? "Italique (Ctrl+I)" : "Italic (Ctrl+I)"}
         >
           <Italic className="h-3.5 w-3.5" />
@@ -196,7 +212,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('underline') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('underline') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "تسطير (Ctrl+U)" : language === "fr" ? "Souligné (Ctrl+U)" : "Underline (Ctrl+U)"}
         >
           <UnderlineIcon className="h-3.5 w-3.5" />
@@ -207,7 +223,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('strike') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('strike') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "يتوسطه خط" : language === "fr" ? "Barré" : "Strikethrough"}
         >
           <Strikethrough className="h-3.5 w-3.5" />
@@ -221,7 +237,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('heading', { level: 1 }) ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('heading', { level: 1 }) ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "عنوان رئيسي" : language === "fr" ? "Titre 1" : "Heading 1"}
         >
           <Heading1 className="h-3.5 w-3.5" />
@@ -232,7 +248,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('heading', { level: 2 }) ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('heading', { level: 2 }) ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "عنوان فرعي" : language === "fr" ? "Titre 2" : "Heading 2"}
         >
           <Heading2 className="h-3.5 w-3.5" />
@@ -246,7 +262,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('bulletList') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('bulletList') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "قائمة نقطية" : language === "fr" ? "Liste à puces" : "Bullet List"}
         >
           <List className="h-3.5 w-3.5" />
@@ -257,7 +273,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('orderedList') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('orderedList') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "قائمة رقمية" : language === "fr" ? "Liste numérotée" : "Numbered List"}
         >
           <ListOrdered className="h-3.5 w-3.5" />
@@ -271,7 +287,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('blockquote') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('blockquote') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "اقتباس" : language === "fr" ? "Citation" : "Quote"}
         >
           <Quote className="h-3.5 w-3.5" />
@@ -282,7 +298,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleCode().run()}
-          className={`h-7 w-7 p-0 rounded-md ${editor.isActive('code') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('code') ? 'bg-primary/15 text-primary' : 'hover:bg-muted'}`}
           title={language === "ar" ? "كود" : language === "fr" ? "Code" : "Code"}
         >
           <Code className="h-3.5 w-3.5" />
@@ -297,7 +313,7 @@ const RichTextEditor = ({
             variant="ghost"
             size="sm"
             onClick={() => setShowMathDialog(true)}
-            className="h-7 px-2 gap-1 rounded-md text-indigo-600 font-medium hover:bg-indigo-500/10"
+            className="h-9 [@media(pointer:coarse)]:h-10 px-2 gap-1 rounded-md text-indigo-600 font-medium hover:bg-indigo-500/10"
             title={language === "ar" ? "إدراج صيغة رياضية" : language === "fr" ? "Insérer une formule mathématique" : "Insert a math formula"}
           >
             <Sigma className="h-3.5 w-3.5" />
@@ -312,7 +328,7 @@ const RichTextEditor = ({
               type="button"
               variant="ghost" 
               size="sm"
-              className="h-7 px-2 gap-1 rounded-md text-primary font-medium hover:bg-primary/10"
+              className="h-9 [@media(pointer:coarse)]:h-10 px-2 gap-1 rounded-md text-primary font-medium hover:bg-primary/10"
               title={language === "ar" ? "إدراج صورة" : language === "fr" ? "Insérer une image" : "Insert Image"}
             >
               <ImageIcon className="h-3.5 w-3.5" />
@@ -323,7 +339,7 @@ const RichTextEditor = ({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ImageIcon className="h-5 w-5 text-primary" />
-                {language === "ar" ? "إدراج صورة في السؤال" : language === "fr" ? "Insérer une image dans la question" : "Insert Image into Question"}
+                {tr("Insérer une image", "إدراج صورة", "Insert an image")}
               </DialogTitle>
               <DialogDescription>
                 {language === "ar" ? "اختر صورة من جهازك أو أدخل رابط مباشر لصورة." : language === "fr" ? "Importez une image depuis votre appareil ou renseignez une URL." : "Upload an image from your device or provide a direct image URL."}
@@ -344,14 +360,18 @@ const RichTextEditor = ({
 
               <TabsContent value="upload" className="space-y-4">
                 <div 
-                  onClick={() => fileInputRef.current?.click()}
+                  role="button"
+                  tabIndex={0}
+                  aria-disabled={uploadingImage}
+                  onClick={() => { if (!uploadingImage) fileInputRef.current?.click(); }}
+                  onKeyDown={(ev) => { if ((ev.key === "Enter" || ev.key === " ") && !uploadingImage) { ev.preventDefault(); fileInputRef.current?.click(); } }}
                   className="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-primary/60 hover:bg-muted/20 transition-all"
                 >
-                  <Upload className="h-8 w-8 mx-auto text-primary mb-2" />
+                  {uploadingImage ? <Loader2 className="h-8 w-8 mx-auto text-primary mb-2 animate-spin" /> : <Upload className="h-8 w-8 mx-auto text-primary mb-2" />}
                   <p className="text-xs font-semibold text-foreground">
-                    {language === "ar" ? "انقر لاختيار صورة من جهازك" : language === "fr" ? "Cliquez pour choisir une image sur votre ordinateur" : "Click to select an image from your device"}
+                    {uploadingImage ? tr("Envoi de l'image…", "جارٍ رفع الصورة…", "Uploading image…") : tr("Choisir une image", "اختيار صورة", "Choose an image")}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG, JPEG, GIF, WebP</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">PNG, JPG, JPEG, GIF, WebP · {tr("8 Mo max", "8 ميغابايت كحد أقصى", "8 MB max")}</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -395,7 +415,7 @@ const RichTextEditor = ({
               type="button"
               variant="ghost" 
               size="sm"
-              className="h-7 w-7 p-0 rounded-md"
+              className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md"
               title={language === "ar" ? "إدراج رابط" : language === "fr" ? "Insérer un lien" : "Insert Link"}
             >
               <LinkIcon className="h-3.5 w-3.5" />
@@ -453,21 +473,21 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
-          className="h-7 w-7 p-0 rounded-md"
+          className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md"
           title={language === "ar" ? "إزالة التنسيق" : language === "fr" ? "Effacer la mise en forme" : "Clear Formatting"}
         >
           <Eraser className="h-3.5 w-3.5" />
         </Button>
 
         {/* History */}
-        <div className="ml-auto flex items-center gap-0.5">
+        <div className="ml-auto rtl:ml-0 rtl:mr-auto flex items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().chain().focus().undo().run()}
-            className="h-7 w-7 p-0 rounded-md disabled:opacity-40"
+            className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md disabled:opacity-40"
             title={language === "ar" ? "تراجع" : language === "fr" ? "Annuler (Undo)" : "Undo"}
           >
             <Undo className="h-3.5 w-3.5" />
@@ -479,7 +499,7 @@ const RichTextEditor = ({
             size="sm"
             onClick={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().chain().focus().redo().run()}
-            className="h-7 w-7 p-0 rounded-md disabled:opacity-40"
+            className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md disabled:opacity-40"
             title={language === "ar" ? "إعادة" : language === "fr" ? "Rétablir (Redo)" : "Redo"}
           >
             <Redo className="h-3.5 w-3.5" />

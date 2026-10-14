@@ -155,10 +155,24 @@ export const countByKind = (items: CourseMaterialLike[]) => {
 
 const MAX_IMAGE_SIDE = 2000;
 
-export const compressImage = (file: File): Promise<File> =>
+export interface CompressOptions {
+  /** plus grand côté en px (défaut 2000) */
+  maxSide?: number;
+  /** qualité JPEG (défaut 0.85) */
+  quality?: number;
+  /** en dessous de cette taille, le fichier est laissé tel quel (défaut 600 Ko) */
+  minBytes?: number;
+  /** convertit aussi les PNG en JPEG (défaut false) */
+  forceJpeg?: boolean;
+}
+
+export const compressImage = (file: File, opts: CompressOptions = {}): Promise<File> =>
   new Promise(resolve => {
+    const maxSide = opts.maxSide || MAX_IMAGE_SIDE;
+    const quality = opts.quality || 0.85;
+    const minBytes = opts.minBytes === undefined ? 600 * 1024 : opts.minBytes;
     try {
-      if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 600 * 1024) {
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < minBytes) {
         resolve(file);
         return;
       }
@@ -166,7 +180,7 @@ export const compressImage = (file: File): Promise<File> =>
       const img = new Image();
       img.onload = () => {
         try {
-          const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.width, img.height));
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
           const w = Math.round(img.width * scale);
           const h = Math.round(img.height * scale);
           const canvas = document.createElement("canvas");
@@ -174,7 +188,7 @@ export const compressImage = (file: File): Promise<File> =>
           canvas.height = h;
           const ctx = canvas.getContext("2d");
           if (!ctx) { URL.revokeObjectURL(url); resolve(file); return; }
-          const keepPng = file.type === "image/png";
+          const keepPng = file.type === "image/png" && !opts.forceJpeg;
           if (!keepPng) { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); }
           ctx.drawImage(img, 0, 0, w, h);
           canvas.toBlob(
@@ -192,7 +206,7 @@ export const compressImage = (file: File): Promise<File> =>
               }
             },
             keepPng ? "image/png" : "image/jpeg",
-            0.85
+            quality
           );
         } catch {
           URL.revokeObjectURL(url);
@@ -316,4 +330,26 @@ export const deleteCourseMaterial = async (m: CourseMaterialLike): Promise<boole
     await supabase.storage.from(COURSE_BUCKET).remove([m.file_path]).catch(() => undefined);
   }
   return true;
+};
+
+/* ------------------------------------------------------------------ */
+/* Images insérées dans l'éditeur de texte (questions, contenus)      */
+/* ------------------------------------------------------------------ */
+
+/** Compresse (1280 px, JPEG 0.8) puis envoie l'image dans le stockage ; renvoie l'URL publique ou null. */
+export const uploadEditorImage = async (file: File, userId?: string | null): Promise<{ url: string | null; compressed: File }> => {
+  const compressed = await compressImage(file, { maxSide: 1280, quality: 0.8, minBytes: 0, forceJpeg: file.type !== "image/png" });
+  try {
+    const ext = compressed.type === "image/png" ? "png" : compressed.type === "image/gif" ? "gif" : compressed.type === "image/webp" ? "webp" : "jpg";
+    const path = `editor/${userId || "anon"}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage
+      .from(COURSE_BUCKET)
+      .upload(path, compressed, { upsert: false, contentType: compressed.type || undefined, cacheControl: "31536000" });
+    if (error) throw error;
+    const url = supabase.storage.from(COURSE_BUCKET).getPublicUrl(path).data.publicUrl;
+    return { url: url || null, compressed };
+  } catch (e) {
+    console.warn("Editor image upload failed, falling back to inline image", e);
+    return { url: null, compressed };
+  }
 };

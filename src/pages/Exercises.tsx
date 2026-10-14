@@ -1,10 +1,10 @@
 
 import { iosCompatibleDownload } from "@/lib/download";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses, Exercise, Course } from "@/contexts/CourseContext";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,8 +15,10 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2, Grid3x3, List, BookOpen, Clock, Loader2 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, AlertTriangle } from "lucide-react";
+import ViewToggle from "@/components/ViewToggle";
+import { formatDate, toLocalDateInput, localEndOfDayIso } from "@/lib/formatDate";
+import { useNow } from "@/hooks/useNow";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
 import PdfInfo from "@/components/PdfInfo";
 import { toast } from "sonner";
@@ -27,7 +29,14 @@ const Exercises = () => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const { roomId } = useParams();
-  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf, refreshData, getVisibleExercisesForStudent } = useCourses();
+  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf, refreshData, getVisibleExercisesForStudent, loading: dataLoading } = useCourses();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const nowTs = useNow();
+  // Filtre « ?course=<id> » (liens depuis le tableau de bord / les cours)
+  const courseFilter = new URLSearchParams(location.search).get("course");
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -56,33 +65,52 @@ const Exercises = () => {
   }, [user, roomId, refreshData]);
   
   const [exerciseSearch, setExerciseSearch] = useState("");
-  const userExercises = isProfessor 
-    ? exercises 
-    : (user ? getVisibleExercisesForStudent(user.id) : []);
-
-  const allVisibleExercises = isProfessor
-    ? userExercises
-    : userExercises.filter((exercise) => exercise.is_visible);
-  const visibleExercises = allVisibleExercises.filter((exercise) =>
-    matchesText(
-      exerciseSearch,
-      exercise.title,
-      exercise.description,
-      (courses.find((c) => c.id === exercise.course_id) || ({} as any)).title
-    )
+  const userExercises = useMemo(
+    () => (isProfessor ? exercises : user ? getVisibleExercisesForStudent(user.id) : []),
+    [isProfessor, exercises, user, getVisibleExercisesForStudent]
   );
 
-  const formatDueDate = (dateStr: string) => {
-    try {
-      const d = parseISO(dateStr);
-      if (language === "ar") {
-        return d.toLocaleDateString("ar-MA", { year: 'numeric', month: 'long', day: 'numeric' });
-      }
-      return format(d, "PPP");
-    } catch {
-      return dateStr;
-    }
+  const dueTime = (ex: Exercise) => {
+    const t = ex.due_date ? new Date(ex.due_date).getTime() : NaN;
+    return isNaN(t) ? null : t;
   };
+
+  const visibleExercises = useMemo(() => {
+    let list = isProfessor ? userExercises : userExercises.filter((exercise) => exercise.is_visible);
+    if (courseFilter) list = list.filter(ex => ex.course_id === courseFilter);
+    list = list.filter((exercise) =>
+      matchesText(
+        exerciseSearch,
+        exercise.title,
+        exercise.description,
+        (courses.find((c) => c.id === exercise.course_id) || ({} as any)).title
+      )
+    );
+    if (!isProfessor) {
+      // Élève : échéance la plus proche d'abord, sans échéance à la fin
+      list = [...list].sort((a, b) => {
+        const ta = dueTime(a), tb = dueTime(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return ta - tb;
+      });
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userExercises, isProfessor, courseFilter, exerciseSearch, courses]);
+
+  const formatDueDate = (dateStr: string) => formatDate(dateStr, language);
+
+  /** Statut d'un exercice pour l'élève, d'après sa date limite */
+  const dueStatus = (ex: Exercise) => {
+    const t = dueTime(ex);
+    if (t === null) return { label: tr("Sans échéance", "بدون موعد", "No due date"), cls: "bg-muted text-muted-foreground border-transparent" };
+    if (t < nowTs) return { label: tr("En retard", "متأخر", "Overdue"), cls: "bg-rose-500/10 text-rose-700 border-rose-300 dark:text-rose-300 dark:border-rose-800" };
+    if (t - nowTs <= 2 * 86400000) return { label: tr("Bientôt", "قريباً", "Due soon"), cls: "bg-amber-500/10 text-amber-700 border-amber-300 dark:text-amber-300 dark:border-amber-800" };
+    return { label: tr("À rendre", "للتسليم", "To do"), cls: "bg-sky-500/10 text-sky-700 border-sky-300 dark:text-sky-300 dark:border-sky-800" };
+  };
+  const filterCourseName = courseFilter ? (courses.find(c => c.id === courseFilter)?.title || tr("Cours inconnu", "درس غير معروف", "Unknown course")) : null;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
@@ -104,7 +132,7 @@ const Exercises = () => {
     // Default due date: tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const defaultDueDate = tomorrow.toISOString().split("T")[0];
+    const defaultDueDate = toLocalDateInput(tomorrow);
 
     setFormData({
       id: "",
@@ -142,7 +170,8 @@ const Exercises = () => {
         course_id: formData.course_id,
         title: formData.title.trim(),
         description: formData.description,
-        due_date: new Date(formData.due_date).toISOString(),
+        // Fin de journée locale (23:59:59) et non minuit UTC
+        due_date: localEndOfDayIso(formData.due_date) || new Date(formData.due_date).toISOString(),
         is_visible: formData.is_visible,
       });
 
@@ -193,7 +222,8 @@ const Exercises = () => {
         course_id: formData.course_id,
         title: formData.title.trim(),
         description: formData.description,
-        due_date: new Date(formData.due_date).toISOString(),
+        // Fin de journée locale (23:59:59) et non minuit UTC
+        due_date: localEndOfDayIso(formData.due_date) || new Date(formData.due_date).toISOString(),
         is_visible: formData.is_visible,
       });
 
@@ -227,7 +257,7 @@ const Exercises = () => {
       course_id: exercise.course_id,
       title: exercise.title,
       description: exercise.description,
-      due_date: exercise.due_date.split("T")[0], // Format date for input
+      due_date: toLocalDateInput(exercise.due_date), // date locale pour le champ
       is_visible: exercise.is_visible,
     });
     setIsEditDialogOpen(true);
@@ -237,16 +267,23 @@ const Exercises = () => {
     setExerciseToDelete(exercise);
   };
 
-  const confirmDeleteExercise = () => {
-    if (exerciseToDelete) {
-      deleteExercise(exerciseToDelete.id);
-      setExerciseToDelete(null);
+  const confirmDeleteExercise = async () => {
+    if (!exerciseToDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const ok = await deleteExercise(exerciseToDelete.id);
+      if (ok !== false) setExerciseToDelete(null);
+    } catch (err) {
+      console.error("Error deleting exercise:", err);
+      toast.error(tr("Échec de la suppression", "فشل الحذف", "Delete failed"));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const findCourseName = (courseId: string): string => {
     const course = courses.find((c) => c.id === courseId);
-    return course ? course.title : "Unknown Course";
+    return course ? course.title : tr("Cours inconnu", "درس غير معروف", "Unknown course");
   };
 
   const handleViewPdf = (exercise: Exercise) => {
@@ -281,33 +318,17 @@ const Exercises = () => {
             {language === "ar" ? "التمارين" : language === "fr" ? "Exercices" : "Exercises"}
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            {language === "ar" 
-              ? "إدارة وعرض التمارين المرتبطة بالدروس" 
-              : language === "fr" 
-              ? "Gérer et consulter les exercices associés aux cours" 
-              : "Manage and view exercises linked to courses"}
+            {isProfessor
+              ? tr("Gérer et consulter les exercices associés aux cours", "إدارة وعرض التمارين المرتبطة بالدروس", "Manage and view exercises linked to courses")
+              : tr("Tes exercices à faire, du plus urgent au moins urgent", "تمارينك المطلوبة، من الأكثر استعجالاً", "Your exercises to do, most urgent first")}
           </p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('grid')}
-              className="h-8 w-8 p-0"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className="h-8 w-8 p-0"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
+          <ViewToggle
+            view={viewMode === "grid" ? "grid" : "table"}
+            onViewChange={(v) => setViewMode(v === "grid" ? "grid" : "list")}
+          />
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -434,8 +455,36 @@ const Exercises = () => {
         className="sm:max-w-xl"
       />
 
+      {filterCourseName && (
+        <div className="flex">
+          <span className="inline-flex items-center gap-1 rounded-full border bg-primary/5 py-1 pl-3 pr-1 rtl:pl-1 rtl:pr-3 text-sm">
+            <BookOpen className="h-3.5 w-3.5 text-primary" />
+            {tr("Filtré :", "مصفّى:", "Filtered:")} <span className="font-semibold">{filterCourseName}</span>
+            <button
+              type="button"
+              onClick={() => navigate(location.pathname)}
+              className="ml-1 rtl:ml-0 rtl:mr-1 inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted"
+              aria-label={tr("Retirer le filtre", "إزالة التصفية", "Remove filter")}
+              title={tr("Retirer le filtre", "إزالة التصفية", "Remove filter")}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Exercises Display */}
-      {visibleExercises.length > 0 ? (
+      {dataLoading && userExercises.length === 0 ? (
+        <div className="space-y-4" aria-busy="true" aria-label={tr("Chargement…", "جارٍ التحميل…", "Loading…")}>
+          {[0, 1, 2].map(i => (
+            <div key={i} className="rounded-lg border p-6 space-y-3">
+              <div className="h-5 w-1/2 rounded bg-muted motion-safe:animate-pulse" />
+              <div className="h-3 w-1/4 rounded bg-muted motion-safe:animate-pulse" />
+              <div className="h-3 w-full rounded bg-muted motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : visibleExercises.length > 0 ? (
         viewMode === "grid" ? (
           // Grid View
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -454,14 +503,20 @@ const Exercises = () => {
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs">
-                          <BookOpen className="h-3 w-3 mr-1" />
+                          <BookOpen className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
                           {findCourseName(exercise.course_id)}
                         </Badge>
-                        <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
-                          {exercise.is_visible 
-                            ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") 
-                            : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
-                        </Badge>
+                        {isProfessor ? (
+                          <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
+                            {exercise.is_visible 
+                              ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") 
+                              : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className={`text-xs ${dueStatus(exercise).cls}`}>
+                            {dueStatus(exercise).label}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -483,6 +538,7 @@ const Exercises = () => {
                   {exercise.pdf_url && (
                     <PdfInfo
                       fileName={`${exercise.title}.pdf`}
+                      href={exercise.pdf_url}
                       onView={() => handleViewPdf(exercise)}
                       onDownload={() => handleDownloadPdf(exercise)}
                     />
@@ -513,6 +569,9 @@ const Exercises = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => openEditDialog(exercise)}
+                      className="h-9 w-9 p-0"
+                      aria-label={tr("Modifier", "تعديل", "Edit")}
+                      title={tr("Modifier", "تعديل", "Edit")}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -520,7 +579,9 @@ const Exercises = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeleteExercise(exercise)}
-                      className="text-destructive hover:text-destructive"
+                      className="h-9 w-9 p-0 text-destructive hover:text-destructive"
+                      aria-label={tr("Supprimer", "حذف", "Delete")}
+                      title={tr("Supprimer", "حذف", "Delete")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -548,14 +609,20 @@ const Exercises = () => {
                             </h3>
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <Badge variant="outline" className="text-xs">
-                                <BookOpen className="h-3 w-3 mr-1" />
+                                <BookOpen className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
                                 {findCourseName(exercise.course_id)}
                               </Badge>
-                              <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
-                                {exercise.is_visible 
-                                  ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") 
-                                  : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
-                              </Badge>
+                              {isProfessor ? (
+                                <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
+                                  {exercise.is_visible 
+                                    ? (language === "ar" ? "مرئي" : language === "fr" ? "Visible" : "Visible") 
+                                    : (language === "ar" ? "مخفي" : language === "fr" ? "Masqué" : "Hidden")}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className={`text-xs ${dueStatus(exercise).cls}`}>
+                                  {dueStatus(exercise).label}
+                                </Badge>
+                              )}
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
                                 <span>{language === "ar" ? "تاريخ التسليم: " : language === "fr" ? "Date limite : " : "Due: "}{formatDueDate(exercise.due_date)}</span>
@@ -575,6 +642,7 @@ const Exercises = () => {
                           <div className="mt-4">
                             <PdfInfo
                               fileName={`${exercise.title}.pdf`}
+                      href={exercise.pdf_url}
                               onView={() => handleViewPdf(exercise)}
                               onDownload={() => handleDownloadPdf(exercise)}
                             />
@@ -590,7 +658,8 @@ const Exercises = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => toggleExerciseVisibility(exercise.id)}
-                        className="flex-1 md:flex-none"
+                        className="h-9 flex-1 md:flex-none"
+                        aria-label={exercise.is_visible ? tr("Masquer", "إخفاء", "Hide") : tr("Afficher", "إظهار", "Show")}
                       >
                         {exercise.is_visible ? (
                           <>
@@ -608,7 +677,9 @@ const Exercises = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => openEditDialog(exercise)}
-                        className="flex-1 md:flex-none"
+                        className="h-9 flex-1 md:flex-none"
+                        aria-label={tr("Modifier", "تعديل", "Edit")}
+                        title={tr("Modifier", "تعديل", "Edit")}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -616,7 +687,9 @@ const Exercises = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDeleteExercise(exercise)}
-                        className="flex-1 md:flex-none text-destructive hover:text-destructive"
+                        className="h-9 flex-1 md:flex-none text-destructive hover:text-destructive"
+                        aria-label={tr("Supprimer", "حذف", "Delete")}
+                        title={tr("Supprimer", "حذف", "Delete")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -763,7 +836,7 @@ const Exercises = () => {
       </Dialog>
 
       {/* Delete Exercise Confirmation Dialog */}
-      <Dialog open={!!exerciseToDelete} onOpenChange={(open) => { if (!open) setExerciseToDelete(null); }}>
+      <Dialog open={!!exerciseToDelete} onOpenChange={(open) => { if (!open && !isDeleting) setExerciseToDelete(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -778,10 +851,11 @@ const Exercises = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExerciseToDelete(null)}>
+            <Button variant="outline" onClick={() => setExerciseToDelete(null)} disabled={isDeleting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteExercise}>
+            <Button variant="destructive" onClick={confirmDeleteExercise} disabled={isDeleting} className="gap-2">
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
               {language === "ar" ? "حذف التمرين" : language === "fr" ? "Supprimer l'exercice" : "Delete Exercise"}
             </Button>
           </DialogFooter>
