@@ -237,12 +237,41 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
         const { data: profs } = await supabase.from("profiles").select("id").eq("room_id", room.id).eq("role", "student");
         const ids = (profs || []).map(p => p.id);
         let failed = 0;
-        for (let i = 0; i < ids.length; i++) {
-          setStep(tr(`حذف التلاميذ ${i + 1}/${ids.length}…`, `Suppression des élèves ${i + 1}/${ids.length}…`, `Deleting students ${i + 1}/${ids.length}…`));
+        let done = 0;
+        const showProgress = () => setStep(tr(`حذف التلاميذ ${done}/${ids.length}…`, `Suppression des élèves ${done}/${ids.length}…`, `Deleting students ${done}/${ids.length}…`));
+        // Ancienne version de la fonction (un élève par appel) : repli élève par élève
+        const deleteOneByOne = async (part: string[]) => {
+          for (const id of part) {
+            try {
+              const { data, error } = await supabase.functions.invoke("delete-student", { body: { studentId: id, roomId: room.id } });
+              if (error || !data?.success) failed++;
+            } catch { failed++; }
+            done++;
+            showProgress();
+          }
+        };
+        let batchSupported = true;
+        // Requêtes groupées (50 élèves par appel, supprimés 5 par 5 côté serveur)
+        for (const part of chunk(ids, 50)) {
+          showProgress();
+          if (!batchSupported) { await deleteOneByOne(part); continue; }
           try {
-            const { data, error } = await supabase.functions.invoke("delete-student", { body: { studentId: ids[i], roomId: room.id } });
-            if (error || !data?.success) failed++;
-          } catch { failed++; }
+            const { data, error } = await supabase.functions.invoke("delete-student", { body: { studentIds: part, roomId: room.id } });
+            if (!error && data && Array.isArray(data.deleted)) {
+              failed += Array.isArray(data.failed) ? data.failed.length : 0;
+              done += part.length;
+            } else if (!error && data && data.success === false) {
+              // refus (non connecté / pas d'habilitation) : inutile de réessayer élève par élève
+              failed += part.length;
+              done += part.length;
+            } else {
+              batchSupported = false;
+              await deleteOneByOne(part);
+            }
+          } catch {
+            batchSupported = false;
+            await deleteOneByOne(part);
+          }
         }
         await supabase.from("enrollments").delete().eq("room_id", room.id);
         if (failed > 0) errors.push(tr(`${failed} تلميذ`, `${failed} élève(s)`, `${failed} student(s)`));
@@ -349,7 +378,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
           </p>
         )}
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => (confirming ? setConfirming(false) : onOpenChange(false))} disabled={running}>
             {confirming ? tr("رجوع", "Retour", "Back") : tr("إلغاء", "Annuler", "Cancel")}
           </Button>

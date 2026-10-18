@@ -221,6 +221,28 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
   const loadQuestions = async () => {
     setLoading(true);
     try {
+      // P11 : questions + options en une seule requête (clés étrangères en double supprimées
+      // par la migration 20261018100000) ; repli en deux requêtes si la relation est ambiguë.
+      const nestedRes: any = await supabase
+        .from('quiz_questions')
+        .select('*, quiz_options(*)')
+        .eq('exam_id', examId)
+        .order('question_order', { ascending: true });
+
+      if (!nestedRes.error) {
+        const rows = (nestedRes.data || []) as any[];
+        const nestedOptions: QuizOption[] = [];
+        const qListNested = rows.map(r => {
+          const { quiz_options: opts, ...q } = r || {};
+          if (Array.isArray(opts)) opts.forEach((o: QuizOption) => nestedOptions.push(o));
+          return q as QuizQuestion;
+        });
+        nestedOptions.sort((x, y) => (x.option_order ?? 0) - (y.option_order ?? 0));
+        setQuestions(qListNested);
+        setOptions(nestedOptions);
+        return;
+      }
+
       const { data: qData, error: qErr } = await supabase
         .from('quiz_questions')
         .select('*')
@@ -1116,7 +1138,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                 : "Are you sure you want to delete this question and all its options? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setQuestionToDelete(null)} disabled={deletingQuestion}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>

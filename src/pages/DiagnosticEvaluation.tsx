@@ -3101,7 +3101,7 @@ export const DiagnosticEvaluation: React.FC = () => {
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+          <DialogFooter className="gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={() => setIsQuickEditConfigOpen(false)}>
               {tx("Annuler", "إلغاء", "Cancel")}
             </Button>
@@ -3145,7 +3145,7 @@ export const DiagnosticEvaluation: React.FC = () => {
               )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setPendingLeave(null)}>
               {tx("Rester", "البقاء", "Stay")}
             </Button>

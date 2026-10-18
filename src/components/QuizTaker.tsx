@@ -79,6 +79,35 @@ interface QuizItem {
   multi: boolean;
 }
 
+/** Option telle que reçue par un élève (quiz_options_for_student) : jamais de is_correct */
+interface StudentOptionRow {
+  id: string;
+  question_id: string;
+  option_text: string;
+  option_order: number | null;
+  is_multi: boolean | null;
+}
+
+/** Retour de la fonction serveur submit_quiz_attempt */
+interface SubmitResult {
+  submission_id: string;
+  score: number;
+  total_points: number;
+  submitted_at?: string;
+  results: { question_id: string; is_correct: boolean; points_earned: number; gradable: boolean }[];
+  correct_option_ids: string[];
+}
+
+/** Erreurs définitives renvoyées par le serveur (un nouvel essai ne changerait rien) */
+const serverErrorCode = (err: any): string | null => {
+  const text = `${err?.message || ""} ${err?.details || ""} ${err?.hint || ""}`;
+  const m = text.match(/\b(ALREADY_SUBMITTED|QUIZ_CLOSED|QUIZ_NOT_OPEN|ACCESS_DENIED|NOT_A_QUIZ|NO_QUESTIONS|INVALID_ANSWERS|NOT_AUTHENTICATED|REVIEW_NOT_ALLOWED|NOT_FOUND)\b/);
+  return m ? m[1] : null;
+};
+
+/** Paste détecté via « insertText » (presse-papiers du clavier Android) au-delà de ce nombre de caractères */
+const LONG_INSERT_CHARS = 40;
+
 interface StudentAnswer {
   selected: string[];
   text: string;
@@ -161,25 +190,30 @@ function isAnswered(item: QuizItem, ans?: StudentAnswer): boolean {
   return ans.selected.length > 0;
 }
 
-function gradeQuestion(item: QuizItem, ans?: StudentAnswer): QuestionResult {
-  const points = item.question.points || 1;
+/**
+ * La correction est faite par le serveur (submit_quiz_attempt) : l'élève ne reçoit jamais
+ * is_correct avant l'envoi. On ne fait ici que mettre en forme le résultat renvoyé.
+ */
+function buildResult(
+  item: QuizItem,
+  ans: StudentAnswer | undefined,
+  server: { is_correct?: boolean | null; points_earned?: number | string | null; gradable?: boolean | null } | undefined,
+  gradableFallback: boolean
+): QuestionResult {
   const answered = isAnswered(item, ans);
-
-  if (item.question.question_type === "short_answer") {
-    return { item, answer: ans, isCorrect: false, earned: 0, gradable: false, answered };
-  }
-
-  const correctIds = item.options.filter(o => o.is_correct).map(o => o.id);
-  if (correctIds.length === 0) {
-    // Question mal configurée (aucune bonne réponse) : non notée automatiquement
-    return { item, answer: ans, isCorrect: false, earned: 0, gradable: false, answered };
-  }
-
-  const selected = ans?.selected || [];
-  const isCorrect =
-    selected.length === correctIds.length && correctIds.every(id => selected.includes(id));
-
-  return { item, answer: ans, isCorrect, earned: isCorrect ? points : 0, gradable: true, answered };
+  const gradable = item.question.question_type === "short_answer"
+    ? false
+    : server && typeof server.gradable === "boolean"
+    ? server.gradable
+    : gradableFallback;
+  return {
+    item,
+    answer: ans,
+    isCorrect: gradable && !!server?.is_correct,
+    earned: Number(server?.points_earned) || 0,
+    gradable,
+    answered
+  };
 }
 
 /* ─────────────────────────────── Composant ─────────────────────────────── */
@@ -187,7 +221,9 @@ function gradeQuestion(item: QuizItem, ans?: StudentAnswer): QuestionResult {
 const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
-  const { submitQuiz } = useCourses();
+  const { refreshData } = useCourses();
+  // Un professeur qui ouvre le quiz le voit en aperçu (lecture directe des options, pas d'envoi)
+  const isPreview = user?.role === "professor";
   const isRtl = language === "ar";
   const tr = useCallback(
     (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en),
@@ -233,6 +269,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   const [srMessage, setSrMessage] = useState("");
   // Corrigé de la dernière copie (élève revenant sur un quiz déjà passé)
   const [pastReview, setPastReview] = useState<QuestionResult[] | null>(null);
+  // Bonnes réponses (renvoyées par le serveur seulement si le corrigé est autorisé)
+  const [resultCorrect, setResultCorrect] = useState<Set<string>>(() => new Set());
+  const [pastCorrect, setPastCorrect] = useState<Set<string>>(() => new Set());
   const [pastReviewLoading, setPastReviewLoading] = useState(false);
   const [showPastReview, setShowPastReview] = useState(false);
 
@@ -253,8 +292,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   deadlineRef.current = deadline;
   const questionDeadlineRef = useRef(questionDeadline);
   questionDeadlineRef.current = questionDeadline;
-  // Incidents anti-triche d'avant un rechargement (restaurés depuis la sauvegarde)
-  const restoredEventsRef = useRef<CheatEvent[]>([]);
+  // Saisie en cours de composition (IME, dictée) : une longue insertion est alors autorisée
+  const composingRef = useRef(false);
+  const compositionEndAtRef = useRef(0);
   const lastSubmitArgsRef = useRef<{ auto: boolean; reason: "time" | "cheat" }>({ auto: false, reason: "time" });
 
   const storageKey = user?.id ? `quiz-progress-${exam.id}-${user.id}` : null;
@@ -318,10 +358,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   antiCheatRef.current = antiCheat;
   const totalPoints = useMemo(() => baseItems.reduce((s, it) => s + (it.question.points || 1), 0), [baseItems]);
 
-  const allEvents = useCallback(
-    () => restoredEventsRef.current.concat(antiCheatRef.current.getEvents()),
-    []
-  );
+  // Le hook contient aussi les incidents d'avant un rechargement (restaurés, S39)
+  const allEvents = useCallback((): CheatEvent[] => antiCheatRef.current.getEvents(), []);
 
   /* ───────────── Sauvegarde locale de la tentative ───────────── */
 
@@ -357,7 +395,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   useEffect(() => {
     if (phase !== "running") return;
     persistAttempt();
-  }, [phase, answers, locked, index, items, deadline, questionDeadline, antiCheat.focusLosses, antiCheat.isAway, persistAttempt]);
+  }, [phase, answers, locked, index, items, deadline, questionDeadline, antiCheat.focusLosses, antiCheat.isAway, antiCheat.eventsVersion, persistAttempt]);
 
   // Sauvegarde aussi quand la page passe en arrière-plan / se ferme
   useEffect(() => {
@@ -400,8 +438,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
       return { ...it, options: opts };
     });
 
-    antiCheatRef.current.reset();
-    restoredEventsRef.current = Array.isArray(saved.events) ? saved.events : [];
+    // S39 : le compteur de sorties et le journal reprennent là où ils en étaient
+    antiCheatRef.current.restore(saved.focusLosses || 0, Array.isArray(saved.events) ? saved.events : []);
     submittingRef.current = false;
     itemsRef.current = withOptions;
     answersRef.current = saved.answers || {};
@@ -439,10 +477,25 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
       setPhase("loading");
       setLoadError(null);
       try {
-        // Requêtes indépendantes en parallèle : paramètres à jour, tentatives, questions
-        const [examRes, subRes, qRes] = await Promise.all([
+        // Requêtes indépendantes en parallèle (P11) : paramètres à jour, tentatives,
+        // questions et options.
+        //  - élève : options via la fonction serveur quiz_options_for_student (sans is_correct) ;
+        //  - professeur (aperçu) : sélection imbriquée questions + options (les clés
+        //    étrangères en double ont été supprimées), repli en 2 requêtes sinon.
+        const questionsQuery = isPreview
+          ? supabase
+              .from("quiz_questions")
+              .select("*, quiz_options(*)")
+              .eq("exam_id", exam.id)
+              .order("question_order", { ascending: true })
+          : supabase
+              .from("quiz_questions")
+              .select("*")
+              .eq("exam_id", exam.id)
+              .order("question_order", { ascending: true });
+        const [examRes, subRes, qResFirst, optRes] = await Promise.all([
           supabase.from("exams").select("*").eq("id", exam.id).maybeSingle(),
-          user?.id
+          user?.id && !isPreview
             ? supabase
                 .from("quiz_submissions")
                 .select("*")
@@ -450,15 +503,24 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                 .eq("student_id", user.id)
                 .order("submitted_at", { ascending: false })
             : Promise.resolve({ data: [] as any[], error: null } as any),
-          supabase
-            .from("quiz_questions")
-            .select("*")
-            .eq("exam_id", exam.id)
-            .order("question_order", { ascending: true })
+          questionsQuery,
+          isPreview
+            ? Promise.resolve({ data: null, error: null } as any)
+            : (supabase as any).rpc("quiz_options_for_student", { p_exam_id: exam.id })
         ]);
         if (examRes.error) throw examRes.error;
         if (subRes.error) throw subRes.error;
+        let qRes: any = qResFirst;
+        if (qRes.error && isPreview) {
+          // Migration pas encore appliquée (relation ambiguë) : questions seules
+          qRes = await supabase
+            .from("quiz_questions")
+            .select("*")
+            .eq("exam_id", exam.id)
+            .order("question_order", { ascending: true });
+        }
         if (qRes.error) throw qRes.error;
+        if (optRes && optRes.error) throw optRes.error;
 
         // 1) Paramètres (l'enseignant a pu les modifier)
         let parsed = parseExamAvailability(exam) as any;
@@ -471,17 +533,47 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
         const latest: any = subData.length > 0 ? subData[0] : null;
 
         // 3) Questions + options
-        // (pas de sélection imbriquée : deux clés étrangères quiz_options → quiz_questions la rendent ambiguë)
-        const qList = (qRes.data || []) as QuizQuestion[];
+        const qRows = (qRes.data || []) as any[];
+        const qList = qRows.map(r => {
+          const { quiz_options: _nested, ...q } = r || {};
+          return q as QuizQuestion;
+        });
         let oList: QuizOption[] = [];
-        if (qList.length > 0) {
-          const { data: oData, error: oErr } = await supabase
-            .from("quiz_options")
-            .select("*")
-            .in("question_id", qList.map(q => q.id))
-            .order("option_order", { ascending: true });
-          if (oErr) throw oErr;
-          oList = (oData || []) as QuizOption[];
+        // QCM à plusieurs bonnes réponses (fourni par le serveur pour un élève)
+        const multiByQuestion = new Map<string, boolean>();
+        if (isPreview) {
+          const nested = qRows.some(r => Array.isArray(r?.quiz_options));
+          if (nested) {
+            qRows.forEach(r => {
+              (Array.isArray(r?.quiz_options) ? r.quiz_options : []).forEach((o: QuizOption) => oList.push(o));
+            });
+          } else if (qList.length > 0) {
+            const { data: oData, error: oErr } = await supabase
+              .from("quiz_options")
+              .select("*")
+              .in("question_id", qList.map(q => q.id));
+            if (oErr) throw oErr;
+            oList = (oData || []) as QuizOption[];
+          }
+          oList = [...oList].sort((a, b) => (a.option_order ?? 0) - (b.option_order ?? 0));
+          qList.forEach(q => {
+            const n = oList.filter(o => o.question_id === q.id && o.is_correct).length;
+            multiByQuestion.set(q.id, n > 1);
+          });
+        } else {
+          const rows = (optRes?.data || []) as StudentOptionRow[];
+          oList = rows.map(r => ({
+            id: r.id,
+            question_id: r.question_id,
+            option_text: r.option_text,
+            option_order: r.option_order ?? 0,
+            // inconnu côté élève : la correction est faite par le serveur
+            is_correct: false,
+            created_at: ""
+          }));
+          rows.forEach(r => {
+            if (r.is_multi) multiByQuestion.set(r.question_id, true);
+          });
         }
         if (cancelled) return;
 
@@ -499,13 +591,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             // Toujours « Vrai » puis « Faux »
             opts = [...opts].sort((a, b) => (isTrueText(a.option_text) ? -1 : isTrueText(b.option_text) ? 1 : 0));
           }
-          const correctCount = opts.filter(o => o.is_correct).length;
           return {
             question: q,
             html: cleanText,
             timeLimitSeconds,
             options: opts,
-            multi: q.question_type === "multiple_choice" && correctCount > 1
+            multi: q.question_type === "multiple_choice" && !!multiByQuestion.get(q.id)
           };
         });
 
@@ -531,9 +622,14 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
       } catch (err) {
         console.error("Error loading quiz data:", err);
         if (!cancelled) {
+          const code = serverErrorCode(err);
           setLoadError(
             typeof navigator !== "undefined" && navigator.onLine === false
               ? tr("Pas de connexion Internet.", "لا يوجد اتصال بالإنترنت.", "No Internet connection.")
+              : code === "QUIZ_NOT_OPEN"
+              ? tr("Ce quiz n'est pas encore ouvert.", "هذا الاختبار غير متاح بعد.", "This quiz is not open yet.")
+              : code === "ACCESS_DENIED"
+              ? tr("Ce quiz n'est pas accessible.", "هذا الاختبار غير متاح لك.", "This quiz is not available to you.")
               : tr("Impossible de charger le quiz.", "تعذر تحميل الاختبار.", "Unable to load the quiz.")
           );
           setPhase("error");
@@ -570,7 +666,6 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
     setSubmitFailed(false);
     setRetryCount(0);
     antiCheatRef.current.reset();
-    restoredEventsRef.current = [];
     submittingRef.current = false;
 
     const start = Date.now();
@@ -676,16 +771,32 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   };
 
   /**
-   * @param inputType type d'insertion natif (InputEvent.inputType) : seul un collage /
-   * glisser-déposer est refusé — la dictée vocale (« insertText » / « insertReplacementText »)
-   * insère aussi de longs blocs et ne doit pas être signalée.
+   * @param inputType type d'insertion natif (InputEvent.inputType) ; undefined = insertion
+   * faite par l'application (barre de symboles). Sont refusés :
+   *  - un collage / glisser-déposer (« insertFromPaste », « insertFromDrop »…) ;
+   *  - S45 : une insertion « insertText » (ou sans inputType, vieux navigateurs) de plus de
+   *    40 caractères d'un coup HORS composition : c'est ainsi qu'arrive le presse-papiers
+   *    du clavier Android (Gboard…). La dictée vocale / l'IME passent par une composition
+   *    (compositionstart → compositionend) et restent autorisés, comme « insertReplacementText ».
+   * @param isComposing InputEvent.isComposing de l'événement natif
    */
-  const setTextAnswer = (item: QuizItem, text: string, inputType?: string) => {
+  const setTextAnswer = (item: QuizItem, text: string, inputType?: string, isComposing?: boolean) => {
     const qid = item.question.id;
     if (locked[qid] || timeUp || submitFailed) return;
     if (antiCheatOn && inputType && /^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(inputType)) {
       antiCheatRef.current.recordSuspiciousInput(inputType);
       return;
+    }
+    if (antiCheatOn && inputType !== undefined && (inputType === "insertText" || inputType === "")) {
+      const previous = answersRef.current[qid]?.text || "";
+      const inserted = text.length - previous.length;
+      // Safari émet parfois l'événement final juste après compositionend
+      const inComposition =
+        !!isComposing || composingRef.current || Date.now() - compositionEndAtRef.current < 150;
+      if (inserted > LONG_INSERT_CHARS && !inComposition) {
+        antiCheatRef.current.recordSuspiciousInput(`${inputType || "input"} +${inserted}`);
+        return;
+      }
     }
     setAnswers(prev => ({ ...prev, [qid]: { selected: [], text } }));
   };
@@ -699,6 +810,17 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
         toast.error(tr("Vous devez être connecté.", "يجب تسجيل الدخول.", "You must be logged in."));
         return;
       }
+      if (isPreview) {
+        toast.info(
+          tr(
+            "Aperçu professeur : les réponses ne sont pas enregistrées.",
+            "معاينة الأستاذ: لا يتم حفظ الإجابات.",
+            "Teacher preview: answers are not saved."
+          )
+        );
+        setConfirmOpen(false);
+        return;
+      }
       submittingRef.current = true;
       lastSubmitArgsRef.current = { auto, reason };
       setIsSubmitting(true);
@@ -706,31 +828,16 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
       const list = itemsRef.current;
       const ans = answersRef.current;
-      const graded = list.map(it => gradeQuestion(it, ans[it.question.id]));
-      const earned = graded.reduce((s, r) => s + r.earned, 0);
-      const total = list.reduce((s, it) => s + (it.question.points || 1), 0);
       const end = deadlineRef.current ? Math.min(Date.now(), deadlineRef.current) : Date.now();
       const minutes = Math.max(1, Math.round((end - startTimeRef.current) / 60000));
 
-      const answerRecords = graded.map(r => {
-        const a = r.answer;
-        const firstSel = a?.selected?.[0];
-        let text: string | null = null;
-        if (r.item.question.question_type === "short_answer") {
-          text = a?.text?.trim() || null;
-        } else if (r.item.multi && a && a.selected.length > 0) {
-          // Sélection multiple : on garde la trace complète pour l'enseignant
-          text = r.item.options
-            .filter(o => a.selected.includes(o.id))
-            .map(o => o.option_text)
-            .join(" ; ");
-        }
+      // Réponses brutes : la note est calculée par le serveur
+      const payload = list.map(it => {
+        const a = ans[it.question.id];
         return {
-          question_id: r.item.question.id,
-          selected_option_id: firstSel && UUID_RE.test(firstSel) ? firstSel : null,
-          text_answer: text,
-          is_correct: r.isCorrect,
-          points_earned: r.earned
+          question_id: it.question.id,
+          selected_option_ids: (a?.selected || []).filter(id => UUID_RE.test(id)),
+          text_answer: it.question.question_type === "short_answer" ? (a?.text || "") : ""
         };
       });
 
@@ -747,41 +854,91 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
         );
       };
 
-      try {
-        const success = await submitQuiz(
-          {
-            student_id: user.id,
-            exam_id: exam.id,
-            score: earned,
-            total_points: total,
-            time_taken_minutes: minutes,
-            is_completed: true,
-            ...(() => {
-              const events = allEvents();
-              return events.length > 0 ? { anti_cheat_events: events.length, anti_cheat_log: events } : {};
-            })()
-          } as any,
-          answerRecords as any
-        );
-
-        if (success) {
-          clearSaved(storageKey);
-          restoredEventsRef.current = [];
-          setSubmitFailed(false);
-          setRetryCount(0);
-          setResults(graded);
-          setFinalScore({ score: earned, total, minutes });
-          setPreviousSubmission({ score: earned, total_points: total, submitted_at: new Date().toISOString() });
-          setAttemptsCount(c => c + 1);
-          setAutoSubmitted(auto);
-          setAutoReason(auto ? reason : null);
-          setDeadline(null);
-          setQuestionDeadline(null);
-          setPhase("result");
-          toast.success(tr("Quiz envoyé avec succès", "تم إرسال الاختبار بنجاح", "Quiz submitted successfully"));
+      /** Refus définitif du serveur : inutile de réessayer, on recharge l'état du quiz */
+      const handleRefused = (code: string) => {
+        submittingRef.current = false;
+        clearSaved(storageKey);
+        setSubmitFailed(false);
+        setRetryCount(0);
+        setDeadline(null);
+        setQuestionDeadline(null);
+        if (code === "ALREADY_SUBMITTED") {
+          toast.info(
+            tr(
+              "Ce quiz a déjà été envoyé : une seule tentative est autorisée.",
+              "تم إرسال هذا الاختبار مسبقاً: يُسمح بمحاولة واحدة فقط.",
+              "This quiz was already submitted: only one attempt is allowed."
+            )
+          );
+        } else if (code === "QUIZ_CLOSED") {
+          toast.error(
+            tr(
+              "Le quiz est fermé : la copie n'a pas pu être enregistrée.",
+              "الاختبار مغلق: تعذر حفظ ورقتك.",
+              "The quiz is closed: your answers could not be saved."
+            )
+          );
         } else {
-          markFailed();
+          toast.error(
+            tr(
+              "Envoi refusé : ce quiz n'est pas accessible.",
+              "تم رفض الإرسال: هذا الاختبار غير متاح.",
+              "Submission refused: this quiz is not available."
+            )
+          );
         }
+        setReloadKey(k => k + 1);
+      };
+
+      try {
+        const events = allEvents().slice(-300);
+        const { data, error } = await (supabase as any).rpc("submit_quiz_attempt", {
+          p_exam_id: exam.id,
+          p_answers: payload,
+          p_time_taken_minutes: minutes,
+          p_anti_cheat_events: events.length,
+          p_anti_cheat_log: events.length > 0 ? events : null
+        });
+
+        if (error || !data) {
+          const code = serverErrorCode(error);
+          console.error("submit_quiz_attempt error:", error);
+          if (code && code !== "NOT_AUTHENTICATED") handleRefused(code);
+          else markFailed();
+          return;
+        }
+
+        const res = data as SubmitResult;
+        const byQ = new Map((Array.isArray(res.results) ? res.results : []).map(r => [r.question_id, r] as [string, SubmitResult["results"][number]]));
+        const graded = list.map(it => buildResult(it, ans[it.question.id], byQ.get(it.question.id), it.options.length > 0));
+        const score = Number(res.score) || 0;
+        const total = Number(res.total_points) || list.reduce((s2, it) => s2 + (it.question.points || 1), 0);
+
+        clearSaved(storageKey);
+        setSubmitFailed(false);
+        setRetryCount(0);
+        setResults(graded);
+        setResultCorrect(new Set(Array.isArray(res.correct_option_ids) ? res.correct_option_ids : []));
+        setFinalScore({ score, total, minutes });
+        setPreviousSubmission({
+          id: res.submission_id,
+          score,
+          total_points: total,
+          submitted_at: res.submitted_at || new Date().toISOString()
+        });
+        setPastReview(null);
+        setShowPastReview(false);
+        setAttemptsCount(c => c + 1);
+        setAutoSubmitted(auto);
+        setAutoReason(auto ? reason : null);
+        setDeadline(null);
+        setQuestionDeadline(null);
+        setPhase("result");
+        toast.success(tr("Quiz envoyé avec succès", "تم إرسال الاختبار بنجاح", "Quiz submitted successfully"));
+        // « Ma note » et les listes de quiz se mettent à jour
+        try {
+          void refreshData(undefined, { force: true }).catch(() => undefined);
+        } catch { /* ignore */ }
       } catch (err) {
         console.error("Error submitting quiz:", err);
         markFailed();
@@ -789,7 +946,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
         setIsSubmitting(false);
       }
     },
-    [user, exam.id, submitQuiz, tr, storageKey, persistAttempt, allEvents]
+    [user, exam.id, tr, storageKey, persistAttempt, allEvents, refreshData, isPreview]
   );
   submitRef.current = (auto = false, reason: "time" | "cheat" = "time") => {
     void handleSubmit(auto, reason);
@@ -922,9 +1079,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
     if (!sub?.id) return;
     setPastReviewLoading(true);
     try {
-      const { data, error } = await supabase.from("quiz_answers").select("*").eq("submission_id", sub.id);
+      // Corrigé fourni par le serveur (seulement pour sa propre copie et si l'enseignant l'autorise)
+      const { data, error } = await (supabase as any).rpc("quiz_review_for_student", { p_submission_id: sub.id });
       if (error) throw error;
-      const rows = (data || []) as any[];
+      const review = (data || {}) as { answers?: any[]; correct_option_ids?: string[] };
+      const rows = Array.isArray(review.answers) ? review.answers : [];
+      const correct = new Set<string>(Array.isArray(review.correct_option_ids) ? review.correct_option_ids : []);
       const byQ = new Map(rows.map(r => [r.question_id, r] as [string, any]));
       const graded = baseItems.map(it => {
         const row = byQ.get(it.question.id);
@@ -939,12 +1099,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             ans = { selected: row.selected_option_id ? [row.selected_option_id] : [], text: "" };
           }
         }
-        const r = gradeQuestion(it, ans);
-        if (row && r.gradable) {
-          return { ...r, isCorrect: !!row.is_correct, earned: Number(row.points_earned) || 0 };
-        }
-        return r;
+        const hasCorrect = it.options.some(o => correct.has(o.id));
+        return buildResult(it, ans, row ? { is_correct: row.is_correct, points_earned: row.points_earned } : undefined, hasCorrect);
       });
+      setPastCorrect(correct);
       setPastReview(graded);
       setShowPastReview(true);
       setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -998,7 +1156,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   const canReview = settings.allowReview && settings.showResultsImmediately;
 
   /** Corrigé détaillé (après l'envoi ou pour revoir la dernière copie) */
-  const renderReviewList = (graded: QuestionResult[]) => (
+  const renderReviewList = (graded: QuestionResult[], correct: Set<string>) => (
     <div ref={reviewRef} className="space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
       {graded.map((r, i) => {
         const tone = !r.gradable
@@ -1044,14 +1202,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
               <div className="grid gap-2">
                 {r.item.options.map(opt => {
                   const chosen = !!r.answer?.selected.includes(opt.id);
-                  const cls = opt.is_correct
+                  const isRight = correct.has(opt.id);
+                  const cls = isRight
                     ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-800"
                     : chosen
                     ? "border-rose-300 bg-rose-50 text-rose-900 dark:bg-rose-950/30 dark:text-rose-200 dark:border-rose-800"
                     : "border-border text-muted-foreground";
                   return (
                     <div key={opt.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${cls}`}>
-                      {opt.is_correct ? <Check className="h-4 w-4 shrink-0" /> : chosen ? <X className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
+                      {isRight ? <Check className="h-4 w-4 shrink-0" /> : chosen ? <X className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
                       <MathText className="flex-1" text={optionLabel(opt)} />
                       {chosen && (
                         <span className="text-[11px] font-bold uppercase tracking-wide opacity-80">
@@ -1235,7 +1394,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             </Button>
           </div>
         </div>
-        {showPastReview && pastReview && <div className="mt-5">{renderReviewList(pastReview)}</div>}
+        {showPastReview && pastReview && <div className="mt-5">{renderReviewList(pastReview, pastCorrect)}</div>}
       </div>
     );
   }
@@ -1396,7 +1555,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
               </div>
             )}
             {pastReviewButton}
-            {showPastReview && pastReview && renderReviewList(pastReview)}
+            {showPastReview && pastReview && renderReviewList(pastReview, pastCorrect)}
 
             {/* Consignes */}
             <div className="rounded-2xl border bg-muted/30 p-5">
@@ -1585,7 +1744,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
         </div>
 
         {/* Corrigé détaillé */}
-        {canReview && showReview && renderReviewList(graded)}
+        {canReview && showReview && renderReviewList(graded, resultCorrect)}
       </div>
     );
   }
@@ -1929,7 +2088,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                   ref={answerAreaRef}
                   placeholder={tr("Rédigez votre réponse ici…", "اكتب إجابتك هنا…", "Write your answer here…")}
                   value={ans?.text || ""}
-                  onChange={e => setTextAnswer(item, e.target.value, ((e.nativeEvent as InputEvent | undefined)?.inputType) || "")}
+                  onChange={e => {
+                    const native = e.nativeEvent as InputEvent | undefined;
+                    setTextAnswer(item, e.target.value, (native && native.inputType) || "", !!(native && native.isComposing));
+                  }}
+                  onCompositionStart={() => { composingRef.current = true; }}
+                  onCompositionEnd={() => {
+                    composingRef.current = false;
+                    compositionEndAtRef.current = Date.now();
+                  }}
                   disabled={isLocked || timeUp || submitFailed}
                   rows={5}
                   className="rounded-2xl border-2 text-base p-4 focus-visible:ring-primary/25 resize-y"

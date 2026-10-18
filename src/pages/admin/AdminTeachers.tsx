@@ -404,7 +404,7 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
               </fieldset>
             )}
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
               <Button type="submit" disabled={saving}>{saving ? L("Création…", "جارٍ الإنشاء…", "Creating…") : L("Créer le compte", "إنشاء الحساب", "Create account")}</Button>
             </DialogFooter>

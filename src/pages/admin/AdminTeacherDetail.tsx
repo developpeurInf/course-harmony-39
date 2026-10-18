@@ -423,7 +423,7 @@ function SubscriptionDialog({ mode, onClose, teacherId, plans, current, onSaved 
               <span>{L("Arrêter l'abonnement en cours au début du nouveau", "إيقاف الاشتراك الحالي عند بداية الجديد", "Stop the current subscription when the new one starts")}</span>
             </label>
           )}
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
             <Button type="submit" disabled={saving || !plan}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -473,7 +473,7 @@ function ExtendDialog({ open, onOpenChange, current, onSaved }: any) {
           <Input id="extend-days" type="number" min="1" value={days} onChange={e => setDays(e.target.value)} />
           {newEnd && <p className="text-xs text-muted-foreground">{L("Nouvelle fin", "النهاية الجديدة", "New end")} : <b>{fmtDate(newEnd, lang)}</b></p>}
         </div>
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
           <Button onClick={save} disabled={saving || !newEnd}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -620,7 +620,7 @@ function PaymentDialog({ open, onOpenChange, teacherId, subs, onSaved }: any) {
             <Label htmlFor="pay-dlg-13">{L("Note", "ملاحظة", "Note")}</Label>
             <Input id="pay-dlg-13" value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}

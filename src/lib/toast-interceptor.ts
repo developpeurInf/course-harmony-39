@@ -1,6 +1,7 @@
 import { toast } from "sonner";
-import { translateToArabic } from "./arabic-translations";
-import { translateToFrench } from "./french-translations";
+// Traducteurs chargés à la demande avec le dictionnaire de la langue (src/i18n) :
+// tant qu'il n'est pas chargé, le texte est affiché tel quel.
+import { getLoadedTranslator } from "@/i18n/loader";
 
 // Intercept all Sonner toast calls to automatically translate (anglais → arabe / français)
 // according to the active language.
@@ -47,7 +48,8 @@ function processToastArgs(args: any[]): any[] {
     }
   }
   if ((lang !== "ar" && lang !== "fr") || args.length === 0) return args;
-  const translate = lang === "ar" ? translateToArabic : translateToFrench;
+  const translate = getLoadedTranslator(lang as "ar" | "fr");
+  if (!translate) return args;
 
   const [message, options] = args;
   let translatedMessage = message;

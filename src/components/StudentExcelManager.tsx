@@ -841,7 +841,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                       "At first login, the student will be offered to change the password."
                     )}
                   </p>
-                  <DialogFooter className="gap-2 sm:gap-0">
+                  <DialogFooter className="gap-2">
                     <Button variant="outline" onClick={copyManualCredentials}>
                       {manualCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                       {manualCopied ? tr("تم النسخ", "Copié", "Copied") : tr("نسخ البيانات", "Copier les identifiants", "Copy credentials")}
@@ -879,7 +879,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
                       )}
                     </p>
                   </div>
-                  <DialogFooter className="gap-2 sm:gap-0">
+                  <DialogFooter className="gap-2">
                     <Button type="button" variant="outline" onClick={() => setIsManualDialogOpen(false)} disabled={manualCreating}>
                       {tr("إلغاء", "Annuler", "Cancel")}
                     </Button>

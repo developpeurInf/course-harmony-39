@@ -1,5 +1,4 @@
 
-import { iosCompatibleDownload } from "@/lib/download";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -15,12 +14,13 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Calendar, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, AlertTriangle } from "lucide-react";
+import { FileText, Plus, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, Paperclip, Film, Image as ImageIcon } from "lucide-react";
 import ViewToggle from "@/components/ViewToggle";
 import { formatDate, toLocalDateInput, localEndOfDayIso } from "@/lib/formatDate";
 import { useNow } from "@/hooks/useNow";
-import MultiPdfUpload from "@/components/MultiPdfUpload";
-import PdfInfo from "@/components/PdfInfo";
+import MultiPdfUpload, { type VideoLinkDraft } from "@/components/MultiPdfUpload";
+import { ExerciseViewerDialog, exerciseAttachments } from "@/components/ExerciseMediaGallery";
+import { countByKind, type CourseMaterialLike } from "@/lib/courseMedia";
 import { toast } from "sonner";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
@@ -29,7 +29,11 @@ const Exercises = () => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const { roomId } = useParams();
-  const { exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, uploadExercisePdf, refreshData, getVisibleExercisesForStudent, loading: dataLoading } = useCourses();
+  const {
+    exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, refreshData,
+    getVisibleExercisesForStudent, loading: dataLoading,
+    exerciseMaterials, loadExerciseMaterials, uploadExerciseMaterials, addExerciseVideoLink, deleteExerciseMaterial,
+  } = useCourses();
   const location = useLocation();
   const navigate = useNavigate();
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
@@ -50,8 +54,25 @@ const Exercises = () => {
     is_visible: true,
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [videoLinks, setVideoLinks] = useState<VideoLinkDraft[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-  const [exerciseMaterials, setExerciseMaterials] = useState<{[exerciseId: string]: any[]}>({});
+  /** Pièce jointe en cours de suppression (bouton occupé) */
+  const [removingAttachmentId, setRemovingAttachmentId] = useState<string | null>(null);
+  /** Exercice dont on affiche les pièces jointes */
+  const [viewerExerciseId, setViewerExerciseId] = useState<string | null>(null);
+
+  // Pièces jointes regroupées par exercice (repli sur l'ancien pdf_url)
+  const materialsByExercise = useMemo(() => {
+    const map = new Map<string, typeof exerciseMaterials>();
+    exerciseMaterials.forEach(m => {
+      const list = map.get(m.exercise_id);
+      if (list) list.push(m);
+      else map.set(m.exercise_id, [m]);
+    });
+    return map;
+  }, [exerciseMaterials]);
+  const attachmentsOf = (exercise: Exercise): CourseMaterialLike[] =>
+    exerciseAttachments(exercise, materialsByExercise.get(exercise.id) || []);
   
   const isProfessor = user?.role === "professor";
   
@@ -143,6 +164,35 @@ const Exercises = () => {
       is_visible: true,
     });
     setSelectedFiles([]);
+    setVideoLinks([]);
+  };
+
+  /** Envoie les fichiers et liens vidéo choisis vers les pièces jointes de l'exercice */
+  const saveAttachments = async (exerciseId: string, courseId: string) => {
+    if (selectedFiles.length > 0) {
+      try {
+        await uploadExerciseMaterials(exerciseId, selectedFiles, courseId);
+      } catch (err) {
+        console.error("Error uploading exercise files:", err);
+      }
+    }
+    for (const link of videoLinks) {
+      try {
+        await addExerciseVideoLink(exerciseId, link.url, link.title);
+      } catch (err) {
+        console.error("Error adding exercise video link:", err);
+      }
+    }
+  };
+
+  const handleRemoveAttachment = async (materialId: string) => {
+    if (removingAttachmentId) return;
+    setRemovingAttachmentId(materialId);
+    try {
+      await deleteExerciseMaterial(materialId);
+    } finally {
+      setRemovingAttachmentId(null);
+    }
   };
 
   const handleAddExercise = async () => {
@@ -176,15 +226,7 @@ const Exercises = () => {
       });
 
       if (newExercise) {
-        if (selectedFiles.length > 0) {
-          for (const file of selectedFiles) {
-            try {
-              await uploadExercisePdf(newExercise.id, file, formData.course_id);
-            } catch (err) {
-              console.error("Error uploading exercise PDF:", err);
-            }
-          }
-        }
+        await saveAttachments(newExercise.id, formData.course_id);
         resetForm();
         setIsAddDialogOpen(false);
       }
@@ -227,16 +269,8 @@ const Exercises = () => {
         is_visible: formData.is_visible,
       });
 
-      // Handle multiple file uploads if files are selected
-      if (selectedFiles.length > 0 && success) {
-        for (const file of selectedFiles) {
-          try {
-            await uploadExercisePdf(formData.id, file, formData.course_id);
-          } catch (err) {
-            console.error("Error uploading exercise PDF:", err);
-          }
-        }
-      }
+      // Nouveaux fichiers / liens : ajoutés aux pièces jointes existantes
+      if (success) await saveAttachments(formData.id, formData.course_id);
 
       if (success) {
         resetForm();
@@ -260,7 +294,11 @@ const Exercises = () => {
       due_date: toLocalDateInput(exercise.due_date), // date locale pour le champ
       is_visible: exercise.is_visible,
     });
+    setSelectedFiles([]);
+    setVideoLinks([]);
     setIsEditDialogOpen(true);
+    // pièces jointes à jour (ajoutées depuis un autre appareil, etc.)
+    void loadExerciseMaterials([exercise.id]);
   };
 
   const handleDeleteExercise = (exercise: Exercise) => {
@@ -286,28 +324,72 @@ const Exercises = () => {
     return course ? course.title : tr("Cours inconnu", "درس غير معروف", "Unknown course");
   };
 
-  const handleViewPdf = (exercise: Exercise) => {
-    if (exercise.pdf_url) {
-      window.open(exercise.pdf_url, "_blank");
-    }
+  const editingExercise = formData.id ? exercises.find(e => e.id === formData.id) || null : null;
+  const viewerExercise = viewerExerciseId ? userExercises.find(e => e.id === viewerExerciseId) || exercises.find(e => e.id === viewerExerciseId) || null : null;
+
+  const attachmentLabel = (n: number) =>
+    language === "ar" ? `${n} مرفق` : language === "fr" ? `${n} pièce${n > 1 ? "s" : ""} jointe${n > 1 ? "s" : ""}` : `${n} attachment${n > 1 ? "s" : ""}`;
+
+  /** Badge « n pièces jointes » */
+  const renderAttachmentBadge = (exercise: Exercise) => {
+    const n = attachmentsOf(exercise).length;
+    if (n === 0) return null;
+    return (
+      <Badge variant="outline" className="text-xs gap-1">
+        <Paperclip className="h-3 w-3" />
+        {n}
+        <span className="sr-only">{attachmentLabel(n)}</span>
+      </Badge>
+    );
   };
 
-  const handleDownloadPdf = (exercise: Exercise) => {
-    if (exercise.pdf_url) {
-      const filename = `${exercise.title}.pdf`;
-      let downloadUrl = exercise.pdf_url;
-      if (downloadUrl.includes('supabase.co/storage/v1/object/public') && !downloadUrl.includes('download=')) {
-        downloadUrl += `${downloadUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(filename)}`;
-      }
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+  /** Bloc cliquable qui ouvre la galerie des pièces jointes */
+  const renderAttachments = (exercise: Exercise) => {
+    const items = attachmentsOf(exercise);
+    if (items.length === 0) return null;
+    const c = countByKind(items);
+    const docs = c.pdf + c.other;
+    return (
+      <button
+        type="button"
+        onClick={() => setViewerExerciseId(exercise.id)}
+        className="flex w-full items-center gap-3 rounded-lg border bg-muted/30 p-3 text-start transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`${tr("Voir les pièces jointes", "عرض المرفقات", "View attachments")} : ${exercise.title} (${attachmentLabel(items.length)})`}
+      >
+        <span className="rounded-md bg-primary/10 p-2 shrink-0">
+          <Paperclip className="h-4 w-4 text-primary" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{attachmentLabel(items.length)}</span>
+          <span className="block truncate text-xs text-muted-foreground" title={items.map(m => m.file_name).join(", ")}>
+            {items.map(m => m.file_name).join(" · ")}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground" aria-hidden="true">
+          {docs > 0 && <span className="inline-flex items-center gap-0.5"><FileText className="h-3.5 w-3.5 text-rose-500" />{docs}</span>}
+          {c.image > 0 && <span className="inline-flex items-center gap-0.5"><ImageIcon className="h-3.5 w-3.5 text-sky-500" />{c.image}</span>}
+          {c.video > 0 && <span className="inline-flex items-center gap-0.5"><Film className="h-3.5 w-3.5 text-violet-500" />{c.video}</span>}
+        </span>
+      </button>
+    );
   };
+
+  /** Zone d'envoi commune aux fenêtres de création / modification */
+  const renderUploader = (existing: CourseMaterialLike[]) => (
+    <MultiPdfUpload
+      onFilesChange={setSelectedFiles}
+      selectedFiles={selectedFiles}
+      maxFiles={15}
+      maxSizeMB={50}
+      permissionScope="exercise"
+      videoLinks={videoLinks}
+      onVideoLinksChange={setVideoLinks}
+      existingFiles={existing}
+      onRemoveExisting={existing.length > 0 ? handleRemoveAttachment : undefined}
+      removingId={removingAttachmentId}
+      disabled={isSubmitting}
+    />
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -411,16 +493,10 @@ const Exercises = () => {
                   </div>
                 </div>
                 
-                {/* Multiple PDF Upload */}
+                {/* Pièces jointes (PDF, images, vidéos, liens YouTube) */}
                 <div className="grid gap-2">
-                  <Label htmlFor="pdfs">{t("file.upload")} (PDFs)</Label>
-                  <MultiPdfUpload
-                    onFilesChange={setSelectedFiles}
-                    selectedFiles={selectedFiles}
-                    maxFiles={3}
-                    maxSizeMB={20}
-                    pdfOnly
-                  />
+                  <Label>{tr("Pièces jointes", "المرفقات", "Attachments")}</Label>
+                  {renderUploader([])}
                 </div>
               </div>
               <DialogFooter className="mt-4">
@@ -506,6 +582,7 @@ const Exercises = () => {
                           <BookOpen className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
                           {findCourseName(exercise.course_id)}
                         </Badge>
+                        {renderAttachmentBadge(exercise)}
                         {isProfessor ? (
                           <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
                             {exercise.is_visible 
@@ -534,15 +611,8 @@ const Exercises = () => {
                     <span>{language === "ar" ? "تاريخ التسليم: " : language === "fr" ? "Date limite : " : "Due: "}{formatDueDate(exercise.due_date)}</span>
                   </div>
                   
-                  {/* PDF Information */}
-                  {exercise.pdf_url && (
-                    <PdfInfo
-                      fileName={`${exercise.title}.pdf`}
-                      href={exercise.pdf_url}
-                      onView={() => handleViewPdf(exercise)}
-                      onDownload={() => handleDownloadPdf(exercise)}
-                    />
-                  )}
+                  {/* Pièces jointes */}
+                  {renderAttachments(exercise)}
                 </CardContent>
                 
                 {isProfessor && (
@@ -612,6 +682,7 @@ const Exercises = () => {
                                 <BookOpen className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
                                 {findCourseName(exercise.course_id)}
                               </Badge>
+                              {renderAttachmentBadge(exercise)}
                               {isProfessor ? (
                                 <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
                                   {exercise.is_visible 
@@ -637,15 +708,10 @@ const Exercises = () => {
                           </p>
                         )}
                         
-                        {/* PDF Information */}
-                        {exercise.pdf_url && (
-                          <div className="mt-4">
-                            <PdfInfo
-                              fileName={`${exercise.title}.pdf`}
-                      href={exercise.pdf_url}
-                              onView={() => handleViewPdf(exercise)}
-                              onDownload={() => handleDownloadPdf(exercise)}
-                            />
+                        {/* Pièces jointes */}
+                        {attachmentsOf(exercise).length > 0 && (
+                          <div className="mt-4 max-w-xl">
+                            {renderAttachments(exercise)}
                           </div>
                         )}
                       </div>
@@ -801,17 +867,10 @@ const Exercises = () => {
               </div>
             </div>
             
-            {/* Multiple PDF Upload */}
+            {/* Pièces jointes : existantes (supprimables) + nouvelles */}
             <div className="grid gap-2">
-              <Label htmlFor="edit-pdfs">{t("file.upload")} (PDFs)</Label>
-              <MultiPdfUpload
-                onFilesChange={setSelectedFiles}
-                selectedFiles={selectedFiles}
-                maxFiles={3}
-                maxSizeMB={20}
-                pdfOnly
-                existingFiles={exerciseMaterials[formData.id] || []}
-              />
+              <Label>{tr("Pièces jointes", "المرفقات", "Attachments")}</Label>
+              {renderUploader(editingExercise ? attachmentsOf(editingExercise) : [])}
             </div>
           </div>
           <DialogFooter className="mt-4">
@@ -834,6 +893,16 @@ const Exercises = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pièces jointes d'un exercice */}
+      <ExerciseViewerDialog
+        open={!!viewerExercise}
+        onOpenChange={(open) => { if (!open) setViewerExerciseId(null); }}
+        exercise={viewerExercise}
+        materials={viewerExercise ? attachmentsOf(viewerExercise) : []}
+        courseTitle={viewerExercise ? findCourseName(viewerExercise.course_id) : undefined}
+        dueLabel={viewerExercise?.due_date ? `${tr("Date limite :", "تاريخ التسليم:", "Due:")} ${formatDueDate(viewerExercise.due_date)}` : undefined}
+      />
 
       {/* Delete Exercise Confirmation Dialog */}
       <Dialog open={!!exerciseToDelete} onOpenChange={(open) => { if (!open && !isDeleting) setExerciseToDelete(null); }}>

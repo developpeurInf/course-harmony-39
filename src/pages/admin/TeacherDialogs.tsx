@@ -63,7 +63,7 @@ export function EditTeacherDialog({ open, onOpenChange, teacher, account: accoun
             <Label htmlFor="edit-teacher-notes">{L("Notes internes", "ملاحظات داخلية", "Internal notes")}</Label>
             <Textarea id="edit-teacher-notes" rows={3} value={f.notes || ""} onChange={e => setF({ ...f, notes: e.target.value })} />
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -162,7 +162,7 @@ export function DeleteTeacherDialog({ teacher, onClose, onDeleted }: { teacher: 
           <Label htmlFor="delete-teacher-confirm" className="text-xs">{L("Tapez le nom du professeur pour confirmer :", "اكتب اسم الأستاذ للتأكيد:", "Type the teacher's name to confirm:")} <b>{teacher.name}</b></Label>
           <Input id="delete-teacher-confirm" value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" disabled={busy} />
         </div>
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>{L("Annuler", "إلغاء", "Cancel")}</Button>
           <Button className="bg-red-600 text-white hover:bg-red-700" disabled={!ok || busy} onClick={run}>
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}

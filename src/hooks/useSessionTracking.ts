@@ -4,6 +4,41 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const HEARTBEAT_MS = 60000;
 
+/** Fin = dernière activité connue (sinon maintenant), jamais avant le début — même règle que le SQL. */
+const closeStaleSessionsFallback = async (userId: string) => {
+  const { data: existingSessions } = await supabase
+    .from('student_sessions')
+    .select('id, session_start, last_activity')
+    .eq('student_id', userId)
+    .eq('is_active', true);
+  if (!existingSessions || existingSessions.length === 0) return;
+  const nowMs = Date.now();
+  await Promise.all(existingSessions.map(s => {
+    const startMs = new Date(s.session_start).getTime();
+    const lastMs = s.last_activity ? new Date(s.last_activity).getTime() : nowMs;
+    const endMs = Math.max(startMs, isNaN(lastMs) ? nowMs : lastMs);
+    return supabase
+      .from('student_sessions')
+      .update({
+        session_end: new Date(endMs).toISOString(),
+        is_active: false,
+        duration_minutes: Math.max(0, Math.round((endMs - startMs) / 60000)),
+      })
+      .eq('id', s.id);
+  }));
+};
+
+const closeStaleSessions = async (userId: string) => {
+  try {
+    const { error } = await (supabase as any).rpc('close_my_stale_sessions');
+    if (!error) return;
+    console.warn('close_my_stale_sessions indisponible, repli :', error.message);
+  } catch (e) {
+    console.warn('close_my_stale_sessions a échoué, repli :', e);
+  }
+  await closeStaleSessionsFallback(userId);
+};
+
 /**
  * Suivi des sessions élève (connexion, présence, déconnexion).
  * - ne dépend que de l'identifiant / du rôle de l'élève (le renouvellement du jeton ne
@@ -58,26 +93,9 @@ export const useSessionTracking = () => {
         if (!roomId || cancelled) return;
         roomIdRef.current = roomId;
 
-        // Sessions restées ouvertes (onglet fermé brutalement…) : clôturées en parallèle
-        const now = new Date();
-        const { data: existingSessions } = await supabase
-          .from('student_sessions')
-          .select('id, session_start')
-          .eq('student_id', userId)
-          .eq('is_active', true);
-
-        if (existingSessions && existingSessions.length > 0) {
-          await Promise.all(existingSessions.map(s =>
-            supabase
-              .from('student_sessions')
-              .update({
-                session_end: now.toISOString(),
-                is_active: false,
-                duration_minutes: Math.max(0, Math.round((now.getTime() - new Date(s.session_start).getTime()) / 60000)),
-              })
-              .eq('id', s.id)
-          ));
-        }
+        // Sessions restées ouvertes (onglet fermé brutalement…) : clôturées en UNE requête
+        // (fonction SQL close_my_stale_sessions) ; repli sur l'ancienne méthode si absente.
+        await closeStaleSessions(userId);
         if (cancelled) return;
 
         // Create a new session

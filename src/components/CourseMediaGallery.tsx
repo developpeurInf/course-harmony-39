@@ -254,10 +254,12 @@ const SectionTitle = ({ icon, label, count, color }: { icon: ReactNode; label: s
 );
 
 export const CourseMediaGallery = ({
-  materials, showFilters = true,
+  materials, showFilters = true, emptyLabel,
 }: {
   materials: CourseMaterialLike[];
   showFilters?: boolean;
+  /** Texte affiché quand il n'y a aucun support (défaut : supports du cours) */
+  emptyLabel?: string;
 }) => {
   const tr = useTr();
   const [filter, setFilter] = useState<Filter>("all");
@@ -281,7 +283,7 @@ export const CourseMediaGallery = ({
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-12 text-center text-muted-foreground">
         <BookOpen className="mb-3 h-10 w-10 opacity-40" />
-        <p className="text-sm">{tr("لا توجد مواد لهذا الدرس بعد", "Aucun support pour ce cours pour l'instant", "No materials for this course yet")}</p>
+        <p className="text-sm">{emptyLabel || tr("لا توجد مواد لهذا الدرس بعد", "Aucun support pour ce cours pour l'instant", "No materials for this course yet")}</p>
       </div>
     );
   }
@@ -387,7 +389,7 @@ export const CourseMediaGallery = ({
 /* ------------------------------------------------------------------ */
 
 export const CourseViewerDialog = ({
-  open, onOpenChange, title, description, materials, subtitle,
+  open, onOpenChange, title, description, materials, subtitle, fallbackDescription, emptyLabel, meta,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -395,6 +397,12 @@ export const CourseViewerDialog = ({
   description?: string | null;
   subtitle?: string;
   materials: CourseMaterialLike[];
+  /** Description lue par les lecteurs d'écran quand `description` est vide (défaut : supports du cours) */
+  fallbackDescription?: string;
+  /** Texte de la galerie vide */
+  emptyLabel?: string;
+  /** Pastilles supplémentaires (ex. date limite d'un exercice) */
+  meta?: ReactNode;
 }) => {
   const tr = useTr();
   const c = countByKind(materials);
@@ -406,17 +414,18 @@ export const CourseViewerDialog = ({
             {subtitle && <p className="text-xs font-semibold uppercase tracking-wider text-primary">{subtitle}</p>}
             <DialogTitle className="text-xl font-bold leading-tight sm:text-2xl">{title}</DialogTitle>
             <DialogDescription className={description ? "whitespace-pre-line text-sm" : "sr-only"}>
-              {description || tr("مواد الدرس", "Supports du cours", "Course materials")}
+              {description || fallbackDescription || tr("مواد الدرس", "Supports du cours", "Course materials")}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {meta}
             {c.video > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2.5 py-1 font-semibold text-violet-700 dark:text-violet-300"><Film className="h-3.5 w-3.5" />{c.video} {tr("فيديو", c.video > 1 ? "vidéos" : "vidéo", c.video > 1 ? "videos" : "video")}</span>}
             {c.image > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2.5 py-1 font-semibold text-sky-700 dark:text-sky-300"><ImageIcon className="h-3.5 w-3.5" />{c.image} {tr("صورة", c.image > 1 ? "images" : "image", c.image > 1 ? "images" : "image")}</span>}
             {c.pdf + c.other > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 font-semibold text-rose-700 dark:text-rose-300"><FileText className="h-3.5 w-3.5" />{c.pdf + c.other} {tr("وثيقة", "document" + (c.pdf + c.other > 1 ? "s" : ""), "document" + (c.pdf + c.other > 1 ? "s" : ""))}</span>}
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7" style={{ WebkitOverflowScrolling: "touch" } as any}>
-          <CourseMediaGallery materials={materials} />
+          <CourseMediaGallery materials={materials} emptyLabel={emptyLabel} />
         </div>
       </DialogContent>
     </Dialog>

@@ -196,9 +196,12 @@ const ClassManagement = () => {
     // 1) Habilitation AVANT toute suppression
     if (!accessStore.guard("class.delete")) return;
     setDeleting(true);
-    const TOTAL = 10;
+    // 4 lectures préalables (cours, examens, copies, questions) + 9 étapes de suppression :
+    // la barre avance dès les premières lectures.
+    const TOTAL = 13;
     let step = 0;
-    const progress = (label: string) => { step++; setDeleteStep({ done: step, total: TOTAL, label }); };
+    const progress = (label: string, n = 1) => { step = Math.min(TOTAL, step + n); setDeleteStep({ done: step, total: TOTAL, label }); };
+    const analysing = tr("Analyse du contenu", "تحليل المحتوى", "Analysing content");
     const check = (res: { error: any }, what: string) => {
       if (res.error) {
         const err: any = new Error(what);
@@ -208,10 +211,11 @@ const ClassManagement = () => {
       }
     };
     try {
-      progress(tr("Analyse du contenu", "تحليل المحتوى", "Analysing content"));
+      setDeleteStep({ done: 0, total: TOTAL, label: analysing });
       const coursesRes = await supabase.from('courses').select('id').eq('room_id', roomId);
       check(coursesRes, tr("lecture des cours", "قراءة الدروس", "reading courses"));
       const courseIds = (coursesRes.data || []).map(c => c.id);
+      progress(analysing); // 1 : cours lus
 
       let examIds: string[] = [];
       let submissionIds: string[] = [];
@@ -220,16 +224,21 @@ const ClassManagement = () => {
         const examsRes = await supabase.from('exams').select('id').in('course_id', courseIds);
         check(examsRes, tr("lecture des examens", "قراءة الامتحانات", "reading exams"));
         examIds = (examsRes.data || []).map(e => e.id);
+        progress(analysing); // 2 : examens lus
         if (examIds.length > 0) {
           const [subsRes, qRes] = await Promise.all([
-            supabase.from('quiz_submissions').select('id').in('exam_id', examIds),
-            supabase.from('quiz_questions').select('id').in('exam_id', examIds),
+            supabase.from('quiz_submissions').select('id').in('exam_id', examIds).then(r => { progress(analysing); return r; }), // 3
+            supabase.from('quiz_questions').select('id').in('exam_id', examIds).then(r => { progress(analysing); return r; }),  // 4
           ]);
           check(subsRes, tr("lecture des copies", "قراءة الإجابات", "reading submissions"));
           check(qRes, tr("lecture des questions", "قراءة الأسئلة", "reading questions"));
           submissionIds = (subsRes.data || []).map(s => s.id);
           questionIds = (qRes.data || []).map(q => q.id);
+        } else {
+          progress(analysing, 2); // rien à lire : copies / questions
         }
+      } else {
+        progress(analysing, 3); // pas de cours : examens / copies / questions
       }
 
       progress(tr("Réponses des élèves", "إجابات التلاميذ", "Student answers"));

@@ -454,7 +454,7 @@ const RichTextEditor = ({
                 />
               </div>
             </div>
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={() => setShowLinkDialog(false)}>
                 {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
               </Button>

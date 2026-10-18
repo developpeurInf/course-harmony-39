@@ -780,7 +780,7 @@ const Exams = () => {
                     </Label>
                   </div>
                 </div>
-                <DialogFooter className="gap-2 sm:gap-0">
+                <DialogFooter className="gap-2">
                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSubmitting}>
                     {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
                   </Button>
@@ -1599,7 +1599,7 @@ const Exams = () => {
               </Label>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>
@@ -1633,7 +1633,7 @@ const Exams = () => {
                 : `Are you sure you want to delete ${currentExam?.title}? All related student submissions and scores will also be deleted. This action cannot be undone.`}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               {language === "ar" ? "إلغاء" : language === "fr" ? "Annuler" : "Cancel"}
             </Button>

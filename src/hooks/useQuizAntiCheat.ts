@@ -51,18 +51,39 @@ interface Options {
   onLimitReached: () => void;
   /** Numéro de la question affichée (pour situer chaque incident) */
   getQuestionNumber?: () => number | undefined;
+  /** Sorties déjà comptées avant un rechargement (reprise d'une tentative sauvegardée) */
+  initialFocusLosses?: number;
+  /** Incidents déjà enregistrés avant un rechargement */
+  initialEvents?: CheatEvent[];
 }
+
+const MAX_EVENTS = 300;
+
+const sanitizeCount = (n: unknown) => (typeof n === "number" && isFinite(n) && n > 0 ? Math.floor(n) : 0);
+const sanitizeEvents = (list: unknown): CheatEvent[] =>
+  Array.isArray(list) ? (list.filter(e => e && typeof e === "object" && typeof (e as any).type === "string") as CheatEvent[]).slice(-MAX_EVENTS) : [];
 
 /** Sorties plus courtes que ce délai : pas comptées (bannière de notification, etc.). */
 const AWAY_GRACE_MS = 1500;
 
-export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLoss, onLimitReached, getQuestionNumber }: Options) {
+export function useQuizAntiCheat({
+  active,
+  maxFocusLosses,
+  onBlocked,
+  onFocusLoss,
+  onLimitReached,
+  getQuestionNumber,
+  initialFocusLosses,
+  initialEvents,
+}: Options) {
   const [isAway, setIsAway] = useState(false);
-  const [focusLosses, setFocusLosses] = useState(0);
+  const [focusLosses, setFocusLosses] = useState(() => sanitizeCount(initialFocusLosses));
   const [warningOpen, setWarningOpen] = useState(false);
-  const eventsRef = useRef<CheatEvent[]>([]);
+  /** Incrémenté à chaque incident : permet au parent de sauvegarder la tentative */
+  const [eventsVersion, setEventsVersion] = useState(0);
+  const eventsRef = useRef<CheatEvent[]>(sanitizeEvents(initialEvents));
   const awaySinceRef = useRef<number | null>(null);
-  const lossesRef = useRef(0);
+  const lossesRef = useRef(sanitizeCount(initialFocusLosses));
 
   // Callbacks toujours à jour sans réinstaller les écouteurs
   const cbRef = useRef({ onBlocked, onFocusLoss, onLimitReached, maxFocusLosses, getQuestionNumber });
@@ -71,10 +92,11 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
 
   const record = useCallback((type: CheatEventType, detail?: string, extra?: Partial<CheatEvent>) => {
     const list = eventsRef.current;
-    if (list.length >= 300) return;
+    if (list.length >= MAX_EVENTS) return;
     let question: number | undefined;
     try { question = cbRef.current.getQuestionNumber?.(); } catch { /* ignore */ }
     list.push({ type, at: new Date().toISOString(), detail, question, ...(extra || {}) });
+    setEventsVersion(v => v + 1);
   }, []);
 
   const reset = useCallback(() => {
@@ -84,6 +106,19 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
     setFocusLosses(0);
     setIsAway(false);
     setWarningOpen(false);
+    setEventsVersion(v => v + 1);
+  }, []);
+
+  /** Reprise après rechargement : compteur de sorties et journal sauvegardés (S39) */
+  const restore = useCallback((losses?: number, events?: CheatEvent[]) => {
+    const n = sanitizeCount(losses);
+    eventsRef.current = sanitizeEvents(events);
+    lossesRef.current = n;
+    awaySinceRef.current = null;
+    setFocusLosses(n);
+    setIsAway(false);
+    setWarningOpen(false);
+    setEventsVersion(v => v + 1);
   }, []);
 
   useEffect(() => {
@@ -180,7 +215,7 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
       setIsAway(false);
       const counted = duration >= AWAY_GRACE_MS;
       // Toutes les sorties sont enregistrées pour l'enseignant ; seules celles ≥ 1,5 s comptent
-      if (eventsRef.current.length < 300) {
+      if (eventsRef.current.length < MAX_EVENTS) {
         eventsRef.current.push({
           type: "left_quiz",
           at: new Date(leftAt).toISOString(),
@@ -191,6 +226,7 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
           detail: `${Math.round(duration / 1000)} s`,
         });
       }
+      setEventsVersion(v => v + 1);
       if (!counted) return;
       lossesRef.current += 1;
       const n = lossesRef.current;
@@ -256,6 +292,7 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
   return {
     isAway,
     focusLosses,
+    eventsVersion,
     warningOpen,
     closeWarning: () => setWarningOpen(false),
     /** Incidents de la tentative, y compris une sortie en cours (élève pas encore revenu) */
@@ -280,5 +317,6 @@ export function useQuizAntiCheat({ active, maxFocusLosses, onBlocked, onFocusLos
       cbRef.current.onBlocked("paste");
     },
     reset,
+    restore,
   };
 }

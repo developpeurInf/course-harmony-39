@@ -2,7 +2,7 @@ import { useAccess } from "@/contexts/AccessContext";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { FileText, X, Plus, Eye, Image as ImageIcon, Film, Youtube, Link2, PlayCircle } from 'lucide-react';
+import { FileText, X, Plus, Eye, Image as ImageIcon, Film, Youtube, Link2, PlayCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
@@ -20,7 +20,7 @@ import {
 } from '@/lib/courseMedia';
 
 interface ExistingFile extends CourseMaterialLike {
-  uploaded_at: string;
+  uploaded_at?: string;
 }
 
 export interface VideoLinkDraft {
@@ -38,8 +38,14 @@ interface MultiPdfUploadProps {
   /** Optional YouTube / Vimeo / .mp4 links (stored as course materials) */
   videoLinks?: VideoLinkDraft[];
   onVideoLinksChange?: (links: VideoLinkDraft[]) => void;
-  /** Restrict to PDF files (exercises) */
+  /** Restrict to PDF files */
   pdfOnly?: boolean;
+  /** Id of the existing item being deleted (spinner + buttons disabled) */
+  removingId?: string | null;
+  /** Habilitations vérifiées : supports de cours (défaut) ou pièces jointes d'exercice */
+  permissionScope?: 'course' | 'exercise';
+  /** Disable every control (e.g. while saving) */
+  disabled?: boolean;
 }
 
 const KindIcon = ({ kind, className = "h-4 w-4" }: { kind: MaterialKind; className?: string }) => {
@@ -73,6 +79,9 @@ const MultiPdfUpload = ({
   videoLinks,
   onVideoLinksChange,
   pdfOnly = false,
+  removingId = null,
+  permissionScope = 'course',
+  disabled = false,
 }: MultiPdfUploadProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [linkInput, setLinkInput] = useState('');
@@ -106,7 +115,9 @@ const MultiPdfUpload = ({
       }
 
       // Habilitations : type de fichier autorisé par l'offre + quotas (vidéo, stockage)
-      const perm = kind === 'video' ? 'course.upload_video' : kind === 'image' ? 'course.upload_image' : 'course.upload_pdf';
+      const perm = permissionScope === 'exercise'
+        ? 'exercise.edit'
+        : kind === 'video' ? 'course.upload_video' : kind === 'image' ? 'course.upload_image' : 'course.upload_pdf';
       if (!guard(perm)) continue;
       if (kind === 'video') {
         const vq = quota('video.max_mb');
@@ -170,7 +181,7 @@ const MultiPdfUpload = ({
   const addLink = () => {
     const url = linkInput.trim();
     if (!url) return;
-    if (!guard('course.edit')) return;
+    if (!guard(permissionScope === 'exercise' ? 'exercise.edit' : 'course.edit')) return;
     if (!parseVideoUrl(url)) {
       toast.error(tr('رابط فيديو غير صالح (YouTube أو Vimeo أو ملف mp4)', 'Lien vidéo invalide (YouTube, Vimeo ou fichier .mp4)', 'Invalid video link (YouTube, Vimeo or .mp4)'));
       return;
@@ -200,6 +211,10 @@ const MultiPdfUpload = ({
             {existingFiles.map(file => {
               const kind = getMaterialKind(file);
               const thumb = getMaterialThumbnail(file);
+              const label = file.file_name === file.file_path && (kind === 'youtube' || kind === 'vimeo')
+                ? tr('فيديو', 'Vidéo', 'Video') + (kind === 'youtube' ? ' YouTube' : ' Vimeo')
+                : file.file_name;
+              const isRemoving = removingId === file.id;
               return (
                 <div key={file.id} className="flex items-center gap-2.5 rounded-lg border bg-card p-2">
                   <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted flex items-center justify-center">
@@ -207,9 +222,7 @@ const MultiPdfUpload = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate" title={file.file_name}>
-                      {file.file_name === file.file_path && (kind === 'youtube' || kind === 'vimeo')
-                        ? tr('فيديو', 'Vidéo', 'Video') + (kind === 'youtube' ? ' YouTube' : ' Vimeo')
-                        : file.file_name}
+                      {label}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                       {formatFileSize(file.file_size) || (kind === 'youtube' ? 'YouTube' : kind === 'vimeo' ? 'Vimeo' : '')}
@@ -217,13 +230,17 @@ const MultiPdfUpload = ({
                   </div>
                   <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
                     onClick={() => window.open(getMaterialUrl(file), '_blank', 'noopener,noreferrer')}
-                    title={tr('معاينة', 'Aperçu', 'Preview')}>
+                    title={tr('معاينة', 'Aperçu', 'Preview')}
+                    aria-label={`${tr('معاينة', 'Aperçu', 'Preview')} : ${label}`}>
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
                   {onRemoveExisting && (
                     <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-                      onClick={() => onRemoveExisting(file.id)} title={tr('حذف', 'Supprimer', 'Remove')}>
-                      <X className="h-3.5 w-3.5" />
+                      onClick={() => onRemoveExisting(file.id)} title={tr('حذف', 'Supprimer', 'Remove')}
+                      aria-label={`${tr('حذف', 'Supprimer', 'Remove')} : ${label}`}
+                      aria-busy={isRemoving || undefined}
+                      disabled={disabled || !!removingId}>
+                      {isRemoving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                     </Button>
                   )}
                 </div>
@@ -241,9 +258,16 @@ const MultiPdfUpload = ({
         onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }}
         onDrop={handleDrop}
-        onClick={() => totalCount < maxFiles && inputRef.current?.click()}
+        onClick={() => !disabled && totalCount < maxFiles && inputRef.current?.click()}
+        onKeyDown={e => {
+          if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && !disabled && totalCount < maxFiles) {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
         role="button"
         tabIndex={0}
+        aria-disabled={disabled || totalCount >= maxFiles || undefined}
       >
         <div className="mx-auto mb-2 flex w-fit items-center gap-2">
           <span className="rounded-lg bg-rose-500/10 p-2"><FileText className="h-5 w-5 text-rose-500" /></span>
@@ -266,7 +290,7 @@ const MultiPdfUpload = ({
             `PDF · JPG/PNG/WebP · MP4/WebM/MOV — up to ${maxSizeMB}MB each (${totalCount}/${maxFiles})`
           )}
         </p>
-        <Button type="button" variant="outline" size="sm" className="mt-3" disabled={totalCount >= maxFiles}
+        <Button type="button" variant="outline" size="sm" className="mt-3" disabled={disabled || totalCount >= maxFiles}
           onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}>
           <Plus className="h-4 w-4" />
           {tr('اختيار ملفات', 'Choisir des fichiers', 'Choose files')}
@@ -278,7 +302,7 @@ const MultiPdfUpload = ({
           accept={pdfOnly ? '.pdf,application/pdf' : ACCEPT_ATTRIBUTE}
           onChange={handleFileSelect}
           className="hidden"
-          disabled={totalCount >= maxFiles}
+          disabled={disabled || totalCount >= maxFiles}
         />
       </div>
 
@@ -309,7 +333,7 @@ const MultiPdfUpload = ({
               placeholder={tr('عنوان الفيديو (اختياري)', 'Titre (facultatif)', 'Title (optional)')}
               className="flex-1"
             />
-            <Button type="button" variant="secondary" onClick={addLink} disabled={!linkInput.trim()} className="shrink-0">
+            <Button type="button" variant="secondary" onClick={addLink} disabled={disabled || !linkInput.trim()} className="shrink-0">
               <Plus className="h-4 w-4" />
               {tr('إضافة', 'Ajouter', 'Add')}
             </Button>
@@ -334,7 +358,8 @@ const MultiPdfUpload = ({
                   <p className="text-sm font-medium truncate" title={file.name}>{file.name}</p>
                   <p className="text-[11px] text-muted-foreground">{formatFileSize(file.size)}</p>
                 </div>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeFile(index)}>
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeFile(index)} disabled={disabled}
+                  aria-label={`${tr('إزالة', 'Retirer', 'Remove')} : ${file.name}`} title={tr('إزالة', 'Retirer', 'Remove')}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -353,7 +378,8 @@ const MultiPdfUpload = ({
                     <p className="text-sm font-medium truncate">{link.title || link.url}</p>
                     <p className="text-[11px] text-muted-foreground truncate" dir="ltr">{link.url}</p>
                   </div>
-                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" disabled={disabled}
+                    aria-label={`${tr('إزالة', 'Retirer', 'Remove')} : ${link.title || link.url}`} title={tr('إزالة', 'Retirer', 'Remove')}
                     onClick={() => onVideoLinksChange?.(links.filter((_, i) => i !== index))}>
                     <X className="h-4 w-4" />
                   </Button>

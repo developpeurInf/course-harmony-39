@@ -224,6 +224,52 @@ export const compressImage = (file: File, opts: CompressOptions = {}): Promise<F
 /* Upload / save                                                       */
 /* ------------------------------------------------------------------ */
 
+const MIME_EXT: Record<string, string> = {
+  "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp",
+  "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-m4v": "m4v", "video/ogg": "ogv",
+};
+
+export interface UploadedMaterialFile {
+  /** fichier réellement envoyé (image éventuellement compressée) */
+  file: File;
+  filePath: string;
+  kind: MaterialKind;
+  publicUrl: string;
+}
+
+/**
+ * Compresse (images) puis envoie un fichier dans le bucket « course-materials »
+ * sous `<folder>/<prefix><horodatage>_<aléa>.<ext>`. Noms uniques → cache long (1 an).
+ * Lève l'erreur de Storage en cas d'échec.
+ */
+export const uploadMaterialFile = async (original: File, folder: string, prefix = ""): Promise<UploadedMaterialFile> => {
+  const kind = getFileKind(original.name, original.type);
+  const file = kind === "image" ? await compressImage(original) : original;
+  const nameExt = extOf(file.name);
+  const ext = (nameExt && /^[a-z0-9]{2,5}$/.test(nameExt) ? nameExt : "") || MIME_EXT[file.type] || (kind === "pdf" ? "pdf" : "bin");
+  const storageName = `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const filePath = `${folder.replace(/\/+$/, "")}/${storageName}`;
+
+  const { error } = await supabase.storage
+    .from(COURSE_BUCKET)
+    .upload(filePath, file, { upsert: false, contentType: file.type || undefined, cacheControl: "31536000" });
+  if (error) throw error;
+  const publicUrl = supabase.storage.from(COURSE_BUCKET).getPublicUrl(filePath).data.publicUrl;
+  return { file, filePath, kind, publicUrl };
+};
+
+/** Chemin Storage déduit d'une URL publique du bucket (ou null si URL externe). */
+export const storagePathFromPublicUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  const m = url.match(/\/course-materials\/([^?#]+)/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
+};
+
 export interface SaveMaterialsOptions {
   courseId: string;
   files: File[];
@@ -253,21 +299,7 @@ export const saveCourseMaterials = async ({
   for (const original of files) {
     onProgress?.(done, total, original.name);
     try {
-      const kind = getFileKind(original.name, original.type);
-      const file = kind === "image" ? await compressImage(original) : original;
-      const MIME_EXT: Record<string, string> = {
-        "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp",
-        "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-m4v": "m4v", "video/ogg": "ogv",
-      };
-      const nameExt = extOf(file.name);
-      const ext = (nameExt && /^[a-z0-9]{2,5}$/.test(nameExt) ? nameExt : "") || MIME_EXT[file.type] || (kind === "pdf" ? "pdf" : "bin");
-      const storageName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const filePath = `courses/${courseId}/${storageName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(COURSE_BUCKET)
-        .upload(filePath, file, { upsert: true, contentType: file.type || undefined, cacheControl: "3600" });
-      if (uploadError) throw uploadError;
+      const { file, filePath, kind } = await uploadMaterialFile(original, `courses/${courseId}`);
 
       const { error: dbError } = await supabase.from("course_materials").insert({
         course_id: courseId,

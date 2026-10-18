@@ -478,7 +478,7 @@ function PlanEditor({ plan, onClose, catalog, content, onSaved }: {
           {saveError && (
             <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{saveError}</p>
           )}
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={close} disabled={saving}>{L("Annuler", "إلغاء", "Cancel")}</Button>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}

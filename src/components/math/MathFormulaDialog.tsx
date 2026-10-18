@@ -449,7 +449,7 @@ export default function MathFormulaDialog({ open, onOpenChange, onInsert, initia
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{L("Annuler", "إلغاء", "Cancel")}</Button>
           <Button type="button" onClick={doInsert} disabled={!finalLatex} className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {L("Insérer", "إدراج", "Insert")}

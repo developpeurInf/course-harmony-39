@@ -4,6 +4,7 @@ import { accessStore } from "@/contexts/AccessContext";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { COURSE_BUCKET, getFileKind, isExternalUrl, parseVideoUrl, storagePathFromPublicUrl, uploadMaterialFile } from "@/lib/courseMedia";
 
 // Types
 export interface Room {
@@ -38,6 +39,23 @@ export interface Exercise {
   pdf_url?: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Pièce jointe d'un exercice (table exercise_materials) : fichier du bucket ou lien vidéo */
+export interface ExerciseMaterial {
+  id: string;
+  exercise_id: string;
+  file_name: string;
+  file_path: string;
+  file_size?: number | null;
+  mime_type?: string | null;
+  uploaded_at: string;
+  uploaded_by?: string | null;
+}
+
+export interface ExerciseMaterialsResult {
+  saved: ExerciseMaterial[];
+  failed: string[];
 }
 
 export interface Exam {
@@ -246,7 +264,21 @@ interface CourseContextType {
   updateExercise: (exerciseId: string, updates: Partial<Exercise>) => Promise<boolean>;
   deleteExercise: (exerciseId: string) => Promise<boolean>;
   toggleExerciseVisibility: (exerciseId: string) => Promise<boolean>;
+  /** Ajoute un fichier aux pièces jointes de l'exercice (n'écrase plus le précédent) ; renvoie son URL publique */
   uploadExercisePdf: (exerciseId: string, file: File, courseId?: string) => Promise<string | null>;
+  /** Pièces jointes des exercices chargés (toutes, triées par date d'ajout) */
+  exerciseMaterials: ExerciseMaterial[];
+  /** Pièces jointes d'un exercice */
+  getExerciseMaterials: (exerciseId: string) => ExerciseMaterial[];
+  /** Relit les pièces jointes de ces exercices */
+  loadExerciseMaterials: (exerciseIds: string[]) => Promise<void>;
+  /** Envoie un ou plusieurs fichiers (PDF, images compressées, vidéos) */
+  uploadExerciseMaterials: (exerciseId: string, files: File[], courseId?: string) => Promise<ExerciseMaterialsResult>;
+  uploadExerciseMaterial: (exerciseId: string, file: File, courseId?: string) => Promise<ExerciseMaterial | null>;
+  /** Ajoute un lien vidéo (YouTube, Vimeo, .mp4) */
+  addExerciseVideoLink: (exerciseId: string, url: string, title?: string) => Promise<ExerciseMaterial | null>;
+  /** Supprime une pièce jointe (et son fichier dans le stockage) */
+  deleteExerciseMaterial: (materialId: string) => Promise<boolean>;
   
   // Exam operations
   addExam: (exam: Omit<Exam, "id" | "created_at" | "updated_at">) => Promise<Exam | null>;
@@ -330,6 +362,24 @@ const EMPTY_OPTIONS: QuizOption[] = [];
 const EMPTY_ANSWERS: QuizAnswer[] = [];
 
 const QUESTION_COLUMNS = "id, exam_id, points, question_order";
+const EXERCISE_MATERIAL_COLUMNS = "id, exercise_id, file_name, file_path, file_size, mime_type, uploaded_at, uploaded_by";
+/** Fichiers à noms uniques : mis en cache 1 an par le navigateur / CDN */
+const STORAGE_CACHE_CONTROL = "31536000";
+/** Préfixe des pièces jointes « virtuelles » construites depuis exercises.pdf_url (avant migration) */
+export const LEGACY_EXERCISE_MATERIAL_PREFIX = "legacy:";
+
+/** La table exercise_materials n'existe pas (encore) côté base */
+const isMissingTableError = (err: any): boolean => {
+  if (!err) return false;
+  const code = String(err.code || "");
+  return code === "42P01" || code === "PGRST205" || code === "PGRST106" ||
+    (/exercise_materials/.test(String(err.message || "")) && /(does not exist|schema cache|not find)/i.test(String(err.message || "")));
+};
+
+const byUploadedAt = (a: ExerciseMaterial, b: ExerciseMaterial) =>
+  (a.uploaded_at || "").localeCompare(b.uploaded_at || "");
+
+const EMPTY_EXERCISE_MATERIALS: ExerciseMaterial[] = [];
 const SUBMISSION_COLUMNS = "id, exam_id, student_id, score, total_points, submitted_at, is_completed";
 
 export function CourseProvider({ children }: { children: React.ReactNode }) {
@@ -358,7 +408,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [quizSubmissions, setQuizSubmissions] = useState<QuizSubmission[]>([]);
+  const [exerciseMaterials, setExerciseMaterials] = useState<ExerciseMaterial[]>([]);
   const [loading, setLoading] = useState(false);
+  /** false si la table exercise_materials est absente : repli sur exercises.pdf_url */
+  const exerciseMaterialsSupportedRef = useRef(true);
 
   // Dernières valeurs connues, lisibles depuis des fonctions stables (sans closure périmée)
   const hasDataRef = useRef(false);
@@ -370,6 +423,37 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const fetchSeqRef = useRef(0);
   /** room_id du périmètre affiché ('' = vue globale) */
   const scopeRoomRef = useRef<string>("");
+
+  /** Lit les pièces jointes de ces exercices (par lots, pour garder des URL courtes) */
+  const fetchExerciseMaterials = useCallback(async (exerciseIds: string[]): Promise<ExerciseMaterial[] | null> => {
+    const ids = Array.from(new Set(exerciseIds.filter(Boolean)));
+    if (ids.length === 0) return [];
+    const rows: ExerciseMaterial[] = [];
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data, error } = await (supabase as any)
+        .from('exercise_materials')
+        .select(EXERCISE_MATERIAL_COLUMNS)
+        .in('exercise_id', ids.slice(i, i + 150))
+        .order('uploaded_at', { ascending: true });
+      if (error) {
+        if (isMissingTableError(error)) exerciseMaterialsSupportedRef.current = false;
+        else console.error('Exercise materials fetch error:', error);
+        return null;
+      }
+      exerciseMaterialsSupportedRef.current = true;
+      rows.push(...((data || []) as ExerciseMaterial[]));
+    }
+    return rows;
+  }, []);
+
+  const loadExerciseMaterials = useCallback(async (exerciseIds: string[]): Promise<void> => {
+    const ids = Array.from(new Set(exerciseIds.filter(Boolean)));
+    if (ids.length === 0) return;
+    const rows = await fetchExerciseMaterials(ids);
+    if (!rows) return;
+    const idSet = new Set(ids);
+    setExerciseMaterials(prev => prev.filter(m => !idSet.has(m.exercise_id)).concat(rows).sort(byUploadedAt));
+  }, [fetchExerciseMaterials]);
 
   const refreshData = useCallback(async (roomId?: string, opts?: { force?: boolean }): Promise<void> => {
     if (!userId) return;
@@ -508,8 +592,13 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         if (coursesData.error) console.error('Courses fetch error:', coursesData.error);
         else setCourses(coursesData.data || []);
 
+        let loadedExerciseIds: string[] | null = null;
         if (exercisesData.error) console.error('Exercises fetch error:', exercisesData.error);
-        else setExercises((exercisesData.data || []).map((e: any) => stripJoin<Exercise>(e, 'courses')));
+        else {
+          const list = (exercisesData.data || []).map((e: any) => stripJoin<Exercise>(e, 'courses'));
+          loadedExerciseIds = list.map((e: Exercise) => e.id);
+          setExercises(list);
+        }
 
         if (examsData.error) console.error('Exams fetch error:', examsData.error);
         else setExams((examsData.data || []).map((e: any) => parseExamAvailability(stripJoin<Exam>(e, 'courses'))));
@@ -525,6 +614,12 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
         scopeRoomRef.current = roomId || "";
         lastFetchRef.current = { key: scopeKey, at: Date.now(), href: opts && (opts as any).__auto ? "*" : href };
+
+        // Pièces jointes des exercices du périmètre (après coup : n'en retarde pas l'affichage)
+        if (loadedExerciseIds) {
+          const materials = await fetchExerciseMaterials(loadedExerciseIds);
+          if (materials && seq === fetchSeqRef.current) setExerciseMaterials(materials.sort(byUploadedAt));
+        }
       } catch (error) {
         console.error('Failed to refresh data:', error);
       } finally {
@@ -537,7 +632,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     });
     inFlightRef.current = { key: scopeKey, promise };
     return promise;
-  }, [userId, userRole, userRoomId]);
+  }, [userId, userRole, userRoomId, fetchExerciseMaterials]);
 
   // Chargement initial (et à chaque changement de compte / rôle / classe)
   useEffect(() => {
@@ -555,6 +650,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       setEnrollments([]);
       setQuizQuestions([]);
       setQuizSubmissions([]);
+      setExerciseMaterials([]);
       setLoading(false);
     }
   }, [userId, userRole, userRoomId, refreshData]);
@@ -906,7 +1002,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, { upsert: true, contentType: file.type || undefined, cacheControl: STORAGE_CACHE_CONTROL });
 
       if (uploadError) {
         console.error("Course PDF upload error:", uploadError);
@@ -1021,6 +1117,12 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     try {
       const exerciseToDelete = exercises.find(e => e.id === exerciseId);
       const parentCourse = exerciseToDelete ? courses.find(c => c.id === exerciseToDelete.course_id) : null;
+      // Fichiers à retirer du stockage une fois l'exercice supprimé (les lignes partent en cascade)
+      const storagePaths = exerciseMaterials
+        .filter(m => m.exercise_id === exerciseId && !isExternalUrl(m.file_path))
+        .map(m => m.file_path);
+      const legacyPath = storagePathFromPublicUrl(exerciseToDelete?.pdf_url);
+      if (legacyPath && !storagePaths.includes(legacyPath)) storagePaths.push(legacyPath);
 
       const { error } = await supabase
         .from('exercises')
@@ -1033,6 +1135,10 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       }
 
       setExercises(prev => prev.filter(e => e.id !== exerciseId));
+      setExerciseMaterials(prev => prev.filter(m => m.exercise_id !== exerciseId));
+      if (storagePaths.length > 0) {
+        void supabase.storage.from(COURSE_BUCKET).remove(storagePaths).catch(() => undefined);
+      }
 
       // Notify students about exercise deletion
       if (exerciseToDelete) {
@@ -1064,55 +1170,245 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return await updateExercise(exerciseId, { is_visible: !exercise.is_visible });
   };
 
-  const uploadExercisePdf = async (exerciseId: string, file: File, courseId?: string): Promise<string | null> => {
-    try {
-      let targetCourseId = courseId;
-      if (!targetCourseId) {
-        const ex = exercises.find(e => e.id === exerciseId);
-        targetCourseId = ex?.course_id;
-      }
-      if (!targetCourseId) {
-        const { data: exData } = await supabase.from('exercises').select('course_id').eq('id', exerciseId).single();
-        targetCourseId = exData?.course_id;
-      }
+  /** Cours de l'exercice (état local, sinon lu en base) */
+  const resolveExerciseCourseId = async (exerciseId: string, courseId?: string): Promise<string | undefined> => {
+    if (courseId) return courseId;
+    const ex = exercises.find(e => e.id === exerciseId);
+    if (ex?.course_id) return ex.course_id;
+    const { data: exData } = await supabase.from('exercises').select('course_id').eq('id', exerciseId).single();
+    return exData?.course_id || undefined;
+  };
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `exercise_${exerciseId}_${Date.now()}.${fileExt}`;
-      const filePath = targetCourseId ? `courses/${targetCourseId}/${fileName}` : fileName;
+  /** Met à jour le raccourci historique exercises.pdf_url (dernier PDF joint, ou null) */
+  const syncExercisePdfUrl = async (exerciseId: string, pdfUrl: string | null) => {
+    const { error } = await supabase.from('exercises').update({ pdf_url: pdfUrl }).eq('id', exerciseId);
+    if (error) {
+      console.error('Exercise pdf_url sync error:', error);
+      return;
+    }
+    setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: pdfUrl || undefined } : e)));
+  };
 
-      const { error: uploadError } = await supabase.storage
-        .from('course-materials')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) {
-        console.error("Exercise PDF upload error:", uploadError);
-        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", uploadError);
-        return null;
-      }
-
-      const { data } = supabase.storage
-        .from('course-materials')
-        .getPublicUrl(filePath);
-
-      const publicUrl = data.publicUrl;
-
-      // Update exercise with PDF URL
-      const { error: updError } = await supabase
-        .from('exercises')
-        .update({ pdf_url: publicUrl })
-        .eq('id', exerciseId);
-      if (updError) {
-        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", updError);
-        return null;
-      }
-
-      setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: publicUrl } : e)));
-      toast.success(trc("PDF envoyé avec succès", "تم رفع ملف PDF بنجاح", "PDF uploaded successfully"));
-      return publicUrl;
-    } catch (error) {
-      toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF");
+  /** Ancien fonctionnement (table exercise_materials absente) : un seul PDF dans exercises.pdf_url */
+  const uploadExercisePdfLegacy = async (exerciseId: string, file: File, targetCourseId?: string): Promise<string | null> => {
+    const folder = targetCourseId ? `courses/${targetCourseId}` : 'exercises';
+    const { publicUrl } = await uploadMaterialFile(file, folder, `exercise_${exerciseId}_`);
+    const { error: updError } = await supabase
+      .from('exercises')
+      .update({ pdf_url: publicUrl })
+      .eq('id', exerciseId);
+    if (updError) {
+      toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", updError);
       return null;
     }
+    setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: publicUrl } : e)));
+    return publicUrl;
+  };
+
+  /** Envoie les fichiers sans toast ; renvoie les lignes créées et les noms en échec */
+  const saveExerciseFiles = async (exerciseId: string, files: File[], courseId?: string): Promise<ExerciseMaterialsResult & { legacyUrl?: string | null; lastError?: any }> => {
+    const saved: ExerciseMaterial[] = [];
+    const failed: string[] = [];
+    let lastError: any = null;
+    let lastPdfUrl: string | null = null;
+    let legacyUrl: string | null = null;
+    const targetCourseId = await resolveExerciseCourseId(exerciseId, courseId);
+    const folder = targetCourseId ? `courses/${targetCourseId}` : 'exercises';
+
+    for (const original of files) {
+      try {
+        if (!exerciseMaterialsSupportedRef.current) {
+          const url = await uploadExercisePdfLegacy(exerciseId, original, targetCourseId);
+          if (!url) throw new Error('legacy upload failed');
+          legacyUrl = url;
+          continue;
+        }
+        const { file, filePath, kind, publicUrl } = await uploadMaterialFile(original, folder, `exercise_${exerciseId}_`);
+        const { data, error } = await (supabase as any)
+          .from('exercise_materials')
+          .insert({
+            exercise_id: exerciseId,
+            file_name: original.name,
+            file_path: filePath,
+            file_size: file.size,
+            mime_type: file.type || null,
+            uploaded_by: userId || null,
+          })
+          .select(EXERCISE_MATERIAL_COLUMNS)
+          .single();
+        if (error || !data) {
+          if (isMissingTableError(error)) {
+            // Migration pas encore appliquée : on garde le fichier comme PDF unique de l'exercice
+            exerciseMaterialsSupportedRef.current = false;
+            const { error: updError } = await supabase.from('exercises').update({ pdf_url: publicUrl }).eq('id', exerciseId);
+            if (updError) throw updError;
+            setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: publicUrl } : e)));
+            legacyUrl = publicUrl;
+            continue;
+          }
+          await supabase.storage.from(COURSE_BUCKET).remove([filePath]).catch(() => undefined);
+          throw error || new Error('insert failed');
+        }
+        saved.push(data as ExerciseMaterial);
+        if (kind === 'pdf') lastPdfUrl = publicUrl;
+      } catch (error: any) {
+        console.error('Exercise material upload failed:', original.name, error);
+        lastError = error;
+        failed.push(original.name);
+      }
+    }
+
+    if (saved.length > 0) {
+      setExerciseMaterials(prev => prev.filter(m => !saved.some(s => s.id === m.id)).concat(saved).sort(byUploadedAt));
+    }
+    // Raccourci historique : exercises.pdf_url pointe vers le dernier PDF joint
+    if (lastPdfUrl) await syncExercisePdfUrl(exerciseId, lastPdfUrl);
+    return { saved, failed, lastError, legacyUrl };
+  };
+
+  const uploadExerciseMaterials = async (exerciseId: string, files: File[], courseId?: string): Promise<ExerciseMaterialsResult> => {
+    if (!accessStore.guard("exercise.edit")) return { saved: [], failed: files.map(f => f.name) };
+    if (files.length === 0) return { saved: [], failed: [] };
+    try {
+      const res = await saveExerciseFiles(exerciseId, files, courseId);
+      const okCount = res.saved.length + (res.legacyUrl ? 1 : 0);
+      if (res.failed.length > 0) {
+        toastFail(
+          `Échec de l'envoi : ${res.failed.join(", ")}`,
+          `فشل رفع: ${res.failed.join("، ")}`,
+          `Upload failed: ${res.failed.join(", ")}`,
+          res.lastError
+        );
+      }
+      if (okCount > 0) {
+        toast.success(okCount > 1
+          ? trc(`${okCount} fichiers joints à l'exercice`, `تم إرفاق ${okCount} ملفات بالتمرين`, `${okCount} files attached to the exercise`)
+          : trc("Fichier joint à l'exercice", "تم إرفاق الملف بالتمرين", "File attached to the exercise"));
+      }
+      return { saved: res.saved, failed: res.failed };
+    } catch (error) {
+      toastFail("Échec de l'envoi des fichiers", "فشل رفع الملفات", "Failed to upload files", error as any);
+      return { saved: [], failed: files.map(f => f.name) };
+    }
+  };
+
+  const uploadExerciseMaterial = async (exerciseId: string, file: File, courseId?: string): Promise<ExerciseMaterial | null> => {
+    const res = await uploadExerciseMaterials(exerciseId, [file], courseId);
+    return res.saved[0] || null;
+  };
+
+  /** Compatibilité : ajoute le fichier aux pièces jointes (n'écrase plus) et renvoie son URL publique */
+  const uploadExercisePdf = async (exerciseId: string, file: File, courseId?: string): Promise<string | null> => {
+    if (!accessStore.guard("exercise.edit")) return null;
+    try {
+      const res = await saveExerciseFiles(exerciseId, [file], courseId);
+      if (res.legacyUrl) {
+        toast.success(trc("PDF envoyé avec succès", "تم رفع ملف PDF بنجاح", "PDF uploaded successfully"));
+        return res.legacyUrl;
+      }
+      const row = res.saved[0];
+      if (!row) {
+        toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", res.lastError);
+        return null;
+      }
+      toast.success(trc("Fichier envoyé avec succès", "تم رفع الملف بنجاح", "File uploaded successfully"));
+      return supabase.storage.from(COURSE_BUCKET).getPublicUrl(row.file_path).data.publicUrl;
+    } catch (error) {
+      toastFail("Échec de l'envoi du PDF", "فشل رفع ملف PDF", "Failed to upload PDF", error as any);
+      return null;
+    }
+  };
+
+  const addExerciseVideoLink = async (exerciseId: string, url: string, title?: string): Promise<ExerciseMaterial | null> => {
+    if (!accessStore.guard("exercise.edit")) return null;
+    const clean = (url || "").trim();
+    if (!parseVideoUrl(clean)) {
+      toast.error(trc("Lien vidéo invalide (YouTube, Vimeo ou fichier .mp4)", "رابط فيديو غير صالح (YouTube أو Vimeo أو ملف mp4)", "Invalid video link (YouTube, Vimeo or .mp4)"));
+      return null;
+    }
+    try {
+      const { data, error } = await (supabase as any)
+        .from('exercise_materials')
+        .insert({
+          exercise_id: exerciseId,
+          file_name: (title || "").trim() || clean,
+          file_path: clean,
+          file_size: null,
+          mime_type: null,
+          uploaded_by: userId || null,
+        })
+        .select(EXERCISE_MATERIAL_COLUMNS)
+        .single();
+      if (error || !data) {
+        if (isMissingTableError(error)) exerciseMaterialsSupportedRef.current = false;
+        toastFail("Échec de l'ajout du lien vidéo", "فشل إضافة رابط الفيديو", "Failed to add the video link", error);
+        return null;
+      }
+      const row = data as ExerciseMaterial;
+      setExerciseMaterials(prev => prev.filter(m => m.id !== row.id).concat(row).sort(byUploadedAt));
+      toast.success(trc("Vidéo ajoutée à l'exercice", "تمت إضافة الفيديو إلى التمرين", "Video added to the exercise"));
+      return row;
+    } catch (error) {
+      toastFail("Échec de l'ajout du lien vidéo", "فشل إضافة رابط الفيديو", "Failed to add the video link");
+      return null;
+    }
+  };
+
+  const deleteExerciseMaterial = async (materialId: string): Promise<boolean> => {
+    if (!accessStore.guard("exercise.edit")) return false;
+    try {
+      // Pièce jointe « virtuelle » (ancien exercises.pdf_url sans ligne dans exercise_materials)
+      if (materialId.startsWith(LEGACY_EXERCISE_MATERIAL_PREFIX)) {
+        const exerciseId = materialId.slice(LEGACY_EXERCISE_MATERIAL_PREFIX.length);
+        const ex = exercises.find(e => e.id === exerciseId);
+        const { error } = await supabase.from('exercises').update({ pdf_url: null }).eq('id', exerciseId);
+        if (error) {
+          toastFail("Échec de la suppression du fichier", "فشل حذف الملف", "Failed to delete the file", error);
+          return false;
+        }
+        setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: undefined } : e)));
+        const path = storagePathFromPublicUrl(ex?.pdf_url);
+        if (path) void supabase.storage.from(COURSE_BUCKET).remove([path]).catch(() => undefined);
+        toast.success(trc("Fichier supprimé", "تم حذف الملف", "File deleted"));
+        return true;
+      }
+
+      const material = exerciseMaterials.find(m => m.id === materialId);
+      const { error } = await (supabase as any).from('exercise_materials').delete().eq('id', materialId);
+      if (error) {
+        toastFail("Échec de la suppression du fichier", "فشل حذف الملف", "Failed to delete the file", error);
+        return false;
+      }
+      const remaining = exerciseMaterials.filter(m => m.id !== materialId);
+      setExerciseMaterials(prev => prev.filter(m => m.id !== materialId));
+
+      if (material) {
+        if (!isExternalUrl(material.file_path)) {
+          void supabase.storage.from(COURSE_BUCKET).remove([material.file_path]).catch(() => undefined);
+        }
+        // Le raccourci exercises.pdf_url ne doit pas pointer vers un fichier supprimé
+        const ex = exercises.find(e => e.id === material.exercise_id);
+        const deletedPath = material.file_path;
+        const currentPath = storagePathFromPublicUrl(ex?.pdf_url) || ex?.pdf_url || null;
+        if (ex && currentPath && currentPath === deletedPath) {
+          const nextPdf = remaining
+            .filter(m => m.exercise_id === material.exercise_id && !isExternalUrl(m.file_path) && getFileKind(m.file_path, m.mime_type || undefined) === 'pdf')
+            .pop();
+          const nextUrl = nextPdf ? supabase.storage.from(COURSE_BUCKET).getPublicUrl(nextPdf.file_path).data.publicUrl : null;
+          await syncExercisePdfUrl(material.exercise_id, nextUrl);
+        }
+      }
+      toast.success(trc("Fichier supprimé", "تم حذف الملف", "File deleted"));
+      return true;
+    } catch (error) {
+      toastFail("Échec de la suppression du fichier", "فشل حذف الملف", "Failed to delete the file");
+      return false;
+    }
+  };
+
+  const getExerciseMaterials = (exerciseId: string): ExerciseMaterial[] => {
+    const list = exerciseMaterials.filter(m => m.exercise_id === exerciseId);
+    return list.length > 0 ? list : EMPTY_EXERCISE_MATERIALS;
   };
 
   // Exam operations
@@ -1329,7 +1625,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
 
       const { error: uploadError } = await supabase.storage
         .from('course-materials')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, { upsert: true, contentType: file.type || undefined, cacheControl: STORAGE_CACHE_CONTROL });
 
       if (uploadError) {
         console.error("Exam PDF upload error:", uploadError);
@@ -1875,6 +2171,13 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     deleteExercise,
     toggleExerciseVisibility,
     uploadExercisePdf,
+    exerciseMaterials,
+    getExerciseMaterials,
+    loadExerciseMaterials,
+    uploadExerciseMaterials,
+    uploadExerciseMaterial,
+    addExerciseVideoLink,
+    deleteExerciseMaterial,
     addExam,
     updateExam,
     deleteExam,
@@ -1899,7 +2202,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     getVisibleExamsForStudent,
     refreshData
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [rooms, courses, exercises, exams, enrollments, quizQuestions, quizSubmissions, loading, user, refreshData]);
+  }), [rooms, courses, exercises, exams, enrollments, quizQuestions, quizSubmissions, exerciseMaterials, loading, user, refreshData, loadExerciseMaterials]);
 
   return (
     <CourseContext.Provider value={value}>
