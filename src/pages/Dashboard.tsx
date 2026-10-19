@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useNow } from "@/hooks/useNow";
 import { formatDecimal } from "@/lib/formatDate";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import type { Lang } from "@/lib/appSettings";
 
 interface RecentSubmission {
   id: string;
@@ -83,6 +85,12 @@ const Dashboard = () => {
 
   const isRtl = language === "ar";
   const { prefs } = usePreferences();
+  // Personnalisation centrale : phrase d'accueil et modules activés
+  const { settings: appSettings, text: settingText, feature } = useAppSettings();
+  const dashboardWelcome = settingText(appSettings.texts?.dashboardWelcome, (language === "ar" || language === "en" ? language : "fr") as Lang);
+  const hasCourses = feature("courses");
+  const hasExercises = feature("exercises");
+  const hasExams = feature("exams");
   const passPct = prefs.passThreshold * 5;
   const passLabel = String(prefs.passThreshold).replace(".", language === "en" ? "." : ",");
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en), [language]);
@@ -379,6 +387,9 @@ const Dashboard = () => {
           <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight">
             {t("dashboard.welcome")}, <span className="text-primary">{user?.name}</span>
           </h1>
+          {dashboardWelcome && (
+            <p className="mt-1.5 max-w-2xl whitespace-pre-line text-sm font-medium text-foreground/80">{dashboardWelcome}</p>
+          )}
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             {isProfessor
               ? tr("Voici l'essentiel de vos classes : résultats, activité et échéances.", "إليك أهم مستجدات أقسامك: النتائج والنشاط والمواعيد.", "Here is the essentials of your classes: results, activity and deadlines.")
@@ -436,7 +447,7 @@ const Dashboard = () => {
       )}
 
       {/* ── Élève : à faire maintenant ── */}
-      {!isProfessor && quizzesToDo.length > 0 && (
+      {!isProfessor && hasExams && quizzesToDo.length > 0 && (
         <Card className="overflow-hidden border-emerald-300 dark:border-emerald-800">
           <CardHeader className="bg-emerald-500/10 pb-3">
             <CardTitle className="flex items-center gap-2 text-base text-emerald-800 dark:text-emerald-300">
@@ -487,29 +498,29 @@ const Dashboard = () => {
         {isProfessor && (
           <StatCard tone="amber" icon={<Users className="h-5 w-5" />} label={tr("Élèves", "التلاميذ", "Students")} value={totalStudents} hint={tr("élèves inscrits", "تلميذ مسجل", "enrolled students")} />
         )}
-        <StatCard tone="blue" icon={<BookOpen className="h-5 w-5" />} label={tr("Cours", "الدروس", "Courses")} value={displayCourses.length} hint={isProfessor ? tr("cours publiés", "دروس منشورة", "published courses") : tr("cours suivis", "دروس متابعة", "courses followed")} onClick={() => navigate("/courses")} />
-        <StatCard tone="violet" icon={<FileText className="h-5 w-5" />} label={tr("Exercices", "التمارين", "Exercises")} value={displayExercises.length} hint={tr(`${upcomingExercises.length} à rendre sous 14 j`, `${upcomingExercises.length} للتسليم خلال 14 يوماً`, `${upcomingExercises.length} due within 14 days`)} onClick={() => navigate("/exercises")} />
-        <StatCard tone="cyan" icon={<ClipboardList className="h-5 w-5" />} label={tr("Évaluations", "التقويمات", "Assessments")} value={displayExams.length} hint={tr(`${submissionsCount} copie(s) rendue(s)`, `${submissionsCount} ورقة مسلَّمة`, `${submissionsCount} submission(s)`)} onClick={() => navigate("/exams")} />
-        <StatCard
+        {hasCourses && <StatCard tone="blue" icon={<BookOpen className="h-5 w-5" />} label={tr("Cours", "الدروس", "Courses")} value={displayCourses.length} hint={isProfessor ? tr("cours publiés", "دروس منشورة", "published courses") : tr("cours suivis", "دروس متابعة", "courses followed")} onClick={() => navigate("/courses")} />}
+        {hasExercises && <StatCard tone="violet" icon={<FileText className="h-5 w-5" />} label={tr("Exercices", "التمارين", "Exercises")} value={displayExercises.length} hint={tr(`${upcomingExercises.length} à rendre sous 14 j`, `${upcomingExercises.length} للتسليم خلال 14 يوماً`, `${upcomingExercises.length} due within 14 days`)} onClick={() => navigate("/exercises")} />}
+        {hasExams && <StatCard tone="cyan" icon={<ClipboardList className="h-5 w-5" />} label={tr("Évaluations", "التقويمات", "Assessments")} value={displayExams.length} hint={tr(`${submissionsCount} copie(s) rendue(s)`, `${submissionsCount} ورقة مسلَّمة`, `${submissionsCount} submission(s)`)} onClick={() => navigate("/exams")} />}
+        {hasExams && <StatCard
           tone="emerald"
           icon={<GraduationCap className="h-5 w-5" />}
           label={isProfessor ? tr("Moyenne aux quiz", "معدل الاختبارات", "Quiz average") : tr("Ma moyenne", "معدلي", "My average")}
           value={<span dir="ltr" className="inline-block">{fmtNote20(avgPct)}<span className="text-base font-bold text-muted-foreground"> /20</span></span>}
           hint={passRate === null ? tr("aucune copie pour l'instant", "لا توجد أوراق بعد", "no submissions yet") : tr(`${Math.round(passRate)} % de notes ≥ ${passLabel}/20`, `${Math.round(passRate)}% من النقط ≥ ${passLabel}/20`, `${Math.round(passRate)}% of grades ≥ ${passLabel}/20`)}
           progress={avgPct}
-        />
+        />}
       </div>
 
       {/* ── Activité & dernières copies ── */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
         {isProfessor && (
-          <Card className="lg:col-span-3">
+          <Card className={hasExams ? "lg:col-span-3" : "lg:col-span-5"}>
             <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
               <div>
                 <CardTitle className="text-base flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />{tr("Activité des 7 derniers jours", "نشاط آخر 7 أيام", "Last 7 days activity")}</CardTitle>
                 <CardDescription className="mt-1.5">{tr("Élèves actifs et copies de quiz rendues chaque jour", "التلاميذ النشطون والأوراق المسلمة يومياً", "Active students and quiz submissions per day")}</CardDescription>
               </div>
-              <Button asChild variant="ghost" size="sm" className="gap-1 text-xs"><Link to="/reports">{tr("Rapports", "التقارير", "Reports")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>
+              {feature("reports") && <Button asChild variant="ghost" size="sm" className="gap-1 text-xs"><Link to="/reports">{tr("Rapports", "التقارير", "Reports")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>}
             </CardHeader>
             <CardContent>
               {firstLoad && week.length === 0 ? (
@@ -546,13 +557,14 @@ const Dashboard = () => {
           </Card>
         )}
 
+        {hasExams && (
         <Card className={isProfessor ? "lg:col-span-2" : "lg:col-span-5"}>
           <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <div>
               <CardTitle className="text-base flex items-center gap-2"><Award className="h-5 w-5 text-amber-500" />{isProfessor ? tr("Dernières copies de quiz", "آخر أوراق الاختبارات", "Latest quiz submissions") : tr("Mes derniers résultats", "آخر نتائجي", "My latest results")}</CardTitle>
               <CardDescription className="mt-1.5">{tr("Note obtenue sur le total de points du quiz", "النقطة المحصل عليها من مجموع نقط الاختبار", "Score out of the quiz total points")}</CardDescription>
             </div>
-            {isProfessor && professorRooms.length > 0 && (
+            {isProfessor && professorRooms.length > 0 && feature("studentActivities") && (
               <Button asChild variant="ghost" size="sm" className="gap-1 text-xs"><Link to={trackingLink}>{tr("Suivi", "التتبع", "Tracking")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>
             )}
           </CardHeader>
@@ -595,10 +607,11 @@ const Dashboard = () => {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* ── Élève : exercices en retard (14 derniers jours) ── */}
-      {!isProfessor && overdueExercises.length > 0 && (
+      {!isProfessor && hasExercises && overdueExercises.length > 0 && (
         <Card className="border-rose-300 dark:border-rose-900">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base text-rose-700 dark:text-rose-300">
@@ -649,7 +662,7 @@ const Dashboard = () => {
             empty: t("dashboard.no.exams"),
             tone: "emerald" as const,
           },
-        ].map(block => (
+        ].filter(block => (block.key === "ex" ? hasExercises : hasExams)).map(block => (
           <Card key={block.key}>
             <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
               <div>
@@ -691,6 +704,7 @@ const Dashboard = () => {
       </div>
 
       {/* ── Cours ── */}
+      {hasCourses && (
       <Card>
         <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
           <div>
@@ -742,8 +756,8 @@ const Dashboard = () => {
                       </div>
                       <div className="mt-3 flex flex-wrap gap-1.5 border-t pt-3 text-[11px] font-medium">
                         {isProfessor && <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5"><Users className="h-3 w-3" />{nStudents} {tr("élèves", "تلميذ", "students")}</span>}
-                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5"><FileText className="h-3 w-3" />{nEx} {tr("exercices", "تمارين", "exercises")}</span>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5"><Target className="h-3 w-3" />{nExams} {tr("évaluations", "تقويمات", "assessments")}</span>
+                        {hasExercises && <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5"><FileText className="h-3 w-3" />{nEx} {tr("exercices", "تمارين", "exercises")}</span>}
+                        {hasExams && <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5"><Target className="h-3 w-3" />{nExams} {tr("évaluations", "تقويمات", "assessments")}</span>}
                       </div>
                     </CardContent>
                   </Card>
@@ -759,6 +773,7 @@ const Dashboard = () => {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };

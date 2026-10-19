@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEFAULT_QUIZ_SETTINGS, QuizSettings } from "@/contexts/CourseContext";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import type { AppSettings } from "@/lib/appSettings";
 
 /**
  * Préférences de l'application (par utilisateur).
@@ -89,12 +91,43 @@ export function systemPrefersReducedMotion(): boolean {
   }
 }
 
+/** Champs pédagogiques réglés par l'administration (Personnalisation → Pédagogie). */
+export type AdminPedagogyPrefs = Pick<AppPreferences, "passThreshold" | "attemptPolicy" | "quizDefaults" | "defaultQuizDuration">;
+
+/** Réglages pédagogiques centraux → forme des préférences (les champs absents gardent l'existant). */
+export function pedagogyToPrefs(settings: AppSettings | null | undefined): AdminPedagogyPrefs {
+  const ped = settings?.pedagogy;
+  const qd = ped?.quizDefaults;
+  const num = (v: unknown, def: number) => (typeof v === "number" && isFinite(v) ? v : def);
+  const bool = (v: unknown, def: boolean) => (typeof v === "boolean" ? v : def);
+  const d = DEFAULT_QUIZ_SETTINGS;
+  // « first » (première tentative) n'existe pas encore dans les calculs : repli sur la dernière
+  const policy: AttemptPolicy = ped?.attemptPolicy === "best" ? "best" : ped?.attemptPolicy === "average" ? "average" : "latest";
+  return {
+    passThreshold: num(ped?.passThreshold, DEFAULT_PREFERENCES.passThreshold),
+    attemptPolicy: ped ? policy : DEFAULT_PREFERENCES.attemptPolicy,
+    defaultQuizDuration: num(qd?.defaultDurationMinutes, DEFAULT_PREFERENCES.defaultQuizDuration),
+    quizDefaults: {
+      ...d,
+      sequentialQuestions: bool(qd?.sequentialQuestions, d.sequentialQuestions),
+      allowMultipleAttempts: bool(qd?.allowMultipleAttempts, d.allowMultipleAttempts),
+      allowCorrections: bool(qd?.allowCorrections, d.allowCorrections),
+      shuffleQuestions: bool(qd?.shuffleQuestions, d.shuffleQuestions),
+      shuffleOptions: bool(qd?.shuffleOptions, d.shuffleOptions),
+      showResultsImmediately: bool(qd?.showResultsImmediately, d.showResultsImmediately),
+      allowReview: bool(qd?.allowReview, d.allowReview),
+      antiCheat: bool(qd?.antiCheat, d.antiCheat),
+      maxFocusLosses: Math.max(0, Math.round(num(qd?.maxFocusLosses, d.maxFocusLosses))),
+    },
+  };
+}
+
 /** Fusionne des préférences partielles (ex. anciennes versions) avec les valeurs par défaut et les corrige. */
-export function normalizePreferences(raw: Partial<AppPreferences> | null | undefined): AppPreferences {
+export function normalizePreferences(raw: Partial<AppPreferences> | null | undefined, base: AppPreferences = DEFAULT_PREFERENCES): AppPreferences {
   const p: AppPreferences = {
-    ...DEFAULT_PREFERENCES,
+    ...base,
     ...(raw || {}),
-    quizDefaults: { ...DEFAULT_QUIZ_SETTINGS, ...((raw && raw.quizDefaults) || {}) },
+    quizDefaults: { ...DEFAULT_QUIZ_SETTINGS, ...(base.quizDefaults || {}), ...((raw && raw.quizDefaults) || {}) },
   };
   const clamp = (v: unknown, min: number, max: number, def: number) => {
     const n = typeof v === "number" && isFinite(v) ? v : def;
@@ -102,14 +135,14 @@ export function normalizePreferences(raw: Partial<AppPreferences> | null | undef
   };
   // pas de choix enregistré : on suit le réglage du système
   if (typeof (raw && raw.reduceMotion) !== "boolean") p.reduceMotion = systemPrefersReducedMotion();
-  p.passThreshold = clamp(p.passThreshold, 1, 20, 10);
+  p.passThreshold = clamp(p.passThreshold, 1, 20, base.passThreshold || 10);
   p.levelStruggling = clamp(p.levelStruggling, 0, 20, 8);
   p.levelGood = clamp(p.levelGood, p.levelStruggling, 20, 12);
   p.levelExcellent = clamp(p.levelExcellent, p.levelGood, 20, 14);
   p.inactivityDays = clamp(p.inactivityDays, 1, 90, 7);
-  p.defaultQuizDuration = clamp(p.defaultQuizDuration, 1, 600, 30);
+  p.defaultQuizDuration = clamp(p.defaultQuizDuration, 1, 600, base.defaultQuizDuration || 30);
   p.defaultExamDuration = clamp(p.defaultExamDuration, 1, 600, 60);
-  if (!["latest", "best", "average"].includes(p.attemptPolicy)) p.attemptPolicy = "latest";
+  if (!["latest", "best", "average"].includes(p.attemptPolicy)) p.attemptPolicy = ["latest", "best", "average"].includes(base.attemptPolicy) ? base.attemptPolicy : "latest";
   if (!["normal", "large", "xlarge"].includes(p.fontScale)) p.fontScale = "normal";
   if (!["comfortable", "compact"].includes(p.tableDensity)) p.tableDensity = "comfortable";
   if (!(p.accentColor in ACCENT_PRESETS)) p.accentColor = "blue";
@@ -123,16 +156,22 @@ interface PreferencesContextValue {
   update: (patch: Partial<AppPreferences>) => void;
   reset: (section?: "evaluation" | "quiz" | "notifications" | "display") => void;
   syncState: SyncState;
+  /** true quand l'administration impose les réglages pédagogiques (non modifiables par l'enseignant) */
+  pedagogyLocked: boolean;
+  /** Valeurs pédagogiques fixées par l'administration (défauts ou valeurs imposées) */
+  adminPedagogy: AdminPedagogyPrefs;
 }
 
 const PreferencesContext = createContext<PreferencesContextValue | undefined>(undefined);
 
 const storageKey = (userId?: string) => `app-preferences-${userId || "anonymous"}`;
 
-const readLocal = (userId?: string): AppPreferences | null => {
+/** Préférences enregistrées telles quelles (complétées plus tard avec les défauts du moment). */
+const readLocal = (userId?: string): Partial<AppPreferences> | null => {
   try {
     const raw = localStorage.getItem(storageKey(userId));
-    return raw ? normalizePreferences(JSON.parse(raw)) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
@@ -140,23 +179,42 @@ const readLocal = (userId?: string): AppPreferences | null => {
 
 export const PreferencesProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  const [prefs, setPrefs] = useState<AppPreferences>(() => readLocal(undefined) || normalizePreferences(null));
+  const { settings: appSettings } = useAppSettings();
+  // Défauts : ceux de l'application, avec les réglages pédagogiques de l'administration
+  const adminPedagogy = useMemo(() => pedagogyToPrefs(appSettings), [appSettings]);
+  const pedagogyLocked = appSettings?.pedagogy?.teachersCanOverride === false;
+  const baseDefaults = useMemo<AppPreferences>(
+    () => ({ ...DEFAULT_PREFERENCES, ...adminPedagogy, quizDefaults: { ...adminPedagogy.quizDefaults } }),
+    [adminPedagogy]
+  );
+  const baseRef = useRef(baseDefaults);
+  baseRef.current = baseDefaults;
+
+  // Ce que l'utilisateur a enregistré (null = rien : les défauts s'appliquent)
+  const [stored, setStored] = useState<Partial<AppPreferences> | null>(() => readLocal(undefined));
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Préférences de l'utilisateur complétées par les défauts (admin compris)
+  const ownPrefs = useMemo(() => normalizePreferences(stored, baseDefaults), [stored, baseDefaults]);
+  // Valeurs effectives : imposées par l'administration si les enseignants ne peuvent pas les changer
+  const prefs = useMemo<AppPreferences>(
+    () => (pedagogyLocked ? { ...ownPrefs, ...adminPedagogy, quizDefaults: { ...adminPedagogy.quizDefaults } } : ownPrefs),
+    [ownPrefs, adminPedagogy, pedagogyLocked]
+  );
 
   // Chargement : cache local immédiat puis version du compte (prioritaire)
   useEffect(() => {
     if (!user?.id) return;
     const local = readLocal(user.id);
-    if (local) setPrefs(local);
+    if (local) setStored(local);
     let cancelled = false;
     supabase.auth.getUser().then(({ data }) => {
       if (cancelled) return;
       const remote = (data?.user?.user_metadata as any)?.app_preferences;
-      if (remote) {
-        const merged = normalizePreferences(remote);
-        setPrefs(merged);
-        try { localStorage.setItem(storageKey(user.id), JSON.stringify(merged)); } catch { /* stockage indisponible */ }
+      if (remote && typeof remote === "object") {
+        setStored(remote);
+        try { localStorage.setItem(storageKey(user.id), JSON.stringify(remote)); } catch { /* stockage indisponible */ }
       }
     }).catch(() => undefined);
     return () => { cancelled = true; };
@@ -178,16 +236,18 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
   }, [user?.id]);
 
   const update = useCallback((patch: Partial<AppPreferences>) => {
-    setPrefs(prev => {
-      const next = normalizePreferences({ ...prev, ...patch, quizDefaults: { ...prev.quizDefaults, ...(patch.quizDefaults || {}) } });
+    setStored(prevRaw => {
+      const prev = normalizePreferences(prevRaw, baseRef.current);
+      const next = normalizePreferences({ ...prev, ...patch, quizDefaults: { ...prev.quizDefaults, ...(patch.quizDefaults || {}) } }, baseRef.current);
       persist(next);
       return next;
     });
   }, [persist]);
 
   const reset = useCallback((section?: "evaluation" | "quiz" | "notifications" | "display") => {
-    setPrefs(prev => {
-      const d = DEFAULT_PREFERENCES;
+    setStored(prevRaw => {
+      const prev = normalizePreferences(prevRaw, baseRef.current);
+      const d = baseRef.current;
       let next: AppPreferences;
       if (section === "evaluation") {
         next = { ...prev, passThreshold: d.passThreshold, levelStruggling: d.levelStruggling, levelGood: d.levelGood, levelExcellent: d.levelExcellent, attemptPolicy: d.attemptPolicy, inactivityDays: d.inactivityDays };
@@ -233,14 +293,17 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
 
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
-  const value = useMemo(() => ({ prefs, update, reset, syncState }), [prefs, update, reset, syncState]);
+  const value = useMemo(
+    () => ({ prefs, update, reset, syncState, pedagogyLocked, adminPedagogy }),
+    [prefs, update, reset, syncState, pedagogyLocked, adminPedagogy]
+  );
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 };
 
 export const usePreferences = (): PreferencesContextValue => {
   const ctx = useContext(PreferencesContext);
   // Repli sûr si un composant est rendu hors du fournisseur (tests, aperçus)
-  if (!ctx) return { prefs: DEFAULT_PREFERENCES, update: () => undefined, reset: () => undefined, syncState: "idle" };
+  if (!ctx) return { prefs: DEFAULT_PREFERENCES, update: () => undefined, reset: () => undefined, syncState: "idle", pedagogyLocked: false, adminPedagogy: pedagogyToPrefs(null) };
   return ctx;
 };
 

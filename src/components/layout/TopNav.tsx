@@ -35,6 +35,8 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
 import { cn } from "@/lib/utils";
 import { usePopupMenu } from "@/components/ui/use-popup-menu";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { useBrand } from "@/components/AppBrand";
 
 const TopNav = () => {
   const { user, logout } = useAuth();
@@ -53,6 +55,8 @@ const TopNav = () => {
     triggerProps: userMenuTriggerProps,
   } = usePopupMenu(isUserMenuOpen, setIsUserMenuOpen);
 
+  const brand = useBrand(language);
+  const { feature } = useAppSettings();
   const isRtl = language === "ar";
   const isProfessor = user?.role === "professor";
 
@@ -164,7 +168,9 @@ const TopNav = () => {
     }
 
     return {
-      title: language === "ar" ? "Math infini ∞" : "Math infini ∞",
+      title: brand.displayName,
+      // nom court sur les très petits écrans (si l'administration l'a personnalisé)
+      shortTitle: brand.isDefaultName ? undefined : brand.shortName,
       icon: Sparkles,
       color: "text-primary bg-primary/10"
     };
@@ -217,8 +223,15 @@ const TopNav = () => {
           </div>
 
           <div className="flex flex-col min-w-0">
-            <h1 className="text-xs sm:text-sm md:text-base font-bold text-foreground truncate tracking-tight">
-              {pageInfo.title}
+            <h1 className="text-xs sm:text-sm md:text-base font-bold text-foreground truncate tracking-tight" title={pageInfo.title}>
+              {"shortTitle" in pageInfo && pageInfo.shortTitle && pageInfo.shortTitle !== pageInfo.title ? (
+                <>
+                  <span className="sm:hidden">{pageInfo.shortTitle}</span>
+                  <span className="hidden sm:inline">{pageInfo.title}</span>
+                </>
+              ) : (
+                pageInfo.title
+              )}
             </h1>
             <span className="text-[10px] sm:text-[11px] text-muted-foreground hidden sm:block truncate">
               {language === "ar"
@@ -236,7 +249,7 @@ const TopNav = () => {
         {/* Controls Container Pill */}
         <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xs">
           <LanguageSelector />
-          <NotificationBell />
+          {feature("notifications") && <NotificationBell />}
           <ThemeToggle />
         </div>
 

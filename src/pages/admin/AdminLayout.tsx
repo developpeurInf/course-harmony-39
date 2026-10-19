@@ -1,8 +1,9 @@
 import { Suspense, useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, Layers, CalendarClock, Wallet, ScrollText, ShieldCheck, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Layers, CalendarClock, Wallet, ScrollText, ShieldCheck, LogOut, Palette } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -12,7 +13,8 @@ import { useConfirm } from "./ConfirmDialog";
 /** Espace d'administration : menu propre, réservé aux comptes de l'équipe admin */
 export default function AdminLayout() {
   const { user, loading, logout } = useAuth();
-  const { isAdmin, adminCan, loading: accessLoading, enforced } = useAccess();
+  const { isAdmin, adminCan, access, loading: accessLoading, enforced } = useAccess();
+  const { settings: appSettings } = useAppSettings();
   const navigate = useNavigate();
   const { L, rtl } = useT();
   const { pathname } = useLocation();
@@ -77,6 +79,12 @@ export default function AdminLayout() {
     { to: "/admin/payments", icon: Wallet, label: L("Paiements", "الأداءات", "Payments"), show: true },
     { to: "/admin/audit", icon: ScrollText, label: L("Journal", "السجل", "Audit log"), show: adminCan("admin.audit.view") },
     { to: "/admin/team", icon: ShieldCheck, label: L("Équipe admin", "فريق الإدارة", "Admin team"), show: true },
+    {
+      to: "/admin/customization",
+      icon: Palette,
+      label: L("Personnalisation", "التخصيص", "Customization"),
+      show: access?.admin_role === "super_admin" || adminCan("admin.settings.manage"),
+    },
   ].filter(i => i.show);
 
   const handleLogout = () => ask({
@@ -95,9 +103,13 @@ export default function AdminLayout() {
       <aside className="hidden w-60 flex-shrink-0 flex-col border-r bg-background lg:flex rtl:border-l rtl:border-r-0">
         <div className="border-b px-4 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 font-mono text-lg font-black text-white dark:bg-white dark:text-slate-900">∞</div>
+            {appSettings.identity.logoUrl ? (
+              <img src={appSettings.identity.logoUrl} alt="" className="h-9 w-9 flex-shrink-0 rounded-xl object-contain" />
+            ) : (
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-slate-900 font-mono text-lg font-black text-white dark:bg-white dark:text-slate-900">∞</div>
+            )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-extrabold">Math infini</p>
+              <p className="truncate text-sm font-extrabold">{appSettings.identity.appName || "Math infini"}</p>
               <p className="truncate text-[11px] font-medium text-muted-foreground">{L("Administration", "الإدارة", "Administration")}</p>
             </div>
           </div>

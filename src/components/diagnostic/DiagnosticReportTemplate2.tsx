@@ -6,6 +6,8 @@ import {
 } from "@/components/diagnostic/ReportCharts";
 import { DiagnosticClass, parseNoteValue } from "@/lib/diagnosticStatsEngine";
 import { DiagLang } from "@/lib/diagnosticTranslations";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { getReportBranding, reportImgCrossOrigin } from "@/lib/reportBranding";
 
 /**
  * Modèle 2 : « Rapport des évaluations diagnostiques » multi-classes
@@ -228,6 +230,9 @@ type Block =
 export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, lang = "ar", includeGraphs = false }) => {
   const t = TXT[lang] || TXT.fr;
   const isRtl = lang === "ar";
+  // En-tête / pied personnalisés par l'administration (vides = rendu d'origine)
+  const { settings: appSettings } = useAppSettings();
+  const branding = getReportBranding(lang, appSettings);
   const cfg = config as DiagnosticConfig & { rapport2_intro?: string; rapport2_soutien?: string; rapport2_remarque?: string };
 
   const bands = React.useMemo(() => classes.map(computeBands), [classes]);
@@ -324,12 +329,18 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
         return (
           <div key={key} className="t2-header">
             <div className="t2-header-cell t2-header-ministry">
-              <img
-                src="/assets/header_logo.png"
-                alt=""
-                className="t2-logo"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
+              {branding.logoUrl && (
+                <img
+                  key={branding.logoUrl}
+                  src={branding.logoUrl}
+                  crossOrigin={reportImgCrossOrigin(branding.logoUrl)}
+                  alt=""
+                  className="t2-logo"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+              {branding.headerTitle && <div className="t2-small">{branding.headerTitle}</div>}
+              {branding.headerSubtitle && <div className="t2-small" style={{ fontWeight: "normal" }}>{branding.headerSubtitle}</div>}
               <div className="t2-small">{config.academie}</div>
               <div className="t2-small">{config.direction}</div>
             </div>
@@ -338,7 +349,7 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
               <div className="t2-season"><b>{t.season} :</b> {config.annee_scolaire}</div>
             </div>
             <div className="t2-header-cell t2-header-info">
-              <div><b className="t2-label">{t.institution} :</b> {config.lycee}</div>
+              <div><b className="t2-label">{t.institution} :</b> {config.lycee || branding.schoolName}</div>
               <div><b className="t2-label">{t.teacher} :</b> {config.nom_enseignant}</div>
               <div><b className="t2-label">{t.subject} :</b> {config.matiere}</div>
             </div>
@@ -542,6 +553,7 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
         .t2-global { margin-bottom: 3mm; }
         .t2-caption { font-size: 9.5pt; font-style: italic; text-align: center; margin-top: 0.5mm; color: #222; }
         .t2-stats { font-size: 9pt; margin-top: 0.8mm; color: #222; text-align: ${isRtl ? "right" : "left"}; }
+        .t2-page-footer { position: absolute; left: 12mm; right: 12mm; bottom: 2.5mm; font-size: 7.5pt; line-height: 1.2; text-align: center; color: #555; white-space: pre-line; overflow: hidden; max-height: 6.5mm; }
         .t2-sign-cell { height: 32mm; vertical-align: top; padding-top: 2mm !important; }
       `}</style>
 
@@ -564,6 +576,7 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
           <div className="t2-frame">
             {pageBlocks.map((b, i) => renderBlock(b, pi * 100 + i))}
           </div>
+          {branding.footerText && <div className="t2-page-footer">{branding.footerText}</div>}
         </div>
       ))}
     </div>

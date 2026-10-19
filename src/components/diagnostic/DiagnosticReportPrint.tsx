@@ -13,6 +13,8 @@ import {
   generateStatisticalCommentary,
   translateAppreciation
 } from "@/lib/diagnosticTranslations";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { getReportBranding, reportImgCrossOrigin } from "@/lib/reportBranding";
 
 interface DiagnosticReportPrintProps {
   config: DiagnosticConfig;
@@ -118,6 +120,10 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
   classes = [],
 }) => {
   const t = DIAGNOSTIC_TRANSLATIONS[lang] || DIAGNOSTIC_TRANSLATIONS.fr;
+  // En-tête / pied personnalisés par l'administration (vides = rendu d'origine)
+  const { settings: appSettings } = useAppSettings();
+  const branding = getReportBranding(lang, appSettings);
+  const pageFooter = branding.footerText ? <div className="diag-page-footer">{branding.footerText}</div> : null;
   const isRtl = lang === "ar";
 
   // Noms et libellés des 4 tranches selon la langue choisie
@@ -433,6 +439,28 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
           margin: 0 auto 2px auto;
           object-fit: contain;
         }
+        .diag-header-custom-title {
+          font-size: 11pt;
+          font-weight: bold;
+          line-height: 1.25;
+        }
+        .diag-header-custom-sub {
+          font-size: 9.5pt;
+          line-height: 1.25;
+        }
+        .diag-page-footer {
+          position: absolute;
+          left: 16mm;
+          right: 16mm;
+          bottom: 4mm;
+          font-size: 8pt;
+          line-height: 1.2;
+          text-align: center;
+          color: #555555;
+          white-space: pre-line;
+          overflow: hidden;
+          max-height: 7mm;
+        }
         .diag-header-sub-text {
           display: flex;
           justify-content: space-between;
@@ -694,24 +722,31 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
       {/* ==================== PAGE 1 : CADRE RÉGLEMENTAIRE, OBJECTIFS, INFORMATIONS GÉNÉRALES & CONTENU DU TEST ==================== */}
       <div className="diag-a4-page">
+        {pageFooter}
         <div className="diag-page-body">
           <div className="diag-section">
           {/* En-tête officiel Royaume du Maroc */}
           <div className="diag-header-box">
-            <img
-              src="/assets/header_logo.png"
-              alt="Royaume du Maroc"
-              className="diag-header-logo"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
+            {branding.logoUrl && (
+              <img
+                key={branding.logoUrl}
+                src={branding.logoUrl}
+                crossOrigin={reportImgCrossOrigin(branding.logoUrl)}
+                alt={branding.customLogo ? branding.schoolName : "Royaume du Maroc"}
+                className="diag-header-logo"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            )}
+            {branding.headerTitle && <div className="diag-header-custom-title">{branding.headerTitle}</div>}
+            {branding.headerSubtitle && <div className="diag-header-custom-sub">{branding.headerSubtitle}</div>}
             <div className="diag-header-sub-text">
               <span>{config.academie}</span>
               <span className="diag-dash-sep">----</span>
               <span>{config.direction}</span>
               <span className="diag-dash-sep">----</span>
-              <span>{config.lycee}</span>
+              <span>{config.lycee || branding.schoolName}</span>
             </div>
           </div>
 
@@ -849,6 +884,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
         <>
           {/* ==================== PAGE 2 (AVEC GRAPHIQUES SÉPARÉS) ==================== */}
           <div className="diag-a4-page">
+        {pageFooter}
             <div className="diag-page-body">
               <div className="diag-section">
               {/* Section II : Tableau des résultats */}
@@ -1078,6 +1114,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
 
           {/* ==================== PAGE 3 (OBSERVATIONS, PROPOSITIONS & SIGNATURE) ==================== */}
           <div className="diag-a4-page">
+        {pageFooter}
             <div className="diag-page-body">
               <div className="diag-section">
               {/* Observations pédagogiques */}
@@ -1129,6 +1166,7 @@ export const DiagnosticReportPrint: React.FC<DiagnosticReportPrintProps> = ({
       ) : (
         /* ==================== PAGE 2 (SANS GRAPHIQUES : RÉSULTATS, KPIS, OBSERVATIONS, PROPOSITIONS & SIGNATURE) ==================== */
         <div className="diag-a4-page">
+        {pageFooter}
           <div className="diag-page-body">
             <div className="diag-section">
             {/* Section II : Tableau des résultats */}

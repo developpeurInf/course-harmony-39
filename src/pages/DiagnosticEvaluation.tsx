@@ -108,6 +108,8 @@ import {
   defaultTemplate2Support,
 } from "@/components/diagnostic/DiagnosticReportTemplate2";
 import { exportDiagnosticReportToPdf } from "@/lib/diagnosticPdfExporter";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { getReportBranding } from "@/lib/reportBranding";
 import * as XLSX from "xlsx";
 import { downloadExcelFile } from "@/lib/download";
 import { supabase } from "@/integrations/supabase/client";
@@ -134,6 +136,9 @@ export const DiagnosticEvaluation: React.FC = () => {
   const { user } = useAuth();
   const { rooms, addRoom, courses, exams } = useCourses();
   const { language, getDirection } = useLanguage();
+  // Logo des rapports (Personnalisation → Rapports) pour l'en-tête de la page
+  const { settings: appSettingsForReports } = useAppSettings();
+  const reportBranding = getReportBranding(language, appSettingsForReports);
 
   // Langue active et traductions
   const lang: DiagLang = language === "ar" || language === "en" ? language : "fr";
@@ -1257,8 +1262,9 @@ export const DiagnosticEvaluation: React.FC = () => {
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <div className="w-11 h-11 sm:w-14 sm:h-14 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900 rounded-2xl flex items-center justify-center p-2 shadow-inner shrink-0">
             <img
-              src="/assets/header_logo.png"
-              alt="Armoiries du Royaume du Maroc"
+              key={reportBranding.customLogo && reportBranding.logoUrl ? reportBranding.logoUrl : "default"}
+              src={reportBranding.customLogo && reportBranding.logoUrl ? reportBranding.logoUrl : "/assets/header_logo.png"}
+              alt={reportBranding.customLogo ? reportBranding.schoolName || "Logo" : "Armoiries du Royaume du Maroc"}
               className="max-h-full object-contain"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = "none";

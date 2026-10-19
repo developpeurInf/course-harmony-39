@@ -14,6 +14,8 @@ import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import { FirstLoginDialog } from "@/components/FirstLoginDialog";
 import { AccessProvider } from "@/contexts/AccessContext";
 import { RequirePermission } from "@/components/access/AccessUi";
+import { RequireFeature } from "@/components/access/RequireFeature";
+import { AppSettingsProvider } from "@/contexts/AppSettingsContext";
 
 import MainLayout from "@/components/layout/MainLayout";
 import Index from "@/pages/Index";
@@ -50,6 +52,7 @@ const AdminSubscriptions = lazyWithRetry(() => import("@/pages/admin/AdminSubscr
 const AdminPayments = lazyWithRetry(() => import("@/pages/admin/AdminPayments"));
 const AdminAudit = lazyWithRetry(() => import("@/pages/admin/AdminAudit"));
 const AdminTeam = lazyWithRetry(() => import("@/pages/admin/AdminTeam"));
+const AdminCustomization = lazyWithRetry(() => import("@/pages/admin/AdminCustomization"));
 
 const queryClient = new QueryClient();
 
@@ -68,6 +71,7 @@ const RouteErrorBoundary = ({ children }: { children: React.ReactNode }) => {
 const App = () => {
   return (
     <ErrorBoundary>
+    <AppSettingsProvider>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
@@ -91,17 +95,17 @@ const App = () => {
                         <Route path="/create-room" element={<RequirePermission perm="class.create"><CreateRoom /></RequirePermission>} />
                         <Route path="/class-management" element={<RequirePermission perm="class.view"><ClassManagement /></RequirePermission>} />
                         <Route path="/profile" element={<Profile />} />
-                        <Route path="/courses" element={<RequirePermission perm="course.view"><Courses /></RequirePermission>} />
-                        <Route path="/exercises" element={<Exercises />} />
-                        <Route path="/exams" element={<Exams />} />
+                        <Route path="/courses" element={<RequireFeature feature="courses"><RequirePermission perm="course.view"><Courses /></RequirePermission></RequireFeature>} />
+                        <Route path="/exercises" element={<RequireFeature feature="exercises"><Exercises /></RequireFeature>} />
+                        <Route path="/exams" element={<RequireFeature feature="exams"><Exams /></RequireFeature>} />
                         <Route path="/students" element={<RequirePermission perm="student.view"><Students /></RequirePermission>} />
                         <Route path="/rooms/:roomId/students" element={<RequirePermission perm="student.view"><RoomStudents /></RequirePermission>} />
-                        <Route path="/rooms/:roomId/students-activities" element={<RequirePermission perm="student.activity_view"><StudentsActivities /></RequirePermission>} />
-                        <Route path="/rooms/:roomId/courses" element={<RequirePermission perm="course.view"><RoomCourses /></RequirePermission>} />
-                        <Route path="/rooms/:roomId/exercises" element={<RoomExercises />} />
-                        <Route path="/rooms/:roomId/exams" element={<RoomExams />} />
-                        <Route path="/reports" element={<RequirePermission perm="reports.view"><Reports /></RequirePermission>} />
-                        <Route path="/diagnostic" element={<RequirePermission perm="diagnostic.use"><DiagnosticEvaluation /></RequirePermission>} />
+                        <Route path="/rooms/:roomId/students-activities" element={<RequireFeature feature="studentActivities"><RequirePermission perm="student.activity_view"><StudentsActivities /></RequirePermission></RequireFeature>} />
+                        <Route path="/rooms/:roomId/courses" element={<RequireFeature feature="courses"><RequirePermission perm="course.view"><RoomCourses /></RequirePermission></RequireFeature>} />
+                        <Route path="/rooms/:roomId/exercises" element={<RequireFeature feature="exercises"><RoomExercises /></RequireFeature>} />
+                        <Route path="/rooms/:roomId/exams" element={<RequireFeature feature="exams"><RoomExams /></RequireFeature>} />
+                        <Route path="/reports" element={<RequireFeature feature="reports"><RequirePermission perm="reports.view"><Reports /></RequirePermission></RequireFeature>} />
+                        <Route path="/diagnostic" element={<RequireFeature feature="diagnostic"><RequirePermission perm="diagnostic.use"><DiagnosticEvaluation /></RequirePermission></RequireFeature>} />
                         <Route path="/settings" element={<Settings />} />
                         <Route path="/subscription" element={<MySubscription />} />
                       </Route>
@@ -114,6 +118,7 @@ const App = () => {
                         <Route path="payments" element={<AdminPayments />} />
                         <Route path="audit" element={<AdminAudit />} />
                         <Route path="team" element={<AdminTeam />} />
+                        <Route path="customization" element={<AdminCustomization />} />
                       </Route>
                       <Route path="*" element={<NotFound />} />
                     </Routes>
@@ -129,6 +134,7 @@ const App = () => {
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </AppSettingsProvider>
     </ErrorBoundary>
   );
 };

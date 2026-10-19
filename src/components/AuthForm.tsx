@@ -5,10 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { Eye, EyeOff, ArrowLeft, GraduationCap, MailCheck, RefreshCw, Presentation, KeyRound } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, GraduationCap, MailCheck, RefreshCw, Presentation, KeyRound, Mail, Phone, MessageCircle, LifeBuoy } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { DEFAULT_APP_SETTINGS, pickText, type I18nText, type Lang } from "@/lib/appSettings";
+import { BrandLogo, useBrand } from "@/components/AppBrand";
 
 const USER_TYPE_KEY = "auth-last-user-type";
 
@@ -43,6 +46,64 @@ async function captureToastError<T>(fn: () => Promise<T>): Promise<{ result: T |
   }
 }
 
+/** Nom (et logo) de l'application en tête du formulaire, selon la personnalisation. */
+const BrandHeader = ({ language }: { language: string }) => {
+  const brand = useBrand(language);
+  return (
+    <div className="text-center">
+      {brand.logoUrl && (
+        <div className="mb-2 flex justify-center">
+          <BrandLogo logoUrl={brand.logoUrl} alt={brand.appName} imgClassName="h-14 w-14 rounded-2xl" className="hidden" />
+        </div>
+      )}
+      <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent break-words">
+        {brand.displayName}
+      </h2>
+      {brand.customTagline && <p className="mt-0.5 text-xs font-medium text-muted-foreground">{brand.customTagline}</p>}
+    </div>
+  );
+};
+
+/** « Besoin d'aide ? » : coordonnées de l'établissement (Personnalisation → Textes), si renseignées. */
+export const LoginHelpContact = ({ language }: { language: string }) => {
+  const { settings } = useAppSettings();
+  const tx = settings.texts || DEFAULT_APP_SETTINGS.texts;
+  const email = (tx.contactEmail || "").trim();
+  const phone = (tx.contactPhone || "").trim();
+  const waDigits = (tx.contactWhatsapp || "").replace(/[^0-9]/g, "");
+  if (!email && !phone && !waDigits) return null;
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
+  const linkCls = "inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/50 hover:text-primary transition-colors";
+  return (
+    <div className="mt-4 w-full max-w-md rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-center" dir={language === "ar" ? "rtl" : "ltr"}>
+      <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <LifeBuoy className="h-3.5 w-3.5" aria-hidden="true" />
+        {tr("Besoin d'aide ?", "تحتاج مساعدة؟", "Need help?")}
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {email && (
+          <a href={`mailto:${email}`} className={linkCls} dir="ltr">
+            <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="break-all">{email}</span>
+          </a>
+        )}
+        {phone && (
+          <a href={`tel:${phone.replace(/[^0-9+]/g, "")}`} className={linkCls} dir="ltr">
+            <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {phone}
+          </a>
+        )}
+        {waDigits && (
+          <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer" className={linkCls}>
+            <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            WhatsApp
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [isResetMode, setIsResetMode] = useState(false);
@@ -73,6 +134,24 @@ const AuthForm = () => {
   const { t, language } = useLanguage();
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
   const isRtl = language === "ar";
+  const { settings: appSettings } = useAppSettings();
+  const lang = (language === "ar" || language === "en" ? language : "fr") as Lang;
+  /** Texte de la personnalisation, ou texte d'origine quand il est vide / inchangé. */
+  const customText = (value: I18nText | undefined, def: I18nText, fallback: string) => {
+    const v = pickText(value, lang);
+    return v && v !== pickText(def, lang) ? v : fallback;
+  };
+  const loginTitle = customText(appSettings.texts?.loginTitle, DEFAULT_APP_SETTINGS.texts.loginTitle, t("Welcome"));
+  const loginSubtitle = customText(appSettings.texts?.loginSubtitle, DEFAULT_APP_SETTINGS.texts.loginSubtitle, t("Choose your account type to continue"));
+  const studentHelp = customText(
+    appSettings.texts?.loginHelpStudent,
+    DEFAULT_APP_SETTINGS.texts.loginHelpStudent,
+    tr(
+      "Mot de passe oublié ? Demande à ton professeur de le réinitialiser.",
+      "نسيت كلمة المرور؟ اطلب من أستاذك إعادة تعيينها.",
+      "Forgot your password? Ask your teacher to reset it."
+    )
+  );
 
   // Messages d'erreur d'AuthContext (anglais / français) → texte clair dans la langue courante
   const friendlyLoginError = (msg: string | null): string => {
@@ -220,29 +299,28 @@ const AuthForm = () => {
       </Button>
     );
     return (
-      <div className="min-h-[calc(100vh-4.5rem)] flex items-center justify-center p-4">
+      <div className="min-h-[calc(100vh-4.5rem)] flex flex-col items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
-            <div className="text-center mb-4">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Math infini ∞
-              </h2>
+            <div className="mb-4">
+              <BrandHeader language={language} />
             </div>
-            <CardTitle className="text-2xl text-center">{t("Welcome")}</CardTitle>
-            <CardDescription className="text-center">
-              {t("Choose your account type to continue")}
+            <CardTitle className="text-2xl text-center">{loginTitle}</CardTitle>
+            <CardDescription className="text-center whitespace-pre-line">
+              {loginSubtitle}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {professorFirst ? [professorBtn, studentBtn] : [studentBtn, professorBtn]}
           </CardContent>
         </Card>
+        <LoginHelpContact language={language} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] flex items-center justify-center p-4">
+    <div className="min-h-[calc(100vh-4.5rem)] flex flex-col items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4 relative min-h-[40px]">
@@ -270,10 +348,8 @@ const AuthForm = () => {
                 <ArrowLeft className={cn("h-5 w-5", isRtl && "rotate-180")} />
               </Button>
             )}
-            <div className="text-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Math infini ∞
-              </h2>
+            <div className="px-10">
+              <BrandHeader language={language} />
             </div>
           </div>
           <CardTitle className="text-2xl text-center">
@@ -523,13 +599,7 @@ const AuthForm = () => {
               {userType === "student" && isLogin && !isResetMode && (
                 <p className="flex items-start gap-2 rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   <KeyRound className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>
-                    {tr(
-                      "Mot de passe oublié ? Demande à ton professeur de le réinitialiser.",
-                      "نسيت كلمة المرور؟ اطلب من أستاذك إعادة تعيينها.",
-                      "Forgot your password? Ask your teacher to reset it."
-                    )}
-                  </span>
+                  <span className="whitespace-pre-line">{studentHelp}</span>
                 </p>
               )}
 
@@ -564,6 +634,7 @@ const AuthForm = () => {
           )}
         </CardContent>
       </Card>
+      <LoginHelpContact language={language} />
     </div>
   );
 };

@@ -6,6 +6,8 @@
  * Le chargement de la langue enregistrée démarre dès l'évaluation de ce module
  * (importé par main.tsx via toast-interceptor), donc avant le premier rendu.
  */
+import { readCachedSettings } from "@/lib/appSettings";
+
 export type Language = "en" | "fr" | "ar";
 
 export interface LanguagePack {
@@ -16,17 +18,35 @@ export interface LanguagePack {
 }
 
 export const LANGUAGE_STORAGE_KEY = "maataoui-language";
+/**
+ * Présent quand la langue enregistrée n'a pas été choisie par l'utilisateur (simple copie
+ * de la langue par défaut, lue directement par d'autres modules) : le défaut de
+ * l'administration reste alors prioritaire.
+ */
+export const LANGUAGE_AUTO_KEY = "maataoui-language-auto";
 /** Langue par défaut de l'application (inchangée) */
 export const DEFAULT_LANGUAGE: Language = "ar";
 
-const isLanguage = (v: unknown): v is Language => v === "fr" || v === "ar" || v === "en";
+export const isLanguage = (v: unknown): v is Language => v === "fr" || v === "ar" || v === "en";
 
-export function getSavedLanguage(): Language {
+/** Langue choisie explicitement par l'utilisateur (null si aucun choix enregistré). */
+export function getStoredLanguage(): Language | null {
   try {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (isLanguage(saved)) return saved;
+    if (isLanguage(saved) && localStorage.getItem(LANGUAGE_AUTO_KEY) !== "1") return saved;
   } catch { /* stockage indisponible */ }
-  return DEFAULT_LANGUAGE;
+  return null;
+}
+
+/** Langue par défaut : celle fixée par l'administration (cache local), sinon DEFAULT_LANGUAGE. */
+export function getDefaultLanguage(): Language {
+  const cached = readCachedSettings();
+  const lang = cached?.texts?.defaultLanguage;
+  return isLanguage(lang) ? lang : DEFAULT_LANGUAGE;
+}
+
+export function getSavedLanguage(): Language {
+  return getStoredLanguage() || getDefaultLanguage();
 }
 
 const loaded: Partial<Record<Language, LanguagePack>> = {};

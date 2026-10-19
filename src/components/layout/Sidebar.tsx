@@ -38,6 +38,8 @@ import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { BrandLogo, useBrand } from "@/components/AppBrand";
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
@@ -49,6 +51,8 @@ const Sidebar = () => {
   const isProfessor = user?.role === "professor";
   const isRtl = language === "ar";
   const { can, enforced, access } = useAccess();
+  const brand = useBrand(language);
+  const { feature } = useAppSettings();
   const lockIcon = <Lock size={12} className="flex-shrink-0 opacity-60" />;
 
   const t = (fr: string, ar: string, en: string = fr) =>
@@ -105,21 +109,31 @@ const Sidebar = () => {
           to="/dashboard" 
           className="flex items-center gap-3 group focus:outline-none"
         >
-          <div className="relative flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-tr from-primary via-blue-600 to-indigo-500 text-white shadow-md shadow-primary/20 ring-2 ring-primary/20 group-hover:scale-105 transition-transform duration-300">
-            <span className="text-xl font-black font-mono">∞</span>
-            <div className="absolute -inset-0.5 rounded-xl bg-primary/30 blur-xs opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
+          {brand.logoUrl ? (
+            <BrandLogo
+              logoUrl={brand.logoUrl}
+              alt={brand.appName}
+              imgClassName="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 ring-2 ring-primary/20 shadow-md shadow-primary/20 group-hover:scale-105 transition-transform duration-300"
+              className="relative flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-tr from-primary via-blue-600 to-indigo-500 text-white shadow-md shadow-primary/20 ring-2 ring-primary/20"
+              symbolClassName="text-xl font-black font-mono"
+            />
+          ) : (
+            <div className="relative flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-tr from-primary via-blue-600 to-indigo-500 text-white shadow-md shadow-primary/20 ring-2 ring-primary/20 group-hover:scale-105 transition-transform duration-300">
+              <span className="text-xl font-black font-mono">∞</span>
+              <div className="absolute -inset-0.5 rounded-xl bg-primary/30 blur-xs opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          )}
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-extrabold tracking-tight bg-gradient-to-r from-primary to-indigo-600 dark:from-primary dark:to-blue-400 bg-clip-text text-transparent truncate">
-                Math infini
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-base font-extrabold tracking-tight bg-gradient-to-r from-primary to-indigo-600 dark:from-primary dark:to-blue-400 bg-clip-text text-transparent truncate" title={brand.appName}>
+                {brand.appName}
               </span>
-              <span className="text-xs font-mono font-bold text-primary">∞</span>
+              {brand.isDefaultName && <span className="text-xs font-mono font-bold text-primary">∞</span>}
             </div>
             <span className="text-[11px] font-medium text-muted-foreground truncate">
-              {isProfessor 
+              {brand.customTagline || (isProfessor 
                 ? t("Espace Enseignant", "فضاء الأستاذ", "Teacher Space")
-                : t("Espace Élève", "فضاء التلميذ", "Student Space")}
+                : t("Espace Élève", "فضاء التلميذ", "Student Space"))}
             </span>
           </div>
         </NavLink>
@@ -233,6 +247,7 @@ const Sidebar = () => {
                       </NavLink>
                       
                       {/* Activités */}
+                      {feature("studentActivities") && (
                       <NavLink 
                         to={`/rooms/${room.id}/students-activities`} 
                         className={({ isActive }) => cn(
@@ -248,8 +263,10 @@ const Sidebar = () => {
                         <span className="truncate">{t("Suivi & Classement", "التتبع والترتيب", "Tracking & Ranking")}</span>
                         {!can("student.activity_view") && lockIcon}
                       </NavLink>
+                      )}
                       
                       {/* Cours */}
+                      {feature("courses") && (
                       <NavLink 
                         to={`/rooms/${room.id}/courses`} 
                         className={({ isActive }) => cn(
@@ -264,8 +281,10 @@ const Sidebar = () => {
                         </div>
                         <span className="truncate">{t("Cours & Leçons", "الدروس والمحتوى", "Courses")}</span>
                       </NavLink>
+                      )}
                       
                       {/* Exercices */}
+                      {feature("exercises") && (
                       <NavLink 
                         to={`/rooms/${room.id}/exercises`} 
                         className={({ isActive }) => cn(
@@ -280,8 +299,10 @@ const Sidebar = () => {
                         </div>
                         <span className="truncate">{t("Exercices & Séries", "التمارين والسلاسل", "Exercises")}</span>
                       </NavLink>
+                      )}
                       
                       {/* Examens */}
+                      {feature("exams") && (
                       <NavLink 
                         to={`/rooms/${room.id}/exams`} 
                         className={({ isActive }) => cn(
@@ -296,6 +317,7 @@ const Sidebar = () => {
                         </div>
                         <span className="truncate">{t("Examens & Quiz", "الامتحانات والاختبارات", "Exams & Quizzes")}</span>
                       </NavLink>
+                      )}
                     </CollapsibleContent>
                   </Collapsible>
                 );
@@ -304,6 +326,7 @@ const Sidebar = () => {
           ) : (
             <>
               {/* Student View */}
+              {feature("courses") && (
               <NavLink 
                 to="/courses" 
                 className={({ isActive }) => cn(
@@ -318,7 +341,9 @@ const Sidebar = () => {
                 </div>
                 <span className="truncate">{t("Mes Cours", "دروسي", "My Courses")}</span>
               </NavLink>
+              )}
               
+              {feature("exercises") && (
               <NavLink 
                 to="/exercises" 
                 className={({ isActive }) => cn(
@@ -333,7 +358,9 @@ const Sidebar = () => {
                 </div>
                 <span className="truncate">{t("Mes Exercices", "تماريني", "My Exercises")}</span>
               </NavLink>
+              )}
               
+              {feature("exams") && (
               <NavLink 
                 to="/exams" 
                 className={({ isActive }) => cn(
@@ -348,6 +375,7 @@ const Sidebar = () => {
                 </div>
                 <span className="truncate">{t("Examens & Quiz", "الامتحانات والاختبارات", "Exams & Quizzes")}</span>
               </NavLink>
+              )}
             </>
           )}
         </div>
@@ -359,6 +387,7 @@ const Sidebar = () => {
               <span>{t("Gestion & Outils", "الإدارة والأدوات", "Management & Tools")}</span>
             </div>
 
+            {feature("reports") && (
             <NavLink 
               to="/reports" 
               className={({ isActive }) => cn(
@@ -374,7 +403,9 @@ const Sidebar = () => {
               <span className="truncate">{t("Rapports & Statistiques", "التقارير والإحصائيات", "Reports & Analytics")}</span>
               {!can("reports.view") && lockIcon}
             </NavLink>
+            )}
             
+            {feature("diagnostic") && (
             <NavLink 
               to="/diagnostic" 
               className={({ isActive }) => cn(
@@ -395,6 +426,7 @@ const Sidebar = () => {
                 {t("Éval", "تقويم", "Eval")}
               </Badge>
             </NavLink>
+            )}
             
             <NavLink 
               to="/class-management" 

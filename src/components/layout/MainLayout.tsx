@@ -5,12 +5,86 @@ import { useAccess } from "@/contexts/AccessContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SubscriptionBanner } from "@/components/access/AccessUi";
 import { useSessionTracking } from "@/hooks/useSessionTracking";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, Info, AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import type { Lang } from "@/lib/appSettings";
 import { Button } from "@/components/ui/button";
 import { installIOSFocusScrollFix } from "@/components/ui/ui-i18n";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
+
+/** Empreinte courte d'un texte (pour mémoriser qu'une annonce précise a été fermée). */
+function textHash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+const ANNOUNCEMENT_TONES = {
+  info: {
+    box: "border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100",
+    icon: "text-sky-600 dark:text-sky-400",
+    Icon: Info,
+  },
+  warning: {
+    box: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100",
+    icon: "text-amber-600 dark:text-amber-400",
+    Icon: AlertTriangle,
+  },
+  success: {
+    box: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100",
+    icon: "text-emerald-600 dark:text-emerald-400",
+    Icon: CheckCircle2,
+  },
+} as const;
+
+/**
+ * Bandeau d'annonce de l'administration (Personnalisation → Textes), affiché en haut du
+ * contenu pour tous les utilisateurs connectés ; fermable (mémorisé par utilisateur et par texte).
+ */
+const AnnouncementBanner = ({ userId, language }: { userId: string; language: string }) => {
+  const { settings, text } = useAppSettings();
+  const lang = (language === "ar" || language === "en" ? language : "fr") as Lang;
+  const message = text(settings.texts?.announcement, lang);
+  const hash = message ? textHash(message) : "";
+  const storageKey = `app-announcement-dismissed-${userId}`;
+  const [dismissed, setDismissed] = useState<string | null>(() => {
+    try { return localStorage.getItem(storageKey); } catch { return null; }
+  });
+  useEffect(() => {
+    try { setDismissed(localStorage.getItem(storageKey)); } catch { setDismissed(null); }
+  }, [storageKey]);
+
+  if (!message || dismissed === hash) return null;
+  const tone = ANNOUNCEMENT_TONES[settings.texts?.announcementTone as keyof typeof ANNOUNCEMENT_TONES] || ANNOUNCEMENT_TONES.info;
+  const ToneIcon = tone.Icon;
+  const closeLabel = lang === "ar" ? "إخفاء الإعلان" : lang === "en" ? "Dismiss announcement" : "Masquer l'annonce";
+  const dismiss = () => {
+    try { localStorage.setItem(storageKey, hash); } catch { /* stockage indisponible */ }
+    setDismissed(hash);
+  };
+
+  return (
+    <div
+      role="status"
+      dir={lang === "ar" ? "rtl" : "ltr"}
+      className={`mb-3 sm:mb-4 flex items-start gap-2.5 rounded-xl border px-3 py-2.5 sm:px-4 text-sm shadow-xs print:hidden ${tone.box}`}
+    >
+      <ToneIcon className={`mt-0.5 h-4 w-4 shrink-0 ${tone.icon}`} aria-hidden="true" />
+      <p className="min-w-0 flex-1 whitespace-pre-line break-words leading-relaxed">{message}</p>
+      <button
+        type="button"
+        onClick={dismiss}
+        className="-m-1 shrink-0 rounded-lg p-1.5 opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={closeLabel}
+        title={closeLabel}
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+};
 
 /** Distance de défilement à partir de laquelle les boutons Haut / Bas apparaissent */
 const SCROLL_THRESHOLD = 400;
@@ -23,6 +97,9 @@ const MainLayout = () => {
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
   const [scrollState, setScrollState] = useState({ top: false, bottom: false });
+  const { settings: appSettings, text: settingText, feature } = useAppSettings();
+  const showBottomNav = feature("bottomNav");
+  const footerText = settingText(appSettings.texts?.footer, (language === "ar" || language === "en" ? language : "fr") as Lang);
 
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
 
@@ -134,7 +211,7 @@ const MainLayout = () => {
     "h-10 w-10 rounded-full shadow-lg border border-border/80 bg-background/95 hover:bg-primary hover:text-primary-foreground transition-all duration-200";
 
   return (
-    <div className="with-bottomnav flex app-viewport bg-background overflow-hidden">
+    <div className={`${showBottomNav ? "with-bottomnav " : ""}flex app-viewport bg-background overflow-hidden`}>
       <aside className="hidden lg:flex lg:w-72 h-full max-h-screen overflow-hidden bg-background border-r rtl:border-r-0 rtl:border-l border-border/70 shadow-xs flex-shrink-0 z-20">
         <Sidebar />
       </aside>
@@ -142,7 +219,7 @@ const MainLayout = () => {
         <TopNav />
         <main
           ref={mainRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 pb-12 md:pb-12 pb-bottomnav touch-auto"
+          className={`flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 pb-12 md:pb-12 ${showBottomNav ? "pb-bottomnav " : ""}touch-auto`}
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <Suspense
@@ -152,9 +229,18 @@ const MainLayout = () => {
               </div>
             }
           >
+            <AnnouncementBanner userId={user.id} language={language} />
             <SubscriptionBanner />
             <Outlet />
           </Suspense>
+          {footerText && (
+            <footer
+              dir={language === "ar" ? "rtl" : "ltr"}
+              className="mt-10 border-t border-border/60 pt-4 text-center text-xs text-muted-foreground whitespace-pre-line break-words print:hidden"
+            >
+              {footerText}
+            </footer>
+          )}
         </main>
 
         {/* Boutons flottants Haut / Bas (après 400 px de défilement) */}

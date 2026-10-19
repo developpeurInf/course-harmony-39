@@ -5,11 +5,16 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { GraduationCap, BookOpen, FileText, Calendar, ArrowRight } from "lucide-react";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { BrandLogo, useBrand } from "@/components/AppBrand";
+import { LoginHelpContact } from "@/components/AuthForm";
 
 const Index = () => {
   const { user, loading } = useAuth();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
+  const brand = useBrand(language);
+  const { feature } = useAppSettings();
 
   // Attendre la session avant d'afficher la page d'accueil (pas de flash pour un utilisateur connecté)
   if (loading) {
@@ -29,9 +34,14 @@ const Index = () => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-accent/20 p-4">
       <div className="max-w-4xl w-full space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
-          <h1 className="text-4xl md:text-5xl font-bold text-primary">{t("app.name")}</h1>
+          {brand.logoUrl && (
+            <div className="flex justify-center">
+              <BrandLogo logoUrl={brand.logoUrl} alt={brand.appName} imgClassName="h-20 w-20 rounded-2xl" className="hidden" />
+            </div>
+          )}
+          <h1 className="text-4xl md:text-5xl font-bold text-primary break-words">{brand.isDefaultName ? t("app.name") : brand.appName}</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            {t("index.subtitle")}
+            {brand.customTagline || t("index.subtitle")}
           </p>
         </div>
 
@@ -73,6 +83,7 @@ const Index = () => {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-in">
+          {feature("courses") && (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -86,7 +97,9 @@ const Index = () => {
               </p>
             </CardContent>
           </Card>
+          )}
           
+          {feature("exercises") && (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -100,7 +113,9 @@ const Index = () => {
               </p>
             </CardContent>
           </Card>
+          )}
           
+          {feature("exams") && (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -114,12 +129,16 @@ const Index = () => {
               </p>
             </CardContent>
           </Card>
+          )}
         </div>
 
         <div className="text-center pt-6">
           <Button variant="outline" onClick={() => navigate("/login")}>
             {t("index.login.now")}
           </Button>
+        </div>
+        <div className="flex justify-center">
+          <LoginHelpContact language={language} />
         </div>
       </div>
     </div>

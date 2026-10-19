@@ -1,3 +1,5 @@
+import { getAppSettingsSnapshot } from "@/contexts/AppSettingsContext";
+import { pickText } from "@/lib/appSettings";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, KeyRound, Ban, PlayCircle, Pencil, CalendarPlus, RefreshCw, Repeat, XCircle, Plus, Printer, Copy, Check, Trash2, Loader2 } from "lucide-react";
@@ -542,13 +544,20 @@ function printReceipt(p: any, teacher: any, sub: any, lang: Lang, L: (fr: string
   const arrow = lang === "ar" ? "←" : "→";
   const number = p.receipt_number || String(p.id).slice(0, 8).toUpperCase();
   const period = sub ? ` (${esc(fmtDate(sub.starts_at, lang))} ${arrow} ${esc(sub.ends_at ? fmtDate(sub.ends_at, lang) : L("sans fin", "بدون نهاية", "no end"))})` : "";
+  // Personnalisation centrale : nom, établissement, logo et mentions du reçu
+  const brand = getAppSettingsSnapshot();
+  const appName = brand.identity.appName || "Math infini";
+  const school = brand.reports.schoolName || "";
+  const logo = brand.reports.showLogo ? (brand.reports.logoUrl || brand.identity.logoUrl) : null;
+  const receiptFooter = pickText(brand.reports.receiptFooter, lang);
   const row = (k: string, v: string, cls = "") => `<tr><td class="k">${esc(k)}</td><td${cls ? ` class="${cls}"` : ""}>${v}</td></tr>`;
   w.document.write(`<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${esc(L("Reçu", "وصل", "Receipt"))} ${esc(number)}</title>
   <style>body{font-family:Arial,Tahoma,sans-serif;max-width:640px;margin:32px auto;padding:0 16px;color:#111;direction:${dir};text-align:${lang === "ar" ? "right" : "left"}}h1{font-size:22px;margin:0}
   .muted{color:#666;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:8px;border-bottom:1px solid #ddd;vertical-align:top}
   td.k{color:#555;width:40%}.total{font-size:20px;font-weight:bold}.ltr{direction:ltr;unicode-bidi:embed}</style></head><body>
-  <h1>${esc(L("Reçu de paiement", "وصل الأداء", "Payment receipt"))}</h1><p class="muted">Math infini · ${esc(new Date().toLocaleDateString(locale))}</p>
+  ${logo ? `<img src="${esc(logo)}" alt="" style="max-height:56px;max-width:200px;margin-bottom:8px">` : ""}
+  <h1>${esc(L("Reçu de paiement", "وصل الأداء", "Payment receipt"))}</h1><p class="muted">${esc(appName)}${school ? ` · ${esc(school)}` : ""} · ${esc(new Date().toLocaleDateString(locale))}</p>
   <table>
   ${row(L("N° de reçu", "رقم الوصل", "Receipt no."), `<span class="ltr">${esc(number)}</span>`)}
   ${row(L("Professeur", "الأستاذ", "Teacher"), `${esc(teacher.name)} (<span class="ltr">${esc(teacher.email)}</span>)`)}
@@ -556,7 +565,7 @@ function printReceipt(p: any, teacher: any, sub: any, lang: Lang, L: (fr: string
   ${row(L("Offre", "العرض", "Plan"), `${esc(sub?.plans?.name || "—")}${period}`)}
   ${row(L("Moyen de paiement", "وسيلة الأداء", "Payment method"), `${esc(method ? L(method.fr, method.ar, method.en) : p.method)}${p.reference ? ` · ${esc(L("réf.", "مرجع", "ref."))} <span class="ltr">${esc(p.reference)}</span>` : ""}`)}
   ${row(L("Montant", "المبلغ", "Amount"), esc(fmtMoney(p.amount_mad, lang)), "total")}
-  </table><script>window.onload=function(){window.print()}</script></body></html>`);
+  </table>${receiptFooter ? `<p class="muted" style="margin-top:24px;white-space:pre-line">${esc(receiptFooter)}</p>` : ""}<script>window.onload=function(){window.print()}</script></body></html>`);
   w.document.close();
 }
 

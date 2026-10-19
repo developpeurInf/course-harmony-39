@@ -73,7 +73,8 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(DEFAULT_QUIZ_SETTINGS);
+  // Point de départ : valeurs par défaut de l'enseignant / de l'administration (remplacées au chargement du quiz)
+  const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(() => ({ ...DEFAULT_QUIZ_SETTINGS, ...prefs.quizDefaults }));
   const [deletingQuestion, setDeletingQuestion] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);

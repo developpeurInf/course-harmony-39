@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences, playNotificationSound, AttemptPolicy, ACCENT_PRESETS, AccentColor } from "@/contexts/PreferencesContext";
 import {
   Globe, Moon, Sun, Monitor, Key, AlertCircle, Bell, Volume2, MonitorSmartphone, Type, Rows3, Sparkles,
-  GraduationCap, FileQuestion, ShieldCheck, Cloud, CloudOff, Loader2, Check, RotateCcw, Clock, Palette
+  GraduationCap, FileQuestion, ShieldCheck, Cloud, CloudOff, Loader2, Check, RotateCcw, Clock, Palette, Lock
 } from "lucide-react";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 import { PasswordResetManager } from "@/components/PasswordResetManager";
@@ -60,6 +60,14 @@ function Segmented<T extends string>({ value, onChange, options, groupLabel, but
   );
 }
 
+/** Réglage imposé par l'administration (Personnalisation → Pédagogie). */
+const LockedNote = ({ text }: { text: string }) => (
+  <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+    <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+    {text}
+  </span>
+);
+
 const SectionCard = ({ id, icon, title, desc, onReset, resetLabel, children }: { id: string; icon: ReactNode; title: string; desc: string; onReset?: () => void; resetLabel?: string; children: ReactNode }) => (
   <Card id={`settings-${id}`} className="scroll-mt-24">
     <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
@@ -88,7 +96,7 @@ const Settings = () => {
   const { language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
-  const { prefs, update, reset, syncState } = usePreferences();
+  const { prefs, update, reset, syncState, pedagogyLocked } = usePreferences();
   const isProfessor = user?.role === "professor";
   const isRtl = language === "ar";
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
@@ -114,7 +122,7 @@ const Settings = () => {
       setDurations({ q: String(prefs.defaultQuizDuration), e: String(prefs.defaultExamDuration) });
       return;
     }
-    update({ defaultQuizDuration: q, defaultExamDuration: e });
+    update(pedagogyLocked ? { defaultExamDuration: e } : { defaultQuizDuration: q, defaultExamDuration: e });
   };
 
   const commitLevels = () => {
@@ -128,8 +136,11 @@ const Settings = () => {
       toast.error(tr("Les seuils doivent être croissants : difficulté ≤ satisfaisant ≤ excellent.", "يجب أن تكون العتبات تصاعدية.", "Thresholds must be increasing."));
       return;
     }
-    update({ levelStruggling: s, levelGood: g, levelExcellent: e, passThreshold: p });
+    // Seuil de réussite imposé par l'administration : on ne touche pas à la valeur personnelle
+    update(pedagogyLocked ? { levelStruggling: s, levelGood: g, levelExcellent: e } : { levelStruggling: s, levelGood: g, levelExcellent: e, passThreshold: p });
   };
+
+  const lockedText = tr("Fixé par l'administration", "محدد من طرف الإدارة", "Set by the administration");
 
   const sections: { id: SectionId; icon: ReactNode; label: string; show: boolean }[] = [
     { id: "general", icon: <Globe className="h-4 w-4" />, label: tr("Général", "عام", "General"), show: true },
@@ -521,9 +532,9 @@ const Settings = () => {
           {/* ── Évaluation (enseignant) ── */}
           {isProfessor && (
             <SectionCard id="evaluation" icon={<GraduationCap className="h-5 w-5" />} title={tr("Évaluation et notation", "التقويم والتنقيط", "Assessment & grading")} desc={tr("Utilisés par le tableau de bord, le suivi pédagogique, le classement et les alertes.", "تُستعمل في لوحة التحكم والتتبع والترتيب والتنبيهات.", "Used by the dashboard, tracking, ranking and alerts.")} resetLabel={tr("Par défaut", "افتراضي", "Defaults")} onReset={() => reset("evaluation")}>
-              <Row title={tr("Seuil de réussite", "عتبة النجاح", "Pass mark")} desc={tr("Moyenne à partir de laquelle un élève est considéré en réussite. En dessous : alerte « moyenne insuffisante ».", "المعدل الذي يعتبر ابتداءً منه التلميذ ناجحاً.", "Average from which a student passes; below triggers an alert.")}>
+              <Row title={tr("Seuil de réussite", "عتبة النجاح", "Pass mark")} desc={<>{tr("Moyenne à partir de laquelle un élève est considéré en réussite. En dessous : alerte « moyenne insuffisante ».", "المعدل الذي يعتبر ابتداءً منه التلميذ ناجحاً.", "Average from which a student passes; below triggers an alert.")}{pedagogyLocked && <><br /><LockedNote text={lockedText} /></>}</>}>
                 <div className="flex items-center gap-2">
-                  <Input value={levels.p} onChange={e => setLevels(l => ({ ...l, p: e.target.value }))} onBlur={commitLevels} inputMode="decimal" className="h-9 w-20 text-center font-bold" />
+                  <Input value={levels.p} onChange={e => setLevels(l => ({ ...l, p: e.target.value }))} onBlur={commitLevels} inputMode="decimal" disabled={pedagogyLocked} className="h-9 w-20 text-center font-bold" />
                   <span className="text-sm text-muted-foreground">/ 20</span>
                 </div>
               </Row>
@@ -558,7 +569,8 @@ const Settings = () => {
               <div className="py-4">
                 <p className="text-sm font-semibold">{tr("Quiz repassé : note retenue", "اختبار مُعاد: النقطة المعتمدة", "Retaken quiz: grade kept")}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{tr("Quand plusieurs tentatives sont autorisées.", "عندما يُسمح بعدة محاولات.", "When multiple attempts are allowed.")}</p>
-                <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                {pedagogyLocked && <LockedNote text={lockedText} />}
+                <fieldset disabled={pedagogyLocked} className={`m-0 mt-3 grid min-w-0 gap-2.5 border-0 p-0 sm:grid-cols-3 ${pedagogyLocked ? "opacity-60" : ""}`}>
                   {policies.map(p => (
                     <button
                       key={p.value}
@@ -575,7 +587,7 @@ const Settings = () => {
                       <span className="mt-1 block text-xs text-muted-foreground">{p.desc}</span>
                     </button>
                   ))}
-                </div>
+                </fieldset>
               </div>
               <Row icon={<Clock className="h-4 w-4" />} title={tr("Alerte d'inactivité", "تنبيه عدم النشاط", "Inactivity alert")} desc={tr("Un élève est signalé « à accompagner » s'il ne s'est pas connecté depuis…", "يُشار إلى التلميذ إذا لم يتصل منذ…", "A student is flagged if not connected for…")}>
                 <Select value={String(prefs.inactivityDays)} onValueChange={v => update({ inactivityDays: parseInt(v) })}>
@@ -595,7 +607,7 @@ const Settings = () => {
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     {tr("Quiz", "اختبار", "Quiz")}
-                    <Input type="number" min={1} value={durations.q} onChange={e => setDurations(d => ({ ...d, q: e.target.value }))} onBlur={commitDurations} className="h-9 w-20 text-center font-bold" />
+                    <Input type="number" min={1} value={durations.q} onChange={e => setDurations(d => ({ ...d, q: e.target.value }))} onBlur={commitDurations} disabled={pedagogyLocked} className="h-9 w-20 text-center font-bold" />
                     min
                   </label>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -606,7 +618,10 @@ const Settings = () => {
                 </div>
               </Row>
               <div className="pt-4">
-                <QuizSettings initialSettings={prefs.quizDefaults} onSettingsChange={s => update({ quizDefaults: s })} />
+                {pedagogyLocked && <div className="mb-3"><LockedNote text={tr("Fixé par l'administration : la durée des quiz et les options ci-dessous s'appliquent à tous les nouveaux quiz.", "محدد من طرف الإدارة: مدة الاختبارات والخيارات أدناه تُطبق على كل الاختبارات الجديدة.", "Set by the administration: the quiz duration and options below apply to every new quiz.")} /></div>}
+                <fieldset disabled={pedagogyLocked} className={`m-0 min-w-0 border-0 p-0 ${pedagogyLocked ? "pointer-events-none opacity-60" : ""}`}>
+                  <QuizSettings key={pedagogyLocked ? "locked" : "own"} initialSettings={prefs.quizDefaults} onSettingsChange={s => { if (!pedagogyLocked) update({ quizDefaults: s }); }} />
+                </fieldset>
               </div>
             </SectionCard>
           )}

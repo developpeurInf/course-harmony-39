@@ -1,8 +1,10 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, BookOpen, FileText, Calendar, User, FolderOpen, BarChart3, type LucideIcon } from "lucide-react";
+import { Home, BookOpen, FileText, Calendar, User, FolderOpen, BarChart3, FileSpreadsheet, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import type { FeatureKey } from "@/lib/appSettings";
 
 interface BottomNavItem {
   to: string;
@@ -10,20 +12,22 @@ interface BottomNavItem {
   label: [fr: string, ar: string, en: string];
   /** Autres chemins qui activent cet onglet (ex. pages d'une classe) */
   match: RegExp;
+  /** Module à activer (Personnalisation → Modules) pour afficher l'onglet */
+  feature?: FeatureKey;
 }
 
 const STUDENT_ITEMS: BottomNavItem[] = [
   { to: "/dashboard", icon: Home, label: ["Accueil", "الرئيسية", "Home"], match: /^\/dashboard/ },
-  { to: "/courses", icon: BookOpen, label: ["Cours", "الدروس", "Courses"], match: /^\/(courses|rooms\/[^/]+\/courses)/ },
-  { to: "/exercises", icon: FileText, label: ["Exercices", "التمارين", "Exercises"], match: /^\/(exercises|rooms\/[^/]+\/exercises)/ },
-  { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|rooms\/[^/]+\/exams)/ },
+  { to: "/courses", icon: BookOpen, label: ["Cours", "الدروس", "Courses"], match: /^\/(courses|rooms\/[^/]+\/courses)/, feature: "courses" },
+  { to: "/exercises", icon: FileText, label: ["Exercices", "التمارين", "Exercises"], match: /^\/(exercises|rooms\/[^/]+\/exercises)/, feature: "exercises" },
+  { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|rooms\/[^/]+\/exams)/, feature: "exams" },
   { to: "/profile", icon: User, label: ["Profil", "حسابي", "Profile"], match: /^\/(profile|settings)/ },
 ];
 
 const PROFESSOR_ITEMS: BottomNavItem[] = [
   { to: "/dashboard", icon: Home, label: ["Accueil", "الرئيسية", "Home"], match: /^\/dashboard/ },
   { to: "/class-management", icon: FolderOpen, label: ["Classes", "الأقسام", "Classes"], match: /^\/(class-management|create-room|students|rooms\/[^/]+\/students)/ },
-  { to: "/courses", icon: BookOpen, label: ["Cours", "الدروس", "Courses"], match: /^\/(courses|rooms\/[^/]+\/courses)/ },
+  { to: "/courses", icon: BookOpen, label: ["Cours", "الدروس", "Courses"], match: /^\/(courses|rooms\/[^/]+\/courses)/, feature: "courses" },
   { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|exercises|rooms\/[^/]+\/(exams|exercises))/ },
   { to: "/reports", icon: BarChart3, label: ["Rapports", "التقارير", "Reports"], match: /^\/(reports|diagnostic)/ },
 ];
@@ -42,10 +46,27 @@ const BottomNav = ({ className }: BottomNavProps) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const location = useLocation();
+  const { feature } = useAppSettings();
 
-  if (!user) return null;
+  if (!user || !feature("bottomNav")) return null;
 
-  const items = user.role === "professor" ? PROFESSOR_ITEMS : STUDENT_ITEMS;
+  // Onglets des modules désactivés par l'administration retirés (ou redirigés vers le module voisin)
+  const items = (user.role === "professor" ? PROFESSOR_ITEMS : STUDENT_ITEMS)
+    .map((item): BottomNavItem | null => {
+      if (item.feature && !feature(item.feature)) return null;
+      if (user.role === "professor" && item.to === "/exams" && !feature("exams")) {
+        return feature("exercises")
+          ? { ...item, to: "/exercises", icon: FileText, label: ["Exercices", "التمارين", "Exercises"] }
+          : null;
+      }
+      if (user.role === "professor" && item.to === "/reports" && !feature("reports")) {
+        return feature("diagnostic")
+          ? { ...item, to: "/diagnostic", icon: FileSpreadsheet, label: ["Diagnostic", "التشخيص", "Diagnostic"] }
+          : null;
+      }
+      return item;
+    })
+    .filter((item): item is BottomNavItem => !!item);
   const pick = (l: [string, string, string]) => (language === "ar" ? l[1] : language === "en" ? l[2] : l[0]);
   const navLabel = language === "ar" ? "التنقل الرئيسي" : language === "en" ? "Main navigation" : "Navigation principale";
 

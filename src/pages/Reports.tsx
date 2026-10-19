@@ -53,6 +53,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { downloadExcelFile } from "@/lib/download";
+import { getReportBranding, reportHeaderLines } from "@/lib/reportBranding";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { matchesStudent, studentMassar, type StudentSearchMode } from "@/lib/search";
 import {
   computeClassAnalytics,
@@ -123,6 +125,8 @@ const Reports = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const { prefs } = usePreferences();
+  const { feature } = useAppSettings();
+  const hasStudentActivities = feature("studentActivities");
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en), [language]);
   const locale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
   const num = (v: number | null | undefined, d = 1) =>
@@ -543,6 +547,21 @@ const Reports = () => {
         [tr("Réussite %", "النجاح %", "Success %")]: Math.round(h.rate), [tr("Réponses", "الإجابات", "Answers")]: h.answered,
       }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(qs), tr("Questions difficiles", "أسئلة صعبة", "Hard questions"));
+      // Feuille « Rapport » en tête (établissement, titre, pied) si la personnalisation est renseignée
+      const branding = getReportBranding(language);
+      const pre = reportHeaderLines(branding);
+      if (pre.length || branding.footerText) {
+        const info: string[][] = [
+          ...pre.map((l) => [l]),
+          [tr("Rapport & statistiques", "التقارير والإحصائيات", "Reports & statistics")],
+          [`${tr("Généré le", "أُنشئ في", "Generated on")} ${fmtDate(new Date().toISOString())}`],
+          ...(branding.footerText ? [[""], [branding.footerText]] : []),
+        ];
+        const infoName = tr("Rapport", "التقرير", "Report");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(info), infoName);
+        // feuille placée en premier
+        wb.SheetNames = [infoName, ...wb.SheetNames.filter((n) => n !== infoName)];
+      }
       await downloadExcelFile(wb, `rapport_statistiques_${new Date().toISOString().slice(0, 10)}.xlsx`);
       toast.success(tr("Rapport exporté", "تم تصدير التقرير", "Report exported"));
     } catch (e) {
@@ -742,7 +761,11 @@ const Reports = () => {
                           return (
                             <tr key={r.room.id}>
                               <td className="font-semibold">
-                                <Link to={`/rooms/${r.room.id}/students-activities`} className="hover:text-primary hover:underline underline-offset-4">{r.room.name}</Link>
+                                {hasStudentActivities ? (
+                                  <Link to={`/rooms/${r.room.id}/students-activities`} className="hover:text-primary hover:underline underline-offset-4">{r.room.name}</Link>
+                                ) : (
+                                  r.room.name
+                                )}
                               </td>
                               <td className="text-center tabular-nums">{r.studentsCount}</td>
                               <td className={`text-center font-bold tabular-nums ${tone(a.classNote20)}`}>{a.classNote20 === null ? "—" : `${num(a.classNote20)}/20`}</td>

@@ -1,3 +1,4 @@
+import { getAppSettingsSnapshot } from "@/contexts/AppSettingsContext";
 import { downloadBlob } from "@/lib/download";
 /**
  * Chargeur dynamique ultra-léger pour html2pdf.js côté client.
@@ -179,6 +180,10 @@ async function exportPageByPage(element: HTMLElement, filename: string): Promise
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const imgs = Array.from(holder.querySelectorAll("img"));
     await Promise.all(imgs.map((img) => (img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); }))));
+    // Image illisible (ex. logo d'un autre domaine sans CORS) : retirée plutôt qu'un cadre vide
+    imgs.forEach((img) => {
+      if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) img.style.display = "none";
+    });
 
     // Zones de mesure invisibles (pagination du modèle 2) : jamais dans le PDF
     Array.from(clone.querySelectorAll(".no-print")).forEach((n) => n.remove());
@@ -186,6 +191,16 @@ async function exportPageByPage(element: HTMLElement, filename: string): Promise
     if (pages.length === 0) pages = [clone];
 
     const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+    // Métadonnées du PDF : nom de l'application / établissement (Personnalisation)
+    try {
+      const appSettings = getAppSettingsSnapshot();
+      const creator = (appSettings.reports.schoolName || appSettings.identity.appName || "").trim();
+      if (creator && typeof pdf.setProperties === "function") {
+        pdf.setProperties({ title: filename.replace(/\.pdf$/i, ""), creator, author: creator });
+      }
+    } catch {
+      /* métadonnées facultatives */
+    }
     const scale = isIOS() ? 1.5 : 2;
     const totalH = holder.scrollHeight + 200;
     let first = true;

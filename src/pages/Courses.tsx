@@ -57,10 +57,15 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
 import { isSmallScreen } from "@/lib/device";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 
 const Courses = () => {
   const { user, getStudents } = useAuth();
   const { t, language } = useLanguage();
+  // Modules désactivés par l'administration : raccourcis masqués
+  const { feature } = useAppSettings();
+  const hasExercises = feature("exercises");
+  const hasExams = feature("exams");
   const { 
     rooms,
     courses, 
@@ -740,6 +745,7 @@ const Courses = () => {
                             {tr("Ouvrir le cours", "فتح الدرس", "Open course")}
                           </Button>
                         )}
+                        {hasExercises && (
                         <Button 
                           variant="outline" 
                           size="sm" 
@@ -749,6 +755,8 @@ const Courses = () => {
                           <FileText className="h-3.5 w-3.5 mr-1 rtl:mr-0 rtl:ml-1" />
                           {stats.exerciseCount} {language === "ar" ? "تمارين" : language === "fr" ? (stats.exerciseCount > 1 ? "Exercices" : "Exercice") : (stats.exerciseCount === 1 ? "Exercise" : "Exercises")}
                         </Button>
+                        )}
+                        {hasExams && (
                         <Button 
                           variant="outline" 
                           size="sm" 
@@ -758,6 +766,7 @@ const Courses = () => {
                           <Calendar className="h-3.5 w-3.5 mr-1 rtl:mr-0 rtl:ml-1" />
                           {stats.examCount} {language === "ar" ? "امتحانات" : language === "fr" ? (stats.examCount > 1 ? "Examens" : "Examen") : (stats.examCount === 1 ? "Exam" : "Exams")}
                         </Button>
+                        )}
                         {(course.pdf_url || (courseMaterials[course.id] && courseMaterials[course.id].length > 0)) && (
                           courseMaterials[course.id] && courseMaterials[course.id].length > 0 ? (
                             <CourseMaterials 
@@ -902,6 +911,7 @@ const Courses = () => {
                           variant="outline" 
                           size="sm"
                           onClick={() => navigateToExercises(course.id)}
+                          disabled={!hasExercises}
                           className="h-9 text-xs px-2.5"
                           aria-label={`${tr("Exercices", "التمارين", "Exercises")} : ${stats.exerciseCount}`}
                         >
@@ -914,6 +924,7 @@ const Courses = () => {
                           variant="outline" 
                           size="sm"
                           onClick={() => navigateToExams(course.id)}
+                          disabled={!hasExams}
                           className="h-9 text-xs px-2.5"
                           aria-label={`${tr("Examens", "الامتحانات", "Exams")} : ${stats.examCount}`}
                         >

@@ -57,7 +57,8 @@ export type AdminPermissionKey =
   | "admin.payments.manage"
   | "admin.overrides.manage"
   | "admin.audit.view"
-  | "admin.roles.manage";
+  | "admin.roles.manage"
+  | "admin.settings.manage";
 
 export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string }> = {
   "class": { fr: "Classes", ar: "الأقسام", en: "Classes" },
@@ -124,9 +125,10 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "admin.overrides.manage": { module: "admin", fr: "Gérer les habilitations par professeur", ar: "تدبير صلاحيات الأستاذ", en: "Manage teacher permissions" },
   "admin.audit.view": { module: "admin", fr: "Consulter le journal", ar: "الاطلاع على السجل", en: "View audit log" },
   "admin.roles.manage": { module: "admin", fr: "Gérer l'équipe d'administration", ar: "تدبير فريق الإدارة", en: "Manage admin team" },
+  "admin.settings.manage": { module: "admin", fr: "Personnaliser l'application", ar: "تخصيص التطبيق", en: "Customize the app" },
 };
 
-export const ADMIN_PERMISSION_KEYS: AdminPermissionKey[] = ["admin.teachers.manage", "admin.plans.manage", "admin.subscriptions.manage", "admin.payments.manage", "admin.overrides.manage", "admin.audit.view", "admin.roles.manage"];
+export const ADMIN_PERMISSION_KEYS: AdminPermissionKey[] = ["admin.teachers.manage", "admin.plans.manage", "admin.subscriptions.manage", "admin.payments.manage", "admin.overrides.manage", "admin.audit.view", "admin.roles.manage", "admin.settings.manage"];
 
 /** Type de fichier → permission d'ajout (même règle que le déclencheur SQL) */
 export function uploadPermissionFor(fileName: string, mime = ""): PermissionKey {

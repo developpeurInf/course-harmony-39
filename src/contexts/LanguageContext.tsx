@@ -4,10 +4,15 @@ import {
   type Language,
   type LanguagePack,
   LANGUAGE_STORAGE_KEY,
+  LANGUAGE_AUTO_KEY,
   getSavedLanguage,
+  getStoredLanguage,
+  isLanguage,
   getLoadedPack,
   loadLanguagePack,
 } from "@/i18n/loader";
+import { DEFAULT_APP_SETTINGS } from "@/lib/appSettings";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 
 // Les dictionnaires (fr / ar / en + traductions automatiques) sont chargés à la demande
 // depuis src/i18n (un fichier par langue) : seul celui de la langue active est téléchargé.
@@ -45,6 +50,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Dictionnaire de la langue affichée (null tant qu'il n'est pas chargé)
   const [pack, setPack] = useState<LanguagePack | null>(() => getLoadedPack(getSavedLanguage()));
   const requestedRef = useRef<Language>(language);
+  // L'utilisateur a-t-il choisi sa langue ? (sinon : langue par défaut de l'administration)
+  const explicitRef = useRef<boolean>(getStoredLanguage() !== null);
 
   // Premier chargement (déjà lancé à l'évaluation de src/i18n/loader)
   useEffect(() => {
@@ -65,8 +72,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // (avant : la page s'affichait traduite, puis se rechargeait et s'affichait une 2e fois).
   // Si le dictionnaire de la nouvelle langue n'est pas encore chargé, l'écran reste dans
   // la langue actuelle le temps du téléchargement (pas de démontage, pas de clignotement).
-  const setLanguage = useCallback((newLang: Language) => {
-    try { localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang); } catch { /* stockage indisponible */ }
+  const switchLanguage = useCallback((newLang: Language, persist: boolean) => {
+    if (persist) {
+      explicitRef.current = true;
+      try {
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
+        localStorage.removeItem(LANGUAGE_AUTO_KEY);
+      } catch { /* stockage indisponible */ }
+    }
     requestedRef.current = newLang;
     const apply = (p: LanguagePack) => {
       if (requestedRef.current !== newLang) return; // une autre langue a été choisie entre-temps
@@ -81,11 +94,28 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Choix explicite de l'utilisateur : enregistré
+  const setLanguage = useCallback((newLang: Language) => switchLanguage(newLang, true), [switchLanguage]);
+
+  // Langue par défaut fixée par l'administration : suivie tant que l'utilisateur n'a rien choisi
+  const { settings: appSettings } = useAppSettings();
+  useEffect(() => {
+    if (appSettings === DEFAULT_APP_SETTINGS) return; // fournisseur absent : défaut d'origine
+    if (explicitRef.current || getStoredLanguage()) return;
+    const def = appSettings.texts?.defaultLanguage;
+    if (isLanguage(def) && def !== requestedRef.current) switchLanguage(def, false);
+  }, [appSettings, switchLanguage]);
+
   // Save language to localStorage and handle RTL and Arabic translation
   // useLayoutEffect : la traduction / restauration du DOM se fait avant l'affichage (pas de flash)
   useLayoutEffect(() => {
-    try { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); } catch { /* stockage indisponible */ }
-    
+    // Langue courante enregistrée (lue directement par d'autres modules) ; marquée « auto »
+    // tant que l'utilisateur ne l'a pas choisie, pour que le défaut de l'administration s'applique.
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+      if (!explicitRef.current) localStorage.setItem(LANGUAGE_AUTO_KEY, "1");
+    } catch { /* stockage indisponible */ }
+
     // Set the dir attribute on the document for RTL support
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
     document.documentElement.lang = language;

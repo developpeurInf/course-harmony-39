@@ -36,8 +36,9 @@ import { usePopupMenu } from "@/components/ui/use-popup-menu";
 import { useNotifications, Notification, NotificationType } from "@/contexts/NotificationContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 
-export const NotificationBell = () => {
+const NotificationBellInner = () => {
   const {
     notifications,
     unreadCount,
@@ -617,6 +618,13 @@ export const NotificationBell = () => {
       </AlertDialog>
     </div>
   );
+};
+
+/** Cloche des notifications : masquée quand l'administration désactive le module « notifications ». */
+export const NotificationBell = () => {
+  const { feature } = useAppSettings();
+  if (!feature("notifications")) return null;
+  return <NotificationBellInner />;
 };
 
 export default NotificationBell;

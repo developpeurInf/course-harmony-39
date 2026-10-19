@@ -38,6 +38,7 @@ import {
   type QuizSettings,
 } from "@/contexts/CourseContext";
 import { downloadBlob } from "@/lib/download";
+import { getReportBranding, reportHeaderLines } from "@/lib/reportBranding";
 import { MathText, SimpleMathPreview } from "@/components/math/MathContent";
 
 /* ═══════════════════════════════ Types ═══════════════════════════════ */
@@ -406,7 +407,17 @@ const QuizDetails = ({ examId }: Props) => {
       r.others.map((e) => incidentLabel(e.type)).join(" / "),
     ]);
     notSubmitted.forEach((s) => lines.push(["", s.name, s.email || s.username || "", tr("Non rendu", "لم يُرسل", "Not submitted"), "", "", "", 0, "", "", "", "", ""]));
-    const csv = "﻿" + [header, ...lines].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    // En-tête / pied des rapports (Personnalisation → Rapports) : seulement s'ils sont renseignés
+    const branding = getReportBranding(language);
+    const pre = reportHeaderLines(branding);
+    const table: (string | number)[][] = [
+      ...pre.map((l) => [l]),
+      ...(pre.length ? [[exam?.title || ""], []] : []),
+      header,
+      ...lines,
+      ...(branding.footerText ? [[], [branding.footerText.replace(/\s*\n\s*/g, " ")]] : []),
+    ];
+    const csv = "﻿" + table.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
     const safe = (exam?.title || "quiz").replace(/[^\w-]+/g, "_");
     void downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8;" }), `resultats-${safe}.csv`);
   };
