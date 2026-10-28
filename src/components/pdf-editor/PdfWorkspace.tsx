@@ -16,6 +16,16 @@ export interface PdfWorkspaceHandle {
   /** PDF actif avec toutes les modifications (annotations, pages, masquages appliqués) */
   exportActive: () => Promise<{ buffer: ArrayBuffer; name: string } | null>;
   downloadActive: () => void;
+  /** Remplace le document actif par une nouvelle version (même nom, même onglet) */
+  replaceActive: (buffer: ArrayBuffer, name: string) => Promise<void>;
+  /** Commande du visualiseur (outils d'annotation, modes, zoom…) */
+  runCommand: (id: string) => void;
+  commandState: (id: string) => { active: boolean; disabled: boolean; label: string } | null;
+  /** Rappel à chaque changement d'état des commandes (outil actif, annuler…) */
+  onCommandsChange: (cb: () => void) => () => void;
+  /** Miniatures du document actif (URL d'objets à libérer par l'appelant) */
+  renderThumbnails: (scale?: number) => Promise<string[]>;
+  activePageCount: () => number;
 }
 
 interface Props {
@@ -101,6 +111,20 @@ type DocManager = {
   onDocumentClosed: (cb: () => void) => () => void;
   onActiveDocumentChanged: (cb: () => void) => () => void;
 };
+type Commands = {
+  execute: (id: string, documentId?: string, source?: "ui" | "api") => void;
+  resolve: (id: string, documentId?: string) => { active: boolean; disabled: boolean; label: string };
+  onCommandExecuted: (cb: () => void) => () => void;
+  onCommandStateChanged: (cb: () => void) => () => void;
+};
+type UiCap = {
+  getSchema: () => { toolbars: Record<string, { items: { id: string }[] }> };
+  mergeSchema: (partial: unknown) => void;
+  forDocument: (id: string) => { closeToolbarSlot: (placement: string, slot: string) => void };
+};
+type Engine = {
+  renderThumbnail: (doc: unknown, page: unknown, o: { scaleFactor: number; withAnnotations: boolean; dpr: number }) => { toPromise: () => Promise<Blob> };
+};
 type Exporter = {
   forDocument: (id: string) => { saveAsCopy: () => { toPromise: () => Promise<ArrayBuffer> }; download: () => void };
 };
@@ -158,6 +182,68 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
       const buffer = await ex.forDocument(id).saveAsCopy().toPromise();
       return { buffer, name: docName(dm) || "document.pdf" };
     },
+    replaceActive: async (buffer, name) => {
+      const dm = capability<DocManager & { closeDocument: (id: string) => { toPromise: () => Promise<void> }; getDocumentOrder: () => string[]; moveDocument: (id: string, to: number) => void }>(await registry(), "document-manager");
+      if (!dm) return;
+      const old = dm.getActiveDocumentId();
+      const index = old ? dm.getDocumentOrder().indexOf(old) : -1;
+      const res = await dm.openDocumentBuffer({ buffer, name }).toPromise();
+      await res.task.toPromise();
+      if (old) {
+        await dm.closeDocument(old).toPromise();
+        const fresh = (res as unknown as { documentId?: string }).documentId;
+        if (fresh && index >= 0) dm.moveDocument(fresh, index);
+      }
+    },
+    runCommand: (id) => {
+      const r = registryRef.current;
+      const dm = r && capability<DocManager>(r, "document-manager");
+      const docId = dm?.getActiveDocumentId();
+      if (!r || !docId) return;
+      capability<Commands>(r, "commands")?.execute(id, docId, "ui");
+      // Les modes ouvrent une barre d'outils secondaire du visualiseur : nos onglets la remplacent
+      if (id.startsWith("mode:")) capability<UiCap>(r, "ui")?.forDocument(docId).closeToolbarSlot("top", "secondary");
+    },
+    commandState: (id) => {
+      const r = registryRef.current;
+      const dm = r && capability<DocManager>(r, "document-manager");
+      const docId = dm?.getActiveDocumentId();
+      if (!r || !docId) return null;
+      try {
+        return capability<Commands>(r, "commands")?.resolve(id, docId) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    onCommandsChange: (cb) => {
+      const r = registryRef.current;
+      const cmds = r && capability<Commands>(r, "commands");
+      if (!cmds) return () => undefined;
+      const a = cmds.onCommandExecuted(cb);
+      const b = cmds.onCommandStateChanged(cb);
+      return () => {
+        a?.();
+        b?.();
+      };
+    },
+    activePageCount: () => {
+      const r = registryRef.current;
+      const doc = r && (capability<DocManager>(r, "document-manager")?.getActiveDocument() as { pageCount?: number } | null);
+      return doc?.pageCount || 0;
+    },
+    renderThumbnails: async (scale = 0.35) => {
+      const r = await registry();
+      const dm = capability<DocManager>(r, "document-manager");
+      const doc = dm?.getActiveDocument() as { pages?: unknown[] } | null | undefined;
+      if (!doc?.pages) return [];
+      const engine = r.getEngine() as unknown as Engine;
+      const urls: string[] = [];
+      for (const page of doc.pages) {
+        const blob = await engine.renderThumbnail(doc, page, { scaleFactor: scale, withAnnotations: true, dpr: Math.min(window.devicePixelRatio || 1, 2) }).toPromise();
+        urls.push(URL.createObjectURL(blob));
+      }
+      return urls;
+    },
     downloadActive: () => {
       void registry().then((r) => {
         const dm = capability<DocManager>(r, "document-manager");
@@ -178,8 +264,8 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
       annotations: { annotationAuthor: author || "Math infini" },
       export: { defaultFileName: "document.pdf" },
       fonts: { ui: { family: "var(--font-latin), var(--font-arabic), system-ui, sans-serif", stylesheetUrl: null } },
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -188,6 +274,13 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
     const i18n = capability<{ registerLocale: (l: unknown) => void; hasLocale: (c: string) => boolean; setLocale: (c: string) => void }>(r, "i18n");
     if (i18n && !i18n.hasLocale("ar")) i18n.registerLocale(ARABIC_LOCALE);
     if (i18n) i18n.setLocale(language);
+    // Les onglets « Affichage / Annoter / Formes… » du visualiseur sont remplacés par notre ruban
+    const ui = capability<UiCap>(r, "ui");
+    const main = ui?.getSchema().toolbars["main-toolbar"];
+    if (ui && main) {
+      const hidden = new Set(["mode-select-button", "mode-tabs", "spacer-2", "document-menu-button", "divider-1"]);
+      ui.mergeSchema({ toolbars: { "main-toolbar": { ...main, items: main.items.filter((it) => !hidden.has(it.id)) } } });
+    }
     const dm = capability<DocManager>(r, "document-manager");
     if (!dm) return;
     const notify = () => changeRef.current?.(dm.getDocumentCount(), docName(dm));
