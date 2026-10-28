@@ -105,6 +105,7 @@ const PdfEditor = () => {
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
   const [pageTotal, setPageTotal] = useState(0);
   const undoStack = useRef<Record<string, ArrayBuffer[]>>({});
+  const redoStack = useRef<Record<string, ArrayBuffer[]>>({});
   const [, setUndoTick] = useState(0);
   const insertInput = useRef<HTMLInputElement>(null);
   const mergeInput = useRef<HTMLInputElement>(null);
@@ -279,6 +280,7 @@ const PdfEditor = () => {
       const stack = (undoStack.current[cur.name] ||= []);
       stack.push(previous);
       if (stack.length > 15) stack.shift();
+      redoStack.current[cur.name] = [];
       await w.replaceActive(toArrayBuffer(out), cur.name);
       setUndoTick((x) => x + 1);
       if (done) toast.success(done);
@@ -312,13 +314,17 @@ const PdfEditor = () => {
   };
 
   const canUndo = !!(activeName && undoStack.current[activeName]?.length);
-  const undoLast = async () => {
+  const canRedo = !!(activeName && redoStack.current[activeName]?.length);
+  /** Revient à une version enregistrée (annuler ou rétablir une opération sur les pages) */
+  const stepHistory = async (from: Record<string, ArrayBuffer[]>, to: Record<string, ArrayBuffer[]>) => {
     const w = workspace.current;
-    const stack = activeName ? undoStack.current[activeName] : undefined;
-    const prev = stack?.pop();
-    if (!w || !prev || !activeName) return;
+    if (!w || !activeName || busy) return;
+    const prev = from[activeName]?.pop();
+    if (!prev) return;
     setBusy(true);
     try {
+      const cur = await w.exportActive();
+      if (cur) (to[activeName] ||= []).push(cur.buffer.slice(0));
       await w.replaceActive(prev, activeName);
       setUndoTick((x) => x + 1);
     } catch (e) {
@@ -328,6 +334,45 @@ const PdfEditor = () => {
       setBusy(false);
     }
   };
+
+  /* Annuler / rétablir unifiés : d'abord les annotations du visualiseur, puis les opérations sur le document */
+  const viewerCan = (cmd: string) => {
+    const s = ws?.commandState(cmd);
+    return !!s && !s.disabled;
+  };
+  const undoAny = () => {
+    if (viewerCan("history:undo")) ws?.runCommand("history:undo");
+    else if (canUndo) void stepHistory(undoStack.current, redoStack.current);
+  };
+  const redoAny = () => {
+    if (viewerCan("history:redo")) ws?.runCommand("history:redo");
+    else if (canRedo) void stepHistory(redoStack.current, undoStack.current);
+  };
+  const undoReady = hasDoc && !busy && (viewerCan("history:undo") || canUndo);
+  const redoReady = hasDoc && !busy && (viewerCan("history:redo") || canRedo);
+
+  const shortcuts = useRef({ undoAny, redoAny });
+  shortcuts.current = { undoAny, redoAny };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const target = e.composedPath()[0] as HTMLElement | undefined;
+      if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      if (document.querySelector("[role=dialog]")) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        shortcuts.current.undoAny();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        shortcuts.current.redoAny();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   const sel = [...selectedPages].sort((a, b) => a - b);
   const selOrAll = () => (sel.length ? sel : Array.from({ length: pageTotal }, (_, i) => i));
@@ -442,6 +487,10 @@ const PdfEditor = () => {
               </span>
             )}
             {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 sm:px-3" disabled={!hasDoc} onClick={() => ws?.downloadActive()} title={t("Télécharger le PDF", "تحميل PDF", "Download PDF")}>
+              <Download className="h-4 w-4" strokeWidth={1.75} />
+              <span className="hidden sm:inline">{t("Télécharger", "تحميل", "Download")}</span>
+            </Button>
             <Button size="sm" className="h-8 gap-1.5" disabled={!hasDoc || !canUpload || courses.length === 0} onClick={openSaveDialog}>
               <Save className="h-4 w-4" strokeWidth={1.75} />
               <span className="sm:hidden">{t("Enregistrer", "حفظ", "Save")}</span>
@@ -490,8 +539,8 @@ const PdfEditor = () => {
               <CommandButton ws={ws} command="panel:toggle-comment" icon={MessageSquare} label={t("Commentaires", "التعليقات", "Comments")} disabled={!hasDoc} />
             </RibbonGroup>
             <RibbonGroup label={t("Historique", "السجل", "History")}>
-              <CommandButton ws={ws} command="history:undo" icon={Undo2} label={t("Annuler", "تراجع", "Undo")} disabled={!hasDoc} />
-              <CommandButton ws={ws} command="history:redo" icon={Redo2} label={t("Rétablir", "إعادة", "Redo")} disabled={!hasDoc} />
+              <RibbonButton icon={Undo2} label={t("Annuler", "تراجع", "Undo")} title={t("Annuler (Ctrl+Z)", "تراجع (Ctrl+Z)", "Undo (Ctrl+Z)")} disabled={!undoReady} onClick={undoAny} />
+              <RibbonButton icon={Redo2} label={t("Rétablir", "إعادة", "Redo")} title={t("Rétablir (Ctrl+Y)", "إعادة (Ctrl+Y)", "Redo (Ctrl+Y)")} disabled={!redoReady} onClick={redoAny} />
             </RibbonGroup>
           </>
         )}
@@ -525,8 +574,8 @@ const PdfEditor = () => {
               <CommandButton ws={ws} command="panel:toggle-annotation-style" icon={Palette} label={t("Style", "النمط", "Style")} />
               <CommandButton ws={ws} command="panel:toggle-comment" icon={MessageSquare} label={t("Commentaires", "التعليقات", "Comments")} />
               <CommandButton ws={ws} command="annotation:delete-selected" icon={Trash2} label={t("Supprimer", "حذف", "Delete")} />
-              <CommandButton ws={ws} command="history:undo" icon={Undo2} label={t("Annuler", "تراجع", "Undo")} />
-              <CommandButton ws={ws} command="history:redo" icon={Redo2} label={t("Rétablir", "إعادة", "Redo")} />
+              <RibbonButton icon={Undo2} label={t("Annuler", "تراجع", "Undo")} title={t("Annuler (Ctrl+Z)", "تراجع (Ctrl+Z)", "Undo (Ctrl+Z)")} disabled={!undoReady} onClick={undoAny} />
+              <RibbonButton icon={Redo2} label={t("Rétablir", "إعادة", "Redo")} title={t("Rétablir (Ctrl+Y)", "إعادة (Ctrl+Y)", "Redo (Ctrl+Y)")} disabled={!redoReady} onClick={redoAny} />
             </RibbonGroup>
           </>
         )}
@@ -548,7 +597,8 @@ const PdfEditor = () => {
               <RibbonButton icon={Hash} label={t("Numéros de page", "ترقيم الصفحات", "Page numbers")} disabled={!hasDoc || busy} onClick={() => setToolDialog("pageNumbers")} />
             </RibbonGroup>
             <RibbonGroup label={t("Historique", "السجل", "History")}>
-              <RibbonButton icon={Undo2} label={t("Annuler l'opération", "تراجع عن العملية", "Undo operation")} disabled={!canUndo || busy} onClick={() => void undoLast()} />
+              <RibbonButton icon={Undo2} label={t("Annuler", "تراجع", "Undo")} title={t("Annuler (Ctrl+Z)", "تراجع (Ctrl+Z)", "Undo (Ctrl+Z)")} disabled={!undoReady} onClick={undoAny} />
+              <RibbonButton icon={Redo2} label={t("Rétablir", "إعادة", "Redo")} title={t("Rétablir (Ctrl+Y)", "إعادة (Ctrl+Y)", "Redo (Ctrl+Y)")} disabled={!redoReady} onClick={redoAny} />
             </RibbonGroup>
           </>
         )}
@@ -618,7 +668,8 @@ const PdfEditor = () => {
                 disabled={!thumbs.length}
                 onClick={() => setSelectedPages(new Set(thumbs.map((_, i) => i)))}
               />
-              <RibbonButton icon={Undo2} label={t("Annuler l'opération", "تراجع عن العملية", "Undo operation")} disabled={!canUndo || busy} onClick={() => void undoLast()} />
+              <RibbonButton icon={Undo2} label={t("Annuler", "تراجع", "Undo")} title={t("Annuler (Ctrl+Z)", "تراجع (Ctrl+Z)", "Undo (Ctrl+Z)")} disabled={!undoReady} onClick={undoAny} />
+              <RibbonButton icon={Redo2} label={t("Rétablir", "إعادة", "Redo")} title={t("Rétablir (Ctrl+Y)", "إعادة (Ctrl+Y)", "Redo (Ctrl+Y)")} disabled={!redoReady} onClick={redoAny} />
             </RibbonGroup>
           </>
         )}
