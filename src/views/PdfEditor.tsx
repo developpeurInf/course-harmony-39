@@ -368,6 +368,28 @@ const PdfEditor = () => {
     setToolDialog("replace");
   };
 
+  const [closeOpen, setCloseOpen] = useState(false);
+  const closeActive = async () => {
+    const name = activeName;
+    setCloseOpen(false);
+    try {
+      await workspace.current?.closeActive();
+      if (name) {
+        delete undoStack.current[name];
+        delete redoStack.current[name];
+        delete originCourse.current[name];
+      }
+      setSelectedPages(new Set());
+      if (docCount <= 1) setTab("home");
+      setUndoTick((x) => x + 1);
+    } catch (e) {
+      console.error(e);
+      failed();
+    }
+  };
+  // avec des modifications, on demande confirmation avant de les abandonner
+  const requestClose = () => (undoReady ? setCloseOpen(true) : void closeActive());
+
   const copySelected = async () => {
     try {
       const text = await workspace.current?.copySelection();
@@ -558,6 +580,10 @@ const PdfEditor = () => {
               </span>
             )}
             {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2.5 text-muted-foreground hover:text-foreground sm:px-3" disabled={!hasDoc || busy} onClick={requestClose} title={t("Fermer le PDF sans enregistrer", "إغلاق PDF دون حفظ", "Close PDF without saving")}>
+              <X className="h-4 w-4" strokeWidth={1.75} />
+              <span className="hidden sm:inline">{t("Fermer", "إغلاق", "Close")}</span>
+            </Button>
             <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 sm:px-3" disabled={!hasDoc} onClick={() => ws?.downloadActive()} title={t("Télécharger le PDF", "تحميل PDF", "Download PDF")}>
               <Download className="h-4 w-4" strokeWidth={1.75} />
               <span className="hidden sm:inline">{t("Télécharger", "تحميل", "Download")}</span>
@@ -990,6 +1016,29 @@ const PdfEditor = () => {
       />
 
       {/* Enregistrer dans un cours */}
+      <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("Fermer sans enregistrer ?", "إغلاق دون حفظ؟", "Close without saving?")}</DialogTitle>
+            <DialogDescription>
+              {t(
+                `Les modifications faites sur « ${activeName || ""} » seront perdues. Le fichier d'origine n'est pas modifié.`,
+                `ستضيع التعديلات على « ${activeName || ""} ». الملف الأصلي لن يتغير.`,
+                `Changes made to “${activeName || ""}” will be lost. The original file is not changed.`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setCloseOpen(false)}>
+              {t("Continuer à modifier", "متابعة التعديل", "Keep editing")}
+            </Button>
+            <Button variant="destructive" onClick={() => void closeActive()}>
+              {t("Fermer sans enregistrer", "إغلاق دون حفظ", "Close without saving")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={saveOpen} onOpenChange={(o) => !saving && setSaveOpen(o)}>
         <DialogContent className="max-w-md">
           <DialogHeader>

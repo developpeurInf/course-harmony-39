@@ -28,6 +28,8 @@ export interface PdfWorkspaceHandle {
   activePageCount: () => number;
   /** Texte actuellement sélectionné dans le document ("" sinon) */
   selectedText: () => Promise<string>;
+  /** Ferme le document actif sans enregistrer ses modifications */
+  closeActive: () => Promise<void>;
   /** Copie le texte sélectionné dans le presse-papiers ; renvoie le texte copié ("" si rien) */
   copySelection: () => Promise<string>;
   /** Désactive l'outil d'annotation en cours (surligneur, forme…) */
@@ -289,6 +291,11 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
       } catch {
         return "";
       }
+    },
+    closeActive: async () => {
+      const dm = capability<DocManager & { closeDocument: (id: string) => { toPromise: () => Promise<void> } }>(await registry(), "document-manager");
+      const id = dm?.getActiveDocumentId();
+      if (dm && id) await dm.closeDocument(id).toPromise();
     },
     copySelection: async () => {
       const r = registryRef.current;
