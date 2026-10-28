@@ -209,10 +209,13 @@ const Exams = () => {
   const [examSearch, setExamSearch] = useState("");
   const deferredSearch = useDeferredValue(examSearch);
   // Filter exams based on user role and selected course
-  const userExams = useMemo(
-    () => (isProfessor ? exams : user ? getVisibleExamsForStudent(user.id) : []),
-    [isProfessor, exams, user, getVisibleExamsForStudent]
-  );
+  const userExams = useMemo(() => {
+    const list = isProfessor ? exams : user ? getVisibleExamsForStudent(user.id) : [];
+    if (!roomId) return list;
+    // Page d'une classe : uniquement les évaluations de ses cours
+    const roomCourseIds = new Set(courses.filter((c) => c.room_id === roomId).map((c) => c.id));
+    return list.filter((e) => roomCourseIds.has(e.course_id));
+  }, [isProfessor, exams, user, getVisibleExamsForStudent, roomId, courses]);
   // Index : cours par id, nombre d'élèves ayant rendu chaque quiz
   const courseById = useMemo(() => new Map(courses.map(c => [c.id, c] as [string, typeof c])), [courses]);
   const submittersByExam = useMemo(() => {

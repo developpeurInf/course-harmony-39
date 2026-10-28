@@ -87,10 +87,13 @@ const Exercises = () => {
   }, [user, roomId, refreshData]);
   
   const [exerciseSearch, setExerciseSearch] = useState("");
-  const userExercises = useMemo(
-    () => (isProfessor ? exercises : user ? getVisibleExercisesForStudent(user.id) : []),
-    [isProfessor, exercises, user, getVisibleExercisesForStudent]
-  );
+  const userExercises = useMemo(() => {
+    const list = isProfessor ? exercises : user ? getVisibleExercisesForStudent(user.id) : [];
+    if (!roomId) return list;
+    // Page d'une classe : uniquement les exercices de ses cours, même si des données globales sont encore en mémoire
+    const roomCourseIds = new Set(courses.filter((c) => c.room_id === roomId).map((c) => c.id));
+    return list.filter((e) => roomCourseIds.has(e.course_id));
+  }, [isProfessor, exercises, user, getVisibleExercisesForStudent, roomId, courses]);
 
   const dueTime = (ex: Exercise) => {
     const t = ex.due_date ? new Date(ex.due_date).getTime() : NaN;
