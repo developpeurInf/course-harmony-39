@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle, Zap, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
+import { Trash2, Plus, Save, Edit2, Settings, HelpCircle, CheckCircle2, ListOrdered, Sparkles, X, Check, Timer, AlertTriangle, Zap, ArrowUp, ArrowDown, Loader2, Library, Dices, BookmarkPlus } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import QuickQuizImport from "@/components/QuickQuizImport";
+import QuestionBankPicker from "@/components/bank/QuestionBankPicker";
+import ParamQuestionGenerator from "@/components/bank/ParamQuestionGenerator";
+import AiQuizGenerator from "@/components/bank/AiQuizGenerator";
+import { draftFromQuizQuestion, saveToBank } from "@/lib/questionBank";
 import { useCourses, QuizQuestion, QuizOption, serializeQuestionText, parseQuestionText, serializeExamDescription, parseExamAvailability, QuizSettings as QuizSettingsType, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,6 +77,9 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   // Point de départ : valeurs par défaut de l'enseignant / de l'administration (remplacées au chargement du quiz)
   const [quizSettings, setQuizSettings] = useState<QuizSettingsType>(() => ({ ...DEFAULT_QUIZ_SETTINGS, ...prefs.quizDefaults }));
   const [deletingQuestion, setDeletingQuestion] = useState(false);
@@ -482,6 +489,18 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
     }
   };
 
+  const saveQuestionToBank = async (q: QuizQuestion) => {
+    if (!accessStore.guard("quiz.bank")) return;
+    try {
+      const opts = getQuestionOptions(q.id);
+      await saveToBank([{ ...draftFromQuizQuestion(q, opts), chapter: examData?.title || null }]);
+      toast.success(tr("Question enregistrée dans votre banque.", "تم حفظ السؤال في بنكك.", "Question saved to your bank."));
+    } catch (e) {
+      console.error(e);
+      toast.error(tr("Impossible d'enregistrer dans la banque.", "تعذر الحفظ في البنك.", "Unable to save to the bank."));
+    }
+  };
+
   const getQuestionOptions = (questionId: string) => {
     return options.filter(opt => opt.question_id === questionId).sort((a, b) => a.option_order - b.option_order);
   };
@@ -599,7 +618,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -608,6 +627,35 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                 >
                   <Zap className="h-3.5 w-3.5" />
                   {language === "ar" ? "إدخال سريع" : language === "fr" ? "Saisie rapide" : "Quick entry"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAiOpen(true)}
+                  className="text-xs gap-1.5 font-medium border-violet-300 text-violet-700 hover:bg-violet-50 dark:text-violet-300"
+                  title={tr("Générer des questions avec l'IA à partir du cours", "توليد أسئلة بالذكاء الاصطناعي من الدرس", "Generate questions from the course with AI")}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {tr("IA", "ذكاء اصطناعي", "AI")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBankOpen(true)}
+                  className="text-xs gap-1.5 font-medium"
+                >
+                  <Library className="h-3.5 w-3.5" />
+                  {tr("Banque", "البنك", "Bank")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGenOpen(true)}
+                  className="text-xs gap-1.5 font-medium"
+                  title={tr("Questions à paramètres aléatoires", "أسئلة بمعاملات عشوائية", "Randomised questions")}
+                >
+                  <Dices className="h-3.5 w-3.5" />
+                  {tr("Aléatoire", "عشوائي", "Random")}
                 </Button>
                 <Button
                   variant="outline"
@@ -764,6 +812,16 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 title={tr("Modifier", "تعديل", "Edit")}
                               >
                                 <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                onClick={() => void saveQuestionToBank(q)}
+                                aria-label={tr(`Enregistrer la question ${idx + 1} dans la banque`, `حفظ السؤال ${idx + 1} في البنك`, `Save question ${idx + 1} to the bank`)}
+                                title={tr("Enregistrer dans la banque", "حفظ في البنك", "Save to bank")}
+                              >
+                                <BookmarkPlus className="h-4 w-4" />
                               </Button>
                               <Button
                                 size="icon"
@@ -1114,6 +1172,32 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
           </Button>
         </div>
       </DialogContent>
+
+      <AiQuizGenerator
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        examId={examId}
+        courseId={examData?.course_id}
+        startOrder={questions.reduce((m, q) => Math.max(m, q.question_order || 0), 0)}
+        language={(language as any) === "ar" ? "ar" : (language as any) === "en" ? "en" : "fr"}
+        onDone={async () => { await loadQuestions(); await refreshData(); }}
+      />
+      <QuestionBankPicker
+        open={bankOpen}
+        onOpenChange={setBankOpen}
+        examId={examId}
+        startOrder={questions.reduce((m, q) => Math.max(m, q.question_order || 0), 0)}
+        language={(language as any) === "ar" ? "ar" : (language as any) === "en" ? "en" : "fr"}
+        onDone={async () => { await loadQuestions(); await refreshData(); }}
+      />
+      <ParamQuestionGenerator
+        open={genOpen}
+        onOpenChange={setGenOpen}
+        examId={examId}
+        startOrder={questions.reduce((m, q) => Math.max(m, q.question_order || 0), 0)}
+        language={(language as any) === "ar" ? "ar" : (language as any) === "en" ? "en" : "fr"}
+        onDone={async () => { await loadQuestions(); await refreshData(); }}
+      />
 
       <QuickQuizImport
         open={quickOpen}

@@ -10,6 +10,7 @@ import { useAppSettings } from "@/contexts/AppSettingsContext";
 import type { Lang } from "@/lib/appSettings";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { LiveQuizBanner } from "@/components/LiveQuizBanner";
 import { installIOSFocusScrollFix } from "@/components/ui/ui-i18n";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
@@ -238,6 +239,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
           >
             <AnnouncementBanner userId={user.id} language={language} />
             <SubscriptionBanner />
+            {user.role === "student" && <LiveQuizBanner language={language} />}
             <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
           </Suspense>
           {footerText && !isWorkspace && (

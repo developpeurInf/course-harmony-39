@@ -12,6 +12,7 @@ import { countByKind, type CourseMaterialLike } from "@/lib/courseMedia";
 import { CourseMediaGallery } from "@/components/CourseMediaGallery";
 import { ExerciseViewerDialog, exerciseAttachments } from "@/components/ExerciseMediaGallery";
 import { ExamRow, ExerciseRow, Section, byUrgency, dueState, examState } from "@/components/student/StudentWork";
+import { useExerciseSubmissions } from "@/lib/exerciseSubmissions";
 
 /** Page d'un cours : ses ressources, ses exercices et ses évaluations au même endroit */
 const StudentCourse = () => {
@@ -78,6 +79,13 @@ const StudentCourse = () => {
   }, [exerciseIds]);
   const attachmentsOf = (ex: Exercise) => exerciseAttachments(ex, exerciseMaterials.filter((m) => m.exercise_id === ex.id));
   const [viewer, setViewer] = useState<Exercise | null>(null);
+  // Copies déjà rendues par l'élève (badge « Rendu » / « Corrigé »)
+  const exerciseIdList = useMemo(() => (isProfessor ? [] : courseExercises.map((e) => e.id)), [isProfessor, courseExercises]);
+  const { byExercise: subsByExercise } = useExerciseSubmissions(exerciseIdList);
+  const mySubmission = (ex: Exercise) => {
+    const s = subsByExercise.get(ex.id)?.find((x) => x.student_id === user?.id);
+    return s ? { status: s.status, grade: s.grade, max_grade: s.max_grade } : undefined;
+  };
 
   if (!course) {
     return (
@@ -98,8 +106,8 @@ const StudentCourse = () => {
 
   const roomName = rooms.find((r) => r.id === course.room_id)?.name;
   const counts = countByKind(materials);
-  const late = courseExercises.filter((e) => dueState(e, now) === "late").length;
-  const pending = courseExercises.filter((e) => ["late", "soon", "todo"].includes(dueState(e, now))).length;
+  const late = courseExercises.filter((e) => dueState(e, now) === "late" && !mySubmission(e)).length;
+  const pending = courseExercises.filter((e) => ["late", "soon", "todo"].includes(dueState(e, now)) && !mySubmission(e)).length;
 
   const summary = [
     { href: "#ressources", icon: Layers, value: materials.length, label: tr("ressources", "موارد", "resources") },
@@ -186,7 +194,7 @@ const StudentCourse = () => {
       >
         <ul className="divide-y">
           {courseExercises.map((ex) => (
-            <ExerciseRow key={ex.id} exercise={ex} attachments={attachmentsOf(ex).length} now={now} language={language} tr={tr} onOpen={() => setViewer(ex)} />
+            <ExerciseRow key={ex.id} exercise={ex} attachments={attachmentsOf(ex).length} now={now} language={language} tr={tr} onOpen={() => setViewer(ex)} submission={mySubmission(ex)} />
           ))}
         </ul>
       </Section>

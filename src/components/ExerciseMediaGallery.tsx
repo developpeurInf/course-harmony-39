@@ -1,8 +1,14 @@
+import { Suspense } from "react";
 import { Clock, Paperclip } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LEGACY_EXERCISE_MATERIAL_PREFIX, type Exercise, type ExerciseMaterial } from "@/contexts/CourseContext";
 import { CourseMediaGallery, CourseViewerDialog } from "@/components/CourseMediaGallery";
 import { storagePathFromPublicUrl, type CourseMaterialLike } from "@/lib/courseMedia";
+import { useAuth } from "@/contexts/AuthContext";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
+
+// Remise de la copie (élèves seulement) : chargée à la demande
+const ExerciseSubmissionPanel = lazyWithRetry(() => import("@/components/ExerciseSubmissionPanel"));
 
 const useTr = () => {
   const { language } = useLanguage();
@@ -50,6 +56,8 @@ export const ExerciseViewerDialog = ({
   dueLabel?: string;
 }) => {
   const tr = useTr();
+  const { user } = useAuth();
+  const isStudent = user?.role === "student";
   return (
     <CourseViewerDialog
       open={open && !!exercise}
@@ -60,6 +68,11 @@ export const ExerciseViewerDialog = ({
       materials={materials}
       fallbackDescription={tr("Pièces jointes de l'exercice", "مرفقات التمرين", "Exercise attachments")}
       emptyLabel={tr("Aucune pièce jointe pour cet exercice", "لا توجد مرفقات لهذا التمرين", "No attachments for this exercise")}
+      footer={isStudent && exercise ? (
+        <Suspense fallback={null}>
+          <ExerciseSubmissionPanel exercise={exercise} />
+        </Suspense>
+      ) : undefined}
       meta={
         <>
           {dueLabel && (

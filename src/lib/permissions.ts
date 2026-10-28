@@ -17,20 +17,31 @@ export type PermissionKey =
   | "student.delete"
   | "student.reset_password"
   | "student.activity_view"
+  | "attendance.manage"
+  | "student.groups"
   | "course.view"
   | "course.edit"
   | "course.upload_pdf"
   | "course.upload_image"
   | "course.upload_video"
   | "course.delete"
+  | "lesson_log.manage"
+  | "ai.lesson_plan"
   | "exercise.edit"
   | "exercise.publish"
+  | "exercise.review"
   | "quiz.edit"
   | "exam.edit"
   | "quiz.math_editor"
   | "quiz.anti_cheat"
   | "quiz.publish"
   | "quiz.results_view"
+  | "quiz.grade"
+  | "quiz.bank"
+  | "quiz.remediation"
+  | "quiz.live"
+  | "ai.quiz_generator"
+  | "ai.omr"
   | "quiz.results_export"
   | "diagnostic.use"
   | "diagnostic.template1"
@@ -39,6 +50,9 @@ export type PermissionKey =
   | "diagnostic.export_pdf"
   | "reports.view"
   | "reports.export"
+  | "student.appreciations"
+  | "reports.parent_report"
+  | "gradebook.manage"
   | "notify.send"
   | "profile.edit"
   | "settings.edit";
@@ -88,20 +102,31 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "student.delete": { module: "student", fr: "Supprimer un élève", ar: "حذف تلميذ", en: "Delete a student" },
   "student.reset_password": { module: "student", fr: "Réinitialiser le mot de passe d'un élève", ar: "إعادة تعيين كلمة مرور تلميذ", en: "Reset a student's password" },
   "student.activity_view": { module: "student", fr: "Suivre les activités et connexions", ar: "تتبع الأنشطة والاتصالات", en: "Track activity and sessions" },
+  "attendance.manage": { module: "student", fr: "Faire l'appel (présences)", ar: "تسجيل الحضور والغياب", en: "Take attendance" },
+  "student.groups": { module: "student", fr: "Groupes de besoin", ar: "مجموعات الحاجة", en: "Need-based groups" },
   "course.view": { module: "course", fr: "Voir les cours", ar: "عرض الدروس", en: "View courses" },
   "course.edit": { module: "course", fr: "Créer / modifier un cours", ar: "إنشاء / تعديل درس", en: "Create / edit a course" },
   "course.upload_pdf": { module: "course", fr: "Joindre des documents (PDF…)", ar: "إرفاق وثائق (PDF…)", en: "Attach documents (PDF…)" },
   "course.upload_image": { module: "course", fr: "Joindre des images", ar: "إرفاق صور", en: "Attach images" },
   "course.upload_video": { module: "course", fr: "Joindre des vidéos", ar: "إرفاق فيديوهات", en: "Attach videos" },
   "course.delete": { module: "course", fr: "Supprimer un cours", ar: "حذف درس", en: "Delete a course" },
+  "lesson_log.manage": { module: "course", fr: "Cahier de textes", ar: "دفتر النصوص", en: "Lesson log" },
+  "ai.lesson_plan": { module: "course", fr: "Fiche pédagogique avec l'IA", ar: "جذاذة بالذكاء الاصطناعي", en: "AI lesson plan" },
   "exercise.edit": { module: "exercise", fr: "Créer / modifier un exercice", ar: "إنشاء / تعديل تمرين", en: "Create / edit an exercise" },
   "exercise.publish": { module: "exercise", fr: "Publier un exercice aux élèves", ar: "نشر تمرين للتلاميذ", en: "Publish an exercise" },
+  "exercise.review": { module: "exercise", fr: "Recevoir et corriger les copies d'exercices", ar: "استلام وتصحيح أوراق التمارين", en: "Receive and grade exercise submissions" },
   "quiz.edit": { module: "quiz", fr: "Créer / modifier un quiz", ar: "إنشاء / تعديل اختبار", en: "Create / edit a quiz" },
   "exam.edit": { module: "quiz", fr: "Créer / modifier un examen", ar: "إنشاء / تعديل امتحان", en: "Create / edit an exam" },
   "quiz.math_editor": { module: "quiz", fr: "Éditeur de formules mathématiques", ar: "محرر الصيغ الرياضية", en: "Math formula editor" },
   "quiz.anti_cheat": { module: "quiz", fr: "Anti-triche (plein écran, détection)", ar: "مكافحة الغش", en: "Anti-cheat" },
   "quiz.publish": { module: "quiz", fr: "Publier / programmer un quiz", ar: "نشر / برمجة اختبار", en: "Publish / schedule a quiz" },
   "quiz.results_view": { module: "quiz", fr: "Voir les résultats détaillés", ar: "عرض النتائج المفصلة", en: "View detailed results" },
+  "quiz.grade": { module: "quiz", fr: "Corriger les réponses rédigées", ar: "تصحيح الإجابات المكتوبة", en: "Grade written answers" },
+  "quiz.bank": { module: "quiz", fr: "Banque de questions", ar: "بنك الأسئلة", en: "Question bank" },
+  "quiz.remediation": { module: "quiz", fr: "Quiz de remédiation en un clic", ar: "اختبار الدعم بنقرة واحدة", en: "One-click remediation quiz" },
+  "quiz.live": { module: "quiz", fr: "Quiz en direct en classe", ar: "اختبار مباشر في القسم", en: "Live in-class quiz" },
+  "ai.quiz_generator": { module: "quiz", fr: "Générer un quiz avec l'IA à partir d'un cours", ar: "توليد اختبار بالذكاء الاصطناعي من درس", en: "Generate a quiz from a course with AI" },
+  "ai.omr": { module: "quiz", fr: "Corriger des QCM papier par photo", ar: "تصحيح أوراق الاختيار من متعدد بالصور", en: "Grade paper multiple-choice sheets from photos" },
   "quiz.results_export": { module: "quiz", fr: "Exporter les résultats", ar: "تصدير النتائج", en: "Export results" },
   "diagnostic.use": { module: "diagnostic", fr: "Utiliser l'évaluation diagnostique", ar: "استعمال التقويم التشخيصي", en: "Use diagnostic assessment" },
   "diagnostic.template1": { module: "diagnostic", fr: "Modèle de rapport 1", ar: "نموذج التقرير 1", en: "Report template 1" },
@@ -110,6 +135,9 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "diagnostic.export_pdf": { module: "diagnostic", fr: "Export PDF / impression du rapport", ar: "تصدير PDF / طباعة التقرير", en: "Export / print report" },
   "reports.view": { module: "reports", fr: "Tableaux de bord et rapports", ar: "لوحات القيادة والتقارير", en: "Dashboards and reports" },
   "reports.export": { module: "reports", fr: "Exporter les rapports", ar: "تصدير التقارير", en: "Export reports" },
+  "student.appreciations": { module: "reports", fr: "Appréciations des bulletins", ar: "ملاحظات النشرات", en: "Report card comments" },
+  "reports.parent_report": { module: "reports", fr: "Bilan par élève pour les parents", ar: "حصيلة التلميذ للآباء", en: "Student report for parents" },
+  "gradebook.manage": { module: "reports", fr: "Carnet de notes et export Massar", ar: "دفتر النقط والتصدير إلى مسار", en: "Gradebook and Massar export" },
   "notify.send": { module: "notify", fr: "Envoyer des notifications aux élèves", ar: "إرسال إشعارات للتلاميذ", en: "Send notifications" },
   "profile.edit": { module: "account", fr: "Modifier son profil et sa photo", ar: "تعديل الملف الشخصي والصورة", en: "Edit profile" },
   "settings.edit": { module: "account", fr: "Paramètres de l'application", ar: "إعدادات التطبيق", en: "App settings" },

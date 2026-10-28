@@ -14,7 +14,9 @@ import {
   ListChecks,
   Loader2,
   LogOut,
+  PenLine,
   RefreshCw,
+  ScanLine,
   ShieldAlert,
   ShieldCheck,
   Shuffle,
@@ -39,7 +41,10 @@ import {
 } from "@/contexts/CourseContext";
 import { downloadBlob } from "@/lib/download";
 import { getReportBranding, reportHeaderLines } from "@/lib/reportBranding";
-import { MathText, SimpleMathPreview } from "@/components/math/MathContent";
+import { MathText } from "@/components/math/MathContent";
+import ShortAnswerGrader, { type GradeUpdate } from "@/components/ShortAnswerGrader";
+import { QuizTeachingActions } from "@/components/QuizTeachingActions";
+import { PaperQuizDialog } from "@/components/PaperQuizDialog";
 
 /* ═══════════════════════════════ Types ═══════════════════════════════ */
 
@@ -88,11 +93,15 @@ interface Option {
 }
 
 interface Answer {
+  id?: string;
   submission_id: string;
   question_id: string;
   is_correct: boolean | null;
   selected_option_id: string | null;
   text_answer: string | null;
+  points_earned?: number | string | null;
+  graded_at?: string | null;
+  teacher_comment?: string | null;
 }
 
 interface Props {
@@ -162,6 +171,9 @@ const QuizDetails = ({ examId }: Props) => {
   const [options, setOptions] = useState<Option[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [openRow, setOpenRow] = useState<string | null>(null);
+  const [tab, setTab] = useState("students");
+  const [quizRoomId, setQuizRoomId] = useState<string | null>(null);
+  const [paperOpen, setPaperOpen] = useState(false);
 
   /* ───────────── Chargement ───────────── */
 
@@ -185,6 +197,7 @@ const QuizDetails = ({ examId }: Props) => {
         setCourseTitle(course?.title || "");
         roomId = course?.room_id || null;
       }
+      setQuizRoomId(roomId);
       const studentMap = new Map<string, Student>();
       if (roomId) {
         const [{ data: room }, { data: byRoom }, { data: enr }] = await Promise.all([
@@ -226,15 +239,21 @@ const QuizDetails = ({ examId }: Props) => {
         (extra || []).forEach((p: any) => studentMap.set(p.id, p));
       }
 
-      // Réponses (par lots)
+      // Réponses (par lots). Colonnes de correction : seulement après la migration
+      // 20261028120000 ; sans elles on relit les colonnes de base.
       const ans: Answer[] = [];
       const ids = subList.map((s) => s.id);
+      const base = "submission_id, question_id, is_correct, selected_option_id, text_answer";
+      let cols = `id, ${base}, points_earned, graded_at, teacher_comment`;
       for (let i = 0; i < ids.length; i += 150) {
-        const { data: a } = await supabase
-          .from("quiz_answers")
-          .select("submission_id, question_id, is_correct, selected_option_id, text_answer")
-          .in("submission_id", ids.slice(i, i + 150));
-        ans.push(...((a || []) as Answer[]));
+        const batch = ids.slice(i, i + 150);
+        const first = await supabase.from("quiz_answers").select(cols).in("submission_id", batch);
+        let rowsData = first.data;
+        if (first.error && cols !== base) {
+          cols = base;
+          rowsData = (await supabase.from("quiz_answers").select(cols).in("submission_id", batch)).data;
+        }
+        ans.push(...((rowsData || []) as unknown as Answer[]));
       }
 
       setStudents(Array.from(studentMap.values()).sort((a, b) => (a.name || "").localeCompare(b.name || "")));
@@ -356,10 +375,42 @@ const QuizDetails = ({ examId }: Props) => {
         correct,
         rate: rows.length ? (correct / rows.length) * 100 : 0,
         optionCounts,
-        textAnswers: q.question_type === "short_answer" ? qa.filter((a) => a.text_answer) : [],
+        // Correction : toutes les tentatives (pas seulement la dernière)
+        textAnswers: q.question_type === "short_answer" ? answers.filter((a) => a.question_id === q.id && a.text_answer) : [],
+        pendingCount: q.question_type === "short_answer"
+          ? answers.filter((a) => a.id && a.question_id === q.id && a.text_answer && a.text_answer.trim() && !a.graded_at).length
+          : 0,
       };
     });
   }, [questions, options, answers, rows, tr]);
+
+  const pendingGrades = useMemo(() => questionStats.reduce((s, x) => s + x.pendingCount, 0), [questionStats]);
+
+  /** Élève d'une copie, avec le numéro de tentative s'il en a rendu plusieurs */
+  const studentOfSubmission = useCallback(
+    (submissionId: string) => {
+      const sub = subs.find((x) => x.id === submissionId);
+      if (!sub) return "—";
+      const name = students.find((st) => st.id === sub.student_id)?.name || tr("Élève inconnu", "تلميذ غير معروف", "Unknown student");
+      const attempts = subs.filter((x) => x.student_id === sub.student_id);
+      if (attempts.length < 2) return name;
+      const n = attempts.findIndex((x) => x.id === submissionId) + 1;
+      return `${name} (${tr(`tentative ${n}`, `المحاولة ${n}`, `attempt ${n}`)})`;
+    },
+    [subs, students, tr]
+  );
+
+  const applyGrades = useCallback((u: GradeUpdate) => {
+    const ids = new Set(u.answerIds);
+    const now = new Date().toISOString();
+    setAnswers((prev) => prev.map((a) => (a.id && ids.has(a.id)
+      ? { ...a, points_earned: u.points, is_correct: u.points >= (questions.find((q) => q.id === a.question_id)?.points || 1), graded_at: now, teacher_comment: u.comment }
+      : a)));
+    if (u.scores.length) {
+      const byId = new Map(u.scores.map((x) => [x.submission_id, x.score] as [string, number]));
+      setSubs((prev) => prev.map((x) => (byId.has(x.id) ? { ...x, score: byId.get(x.id) as number } : x)));
+    }
+  }, [questions]);
 
   /* ───────────── Libellés ───────────── */
 
@@ -491,7 +542,14 @@ const QuizDetails = ({ examId }: Props) => {
               {[courseTitle, roomName].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <QuizTeachingActions examId={examId} roomId={quizRoomId} passPct={passPct} hasResults={rows.length > 0} hasQuestions={questions.length > 0} tr={tr} />
+            <Button variant="outline" size="sm" onClick={() => setPaperOpen(true)} disabled={!questions.length} className="gap-1.5 rounded-xl"
+              title={tr("Feuilles-réponses à imprimer, correction par photo", "أوراق أجوبة للطباعة وتصحيح بالصور", "Printable answer sheets, grading from photos")}>
+              <ScanLine className="h-4 w-4" />{tr("Papier", "ورقي", "Paper")}
+            </Button>
+            <PaperQuizDialog open={paperOpen} onOpenChange={setPaperOpen} examId={examId} title={exam.title} roomName={roomName}
+              questions={questions} options={options} students={students} tr={tr} language={language} onSaved={load} />
             <Button variant="outline" size="sm" onClick={load} className="gap-1.5 rounded-xl"><RefreshCw className="h-4 w-4" />{tr("Actualiser", "تحديث", "Refresh")}</Button>
             <Button size="sm" onClick={exportCsv} disabled={!rows.length} className="gap-1.5 rounded-xl"><Download className="h-4 w-4" />{tr("Exporter", "تصدير", "Export")}</Button>
           </div>
@@ -523,10 +581,36 @@ const QuizDetails = ({ examId }: Props) => {
         <Kpi icon={LogOut} label={tr("Sorties du quiz", "مغادرات الاختبار", "Quiz exits")} value={String(stats.totalExits)} sub={`${stats.studentsWithExits} ${tr("élève(s) · hors quiz", "تلميذ · خارج الاختبار", "student(s) · away")} ${fmtDur(stats.totalAway)}`} tone={stats.totalExits ? "text-rose-600 dark:text-rose-400" : undefined} />
       </div>
 
-      <Tabs defaultValue="students" className="w-full">
+      {pendingGrades > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/70 bg-amber-500/10 px-4 py-3 text-sm dark:border-amber-800">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+            <PenLine className="h-4 w-4 shrink-0" />
+            {tr(
+              `${pendingGrades} réponse(s) rédigée(s) attendent votre correction : les notes ne les comptent pas encore.`,
+              `${pendingGrades} إجابة مكتوبة تنتظر تصحيحك: النقط لا تحتسبها بعد.`,
+              `${pendingGrades} written answer(s) await your grading: scores don't include them yet.`
+            )}
+          </div>
+          <Button size="sm" variant="outline" className="h-8 border-amber-400 bg-background" onClick={() => setTab("questions")}>
+            {tr("Corriger maintenant", "صحّح الآن", "Grade now")}
+          </Button>
+        </div>
+      )}
+
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="w-full sm:w-auto flex flex-wrap h-auto">
           <TabsTrigger value="students" className="gap-1.5"><Users className="h-4 w-4" />{tr("Élèves", "التلاميذ", "Students")}</TabsTrigger>
-          <TabsTrigger value="questions" className="gap-1.5"><FileQuestion className="h-4 w-4" />{tr("Questions", "الأسئلة", "Questions")}</TabsTrigger>
+          <TabsTrigger value="questions" className="gap-1.5">
+            <FileQuestion className="h-4 w-4" />{tr("Questions", "الأسئلة", "Questions")}
+            {pendingGrades > 0 && (
+              <span
+                className="rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold leading-4 text-white tabular-nums"
+                title={tr(`${pendingGrades} réponse(s) rédigée(s) à corriger`, `${pendingGrades} إجابة مكتوبة للتصحيح`, `${pendingGrades} written answer(s) to grade`)}
+              >
+                {pendingGrades}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="stats" className="gap-1.5"><BarChart3 className="h-4 w-4" />{tr("Statistiques", "الإحصائيات", "Statistics")}</TabsTrigger>
           <TabsTrigger value="integrity" className="gap-1.5"><ShieldAlert className="h-4 w-4" />{tr("Surveillance", "المراقبة", "Monitoring")}</TabsTrigger>
         </TabsList>
@@ -682,22 +766,12 @@ const QuizDetails = ({ examId }: Props) => {
               )}
 
               {qs.textAnswers.length > 0 && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs font-semibold text-primary">{tr("Voir les réponses rédigées", "عرض الإجابات المكتوبة", "Show written answers")} ({qs.textAnswers.length})</summary>
-                  <div className="mt-2 space-y-1.5">
-                    {qs.textAnswers.map((a, i) => {
-                      const r = rows.find((row) => row.latest.id === a.submission_id);
-                      return (
-                        <div key={i} className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
-                          <span className="font-semibold">{r?.name || "—"}</span>
-                          <span className={`ms-2 ${a.is_correct ? "text-emerald-600" : "text-rose-600"}`}>{a.is_correct ? "✓" : "✗"}</span>
-                          <div className="mt-0.5 whitespace-pre-wrap text-foreground/80">{a.text_answer}</div>
-                          <SimpleMathPreview text={a.text_answer || ""} compact className="mt-1" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
+                <ShortAnswerGrader
+                  maxPoints={qs.q.points || 1}
+                  answers={qs.textAnswers}
+                  studentOf={studentOfSubmission}
+                  onGraded={applyGrades}
+                />
               )}
             </div>
           ))}

@@ -118,9 +118,12 @@ interface QuestionResult {
   answer: StudentAnswer | undefined;
   isCorrect: boolean;
   earned: number;
-  /** false pour les réponses libres (corrigées par l'enseignant) */
+  /** false pour les réponses libres pas encore corrigées par l'enseignant */
   gradable: boolean;
   answered: boolean;
+  /** Réponse libre notée par l'enseignant (grade_quiz_answers) */
+  teacherGraded?: boolean;
+  teacherComment?: string | null;
 }
 
 type Phase = "loading" | "error" | "blocked" | "intro" | "resume" | "running" | "result";
@@ -197,12 +200,19 @@ function isAnswered(item: QuizItem, ans?: StudentAnswer): boolean {
 function buildResult(
   item: QuizItem,
   ans: StudentAnswer | undefined,
-  server: { is_correct?: boolean | null; points_earned?: number | string | null; gradable?: boolean | null } | undefined,
+  server: {
+    is_correct?: boolean | null;
+    points_earned?: number | string | null;
+    gradable?: boolean | null;
+    graded_at?: string | null;
+    teacher_comment?: string | null;
+  } | undefined,
   gradableFallback: boolean
 ): QuestionResult {
   const answered = isAnswered(item, ans);
+  const teacherGraded = item.question.question_type === "short_answer" && !!server?.graded_at;
   const gradable = item.question.question_type === "short_answer"
-    ? false
+    ? teacherGraded
     : server && typeof server.gradable === "boolean"
     ? server.gradable
     : gradableFallback;
@@ -212,7 +222,9 @@ function buildResult(
     isCorrect: gradable && !!server?.is_correct,
     earned: Number(server?.points_earned) || 0,
     gradable,
-    answered
+    answered,
+    teacherGraded,
+    teacherComment: server?.teacher_comment || null
   };
 }
 
@@ -1100,7 +1112,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
           }
         }
         const hasCorrect = it.options.some(o => correct.has(o.id));
-        return buildResult(it, ans, row ? { is_correct: row.is_correct, points_earned: row.points_earned } : undefined, hasCorrect);
+        return buildResult(
+          it,
+          ans,
+          row ? { is_correct: row.is_correct, points_earned: row.points_earned, graded_at: row.graded_at, teacher_comment: row.teacher_comment } : undefined,
+          hasCorrect
+        );
       });
       setPastCorrect(correct);
       setPastReview(graded);
@@ -1159,18 +1176,25 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   const renderReviewList = (graded: QuestionResult[], correct: Set<string>) => (
     <div ref={reviewRef} className="space-y-3 scroll-mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
       {graded.map((r, i) => {
+        const pts = r.item.question.points || 1;
+        const partial = !!r.teacherGraded && r.earned > 0 && r.earned < pts;
         const tone = !r.gradable
           ? "border-slate-200 dark:border-slate-800"
+          : partial
+          ? "border-amber-300 dark:border-amber-900"
           : r.isCorrect
           ? "border-emerald-300 dark:border-emerald-900"
           : "border-rose-300 dark:border-rose-900";
-        const pts = r.item.question.points || 1;
         return (
           <div key={r.item.question.id} className={`rounded-xl border-2 bg-card p-5 ${tone}`}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
                 <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-sm font-semibold">{i + 1}</span>
-                {r.gradable ? (
+                {r.teacherGraded ? (
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold ${partial ? "text-amber-600 dark:text-amber-400" : r.isCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    <PenLine className="h-4 w-4" /> {tr("Corrigé par l'enseignant", "صححه الأستاذ", "Graded by teacher")}
+                  </span>
+                ) : r.gradable ? (
                   r.isCorrect ? (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" /> {tr("Correct", "صحيح", "Correct")}
@@ -1183,7 +1207,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                   )
                 ) : (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    <PenLine className="h-4 w-4" /> {tr("Correction par l'enseignant", "يصححه الأستاذ", "Graded by teacher")}
+                    <PenLine className="h-4 w-4" /> {tr("En attente de correction", "في انتظار تصحيح الأستاذ", "Awaiting teacher grading")}
                   </span>
                 )}
               </div>
@@ -1197,6 +1221,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
               <div className="rounded-xl bg-muted/50 p-3 text-sm">
                 <span className="text-xs font-semibold text-muted-foreground block mb-1">{tr("Votre réponse", "إجابتك", "Your answer")}</span>
                 {r.answer?.text?.trim() || <em className="text-muted-foreground">—</em>}
+                {r.teacherComment && (
+                  <div className="mt-2 border-t pt-2 text-xs">
+                    <span className="font-semibold text-primary">{tr("Commentaire du professeur", "ملاحظة الأستاذ", "Teacher's comment")} : </span>
+                    <span className="whitespace-pre-wrap">{r.teacherComment}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid gap-2">

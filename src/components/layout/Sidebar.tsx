@@ -23,6 +23,13 @@ import {
   CreditCard,
   Lock,
   Plus,
+  CalendarDays,
+  CalendarCheck,
+  Layers,
+  Library,
+  BookOpenCheck,
+  Table2,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -242,6 +249,29 @@ const Sidebar = () => {
                           locked={!can("student.activity_view")}
                         />
                       )}
+                      <NavItem
+                        nested
+                        to={`/rooms/${room.id}/attendance`}
+                        icon={CalendarCheck}
+                        label={t("Appel", "الحضور والغياب", "Attendance")}
+                        locked={!can("attendance.manage")}
+                      />
+                      <NavItem
+                        nested
+                        to={`/rooms/${room.id}/follow-up`}
+                        icon={Layers}
+                        label={t("Groupes et bilans", "المجموعات والحصائل", "Groups & reports")}
+                        locked={!can("student.view")}
+                      />
+                      <NavItem
+                        nested
+                        to={`/rooms/${room.id}/gradebook`}
+                        icon={Table2}
+                        label={t("Carnet de notes", "دفتر النقط", "Gradebook")}
+                        locked={!can("gradebook.manage")}
+                      />
+                      <NavItem nested to={`/rooms/${room.id}/lesson-log`} icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />
+                      <NavItem nested to={`/rooms/${room.id}/calendar`} icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} />
                       {feature("courses") && (
                         <NavItem nested to={`/rooms/${room.id}/courses`} icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />
                       )}
@@ -261,6 +291,8 @@ const Sidebar = () => {
               {feature("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
               {feature("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
               {feature("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
+              <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />
+              <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} />
             </>
           )}
         </div>
@@ -268,6 +300,9 @@ const Sidebar = () => {
         {isProfessor && (
           <div className="space-y-0.5">
             <SectionLabel>{t("Outils", "الأدوات", "Tools")}</SectionLabel>
+            <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} />
+            <NavItem to="/question-bank" icon={Library} label={t("Banque de questions", "بنك الأسئلة", "Question bank")} locked={!can("quiz.bank")} />
+            <NavItem to="/lesson-plans" icon={Sparkles} label={t("Fiches pédagogiques", "الجذاذات", "Lesson plans")} locked={!can("ai.lesson_plan")} />
             {feature("reports") && (
               <NavItem to="/reports" icon={BarChart3} label={t("Rapports", "التقارير", "Reports")} locked={!can("reports.view")} />
             )}

@@ -7,7 +7,7 @@ import {
   MessageSquareQuote, Minus, MousePointer2, Palette, PanelTop, PenLine, Pentagon, Printer, Redo2, RotateCcw, RotateCw,
   Save, Scissors, Search, Signature, Spline, Square, SquareCheck, SquareDashed, Stamp, StickyNote, Strikethrough,
   TextCursorInput, TextSelect, Trash2, Type, Underline, Undo2, Upload, Waves, ZoomIn, ZoomOut, MoveHorizontal, Replace,
-  ChevronDownSquare, PencilLine, ReplaceAll, CheckCheck, X, PanelRight, Brush, Paperclip,
+  ChevronDownSquare, PencilLine, ReplaceAll, CheckCheck, X, PanelRight, Brush, Paperclip, MonitorPlay, Minimize2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
@@ -94,6 +94,8 @@ const PdfEditor = () => {
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
   const [cleanOpen, setCleanOpen] = useState(false);
+  /** Mode tableau : document seul en plein écran avec stylo, surligneur et zoom (vidéoprojecteur) */
+  const [board, setBoard] = useState(false);
 
   /* ── Ruban (façon éditeur de bureau) ── */
   const [tab, setTab] = useState<TabId>("home");
@@ -226,6 +228,80 @@ const PdfEditor = () => {
 
   const hasDoc = docCount > 0;
   const ws = workspace.current;
+
+  /* ── Mode tableau ── */
+  const enterBoard = () => {
+    setBoard(true);
+    try {
+      const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+      if (el.requestFullscreen) void el.requestFullscreen().catch(() => undefined);
+      else el.webkitRequestFullscreen?.();
+    } catch {
+      /* plein écran refusé : le mode tableau occupe quand même toute la fenêtre */
+    }
+    window.setTimeout(() => workspace.current?.runCommand("zoom:fit-width"), 150);
+  };
+  const exitBoard = useCallback(() => {
+    setBoard(false);
+    workspace.current?.clearActiveTool();
+    try {
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    if (!board) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.fullscreenElement) exitBoard();
+    };
+    // Sortie du plein écran (Échap) → sortie du mode tableau
+    const onFs = () => {
+      if (!document.fullscreenElement) exitBoard();
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onFs);
+    };
+  }, [board, exitBoard]);
+  useEffect(() => {
+    if (board && !hasDoc) exitBoard();
+  }, [board, hasDoc, exitBoard]);
+
+  // Lien « Projeter au tableau » depuis un cours : /pdf-editor?url=…&name=…&board=1
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const url = params.get("url");
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    autoOpened.current = true;
+    const name = params.get("name") || "document.pdf";
+    let tries = 0;
+    const timer = window.setInterval(async () => {
+      tries += 1;
+      if (!workspace.current && tries < 60) return;
+      window.clearInterval(timer);
+      if (!workspace.current) return;
+      setOpening(true);
+      try {
+        await workspace.current.openUrl(url, name);
+        if (params.get("board") === "1") {
+          setBoard(true);
+          window.setTimeout(() => workspace.current?.runCommand("zoom:fit-width"), 400);
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error(t("Impossible d'ouvrir ce PDF.", "تعذر فتح ملف PDF هذا.", "Could not open this PDF."));
+      } finally {
+        setOpening(false);
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useCommandRefresh(workspace, hasDoc);
 
   // Onglet du ruban → mode du visualiseur (verrouillage des formulaires, outils disponibles…)
@@ -559,8 +635,9 @@ const PdfEditor = () => {
   };
 
   return (
-    <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex h-full min-h-0 flex-col">
+    <div dir={lang === "ar" ? "rtl" : "ltr"} className={cn("flex min-h-0 flex-col", board ? "fixed left-0 top-0 z-[60] h-full w-full bg-background" : "h-full")}>
       {/* Ruban */}
+      {!board && (
       <RibbonTabs
         value={tab}
         onChange={(id) => setTab(id as TabId)}
@@ -580,6 +657,10 @@ const PdfEditor = () => {
               </span>
             )}
             {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2.5 sm:px-3" disabled={!hasDoc} onClick={enterBoard} title={t("Mode tableau : plein écran pour le vidéoprojecteur", "وضع السبورة: ملء الشاشة لجهاز العرض", "Board mode: full screen for the projector")}>
+              <MonitorPlay className="h-4 w-4" strokeWidth={1.75} />
+              <span className="hidden sm:inline">{t("Mode tableau", "وضع السبورة", "Board mode")}</span>
+            </Button>
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2.5 text-muted-foreground hover:text-foreground sm:px-3" disabled={!hasDoc || busy} onClick={requestClose} title={t("Fermer le PDF sans enregistrer", "إغلاق PDF دون حفظ", "Close PDF without saving")}>
               <X className="h-4 w-4" strokeWidth={1.75} />
               <span className="hidden sm:inline">{t("Fermer", "إغلاق", "Close")}</span>
@@ -596,6 +677,8 @@ const PdfEditor = () => {
           </>
         }
       />
+      )}
+      {!board && (
       <RibbonBar>
         {tab === "home" && (
           <>
@@ -815,6 +898,7 @@ const PdfEditor = () => {
           </>
         )}
       </RibbonBar>
+      )}
 
       <input
         ref={fileInput}
@@ -855,6 +939,57 @@ const PdfEditor = () => {
       {/* Espace de travail */}
       <div className="relative min-h-0 flex-1">
         <PdfWorkspace ref={workspace} language={lang} dark={dark} author={user?.name} onDocumentsChange={onDocumentsChange} />
+
+        {board && hasDoc && (
+          <div
+            className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-2xl border bg-background/95 p-1.5 shadow-xl backdrop-blur"
+            role="toolbar"
+            aria-label={t("Outils du tableau", "أدوات السبورة", "Board tools")}
+          >
+            {([
+              { cmd: "annotation:add-ink", icon: PenLine, label: t("Stylo", "قلم", "Pen") },
+              { cmd: "annotation:add-ink-highlighter", icon: Highlighter, label: t("Surligneur", "قلم تمييز", "Highlighter") },
+              { cmd: "pan:toggle", icon: Hand, label: t("Déplacer", "تحريك", "Pan") },
+            ] as const).map((b) => {
+              const st = ws?.commandState(b.cmd);
+              return (
+                <Button
+                  key={b.cmd}
+                  size="icon"
+                  variant={st?.active ? "default" : "ghost"}
+                  className="h-11 w-11"
+                  onClick={() => ws?.runCommand(b.cmd)}
+                  title={b.label}
+                  aria-label={b.label}
+                  aria-pressed={!!st?.active}
+                >
+                  <b.icon className="h-5 w-5" />
+                </Button>
+              );
+            })}
+            <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => ws?.runCommand("annotation:delete-selected")} title={t("Effacer l'élément sélectionné", "حذف العنصر المحدد", "Erase selected item")} aria-label={t("Effacer", "مسح", "Erase")}>
+              <Eraser className="h-5 w-5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => ws?.runCommand("history:undo")} title={t("Annuler", "تراجع", "Undo")} aria-label={t("Annuler", "تراجع", "Undo")}>
+              <Undo2 className="h-5 w-5" />
+            </Button>
+            <span className="mx-1 h-7 w-px bg-border" aria-hidden="true" />
+            <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => ws?.runCommand("zoom:out")} title={t("Zoom arrière", "تصغير", "Zoom out")} aria-label={t("Zoom arrière", "تصغير", "Zoom out")}>
+              <ZoomOut className="h-5 w-5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => ws?.runCommand("zoom:fit-width")} title={t("Pleine largeur", "ملء العرض", "Fit width")} aria-label={t("Pleine largeur", "ملء العرض", "Fit width")}>
+              <MoveHorizontal className="h-5 w-5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-11 w-11" onClick={() => ws?.runCommand("zoom:in")} title={t("Zoom avant", "تكبير", "Zoom in")} aria-label={t("Zoom avant", "تكبير", "Zoom in")}>
+              <ZoomIn className="h-5 w-5" />
+            </Button>
+            <span className="mx-1 h-7 w-px bg-border" aria-hidden="true" />
+            <Button size="sm" variant="outline" className="h-11 gap-1.5" onClick={exitBoard} title={t("Quitter le mode tableau (Échap)", "الخروج من وضع السبورة (Esc)", "Exit board mode (Esc)")}>
+              <Minimize2 className="h-4 w-4" />
+              <span className="hidden sm:inline">{t("Quitter", "خروج", "Exit")}</span>
+            </Button>
+          </div>
+        )}
 
         {!hasDoc && (
           <div

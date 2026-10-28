@@ -54,8 +54,15 @@ export const dueLabel = (s: DueState, tr: Tr) =>
 
 /* ───────────── exercices ───────────── */
 
+/** État de la copie de l'élève pour un exercice (table exercise_submissions) */
+export interface MySubmissionState {
+  status: "submitted" | "returned";
+  grade: number | null;
+  max_grade: number;
+}
+
 export function ExerciseRow({
-  exercise, attachments, now, language, tr, onOpen, courseLabel,
+  exercise, attachments, now, language, tr, onOpen, courseLabel, submission,
 }: {
   exercise: Exercise;
   attachments: number;
@@ -65,8 +72,11 @@ export function ExerciseRow({
   onOpen: () => void;
   /** nom du cours, quand la ligne est affichée hors de son groupe */
   courseLabel?: string;
+  /** copie déjà rendue par l'élève */
+  submission?: MySubmissionState;
 }) {
   const state = dueState(exercise, now);
+  const num = (v: number) => v.toLocaleString(language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB", { maximumFractionDigits: 2 });
   return (
     <li>
       <button
@@ -80,7 +90,18 @@ export function ExerciseRow({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium leading-snug group-hover:text-primary">{exercise.title}</span>
-            <Badge variant="outline" className={cn("text-[11px] font-medium", DUE_STYLE[state])}>{dueLabel(state, tr)}</Badge>
+            {submission ? (
+              <Badge variant="outline" className="border-emerald-300 bg-emerald-500/10 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:text-emerald-300">
+                <CheckCircle2 className="me-1 h-3 w-3" />
+                {submission.status === "returned"
+                  ? submission.grade !== null
+                    ? `${tr("Corrigé", "مصحح", "Graded")} · ${num(submission.grade)}/${num(submission.max_grade)}`
+                    : tr("Corrigé", "مصحح", "Graded")
+                  : tr("Rendu", "تم الإرسال", "Handed in")}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className={cn("text-[11px] font-medium", DUE_STYLE[state])}>{dueLabel(state, tr)}</Badge>
+            )}
           </span>
           {exercise.description && <span className="mt-0.5 line-clamp-1 block text-sm text-muted-foreground">{exercise.description}</span>}
           <span className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

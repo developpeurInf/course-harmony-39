@@ -4,9 +4,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import {
   BookOpen, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Film, Image as ImageIcon,
-  Layers, Link2, Play, X, Youtube,
+  Layers, Link2, MonitorPlay, Play, X, Youtube,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "@/lib/router";
 import {
   countByKind, formatFileSize, getMaterialDownloadUrl, getMaterialKind, getMaterialThumbnail,
   getMaterialUrl, isVideoKind, parseVideoUrl, sortMaterials, type CourseMaterialLike,
@@ -262,6 +264,8 @@ export const CourseMediaGallery = ({
   emptyLabel?: string;
 }) => {
   const tr = useTr();
+  const { user } = useAuth();
+  const isProfessor = user?.role === "professor";
   const [filter, setFilter] = useState<Filter>("all");
   const [lightbox, setLightbox] = useState<number | null>(null);
 
@@ -367,6 +371,16 @@ export const CourseMediaGallery = ({
                       <span>{tr("فتح", "Ouvrir", "Open")}</span>
                     </a>
                   </Button>
+                  {k === "pdf" && isProfessor && (
+                    <Button asChild size="icon" variant="ghost" className="h-9 w-9" title={tr("وضع السبورة", "Projeter au tableau", "Show on the board")}>
+                      <Link
+                        to={`/pdf-editor?board=1&url=${encodeURIComponent(getMaterialUrl(d))}&name=${encodeURIComponent(d.file_name)}`}
+                        aria-label={`${tr("وضع السبورة", "Projeter au tableau", "Show on the board")} : ${displayName(d, tr)}`}
+                      >
+                        <MonitorPlay className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  )}
                   {k !== "link" && (
                     <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => triggerDownload(d)} title={tr("تحميل", "Télécharger", "Download")} aria-label={`${tr("تحميل", "Télécharger", "Download")} : ${displayName(d, tr)}`}>
                       <Download className="h-4 w-4" />
@@ -389,7 +403,7 @@ export const CourseMediaGallery = ({
 /* ------------------------------------------------------------------ */
 
 export const CourseViewerDialog = ({
-  open, onOpenChange, title, description, materials, subtitle, fallbackDescription, emptyLabel, meta,
+  open, onOpenChange, title, description, materials, subtitle, fallbackDescription, emptyLabel, meta, footer,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -403,6 +417,8 @@ export const CourseViewerDialog = ({
   emptyLabel?: string;
   /** Pastilles supplémentaires (ex. date limite d'un exercice) */
   meta?: ReactNode;
+  /** Contenu sous la galerie (ex. remise de la copie d'un exercice) */
+  footer?: ReactNode;
 }) => {
   const tr = useTr();
   const c = countByKind(materials);
@@ -426,6 +442,7 @@ export const CourseViewerDialog = ({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7" style={{ WebkitOverflowScrolling: "touch" } as any}>
           <CourseMediaGallery materials={materials} emptyLabel={emptyLabel} />
+          {footer}
         </div>
       </DialogContent>
     </Dialog>

@@ -15,6 +15,7 @@ import {
   RefreshCw, ArrowRight, GraduationCap, Target, Trophy, EyeOff, ClipboardList, Play, Timer, AlertTriangle
 } from "lucide-react";
 import { useNow } from "@/hooks/useNow";
+import { WeekSummaryCard } from "@/components/WeekSummaryCard";
 import { formatDecimal } from "@/lib/formatDate";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import type { Lang } from "@/lib/appSettings";
@@ -427,6 +428,8 @@ const Dashboard = () => {
           </Button>
         </div>
       )}
+
+      {isProfessor && professorRooms.length > 0 && <WeekSummaryCard />}
 
       {/* ── Aucune classe ── */}
       {isProfessor && professorRooms.length === 0 && !firstLoad && (

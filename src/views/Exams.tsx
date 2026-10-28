@@ -46,9 +46,11 @@ import {
   AlertCircle,
   CheckCircle,
   CheckCircle2,
+  Copy,
   Timer,
   X
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import QuizTaker, { type QuizPhase } from "@/components/QuizTaker";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { useNow } from "@/hooks/useNow";
@@ -88,6 +90,7 @@ const Exams = () => {
     toggleExamVisibility,
     getVisibleExamsForStudent,
     refreshData,
+    rooms,
     quizQuestions,
     quizSubmissions,
     loading: dataLoading
@@ -155,6 +158,10 @@ const Exams = () => {
     }
   });
   const [isDeleting, setIsDeleting] = useState(false);
+  // Copie d'un quiz / examen vers un autre cours (questions comprises)
+  const [copySource, setCopySource] = useState<Exam | null>(null);
+  const [copyTarget, setCopyTarget] = useState("");
+  const [isCopying, setIsCopying] = useState(false);
   const [quizPhase, setQuizPhase] = useState<QuizPhase>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Verrou synchrone : bloque les doubles / triples clics avant même le re-rendu
@@ -473,6 +480,56 @@ const Exams = () => {
       toast.error(tr("Échec de la suppression", "فشل الحذف", "Delete failed"));
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const openCopyDialog = (exam: Exam) => {
+    if (!accessStore.guard(exam.type === "quiz" ? "quiz.edit" : "exam.edit")) return;
+    setCopySource(exam);
+    setCopyTarget("");
+  };
+
+  /** Cours proposés pour la copie : « Classe · Cours », triés par classe */
+  const copyTargets = useMemo(() => {
+    const roomName = (id?: string | null) => (id ? rooms.find((r) => r.id === id)?.name : undefined) || tr("Sans classe", "بدون قسم", "No class");
+    return courses
+      .map((c) => ({ id: c.id, label: `${roomName(c.room_id)} · ${c.title}`, room: roomName(c.room_id) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses, rooms, language]);
+
+  const handleCopyExam = async () => {
+    if (!copySource || !copyTarget || isCopying) return;
+    if (!accessStore.guardQuota("quiz.max_per_month")) return;
+    setIsCopying(true);
+    try {
+      const sameCourse = copyTarget === copySource.course_id;
+      const { error } = await (supabase as any).rpc("duplicate_exam", {
+        p_exam_id: copySource.id,
+        p_target_course_id: copyTarget,
+        p_title: sameCourse ? `${copySource.title} (${tr("copie", "نسخة", "copy")})` : null,
+      });
+      if (error) throw error;
+      await refreshData();
+      const target = copyTargets.find((c) => c.id === copyTarget);
+      toast.success(tr(
+        `Copié vers ${target?.label || ""}. La copie est masquée : vérifiez les dates puis rendez-la visible.`,
+        `تم النسخ إلى ${target?.label || ""}. النسخة مخفية: تحقق من التواريخ ثم أظهرها للتلاميذ.`,
+        `Copied to ${target?.label || ""}. The copy is hidden: check the dates, then make it visible.`
+      ));
+      setCopySource(null);
+    } catch (err: any) {
+      console.error("duplicate_exam error:", err);
+      const msg = String(err?.message || "");
+      toast.error(
+        /duplicate_exam|Could not find the function/i.test(msg)
+          ? tr("La copie n'est pas encore activée sur le serveur (migration à exécuter).", "النسخ غير مفعّل بعد على الخادم.", "Copy is not enabled on the server yet (migration to run).")
+          : /quota|QUOTA/i.test(msg)
+          ? tr("Limite mensuelle de quiz atteinte pour votre offre.", "تم بلوغ الحد الشهري للاختبارات في عرضك.", "Monthly quiz limit reached for your plan.")
+          : tr("Échec de la copie.", "فشل النسخ.", "Copy failed.")
+      );
+    } finally {
+      setIsCopying(false);
     }
   };
 
@@ -1119,6 +1176,16 @@ const Exams = () => {
                               variant="ghost" 
                               size="icon"
                               className="h-9 w-9"
+                              onClick={() => openCopyDialog(exam)}
+                              title={tr("Copier vers une autre classe", "نسخ إلى قسم آخر", "Copy to another class")}
+                              aria-label={tr("Copier vers une autre classe", "نسخ إلى قسم آخر", "Copy to another class")}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-9 w-9"
                               onClick={() => openEditDialog(exam)}
                               title={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
                               aria-label={language === "ar" ? "تعديل" : language === "fr" ? "Modifier" : "Edit"}
@@ -1322,6 +1389,16 @@ const Exams = () => {
                                 <Trophy className="h-3.5 w-3.5" />
                               </Button>
                             )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => openCopyDialog(exam)}
+                              title={tr("Copier vers une autre classe", "نسخ إلى قسم آخر", "Copy to another class")}
+                              aria-label={tr("Copier vers une autre classe", "نسخ إلى قسم آخر", "Copy to another class")}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1618,6 +1695,51 @@ const Exams = () => {
               ) : (
                 language === "ar" ? "حفظ التغييرات" : language === "fr" ? "Sauvegarder les modifications" : "Save Changes"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Copier un quiz / examen vers un autre cours */}
+      <Dialog open={!!copySource} onOpenChange={(o) => { if (!o && !isCopying) setCopySource(null); }}>
+        <DialogContent className="w-[95vw] max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tr("Copier vers une autre classe", "نسخ إلى قسم آخر", "Copy to another class")}</DialogTitle>
+            <DialogDescription>
+              {copySource?.type === "quiz"
+                ? tr(
+                    `« ${copySource?.title} » sera recopié avec ses ${quizStats[copySource?.id || ""]?.count || 0} question(s) et ses réglages. Les copies des élèves ne sont pas recopiées.`,
+                    `سيتم نسخ « ${copySource?.title} » مع أسئلته (${quizStats[copySource?.id || ""]?.count || 0}) وإعداداته. أوراق التلاميذ لا تنسخ.`,
+                    `"${copySource?.title}" will be copied with its ${quizStats[copySource?.id || ""]?.count || 0} question(s) and settings. Student submissions are not copied.`
+                  )
+                : tr(`« ${copySource?.title} » sera recopié dans le cours choisi.`, `سيتم نسخ « ${copySource?.title} » في الدرس المختار.`, `"${copySource?.title}" will be copied to the chosen course.`)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="copy-target">{tr("Cours de destination", "الدرس المستهدف", "Target course")}</Label>
+            <Select value={copyTarget} onValueChange={setCopyTarget}>
+              <SelectTrigger id="copy-target">
+                <SelectValue placeholder={tr("Choisir la classe et le cours", "اختر القسم والدرس", "Choose the class and course")} />
+              </SelectTrigger>
+              <SelectContent>
+                {copyTargets.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}{c.id === copySource?.course_id ? ` (${tr("cours actuel", "الدرس الحالي", "current course")})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {tr("La copie est créée masquée aux élèves : vous pourrez ajuster les dates avant de la publier.", "تُنشأ النسخة مخفية عن التلاميذ: يمكنك تعديل التواريخ قبل نشرها.", "The copy is hidden from students: you can adjust the dates before publishing it.")}
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCopySource(null)} disabled={isCopying}>
+              {tr("Annuler", "إلغاء", "Cancel")}
+            </Button>
+            <Button onClick={handleCopyExam} disabled={!copyTarget || isCopying} className="gap-2">
+              {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              {tr("Copier", "نسخ", "Copy")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses, Exercise, Course } from "@/contexts/CourseContext";
@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, Paperclip, Film, Image as ImageIcon } from "lucide-react";
+import { FileText, Plus, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, Paperclip, Film, Image as ImageIcon, ClipboardCheck } from "lucide-react";
 import ViewToggle from "@/components/ViewToggle";
 import { formatDate, toLocalDateInput, localEndOfDayIso } from "@/lib/formatDate";
 import { useNow } from "@/hooks/useNow";
@@ -25,6 +25,11 @@ import { toast } from "sonner";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
 import { CourseGroupHeader, ExerciseRow, dueState } from "@/components/student/StudentWork";
+import { useExerciseSubmissions } from "@/lib/exerciseSubmissions";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
+
+// Copies rendues (professeur) : chargé à la demande
+const ExerciseSubmissionsDialog = lazyWithRetry(() => import("@/components/ExerciseSubmissionsDialog"));
 
 const Exercises = () => {
   const { user } = useAuth();
@@ -76,6 +81,8 @@ const Exercises = () => {
     exerciseAttachments(exercise, materialsByExercise.get(exercise.id) || []);
   
   const isProfessor = user?.role === "professor";
+  /** Exercice dont le professeur consulte les copies rendues */
+  const [reviewExerciseId, setReviewExerciseId] = useState<string | null>(null);
   
   // Refresh data when component mounts or when navigating between room/global views
   useEffect(() => {
@@ -94,6 +101,34 @@ const Exercises = () => {
     const roomCourseIds = new Set(courses.filter((c) => c.room_id === roomId).map((c) => c.id));
     return list.filter((e) => roomCourseIds.has(e.course_id));
   }, [isProfessor, exercises, user, getVisibleExercisesForStudent, roomId, courses]);
+
+  // Copies rendues : les siennes (élève) ou celles de ses classes (professeur)
+  const exerciseIdsForSubs = useMemo(() => userExercises.map((e) => e.id), [userExercises]);
+  const { byExercise: subsByExercise, available: subsAvailable } = useExerciseSubmissions(exerciseIdsForSubs);
+  const mySubmission = (ex: Exercise) => {
+    const s = subsByExercise.get(ex.id)?.find((x) => x.student_id === user?.id);
+    return s ? { status: s.status, grade: s.grade, max_grade: s.max_grade } : undefined;
+  };
+  /** Bouton « Copies » du professeur, avec le nombre de copies à corriger */
+  const renderSubmissionsButton = (exercise: Exercise, className = "") => {
+    if (!subsAvailable) return null;
+    const list = subsByExercise.get(exercise.id) || [];
+    const toGrade = list.filter((s) => s.status === "submitted").length;
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setReviewExerciseId(exercise.id)}
+        className={`h-9 gap-1.5 ${className}`}
+        aria-label={tr("Copies rendues", "الأوراق المرسلة", "Submissions")}
+        title={tr(`${list.length} copie(s) rendue(s), ${toGrade} à corriger`, `${list.length} ورقة مرسلة، ${toGrade} للتصحيح`, `${list.length} submission(s), ${toGrade} to grade`)}
+      >
+        <ClipboardCheck className="h-4 w-4" />
+        <span className="tabular-nums">{list.length}</span>
+        {toGrade > 0 && <span className="rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold leading-4 text-white tabular-nums">{toGrade}</span>}
+      </Button>
+    );
+  };
 
   const dueTime = (ex: Exercise) => {
     const t = ex.due_date ? new Date(ex.due_date).getTime() : NaN;
@@ -609,12 +644,12 @@ const Exercises = () => {
                   roomName={course?.room_id ? rooms.find((r) => r.id === course.room_id)?.name : undefined}
                   href={course ? `/courses/${course.id}` : "/courses"}
                   total={items.length}
-                  late={items.filter((ex) => dueState(ex, nowTs) === "late").length}
+                  late={items.filter((ex) => dueState(ex, nowTs) === "late" && !mySubmission(ex)).length}
                   tr={tr}
                 />
                 <ul className="divide-y">
                   {items.map((ex) => (
-                    <ExerciseRow key={ex.id} exercise={ex} attachments={attachmentsOf(ex).length} now={nowTs} language={language} tr={tr} onOpen={() => setViewerExerciseId(ex.id)} />
+                    <ExerciseRow key={ex.id} exercise={ex} attachments={attachmentsOf(ex).length} now={nowTs} language={language} tr={tr} onOpen={() => setViewerExerciseId(ex.id)} submission={mySubmission(ex)} />
                   ))}
                 </ul>
               </section>
@@ -697,6 +732,7 @@ const Exercises = () => {
                         </>
                       )}
                     </Button>
+                    {renderSubmissionsButton(exercise)}
                     <Button
                       variant="outline"
                       size="sm"
@@ -810,6 +846,7 @@ const Exercises = () => {
                           </>
                         )}
                       </Button>
+                      {renderSubmissionsButton(exercise, "flex-1 md:flex-none")}
                       <Button
                         variant="outline"
                         size="sm"
@@ -977,6 +1014,23 @@ const Exercises = () => {
         courseTitle={viewerExercise ? findCourseName(viewerExercise.course_id) : undefined}
         dueLabel={viewerExercise?.due_date ? `${tr("Date limite :", "تاريخ التسليم:", "Due:")} ${formatDueDate(viewerExercise.due_date)}` : undefined}
       />
+
+      {/* Copies rendues (professeur) */}
+      {isProfessor && reviewExerciseId && (
+        <Suspense fallback={null}>
+          <ExerciseSubmissionsDialog
+            open={!!reviewExerciseId}
+            onOpenChange={(o) => { if (!o) setReviewExerciseId(null); }}
+            exercise={exercises.find((e) => e.id === reviewExerciseId) || null}
+            subtitle={(() => {
+              const ex = exercises.find((e) => e.id === reviewExerciseId);
+              if (!ex) return undefined;
+              const room = roomNameOf(ex.course_id);
+              return [room, findCourseName(ex.course_id)].filter(Boolean).join(" · ");
+            })()}
+          />
+        </Suspense>
+      )}
 
       {/* Delete Exercise Confirmation Dialog */}
       <Dialog open={!!exerciseToDelete} onOpenChange={(open) => { if (!open && !isDeleting) setExerciseToDelete(null); }}>
