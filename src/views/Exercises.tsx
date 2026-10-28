@@ -133,6 +133,27 @@ const Exercises = () => {
     return [...groups.entries()].map(([id, items]) => ({ course: courses.find((c) => c.id === id) as Course | undefined, items }));
   }, [visibleExercises, courses]);
 
+  // Professeur : exercices regroupés par classe puis par cours (un même exercice peut exister dans plusieurs classes)
+  const roomNameOf = (courseId: string) => {
+    const roomId = courses.find((c) => c.id === courseId)?.room_id;
+    return roomId ? rooms.find((r) => r.id === roomId)?.name : undefined;
+  };
+  const profGroups = useMemo(() => {
+    const groups = new Map<string, Exercise[]>();
+    visibleExercises.forEach((ex) => {
+      const list = groups.get(ex.course_id);
+      if (list) list.push(ex);
+      else groups.set(ex.course_id, [ex]);
+    });
+    return [...groups.entries()]
+      .map(([id, items]) => {
+        const course = courses.find((c) => c.id === id);
+        return { key: id, course, roomName: roomNameOf(id), items };
+      })
+      .sort((a, b) => (a.roomName || "").localeCompare(b.roomName || "") || (a.course?.title || "").localeCompare(b.course?.title || ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleExercises, courses, rooms]);
+
   const formatDueDate = (dateStr: string) => formatDate(dateStr, language);
 
   /** Statut d'un exercice pour l'élève, d'après sa date limite */
@@ -617,6 +638,9 @@ const Exercises = () => {
                           <BookOpen className="h-3 w-3 mr-1 rtl:mr-0 rtl:ml-1" />
                           {findCourseName(exercise.course_id)}
                         </Badge>
+                        {isProfessor && roomNameOf(exercise.course_id) && (
+                          <Badge variant="secondary" className="text-xs">{roomNameOf(exercise.course_id)}</Badge>
+                        )}
                         {renderAttachmentBadge(exercise)}
                         {isProfessor ? (
                           <Badge variant={exercise.is_visible ? "default" : "secondary"} className="text-xs">
@@ -697,8 +721,17 @@ const Exercises = () => {
           </div>
         ) : (
           // List View
-          <div className="space-y-4">
-            {visibleExercises.map((exercise) => (
+          <div className="space-y-8">
+          {profGroups.map(({ key, course, roomName, items }) => (
+            <section key={key} className="space-y-3">
+              <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b pb-2">
+                <BookOpen className="h-4 w-4 shrink-0 self-center text-muted-foreground" />
+                <h2 className="font-semibold">{course?.title || tr("Cours inconnu", "درس غير معروف", "Unknown course")}</h2>
+                {roomName && <Badge variant="secondary" className="text-xs font-medium">{roomName}</Badge>}
+                <span className="text-xs text-muted-foreground">{tr(`${items.length} exercice${items.length > 1 ? "s" : ""}`, `${items.length} تمرين`, `${items.length} exercise${items.length > 1 ? "s" : ""}`)}</span>
+              </header>
+              <div className="space-y-4">
+            {items.map((exercise) => (
               <Card key={exercise.id} className="group card-hover overflow-hidden">
                 <div className="flex flex-col md:flex-row">
                   <div className="flex-1 p-6">
@@ -799,6 +832,9 @@ const Exercises = () => {
                 </div>
               </Card>
             ))}
+              </div>
+            </section>
+          ))}
           </div>
         )
       ) : (
