@@ -1,17 +1,19 @@
-import { useEffect, useReducer, type ReactNode } from "react";
+import { useEffect, useReducer, type ReactNode, type RefObject } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PdfWorkspaceHandle } from "./PdfWorkspace";
 
 /** Relit l'état des commandes du visualiseur (outil actif, annuler disponible…) à chaque changement */
-export function useCommandRefresh(ws: PdfWorkspaceHandle | null, ready: boolean) {
+export function useCommandRefresh(wsRef: RefObject<PdfWorkspaceHandle | null>, ready: boolean) {
   const [, bump] = useReducer((x: number) => x + 1, 0);
+  // abonnement lié à la référence (stable) et non à l'objet du visualiseur, recréé à chaque rendu
   useEffect(() => {
+    const ws = wsRef.current;
     if (!ws || !ready) return;
     const off = ws.onCommandsChange(() => bump());
     bump();
     return off;
-  }, [ws, ready]);
+  }, [wsRef, ready]);
 }
 
 export interface RibbonTab {

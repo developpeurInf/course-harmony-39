@@ -226,7 +226,7 @@ const PdfEditor = () => {
 
   const hasDoc = docCount > 0;
   const ws = workspace.current;
-  useCommandRefresh(ws, hasDoc);
+  useCommandRefresh(workspace, hasDoc);
 
   // Onglet du ruban → mode du visualiseur (verrouillage des formulaires, outils disponibles…)
   useEffect(() => {
