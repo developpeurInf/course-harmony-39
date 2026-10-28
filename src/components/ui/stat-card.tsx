@@ -3,15 +3,19 @@ import { cn } from "@/lib/utils";
 
 export type StatTone = "blue" | "indigo" | "violet" | "emerald" | "amber" | "rose" | "cyan" | "slate";
 
-const TONES: Record<StatTone, { icon: string; glow: string; bar: string; ring: string }> = {
-  blue: { icon: "bg-blue-500/10 text-blue-600 dark:text-blue-400", glow: "from-blue-500/15", bar: "bg-blue-500", ring: "group-hover:ring-blue-500/20" },
-  indigo: { icon: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400", glow: "from-indigo-500/15", bar: "bg-indigo-500", ring: "group-hover:ring-indigo-500/20" },
-  violet: { icon: "bg-violet-500/10 text-violet-600 dark:text-violet-400", glow: "from-violet-500/15", bar: "bg-violet-500", ring: "group-hover:ring-violet-500/20" },
-  emerald: { icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", glow: "from-emerald-500/15", bar: "bg-emerald-500", ring: "group-hover:ring-emerald-500/20" },
-  amber: { icon: "bg-amber-500/10 text-amber-600 dark:text-amber-400", glow: "from-amber-500/15", bar: "bg-amber-500", ring: "group-hover:ring-amber-500/20" },
-  rose: { icon: "bg-rose-500/10 text-rose-600 dark:text-rose-400", glow: "from-rose-500/15", bar: "bg-rose-500", ring: "group-hover:ring-rose-500/20" },
-  cyan: { icon: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400", glow: "from-cyan-500/15", bar: "bg-cyan-500", ring: "group-hover:ring-cyan-500/20" },
-  slate: { icon: "bg-slate-500/10 text-slate-600 dark:text-slate-300", glow: "from-slate-500/15", bar: "bg-slate-500", ring: "group-hover:ring-slate-500/20" },
+/**
+ * Les tons ne colorent plus que la jauge : les indicateurs restent neutres
+ * pour que la page ne ressemble pas à un arc-en-ciel.
+ */
+const BAR: Record<StatTone, string> = {
+  blue: "bg-primary",
+  indigo: "bg-primary",
+  violet: "bg-primary",
+  emerald: "bg-success",
+  amber: "bg-warning",
+  rose: "bg-destructive",
+  cyan: "bg-primary",
+  slate: "bg-foreground/60",
 };
 
 export interface StatCardProps {
@@ -29,12 +33,8 @@ export interface StatCardProps {
   className?: string;
 }
 
-/**
- * Carte d'indicateur (KPI) : icône teintée, valeur mise en avant, halo coloré,
- * jauge optionnelle et léger relief au survol.
- */
+/** Carte d'indicateur (KPI) : libellé, valeur en chiffres tabulaires, jauge optionnelle. */
 export function StatCard({ icon, label, value, hint, tone = "blue", progress, aside, onClick, className }: StatCardProps) {
-  const t = TONES[tone];
   return (
     <div
       onClick={onClick}
@@ -42,36 +42,26 @@ export function StatCard({ icon, label, value, hint, tone = "blue", progress, as
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " ") && onClick() : undefined}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border/70 bg-card p-4 sm:p-5",
-        "shadow-[0_1px_2px_rgb(15_23_42/0.04),0_6px_20px_-12px_rgb(15_23_42/0.14)]",
-        "ring-1 ring-transparent transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgb(15_23_42/0.05),0_16px_32px_-16px_rgb(15_23_42/0.25)]",
-        t.ring,
-        onClick && "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-        "stat-card-in",
+        "group relative rounded-xl border bg-card p-4 shadow-sm sm:p-5",
+        onClick && "card-hover cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         className
       )}
     >
-      <div
-        className={cn(
-          "pointer-events-none absolute -top-10 -right-10 rtl:right-auto rtl:-left-10 h-32 w-32 rounded-full bg-gradient-to-br to-transparent opacity-80 blur-2xl transition-opacity duration-300 group-hover:opacity-100",
-          t.glow
-        )}
-      />
-      <div className="relative flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold text-muted-foreground leading-tight">{label}</p>
-        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110", t.icon)}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] font-medium leading-tight text-muted-foreground">{label}</p>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground [&_svg]:h-3.5 [&_svg]:w-3.5">
           {icon}
         </span>
       </div>
-      <div className="relative mt-2 flex items-end justify-between gap-2">
-        <div className="text-2xl sm:text-[1.7rem] font-extrabold tracking-tight tabular-nums leading-none">{value}</div>
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <div className="text-2xl font-semibold leading-none tracking-tight tabular-nums">{value}</div>
         {aside}
       </div>
-      {hint && <p className="relative mt-1.5 text-[11px] text-muted-foreground leading-snug">{hint}</p>}
+      {hint && <p className="mt-2 text-xs leading-snug text-muted-foreground">{hint}</p>}
       {progress !== undefined && progress !== null && (
-        <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className={cn("h-full rounded-full transition-[width] duration-700 ease-out", t.bar)}
+            className={cn("h-full rounded-full transition-[width] duration-500 ease-out", BAR[tone])}
             style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
           />
         </div>

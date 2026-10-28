@@ -1,5 +1,5 @@
 import { User, LogOut, Settings } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router";
 import {
   DropdownMenu,
   DropdownMenuContent,

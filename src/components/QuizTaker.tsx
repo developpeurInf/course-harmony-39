@@ -1143,8 +1143,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
   const mention = (pct: number) => {
     if (pct >= 90) return { label: tr("Excellent !", "ممتاز!", "Excellent!"), color: "text-emerald-600 dark:text-emerald-400", ring: "#059669" };
-    if (pct >= 75) return { label: tr("Très bien", "جيد جداً", "Very good"), color: "text-sky-600 dark:text-sky-400", ring: "#0284c7" };
-    if (pct >= 60) return { label: tr("Bien", "جيد", "Good"), color: "text-indigo-600 dark:text-indigo-400", ring: "#4f46e5" };
+    if (pct >= 75) return { label: tr("Très bien", "جيد جداً", "Very good"), color: "text-primary ", ring: "#0284c7" };
+    if (pct >= 60) return { label: tr("Bien", "جيد", "Good"), color: "text-primary ", ring: "#4f46e5" };
     if (pct >= 50) return { label: tr("Passable", "مقبول", "Fair"), color: "text-amber-600 dark:text-amber-400", ring: "#d97706" };
     return { label: tr("À retravailler", "يحتاج إلى مراجعة", "Needs work"), color: "text-rose-600 dark:text-rose-400", ring: "#e11d48" };
   };
@@ -1166,28 +1166,28 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
           : "border-rose-300 dark:border-rose-900";
         const pts = r.item.question.points || 1;
         return (
-          <div key={r.item.question.id} className={`rounded-2xl border-2 bg-card p-5 ${tone}`}>
+          <div key={r.item.question.id} className={`rounded-xl border-2 bg-card p-5 ${tone}`}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
-                <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-sm font-bold">{i + 1}</span>
+                <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-sm font-semibold">{i + 1}</span>
                 {r.gradable ? (
                   r.isCorrect ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" /> {tr("Correct", "صحيح", "Correct")}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 dark:text-rose-400">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400">
                       <XCircle className="h-4 w-4" />
                       {r.answered ? tr("Incorrect", "خطأ", "Incorrect") : tr("Sans réponse", "بدون جواب", "Unanswered")}
                     </span>
                   )
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
                     <PenLine className="h-4 w-4" /> {tr("Correction par l'enseignant", "يصححه الأستاذ", "Graded by teacher")}
                   </span>
                 )}
               </div>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full tabular-nums ${r.isCorrect ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full tabular-nums ${r.isCorrect ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
                 <span dir="ltr">{formatDecimal(r.earned, language, 2)}/{pts}</span> {tr("pt", "نقطة", "pt")}
               </span>
             </div>
@@ -1213,7 +1213,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                       {isRight ? <Check className="h-4 w-4 shrink-0" /> : chosen ? <X className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
                       <MathText className="flex-1" text={optionLabel(opt)} />
                       {chosen && (
-                        <span className="text-[11px] font-bold uppercase tracking-wide opacity-80">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide opacity-80">
                           {tr("Votre choix", "اختيارك", "Your pick")}
                         </span>
                       )}
@@ -1265,10 +1265,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
   if (phase === "error") {
     return (
       <div className="max-w-md mx-auto py-16 text-center space-y-4" dir={isRtl ? "rtl" : "ltr"} role="alert">
-        <div className="mx-auto h-14 w-14 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+        <div className="mx-auto h-14 w-14 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
           <WifiOff className="h-7 w-7" />
         </div>
-        <p className="text-lg font-bold">{loadError || tr("Impossible de charger le quiz.", "تعذر تحميل الاختبار.", "Unable to load the quiz.")}</p>
+        <p className="text-lg font-semibold">{loadError || tr("Impossible de charger le quiz.", "تعذر تحميل الاختبار.", "Unable to load the quiz.")}</p>
         <p className="text-sm text-muted-foreground">
           {tr(
             "Vérifie ta connexion puis réessaie.",
@@ -1295,12 +1295,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
     const answeredSaved = baseItems.filter(it => isAnswered(it, savedAttempt.answers?.[it.question.id])).length;
     return (
       <div className="max-w-xl mx-auto animate-in fade-in zoom-in-95 duration-300" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-br from-primary to-primary/80 p-8 text-center text-primary-foreground">
-            <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white/15 flex items-center justify-center">
+        <div className="rounded-xl border bg-card shadow-xl overflow-hidden">
+          <div className="bg-primary p-8 text-center text-primary-foreground">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-xl bg-white/15 flex items-center justify-center">
               <PlayCircle className="h-8 w-8" />
             </div>
-            <h2 className="text-2xl font-bold">{tr("Quiz en cours", "اختبار قيد الإنجاز", "Quiz in progress")}</h2>
+            <h2 className="text-2xl font-semibold">{tr("Quiz en cours", "اختبار قيد الإنجاز", "Quiz in progress")}</h2>
             <p className="mt-2 text-sm text-primary-foreground/80">
               {tr(
                 "Tes réponses ont été sauvegardées sur cet appareil. Le chrono a continué pendant ton absence.",
@@ -1311,20 +1311,20 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
           </div>
           <div className="p-6 space-y-5 text-center">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border p-3">
+              <div className="rounded-xl border p-3">
                 <p className="text-xs font-semibold text-muted-foreground">{tr("Temps restant", "الوقت المتبقي", "Time left")}</p>
-                <p className="text-2xl font-extrabold tabular-nums" dir="ltr">{remaining === null ? "∞" : formatTimer(remaining)}</p>
+                <p className="text-2xl font-semibold tabular-nums" dir="ltr">{remaining === null ? "∞" : formatTimer(remaining)}</p>
               </div>
-              <div className="rounded-2xl border p-3">
+              <div className="rounded-xl border p-3">
                 <p className="text-xs font-semibold text-muted-foreground">{tr("Réponses", "الإجابات", "Answers")}</p>
-                <p className="text-2xl font-extrabold tabular-nums" dir="ltr">{answeredSaved}/{baseItems.length}</p>
+                <p className="text-2xl font-semibold tabular-nums" dir="ltr">{answeredSaved}/{baseItems.length}</p>
               </div>
             </div>
             <div className="flex flex-col-reverse sm:flex-row gap-3">
               <Button variant="outline" onClick={onClose} className="h-11 rounded-xl sm:flex-1">
                 {tr("Plus tard", "لاحقاً", "Later")}
               </Button>
-              <Button onClick={() => restoreAttempt(savedAttempt, baseItems)} className="h-11 rounded-xl sm:flex-1 gap-2 font-bold">
+              <Button onClick={() => restoreAttempt(savedAttempt, baseItems)} className="h-11 rounded-xl sm:flex-1 gap-2 font-semibold">
                 <PlayCircle className="h-4 w-4" />
                 {tr("Reprendre", "متابعة", "Resume")}
               </Button>
@@ -1342,12 +1342,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
     const pct = tot > 0 ? Math.round((sc / tot) * 100) : 0;
     return (
       <div className="max-w-xl mx-auto animate-in fade-in zoom-in-95 duration-300" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-8 text-center text-white">
-            <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
+        <div className="rounded-xl border bg-card shadow-xl overflow-hidden">
+          <div className="bg-zinc-900 p-8 text-center text-white">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
               <Lock className="h-8 w-8" />
             </div>
-            <h2 className="text-2xl font-bold">{tr("Quiz déjà passé", "تم اجتياز الاختبار", "Quiz already taken")}</h2>
+            <h2 className="text-2xl font-semibold">{tr("Quiz déjà passé", "تم اجتياز الاختبار", "Quiz already taken")}</h2>
             <p className="mt-2 text-sm text-white/70">
               {tr(
                 "Une seule tentative est autorisée pour ce quiz.",
@@ -1362,7 +1362,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                 <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                   {tr("Votre note", "نقطتك", "Your score")}
                 </p>
-                <p className="text-4xl font-extrabold tabular-nums" dir="ltr">
+                <p className="text-4xl font-semibold tabular-nums" dir="ltr">
                   {formatDecimal(Number(sc) || 0, language, 2)}
                   <span className="text-xl text-muted-foreground font-semibold"> / {tot}</span>
                 </p>
@@ -1484,33 +1484,33 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
     ];
 
     const stats = [
-      { icon: <HelpCircle className="h-5 w-5" />, value: items.length, label: tr("Questions", "أسئلة", "Questions"), tone: "from-sky-500/15 to-sky-500/5 text-sky-600" },
-      { icon: <Target className="h-5 w-5" />, value: totalPoints, label: tr("Points", "نقاط", "Points"), tone: "from-violet-500/15 to-violet-500/5 text-violet-600" },
-      { icon: <Clock className="h-5 w-5" />, value: `${durationMinutes}`, label: tr("Minutes", "دقيقة", "Minutes"), tone: "from-amber-500/15 to-amber-500/5 text-amber-600" },
+      { icon: <HelpCircle className="h-5 w-5" />, value: items.length, label: tr("Questions", "أسئلة", "Questions"), tone: "text-muted-foreground" },
+      { icon: <Target className="h-5 w-5" />, value: totalPoints, label: tr("Points", "نقاط", "Points"), tone: "text-muted-foreground" },
+      { icon: <Clock className="h-5 w-5" />, value: `${durationMinutes}`, label: tr("Minutes", "دقيقة", "Minutes"), tone: "text-muted-foreground" },
       {
         icon: <RefreshCw className="h-5 w-5" />,
         value: settings.allowMultipleAttempts ? "∞" : "1",
         label: tr("Tentative(s)", "محاولة", "Attempt(s)"),
-        tone: "from-emerald-500/15 to-emerald-500/5 text-emerald-600"
+        tone: "text-muted-foreground"
       }
     ];
 
     return (
       <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
+        <div className="rounded-xl border bg-card shadow-xl overflow-hidden">
           {/* Bandeau */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/80 px-6 py-8 sm:px-8 text-primary-foreground">
+          <div className="relative overflow-hidden bg-primary px-6 py-8 sm:px-8 text-primary-foreground">
             <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-fuchsia-400/20 blur-2xl" />
+            <div className="absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-primary/10 blur-2xl" />
             <div className="relative flex items-start gap-4">
-              <div className="h-14 w-14 shrink-0 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25">
+              <div className="h-14 w-14 shrink-0 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center ring-1 ring-white/25">
                 <Sparkles className="h-7 w-7" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.18em] font-semibold text-primary-foreground/70">
                   {tr("Quiz", "اختبار", "Quiz")}
                 </p>
-                <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight break-words">{exam.title}</h2>
+                <h2 className="text-2xl font-semibold leading-tight break-words">{exam.title}</h2>
                 {examDescription && (
                   <p className="mt-2 text-sm text-primary-foreground/80 line-clamp-3 whitespace-pre-line">{examDescription}</p>
                 )}
@@ -1522,10 +1522,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             {/* Statistiques */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {stats.map((s, i) => (
-                <div key={i} className={`rounded-2xl bg-gradient-to-br ${s.tone} p-4 border border-border/60`}>
+                <div key={i} className={`rounded-lg border bg-card p-4 ${s.tone}`}>
                   <div className="flex items-center justify-between">
                     {s.icon}
-                    <span className="text-2xl font-extrabold text-foreground tabular-nums">{s.value}</span>
+                    <span className="text-2xl font-semibold text-foreground tabular-nums">{s.value}</span>
                   </div>
                   <p className="mt-1 text-xs font-semibold text-muted-foreground">{s.label}</p>
                 </div>
@@ -1534,15 +1534,15 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
             {/* Tentative précédente */}
             {previousSubmission && (
-              <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-900 p-4">
-                <div className="h-10 w-10 rounded-xl bg-sky-500/15 text-sky-600 flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-accent   p-4">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Trophy className="h-5 w-5" />
                 </div>
                 <div className="flex-1 text-sm">
-                  <p className="font-semibold text-sky-900 dark:text-sky-200">
+                  <p className="font-semibold text-primary ">
                     {tr(`Tentative n° ${attemptsCount + 1}`, `المحاولة رقم ${attemptsCount + 1}`, `Attempt #${attemptsCount + 1}`)}
                   </p>
-                  <p className="text-sky-800/80 dark:text-sky-300/80 text-xs">
+                  <p className="text-primary/80  text-xs">
                     {settings.showResultsImmediately
                       ? tr(
                           `Dernière note : ${formatDecimal(Number(previousSubmission.score) || 0, language, 2)} / ${previousSubmission.total_points} pts`,
@@ -1558,8 +1558,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             {showPastReview && pastReview && renderReviewList(pastReview, pastCorrect)}
 
             {/* Consignes */}
-            <div className="rounded-2xl border bg-muted/30 p-5">
-              <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <div className="rounded-xl border bg-muted/30 p-5">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <ListChecks className="h-4 w-4 text-primary" />
                 {tr("Consignes", "التعليمات", "Instructions")}
               </h3>
@@ -1576,7 +1576,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             </div>
 
             {items.length === 0 ? (
-              <div className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="h-5 w-5 shrink-0" />
                 {tr(
                   "Ce quiz ne contient encore aucune question.",
@@ -1593,7 +1593,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
               <Button
                 onClick={startQuiz}
                 disabled={items.length === 0}
-                className="h-12 rounded-xl px-8 text-base font-bold bg-primary hover:opacity-95 shadow-lg shadow-primary/25 gap-2"
+                className="h-12 rounded-xl px-8 text-base font-semibold bg-primary hover:opacity-95 shadow-lg shadow-primary/25 gap-2"
               >
                 {tr("Commencer le quiz", "ابدأ الاختبار", "Start quiz")}
                 <ArrowRight className={`h-5 w-5 ${isRtl ? "rotate-180" : ""}`} />
@@ -1620,10 +1620,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
     return (
       <div className="max-w-3xl mx-auto space-y-5 animate-in fade-in zoom-in-95 duration-300" dir={isRtl ? "rtl" : "ltr"}>
-        <div className="rounded-3xl border bg-card shadow-xl overflow-hidden">
-          <div className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/80 px-6 pt-8 pb-24 text-center text-primary-foreground">
+        <div className="rounded-xl border bg-card shadow-xl overflow-hidden">
+          <div className="relative overflow-hidden bg-primary px-6 pt-8 pb-24 text-center text-primary-foreground">
             <div className="absolute -top-20 left-1/2 -translate-x-1/2 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
-            <h2 className="relative text-2xl sm:text-3xl font-extrabold">
+            <h2 className="relative text-2xl font-semibold">
               {tr("Quiz terminé !", "انتهى الاختبار!", "Quiz complete!")}
             </h2>
             <p className="relative mt-1 text-sm text-primary-foreground/75">
@@ -1655,18 +1655,18 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                     />
                   </svg>
                   <div className="text-center">
-                    <div className="text-4xl font-extrabold tabular-nums">{pct}%</div>
+                    <div className="text-4xl font-semibold tabular-nums">{pct}%</div>
                     <div className="text-xs font-semibold text-muted-foreground tabular-nums">
                       <span dir="ltr">{formatDecimal(finalScore.score, language, 2)}/{finalScore.total}</span> {tr("pts", "نقطة", "pts")}
                     </div>
                     {finalScore.total > 0 && (
-                      <div className="mt-0.5 text-[11px] font-bold text-primary tabular-nums">
+                      <div className="mt-0.5 text-[11px] font-semibold text-primary tabular-nums">
                         <span dir="ltr">{note20(finalScore.score, finalScore.total)}/20</span>
                       </div>
                     )}
                   </div>
                 </div>
-                <p className={`text-center text-xl font-bold ${m.color}`}>{m.label}</p>
+                <p className={`text-center text-xl font-semibold ${m.color}`}>{m.label}</p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
@@ -1675,10 +1675,10 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                     { icon: <MinusCircle className="h-5 w-5" />, v: empty, l: tr("Sans réponse", "بدون جواب", "Unanswered"), c: "text-slate-500 dark:text-slate-400 bg-slate-500/10" },
                     { icon: <Clock className="h-5 w-5" />, v: `${finalScore.minutes}′`, l: tr("Durée", "المدة", "Time"), c: "text-amber-600 dark:text-amber-400 bg-amber-500/10" }
                   ].map((s, i) => (
-                    <div key={i} className="rounded-2xl border p-3 flex items-center gap-3">
+                    <div key={i} className="rounded-xl border p-3 flex items-center gap-3">
                       <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${s.c}`}>{s.icon}</div>
                       <div>
-                        <div className="text-xl font-extrabold tabular-nums leading-none">{s.v}</div>
+                        <div className="text-xl font-semibold tabular-nums leading-none">{s.v}</div>
                         <div className="text-[11px] font-semibold text-muted-foreground mt-1">{s.l}</div>
                       </div>
                     </div>
@@ -1696,8 +1696,8 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                 )}
               </>
             ) : (
-              <div className="mx-auto max-w-md rounded-2xl border bg-card shadow-lg p-6 text-center">
-                <div className="mx-auto h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3">
+              <div className="mx-auto max-w-md rounded-xl border bg-card shadow-lg p-6 text-center">
+                <div className="mx-auto h-14 w-14 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3">
                   <CheckCircle2 className="h-8 w-8" />
                 </div>
                 <p className="font-semibold">
@@ -1790,7 +1790,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
             <div className="fixed top-0 left-0 h-full w-full z-[100] bg-background flex items-center justify-center p-6 text-center">
               <div className="max-w-sm space-y-3">
                 <ShieldAlert className="h-12 w-12 mx-auto text-rose-500" />
-                <p className="text-lg font-bold">{tr("Quiz masqué", "الاختبار مخفي", "Quiz hidden")}</p>
+                <p className="text-lg font-semibold">{tr("Quiz masqué", "الاختبار مخفي", "Quiz hidden")}</p>
                 <p className="text-sm text-muted-foreground">
                   {tr(
                     "Revenez sur cette page pour continuer. Chaque sortie est enregistrée.",
@@ -1804,7 +1804,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
           {/* Avertissement après une sortie */}
           <AlertDialog open={antiCheat.warningOpen} onOpenChange={o => { if (!o) antiCheat.closeWarning(); }}>
-            <AlertDialogContent className="rounded-3xl max-w-md">
+            <AlertDialogContent className="rounded-xl max-w-md">
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
                   <AlertTriangle className="h-5 w-5" />
@@ -1851,7 +1851,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
       <div className="sticky top-0 z-20 -mx-3 sm:-mx-6 -mt-3 sm:-mt-6 mb-5 px-3 sm:px-6 pt-3 sm:pt-4 pb-3 bg-background/85 backdrop-blur-md border-b">
         <div className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-base sm:text-lg font-bold truncate">{exam.title}</h2>
+            <h2 className="text-base sm:text-lg font-semibold truncate">{exam.title}</h2>
             <p className="text-xs text-muted-foreground">
               {tr(
                 `Question ${index + 1} sur ${items.length} · ${answeredCount} répondue(s)`,
@@ -1863,7 +1863,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
           <div className="flex shrink-0 items-center gap-2">
             {timeLeft !== null && (
               <div
-                className={`flex items-center gap-2 rounded-2xl px-3 sm:px-3.5 py-2 font-mono text-base font-bold tabular-nums shadow-sm border transition-colors ${
+                className={`flex items-center gap-2 rounded-xl px-3 sm:px-3.5 py-2 font-mono text-base font-semibold tabular-nums shadow-sm border transition-colors ${
                   globalLow
                     ? "bg-rose-500 text-white border-rose-500 motion-safe:animate-pulse"
                     : timeLeft <= 300
@@ -1915,7 +1915,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
         )}
         <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
+            className="h-full rounded-full bg-primary transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -1923,7 +1923,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
       <div className="grid gap-5 lg:grid-cols-[1fr_250px]">
         {/* Carte question */}
-        <div key={qid} className="relative rounded-3xl border bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div key={qid} className="relative rounded-xl border bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
           {/* Filigrane nominatif : une capture d'écran partagée reste identifiable */}
           {antiCheatOn && (
             <div className="quiz-watermark" aria-hidden="true">
@@ -1944,14 +1944,14 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
           <div className="p-5 sm:p-7 space-y-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-xl bg-primary px-3 py-1 text-sm font-bold text-primary-foreground shadow-sm">
+              <span className="inline-flex items-center rounded-xl bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground shadow-sm">
                 {tr("Question", "السؤال", "Question")} {index + 1}
               </span>
               <span className="inline-flex items-center rounded-xl border px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                 {item.question.points || 1} {tr("pt", "نقطة", "pt")}
               </span>
               {item.multi && (
-                <span className="inline-flex items-center gap-1 rounded-xl bg-sky-500/10 text-sky-700 dark:text-sky-300 px-2.5 py-1 text-xs font-semibold">
+                <span className="inline-flex items-center gap-1 rounded-xl bg-primary/10 text-primary  px-2.5 py-1 text-xs font-semibold">
                   <ListChecks className="h-3.5 w-3.5" />
                   {tr("Plusieurs réponses possibles", "عدة أجوبة ممكنة", "Several answers possible")}
                 </span>
@@ -1964,7 +1964,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
               )}
               {qLimit && questionTimeLeft !== null && (
                 <span
-                  className={`ms-auto inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-mono text-sm font-bold tabular-nums ${
+                  className={`ms-auto inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-mono text-sm font-semibold tabular-nums ${
                     qLow ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 motion-safe:animate-pulse" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
                   }`}
                   role="timer"
@@ -1996,16 +1996,16 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                       aria-checked={selected}
                       disabled={disabled || timeUp || submitFailed}
                       onClick={() => selectOption(item, opt.id)}
-                      className={`group relative flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-start transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/25 ${
+                      className={`group relative flex w-full items-center gap-4 rounded-xl border-2 p-4 text-start transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/25 ${
                         selected
                           ? "border-primary bg-primary/[0.07] shadow-md shadow-primary/10"
                           : disabled
                           ? "border-border opacity-50 cursor-not-allowed"
-                          : "border-border hover:border-primary/50 hover:bg-muted/40 hover:-translate-y-0.5 hover:shadow-md"
+                          : "border-border hover:border-primary/50 hover:bg-muted/40 hover:shadow-md"
                       }`}
                     >
                       <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center text-sm font-bold transition-colors ${
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center text-sm font-semibold transition-colors ${
                           item.multi ? "rounded-lg" : "rounded-full"
                         } ${
                           selected
@@ -2048,7 +2048,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                       aria-checked={selected}
                       disabled={disabled || timeUp || submitFailed}
                       onClick={() => selectOption(item, opt.id)}
-                      className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 p-6 sm:p-8 transition-all duration-200 focus:outline-none focus-visible:ring-4 ${
+                      className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 p-6 sm:p-8 transition-all duration-200 focus:outline-none focus-visible:ring-4 ${
                         isTrue ? "focus-visible:ring-emerald-500/25" : "focus-visible:ring-rose-500/25"
                       } ${
                         selected
@@ -2057,12 +2057,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                             : "border-rose-500 bg-rose-500/10 shadow-lg shadow-rose-500/10"
                           : disabled
                           ? "border-border opacity-50 cursor-not-allowed"
-                          : "border-border hover:-translate-y-0.5 hover:shadow-md " +
+                          : "border-border hover:shadow-md " +
                             (isTrue ? "hover:border-emerald-400" : "hover:border-rose-400")
                       }`}
                     >
                       <span
-                        className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${
+                        className={`flex h-14 w-14 items-center justify-center rounded-xl transition-colors ${
                           selected
                             ? isTrue
                               ? "bg-emerald-500 text-white"
@@ -2074,7 +2074,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                       >
                         {isTrue ? <Check className="h-8 w-8" strokeWidth={3} /> : <X className="h-8 w-8" strokeWidth={3} />}
                       </span>
-                      <span className="text-lg font-bold">{optionLabel(opt)}</span>
+                      <span className="text-lg font-semibold">{optionLabel(opt)}</span>
                     </button>
                   );
                 })}
@@ -2099,7 +2099,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                   }}
                   disabled={isLocked || timeUp || submitFailed}
                   rows={5}
-                  className="rounded-2xl border-2 text-base p-4 focus-visible:ring-primary/25 resize-y"
+                  className="rounded-xl border-2 text-base p-4 focus-visible:ring-primary/25 resize-y"
                 />
                 <MathSymbolBar
                   disabled={isLocked || timeUp || submitFailed}
@@ -2158,7 +2158,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
               <Button
                 onClick={() => (submitFailed ? retrySubmit() : setConfirmOpen(true))}
                 disabled={isSubmitting}
-                className="h-11 rounded-xl px-6 gap-2 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
+                className="h-11 rounded-xl px-6 gap-2 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {tr("Terminer le quiz", "إنهاء الاختبار", "Finish quiz")}
@@ -2169,9 +2169,9 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
         {/* Panneau de navigation */}
         <aside aria-label={tr("Navigation entre les questions", "التنقل بين الأسئلة", "Question navigation")}>
-          <div className="lg:sticky lg:top-28 rounded-3xl border bg-card p-4 shadow-sm space-y-4">
+          <div className="lg:sticky lg:top-28 rounded-xl border bg-card p-4 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-bold">{tr("Questions", "الأسئلة", "Questions")}</p>
+              <p className="text-sm font-semibold">{tr("Questions", "الأسئلة", "Questions")}</p>
               <span className="text-xs font-semibold text-muted-foreground tabular-nums">
                 {answeredCount}/{items.length}
               </span>
@@ -2195,7 +2195,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
                     title={chipLabel}
                     aria-label={chipLabel}
                     aria-current={st === "current" ? "step" : undefined}
-                    className={`relative h-10 w-10 shrink-0 rounded-xl text-sm font-bold transition-all ${
+                    className={`relative h-10 w-10 shrink-0 rounded-xl text-sm font-semibold transition-all ${
                       st === "current"
                         ? "bg-primary text-primary-foreground shadow-md scale-105"
                         : st === "answered"
@@ -2242,7 +2242,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
       {/* Confirmation de sortie (le chrono continue, les réponses restent sur l'appareil) */}
       <AlertDialog open={quitOpen} onOpenChange={setQuitOpen}>
-        <AlertDialogContent className="rounded-3xl" dir={isRtl ? "rtl" : "ltr"}>
+        <AlertDialogContent className="rounded-xl" dir={isRtl ? "rtl" : "ltr"}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <LogOut className={`h-5 w-5 text-rose-600 ${isRtl ? "rotate-180" : ""}`} />
@@ -2275,7 +2275,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ exam, onClose, onPhaseChange }) =
 
       {/* Confirmation d'envoi */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent className="rounded-3xl" dir={isRtl ? "rtl" : "ltr"}>
+        <AlertDialogContent className="rounded-xl" dir={isRtl ? "rtl" : "ltr"}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Award className="h-5 w-5 text-primary" />

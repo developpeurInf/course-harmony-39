@@ -198,7 +198,7 @@ export async function fetchDiagnosticConfigFromCloud(): Promise<DiagnosticConfig
       return null;
     }
 
-    const cloudConfig = data[0].activity_data?.config;
+    const cloudConfig = (data[0].activity_data as { config?: unknown } | null)?.config;
     if (cloudConfig && typeof cloudConfig === "object") {
       return cloudConfig as DiagnosticConfig;
     }

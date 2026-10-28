@@ -268,7 +268,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   if (!pack) {
     return (
       <div className="flex items-center justify-center min-h-screen w-full bg-background">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary" />
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground/70" />
       </div>
     );
   }

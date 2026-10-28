@@ -49,9 +49,9 @@ interface MultiPdfUploadProps {
 }
 
 const KindIcon = ({ kind, className = "h-4 w-4" }: { kind: MaterialKind; className?: string }) => {
-  if (kind === 'image') return <ImageIcon className={`${className} text-sky-500`} />;
+  if (kind === 'image') return <ImageIcon className={`${className} text-primary`} />;
   if (kind === 'youtube') return <Youtube className={`${className} text-red-500`} />;
-  if (kind === 'video' || kind === 'vimeo') return <Film className={`${className} text-violet-500`} />;
+  if (kind === 'video' || kind === 'vimeo') return <Film className={`${className} text-primary`} />;
   if (kind === 'link') return <Link2 className={`${className} text-slate-500`} />;
   return <FileText className={`${className} text-rose-500`} />;
 };
@@ -271,8 +271,8 @@ const MultiPdfUpload = ({
       >
         <div className="mx-auto mb-2 flex w-fit items-center gap-2">
           <span className="rounded-lg bg-rose-500/10 p-2"><FileText className="h-5 w-5 text-rose-500" /></span>
-          {!pdfOnly && <span className="rounded-lg bg-sky-500/10 p-2"><ImageIcon className="h-5 w-5 text-sky-500" /></span>}
-          {!pdfOnly && <span className="rounded-lg bg-violet-500/10 p-2"><Film className="h-5 w-5 text-violet-500" /></span>}
+          {!pdfOnly && <span className="rounded-lg bg-primary/10 p-2"><ImageIcon className="h-5 w-5 text-primary" /></span>}
+          {!pdfOnly && <span className="rounded-lg bg-primary/10 p-2"><Film className="h-5 w-5 text-primary" /></span>}
         </div>
         <p className="text-sm font-medium">
           {pdfOnly
@@ -371,7 +371,7 @@ const MultiPdfUpload = ({
                   <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted flex items-center justify-center">
                     {parsed?.thumbnail
                       ? <img src={parsed.thumbnail} alt="" className="h-full w-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                      : <Film className="h-5 w-5 text-violet-500" />}
+                      : <Film className="h-5 w-5 text-primary" />}
                     <PlayCircle className="absolute h-5 w-5 text-white drop-shadow" />
                   </div>
                   <div className="min-w-0 flex-1">

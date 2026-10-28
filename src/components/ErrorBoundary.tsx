@@ -76,7 +76,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
         data-no-translate
         className="flex min-h-[60vh] w-full items-center justify-center p-6"
       >
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-sm">
           <h1 className="mb-2 text-lg font-semibold text-foreground">{t.title}</h1>
           <p className="mb-5 text-sm text-muted-foreground">{t.body}</p>
           <div className="flex flex-col items-center justify-center sm:flex-row">

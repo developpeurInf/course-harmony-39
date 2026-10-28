@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -114,7 +114,7 @@ const NotificationBellInner = () => {
 
     if (type === 'course_added') {
       return {
-        title: t("📚 Nouveau cours disponible", "📚 درس جديد متوفر", "📚 New course available"),
+        title: t("Nouveau cours disponible", "درس جديد متوفر", "New course available"),
         prefix: t("Le cours ", "تم نشر الدرس ", "The course "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été publié pour votre classe.", " لقسمك.", " has been published for your class."),
@@ -124,7 +124,7 @@ const NotificationBellInner = () => {
 
     if (type === 'course_updated') {
       return {
-        title: t("🔄 Cours mis à jour", "🔄 تم تحديث الدرس", "🔄 Course updated"),
+        title: t("Cours mis à jour", "تم تحديث الدرس", "Course updated"),
         prefix: t("Le contenu du cours ", "تم تعديل محتوى الدرس ", "The content of course "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(". Veuillez le consulter.", ". يرجى الاطلاع عليه.", ". Please check it out."),
@@ -134,7 +134,7 @@ const NotificationBellInner = () => {
 
     if (type === 'course_deleted') {
       return {
-        title: t("🗑️ Cours retiré", "🗑️ تم حذف الدرس", "🗑️ Course removed"),
+        title: t("Cours retiré", "تم حذف الدرس", "Course removed"),
         prefix: t("Le cours ", "تم حذف الدرس ", "The course "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été retiré par votre professeur.", " من قبل أستاذك.", " was removed by your professor."),
@@ -144,7 +144,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exercise_added') {
       return {
-        title: t("📝 Nouvel exercice disponible", "📝 تمرين جديد متوفر", "📝 New exercise available"),
+        title: t("Nouvel exercice disponible", "تمرين جديد متوفر", "New exercise available"),
         prefix: t("L'exercice ", "تمت إضافة التمرين ", "The exercise "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été ajouté à votre classe.", " لقسمك.", " has been added to your class."),
@@ -154,7 +154,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exercise_updated') {
       return {
-        title: t("🔄 Exercice mis à jour", "🔄 تم تحديث التمرين", "🔄 Exercise updated"),
+        title: t("Exercice mis à jour", "تم تحديث التمرين", "Exercise updated"),
         prefix: t("L'exercice ", "تم تعديل التمرين ", "The exercise "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(". Veuillez le consulter.", ". يرجى الاطلاع عليه.", ". Please check it out."),
@@ -164,7 +164,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exercise_deleted') {
       return {
-        title: t("🗑️ Exercice retiré", "🗑️ تم حذف التمرين", "🗑️ Exercise removed"),
+        title: t("Exercice retiré", "تم حذف التمرين", "Exercise removed"),
         prefix: t("L'exercice ", "تم حذف التمرين ", "The exercise "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été supprimé.", ".", " was removed."),
@@ -174,7 +174,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exam_added') {
       return {
-        title: t("🎓 Nouvelle évaluation programmée", "🎓 تقييم جديد مبرمج", "🎓 New assessment scheduled"),
+        title: t("Nouvelle évaluation programmée", "تقييم جديد مبرمج", "New assessment scheduled"),
         prefix: t("L'évaluation ", "تمت برمجة التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été programmée pour votre classe.", " لقسمك.", " has been scheduled for your class."),
@@ -184,7 +184,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exam_updated') {
       return {
-        title: t("🔄 Évaluation mise à jour", "🔄 تم تحديث التقييم", "🔄 Assessment updated"),
+        title: t("Évaluation mise à jour", "تم تحديث التقييم", "Assessment updated"),
         prefix: t("L'évaluation ", "تم تعديل التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(". Veuillez vérifier les détails.", ". يرجى التحقق من التفاصيل.", ". Please check the details."),
@@ -194,7 +194,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exam_deleted') {
       return {
-        title: t("🗑️ Évaluation annulée", "🗑️ تم إلغاء التقييم", "🗑️ Assessment cancelled"),
+        title: t("Évaluation annulée", "تم إلغاء التقييم", "Assessment cancelled"),
         prefix: t("L'évaluation ", "تم إلغاء التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été annulée.", ".", " was cancelled."),
@@ -204,7 +204,7 @@ const NotificationBellInner = () => {
 
     if (type === 'exam_reminder') {
       return {
-        title: t("⏰ Rappel : Évaluation dans moins de 24h !", "⏰ تذكير: تقييم خلال أقل من 24 ساعة!", "⏰ Reminder: Assessment in less than 24h!"),
+        title: t("Rappel : évaluation dans moins de 24 h", "تذكير: تقييم خلال أقل من 24 ساعة", "Reminder: assessment in less than 24 h"),
         prefix: t("L'évaluation ", "التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" aura lieu très prochainement. Préparez-vous !", " سيُجرى قريباً جداً. استعد جيداً!", " will take place very soon. Get ready!"),
@@ -213,7 +213,8 @@ const NotificationBellInner = () => {
     }
 
     return {
-      title: notification.title,
+      // anciennes notifications enregistrées avec un emoji en tête
+      title: notification.title.replace(/^[\u2190-\u2BFF\uD83C-\uDBFF\uDC00-\uDFFF\uFE0F\s]+/, ""),
       prefix: "",
       itemTitle: "",
       suffix: "",
@@ -226,13 +227,13 @@ const NotificationBellInner = () => {
       case 'course_added':
         return {
           icon: BookOpen,
-          bg: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Nouveau cours", "درس جديد", "New Course")
         };
       case 'course_updated':
         return {
           icon: BookOpen,
-          bg: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Cours mis à jour", "تحديث درس", "Course Updated")
         };
       case 'course_deleted':
@@ -250,7 +251,7 @@ const NotificationBellInner = () => {
       case 'exercise_updated':
         return {
           icon: FileText,
-          bg: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Exercice mis à jour", "تحديث تمرين", "Exercise Updated")
         };
       case 'exercise_deleted':
@@ -262,13 +263,13 @@ const NotificationBellInner = () => {
       case 'exam_added':
         return {
           icon: GraduationCap,
-          bg: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Nouvelle évaluation", "تقييم جديد", "New Exam")
         };
       case 'exam_updated':
         return {
           icon: GraduationCap,
-          bg: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Évaluation mise à jour", "تحديث تقييم", "Exam Updated")
         };
       case 'exam_deleted':
@@ -281,7 +282,7 @@ const NotificationBellInner = () => {
         return {
           icon: Clock,
           bg: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 animate-pulse",
-          badge: t("⏰ Rappel < 24h", "⏰ تذكير < 24س", "⏰ Reminder < 24h")
+          badge: t("Rappel < 24h", "تذكير < 24س", "Reminder < 24h")
         };
       case 'warning':
         return {
@@ -335,7 +336,7 @@ const NotificationBellInner = () => {
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground shadow-md ring-2 ring-background animate-scale-in pointer-events-none"
+            className="absolute -top-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold text-destructive-foreground shadow-md ring-2 ring-background animate-scale-in pointer-events-none"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
@@ -352,7 +353,7 @@ const NotificationBellInner = () => {
           className={cn(
             // Téléphone : panneau pleine largeur sous la barre du haut ; à partir de sm : menu ancré au bouton
             "notif-panel fixed left-2 right-2 top-[4.25rem] sm:absolute sm:top-full sm:left-auto sm:right-0 sm:rtl:right-auto sm:rtl:left-0 sm:mt-1.5 sm:w-[420px] sm:max-w-[95vw]",
-            "p-0 shadow-2xl border border-border bg-card text-card-foreground rounded-2xl overflow-hidden z-50 animate-in fade-in-50 zoom-in-95"
+            "p-0 shadow-2xl border border-border bg-card text-card-foreground rounded-xl overflow-hidden z-50 animate-in fade-in-50 zoom-in-95"
           )}
         >
         {/* Header */}
@@ -362,7 +363,7 @@ const NotificationBellInner = () => {
               <Bell className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold leading-none">
+              <h3 className="text-sm font-semibold leading-none">
                 {t("Notifications", "الإشعارات", "Notifications")}
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
@@ -452,7 +453,7 @@ const NotificationBellInner = () => {
               {t("Non lues", "غير مقروءة", "Unread")}
               {unreadCount > 0 && (
                 <span className={cn(
-                  "px-1.5 rounded-full text-[10px] font-bold",
+                  "px-1.5 rounded-full text-[10px] font-semibold",
                   filter === "unread" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
                 )}>
                   {unreadCount}
@@ -505,7 +506,7 @@ const NotificationBellInner = () => {
                       {/* Icon with colored badge container */}
                       <span
                         className={cn(
-                          "mt-0.5 p-2 rounded-xl border flex-shrink-0 transition-transform group-hover:scale-105",
+                          "mt-0.5 p-2 rounded-xl border flex-shrink-0 transition-transform",
                           iconConfig.bg
                         )}
                         aria-hidden="true"
@@ -520,7 +521,7 @@ const NotificationBellInner = () => {
                             {!notification.read && (
                               <span className="h-2 w-2 flex-shrink-0 rounded-full bg-primary" aria-hidden="true" />
                             )}
-                            <span className="text-xs font-bold text-foreground leading-snug line-clamp-1">
+                            <span className="text-xs font-semibold text-foreground leading-snug line-clamp-1">
                               {localized.title}
                             </span>
                             {!notification.read && (

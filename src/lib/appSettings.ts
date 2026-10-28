@@ -97,11 +97,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     faviconUrl: null,
   },
   theme: {
-    primary: "#3b82f6",
-    accent: "#dbe6f5",
-    success: "#16a34a",
-    danger: "#dc2626",
-    radius: 0.75,
+    primary: "#2b4aca",
+    accent: "#eceef9",
+    success: "#208857",
+    danger: "#ce2727",
+    radius: 0.5,
     font: "system",
     defaultMode: "light",
   },
@@ -178,8 +178,30 @@ function deepMerge<T>(base: T, patch: unknown): T {
   return out as T;
 }
 
+/**
+ * Valeurs par défaut de l'ancienne interface, enregistrées telles quelles quand
+ * l'administration validait la page sans changer le thème : elles suivent le
+ * nouveau thème par défaut au lieu de le figer.
+ */
+const LEGACY_THEME_DEFAULTS: Partial<Record<keyof AppSettings["theme"], unknown>> = {
+  primary: "#3b82f6",
+  accent: "#dbe6f5",
+  success: "#16a34a",
+  danger: "#dc2626",
+  radius: 0.75,
+};
+
 export function mergeAppSettings(saved: unknown): AppSettings {
-  return deepMerge(DEFAULT_APP_SETTINGS, saved);
+  const merged = deepMerge(DEFAULT_APP_SETTINGS, saved);
+  const theme = { ...merged.theme };
+  (Object.keys(LEGACY_THEME_DEFAULTS) as (keyof AppSettings["theme"])[]).forEach((k) => {
+    const v = theme[k];
+    const legacy = LEGACY_THEME_DEFAULTS[k];
+    if (typeof v === "string" ? v.toLowerCase() === legacy : v === legacy) {
+      (theme as Record<string, unknown>)[k] = DEFAULT_APP_SETTINGS.theme[k];
+    }
+  });
+  return { ...merged, theme };
 }
 
 /** Texte traduit avec repli : langue demandée → français → arabe → anglais. */
@@ -289,17 +311,18 @@ export function applyAppSettings(s: AppSettings) {
     lines.push(
       `--primary:${hslStr(p)};--primary-foreground:${fg};--primary-glow:${glow};--ring:${hslStr(p)};`,
       `--sidebar-primary:${hslStr(p)};--sidebar-primary-foreground:${fg};--sidebar-ring:${hslStr(p)};`,
-      `--gradient-primary:linear-gradient(135deg,hsl(${hslStr(p)}),hsl(${glow}));`
+      `--gradient-primary:hsl(${hslStr(p)});`
     );
   }
-  if (a) lines.push(`--accent:${hslStr(a)};`);
-  if (ok) lines.push(`--success:${hslStr(ok)};`);
-  if (ko) lines.push(`--destructive:${hslStr(ko)};`);
+  // Accent et couleurs d'état : mode clair seulement (le mode sombre garde ses teintes)
+  const lightOnly: string[] = [];
+  if (a) lightOnly.push(`--accent:${hslStr(a)};`);
+  if (ok) lightOnly.push(`--success:${hslStr(ok)};`);
+  if (ko) lightOnly.push(`--destructive:${hslStr(ko)};`);
   lines.push(`--radius:${radius}rem;`);
   const font = FONT_OPTIONS[s.theme.font] || FONT_OPTIONS.system;
 
-  // Les couleurs d'accent restent celles du thème sombre d'origine en mode sombre
-  // (seules la couleur principale, les états et l'arrondi suivent la personnalisation).
+  // Mode sombre : couleur principale éclaircie pour rester lisible sur fond foncé.
   const darkLines: string[] = [];
   if (p) {
     const dp = hslStr({ h: p.h, s: p.s, l: Math.min(70, Math.max(55, p.l + 6)) });
@@ -307,6 +330,7 @@ export function applyAppSettings(s: AppSettings) {
   }
 
   let css = `:root{${lines.join("")}}`;
+  if (lightOnly.length) css += `:root:not(.dark){${lightOnly.join("")}}`;
   if (darkLines.length) css += `.dark{${darkLines.join("")}}`;
   if (font.css) css += `body{font-family:${font.css};}`;
 

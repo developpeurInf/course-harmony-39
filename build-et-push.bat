@@ -14,17 +14,17 @@ if errorlevel 1 (
 
 echo.
 echo ============================================
-echo   2/3  Commit sur la branche claude/quiz-fixes-and-redesign
+echo   2/3  Commit sur la branche claude/nextjs-redesign
 echo ============================================
-git checkout -b claude/quiz-fixes-and-redesign 2>nul || git checkout claude/quiz-fixes-and-redesign
+git checkout -b claude/nextjs-redesign 2>nul || git checkout claude/nextjs-redesign
 git add -A -- . ":!build-et-push.bat"
-git commit -m "fix(quiz): parametres appliques cote eleve, logique corrigee, nouveau design + espacement PDF diagnostic" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_01C3ebCLdMbYYMaD6paPYke9"
+git commit -m "feat: migration vers Next.js et nouveau design" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_01AVw5TfPY7pA5AMRgBNA6sQ"
 
 echo.
 echo ============================================
 echo   3/3  git push
 echo ============================================
-git push -u origin claude/quiz-fixes-and-redesign
+git push -u origin claude/nextjs-redesign
 if errorlevel 1 (
   echo.
   echo *** LE PUSH A ECHOUE - verifie ta connexion GitHub. ***
@@ -33,5 +33,5 @@ if errorlevel 1 (
 )
 
 echo.
-echo Termine ! Branche poussee : claude/quiz-fixes-and-redesign
+echo Termine ! Branche poussee : claude/nextjs-redesign
 pause

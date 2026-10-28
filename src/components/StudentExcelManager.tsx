@@ -898,7 +898,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
             disabled={allStudentsForDownload.length === 0 && (!existingStudents || existingStudents.length === 0)}
             className="font-medium"
           >
-            <Download className="h-4 w-4 text-emerald-600" />
+            <Download className="h-4 w-4 text-muted-foreground" />
             {language === "ar" ? "تحميل قائمة الحسابات" : language === "fr" ? "Télécharger la liste" : "Download List"}
           </Button>
         </div>
@@ -906,7 +906,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
         {(allStudentsForDownload.length > 0 || (existingStudents && existingStudents.length > 0)) && (
           <div className="text-sm text-muted-foreground">
             <p className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
               {allStudentsForDownload.length || existingStudents?.length} {language === "ar" ? "تلميذ متاح للتحميل مع كلمات المرور" : language === "fr" ? "élèves disponibles au téléchargement avec mots de passe" : "students available for download with passwords"}
             </p>
           </div>

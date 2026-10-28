@@ -60,7 +60,7 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
   const maxWidth = `calc(70vh / ${ratio.toFixed(4)})`;
 
   return (
-    <div className="group mx-auto w-full overflow-hidden rounded-2xl border bg-card shadow-sm" style={{ maxWidth }}>
+    <div className="group mx-auto w-full overflow-hidden rounded-xl border bg-card shadow-sm" style={{ maxWidth }}>
       <div className="relative w-full bg-black" style={{ paddingTop: `${(ratio * 100).toFixed(3)}%` }}>
         {parsed ? (
           playing ? (
@@ -80,14 +80,14 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
               aria-label={`${tr("تشغيل", "Lire la vidéo", "Play video")} : ${displayName(material, tr)}`}
             >
               {parsed.thumbnail ? (
-                <span className="block h-full w-full bg-gradient-to-br from-red-700 to-zinc-900">
+                <span className="block h-full w-full bg-zinc-900">
                   <img src={parsed.thumbnail} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                 </span>
               ) : (
-                <div className="h-full w-full bg-gradient-to-br from-violet-700 to-indigo-900" />
+                <div className="h-full w-full bg-zinc-900" />
               )}
               <span className="absolute top-0 left-0 flex h-full w-full items-center justify-center bg-black/20">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 shadow-xl transition-transform group-hover:scale-110">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 shadow-xl transition-transform">
                   <Play className="ml-1 h-7 w-7 fill-current text-red-600" />
                 </span>
               </span>
@@ -110,8 +110,8 @@ export const VideoPlayer = ({ material }: { material: CourseMaterialLike }) => {
         )}
       </div>
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className={`rounded-lg p-2 ${kind === "youtube" ? "bg-red-500/10" : "bg-violet-500/10"}`}>
-          {kind === "youtube" ? <Youtube className="h-4 w-4 text-red-500" /> : <Film className="h-4 w-4 text-violet-500" />}
+        <div className={`rounded-lg p-2 ${kind === "youtube" ? "bg-red-500/10" : "bg-primary/10"}`}>
+          {kind === "youtube" ? <Youtube className="h-4 w-4 text-red-500" /> : <Film className="h-4 w-4 text-primary" />}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold" title={material.file_name}>{displayName(material, tr)}</p>
@@ -248,7 +248,7 @@ type Filter = "all" | "video" | "image" | "doc";
 const SectionTitle = ({ icon, label, count, color }: { icon: ReactNode; label: string; count: number; color: string }) => (
   <div className="mb-3 flex items-center gap-2">
     <span className={`rounded-lg p-1.5 ${color}`}>{icon}</span>
-    <h3 className="text-sm font-bold uppercase tracking-wide">{label}</h3>
+    <h3 className="text-sm font-semibold uppercase tracking-wide">{label}</h3>
     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{count}</span>
   </div>
 );
@@ -281,7 +281,7 @@ export const CourseMediaGallery = ({
 
   if (sorted.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-12 text-center text-muted-foreground">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center text-muted-foreground">
         <BookOpen className="mb-3 h-10 w-10 opacity-40" />
         <p className="text-sm">{emptyLabel || tr("لا توجد مواد لهذا الدرس بعد", "Aucun support pour ce cours pour l'instant", "No materials for this course yet")}</p>
       </div>
@@ -310,7 +310,7 @@ export const CourseMediaGallery = ({
 
       {show("video") && videos.length > 0 && (
         <section>
-          <SectionTitle icon={<Film className="h-4 w-4 text-violet-600" />} color="bg-violet-500/10" label={tr("فيديوهات", "Vidéos", "Videos")} count={videos.length} />
+          <SectionTitle icon={<Film className="h-4 w-4 text-primary" />} color="bg-primary/10" label={tr("فيديوهات", "Vidéos", "Videos")} count={videos.length} />
           <div className={`grid items-start gap-4 ${videos.length > 1 ? "md:grid-cols-2" : ""}`}>
             {videos.map(v => <VideoPlayer key={v.id} material={v} />)}
           </div>
@@ -319,7 +319,7 @@ export const CourseMediaGallery = ({
 
       {show("image") && images.length > 0 && (
         <section>
-          <SectionTitle icon={<ImageIcon className="h-4 w-4 text-sky-600" />} color="bg-sky-500/10" label={tr("صور", "Images", "Images")} count={images.length} />
+          <SectionTitle icon={<ImageIcon className="h-4 w-4 text-primary" />} color="bg-primary/10" label={tr("صور", "Images", "Images")} count={images.length} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {images.map((img, i) => (
               <button
@@ -335,7 +335,7 @@ export const CourseMediaGallery = ({
                   alt={displayName(img, tr)}
                   loading="lazy"
                   decoding="async"
-                  className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-300"
                 />
                 <span className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6 text-start text-xs font-medium text-white transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-visible:opacity-100">
                   {displayName(img, tr)}
@@ -409,18 +409,18 @@ export const CourseViewerDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[92vh] w-[96vw] max-w-5xl flex-col overflow-hidden p-0">
-        <div className="shrink-0 border-b bg-gradient-to-br from-primary/10 via-background to-background px-5 pb-4 pt-5 sm:px-7">
+        <div className="shrink-0 border-b bg-card px-5 pb-4 pt-5 sm:px-7">
           <DialogHeader className="space-y-1.5 text-start pr-8 rtl:pr-0 rtl:pl-8">
             {subtitle && <p className="text-xs font-semibold uppercase tracking-wider text-primary">{subtitle}</p>}
-            <DialogTitle className="text-xl font-bold leading-tight sm:text-2xl">{title}</DialogTitle>
+            <DialogTitle className="text-xl font-semibold leading-tight sm:text-2xl">{title}</DialogTitle>
             <DialogDescription className={description ? "whitespace-pre-line text-sm" : "sr-only"}>
               {description || fallbackDescription || tr("مواد الدرس", "Supports du cours", "Course materials")}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {meta}
-            {c.video > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2.5 py-1 font-semibold text-violet-700 dark:text-violet-300"><Film className="h-3.5 w-3.5" />{c.video} {tr("فيديو", c.video > 1 ? "vidéos" : "vidéo", c.video > 1 ? "videos" : "video")}</span>}
-            {c.image > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2.5 py-1 font-semibold text-sky-700 dark:text-sky-300"><ImageIcon className="h-3.5 w-3.5" />{c.image} {tr("صورة", c.image > 1 ? "images" : "image", c.image > 1 ? "images" : "image")}</span>}
+            {c.video > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary "><Film className="h-3.5 w-3.5" />{c.video} {tr("فيديو", c.video > 1 ? "vidéos" : "vidéo", c.video > 1 ? "videos" : "video")}</span>}
+            {c.image > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary "><ImageIcon className="h-3.5 w-3.5" />{c.image} {tr("صورة", c.image > 1 ? "images" : "image", c.image > 1 ? "images" : "image")}</span>}
             {c.pdf + c.other > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 font-semibold text-rose-700 dark:text-rose-300"><FileText className="h-3.5 w-3.5" />{c.pdf + c.other} {tr("وثيقة", "document" + (c.pdf + c.other > 1 ? "s" : ""), "document" + (c.pdf + c.other > 1 ? "s" : ""))}</span>}
           </div>
         </div>
@@ -436,13 +436,12 @@ export const CourseViewerDialog = ({
 /* Cover for course cards                                              */
 /* ------------------------------------------------------------------ */
 
+// Couverture sans image : aplats neutres légèrement différents d'un cours à l'autre
 const COVER_GRADIENTS = [
-  "from-indigo-500 to-violet-600",
-  "from-sky-500 to-indigo-600",
-  "from-emerald-500 to-teal-600",
-  "from-amber-500 to-orange-600",
-  "from-rose-500 to-pink-600",
-  "from-cyan-500 to-blue-600",
+  "bg-zinc-100 dark:bg-zinc-800/70",
+  "bg-stone-100 dark:bg-stone-800/70",
+  "bg-slate-100 dark:bg-slate-800/70",
+  "bg-neutral-100 dark:bg-neutral-800/70",
 ];
 
 export const CourseCover = ({
@@ -472,13 +471,13 @@ export const CourseCover = ({
       aria-label={title ? `${tr("فتح الدرس", "Ouvrir le cours", "Open course")} : ${title}` : tr("فتح الدرس", "Ouvrir le cours", "Open course")}
     >
       {cover ? (
-        <img src={cover} alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <img src={cover} alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} className="absolute top-0 left-0 h-full w-full object-cover transition-transform duration-500" />
       ) : (
-        <div className={`absolute top-0 left-0 flex h-full w-full items-center justify-center bg-gradient-to-br ${gradient}`}>
-          <BookOpen className="h-12 w-12 text-white/40" />
+        <div className={`absolute top-0 left-0 flex h-full w-full items-center justify-center ${gradient}`}>
+          <BookOpen className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />
         </div>
       )}
-      <div className="absolute top-0 left-0 h-full w-full bg-gradient-to-t from-black/60 via-black/0 to-black/0" />
+      {cover && <div className="absolute top-0 left-0 h-full w-full bg-gradient-to-t from-black/50 via-black/0 to-black/0" />}
       {!image && yt && (
         <span className="absolute top-1/2 left-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 shadow-lg">
           <Play className="ml-0.5 h-5 w-5 fill-current text-red-600" />

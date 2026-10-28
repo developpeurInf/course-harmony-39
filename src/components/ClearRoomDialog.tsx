@@ -158,7 +158,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
       hint: tr("حذف حسابات التلاميذ ونتائجهم ونشاطهم", "Supprime les comptes des élèves, leurs résultats et leur activité", "Deletes student accounts, results and activity"),
     },
     {
-      key: "courses", icon: <BookOpen className="h-4 w-4" />, tone: "text-blue-600 bg-blue-500/10",
+      key: "courses", icon: <BookOpen className="h-4 w-4" />, tone: "text-primary bg-primary/10",
       label: tr("حذف جميع الدروس", "Vider les cours", "Delete all courses"),
       hint: tr("مع موادها (PDF، صور، فيديوهات) — يشمل التمارين والامتحانات والاختبارات", "Avec leurs supports (PDF, images, vidéos) — inclut exercices, examens et quiz", "With their materials — includes exercises, exams and quizzes"),
     },
@@ -168,7 +168,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
       hint: tr("جميع تمارين دروس هذا القسم", "Tous les exercices des cours de cette classe", "All exercises of this class's courses"),
     },
     {
-      key: "exams", icon: <Calendar className="h-4 w-4" />, tone: "text-purple-600 bg-purple-500/10",
+      key: "exams", icon: <Calendar className="h-4 w-4" />, tone: "text-primary bg-primary/10",
       label: tr("حذف الامتحانات", "Vider les examens", "Delete exams"),
       hint: tr("الامتحانات (غير الاختبارات)", "Les examens (hors quiz)", "Exams (not quizzes)"),
     },
@@ -302,7 +302,7 @@ const ClearRoomDialog = ({ open, onOpenChange, room, onDone }: ClearRoomDialogPr
       <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Eraser className="h-5 w-5 text-amber-600" />
+            <Eraser className="h-5 w-5 text-muted-foreground" />
             {tr("إفراغ القسم", "Vider la classe", "Clear class")}
             {room && <span className="truncate text-muted-foreground font-normal">— {room.name}</span>}
           </DialogTitle>

@@ -61,3 +61,28 @@ export function BrandLogo({
     </div>
   );
 }
+
+const MARK_SIZES = {
+  sm: { box: "h-7 w-7 rounded-md", symbol: "text-base" },
+  md: { box: "h-8 w-8 rounded-lg", symbol: "text-lg" },
+  lg: { box: "h-11 w-11 rounded-xl", symbol: "text-2xl" },
+} as const;
+
+/** Marque carrée unique de l'application (barre latérale, connexion, administration). */
+export function BrandMark({ logoUrl, alt, size = "md", className }: {
+  logoUrl: string | null;
+  alt: string;
+  size?: keyof typeof MARK_SIZES;
+  className?: string;
+}) {
+  const s = MARK_SIZES[size];
+  return (
+    <BrandLogo
+      logoUrl={logoUrl}
+      alt={alt}
+      imgClassName={cn(s.box, "border bg-card", className)}
+      className={cn(s.box, "flex shrink-0 items-center justify-center bg-foreground text-background", className)}
+      symbolClassName={cn(s.symbol, "font-mono font-medium leading-none")}
+    />
+  );
+}

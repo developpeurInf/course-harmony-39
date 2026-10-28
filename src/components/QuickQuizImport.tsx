@@ -129,7 +129,7 @@ export default function QuickQuizImport({
     <Dialog open={open} onOpenChange={o => !busy && onOpenChange(o)}>
       <DialogContent className="max-h-[92vh] w-[95vw] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Zap className="h-5 w-5 text-amber-500" />{L("Saisie rapide", "إدخال سريع", "Quick entry")}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Zap className="h-5 w-5 text-muted-foreground" />{L("Saisie rapide", "إدخال سريع", "Quick entry")}</DialogTitle>
           <DialogDescription>
             {L("Une question par ligne. Réponses séparées par « | », la bonne précédée de « * ». « V: » ou « F: » pour un Vrai/Faux. « @2 » à la fin = 2 points.",
               "سؤال في كل سطر. الأجوبة مفصولة بـ « | » والصحيح يسبقه « * ». « ص: » أو « خ: » لسؤال صحيح/خطأ. « @2 » في النهاية = نقطتان.",

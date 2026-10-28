@@ -75,7 +75,7 @@ export const EditStudentDialog = ({ student, isOpen, onClose, onStudentUpdated }
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(updatePayload)
+        .update(updatePayload as never)
         .eq('id', student.id)
         .select('id');
 

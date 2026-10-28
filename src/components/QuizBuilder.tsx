@@ -543,7 +543,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
-      <DialogContent className="h-full max-h-full w-screen max-w-none rounded-none sm:h-auto sm:max-h-[92vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-2xl overflow-hidden flex flex-col p-0 gap-0 border shadow-2xl bg-card">
+      <DialogContent className="h-full max-h-full w-screen max-w-none rounded-none sm:h-auto sm:max-h-[92vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-xl overflow-hidden flex flex-col p-0 gap-0 border shadow-2xl bg-card">
         {/* Header */}
         <div className="p-3 pr-12 rtl:pr-3 rtl:pl-12 sm:p-5 sm:pr-14 sm:rtl:pr-5 sm:rtl:pl-14 border-b bg-muted/20 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -551,7 +551,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <DialogTitle className="text-xl font-semibold flex items-center gap-2">
                 {language === "ar" ? "محرر أسئلة الاختبار" : language === "fr" ? "Créateur de Quiz" : "Quiz Builder"}
                 <Badge variant="outline" className="text-xs font-semibold">
                   {questions.length} {language === "ar" ? "سؤال" : language === "fr" ? "questions" : "questions"}
@@ -578,7 +578,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                 {tr("Séquentiel minuté", "ترتيب موقوت", "Sequential timed")}
               </Badge>
             )}
-            <Badge variant="secondary" className="px-3 py-1.5 text-xs font-bold text-primary bg-primary/10">
+            <Badge variant="secondary" className="px-3 py-1.5 text-xs font-semibold text-primary bg-primary/10">
               {language === "ar" ? `المجموع: ${totalPoints} نقطة` : language === "fr" ? `Total : ${totalPoints} pts` : `Total: ${totalPoints} pts`}
             </Badge>
           </div>
@@ -626,7 +626,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               {/* Left Column: Questions List */}
               <div className="lg:col-span-5 flex flex-col lg:overflow-hidden border rounded-xl bg-muted/10">
                 <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <ListOrdered className="h-4 w-4 text-primary" />
                     {language === "ar" ? "لائحة الأسئلة" : language === "fr" ? "Liste des questions" : "Questions List"} ({questions.length})
                   </span>
@@ -670,7 +670,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                                <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 border-primary/40 text-primary">
+                                <Badge variant="outline" className="text-[10px] font-semibold py-0 h-4 border-primary/40 text-primary">
                                   Q{idx + 1}
                                 </Badge>
                                 <Badge variant="secondary" className="text-[10px] py-0 h-4 font-semibold">
@@ -702,8 +702,8 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 <div className="mt-2 space-y-1 bg-muted/20 p-2 rounded-lg border border-muted/30">
                                   {qOpts.map((opt, oIdx) => (
                                     <div key={opt.id} className="text-[11px] flex items-center gap-1.5">
-                                      <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold shrink-0 ${
-                                        opt.is_correct ? 'bg-emerald-600 text-white font-black' : 'bg-muted text-muted-foreground'
+                                      <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-semibold shrink-0 ${
+                                        opt.is_correct ? 'bg-emerald-600 text-white font-semibold' : 'bg-muted text-muted-foreground'
                                       }`}>
                                         {String.fromCharCode(65 + oIdx)}
                                       </span>
@@ -787,7 +787,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
               {/* Right Column: Question Editor Form */}
               <div className="lg:col-span-7 flex flex-col lg:overflow-y-auto border rounded-xl p-4 bg-card shadow-xs space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b">
-                  <h3 className="text-sm font-bold flex items-center gap-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
                     {editingQuestionId ? (
                       <>
                         <Edit2 className="h-4 w-4 text-primary" />
@@ -852,8 +852,8 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                 {isSequentialMode && (
                   <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 space-y-2">
                     <div className="flex items-center gap-2">
-                      <Timer className="h-3.5 w-3.5 text-amber-600" />
-                      <Label className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                      <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                         {language === "fr" ? "Durée pour cette question" : language === "ar" ? "مدة هذا السؤال" : "Time for this question"}
                       </Label>
                       {previewTimeSecs > 0 && (
@@ -883,7 +883,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                       <div className="flex gap-1 flex-wrap">
                         {[{l:'30s',m:0,s:30},{l:'1m',m:1,s:0},{l:'2m',m:2,s:0},{l:'3m',m:3,s:0},{l:'5m',m:5,s:0}].map(p => (
                           <Button key={p.l} type="button" size="sm" variant="outline"
-                            className={`h-6 px-2 text-[10px] font-bold ${currentQuestion.timeMins === p.m && currentQuestion.timeSecs === p.s ? 'bg-amber-200 border-amber-400 text-amber-800' : 'hover:bg-amber-100 dark:hover:bg-amber-950'}`}
+                            className={`h-6 px-2 text-[10px] font-semibold ${currentQuestion.timeMins === p.m && currentQuestion.timeSecs === p.s ? 'bg-amber-200 border-amber-400 text-amber-800' : 'hover:bg-amber-100 dark:hover:bg-amber-950'}`}
                             onClick={() => setCurrentQuestion(prev => ({ ...prev, timeMins: p.m, timeSecs: p.s }))}
                           >{p.l}</Button>
                         ))}
@@ -940,7 +940,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                             opt.is_correct ? 'bg-emerald-50/70 border-emerald-300 dark:bg-emerald-950/20' : 'bg-muted/10 border-muted'
                           }`}
                         >
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
                             opt.is_correct ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
                           }`}>
                             {String.fromCharCode(65 + idx)}
@@ -964,7 +964,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setMathOptionIdx(idx)}
-                                className="h-8 w-9 shrink-0 p-0 font-serif italic text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-900 dark:hover:bg-indigo-950/40"
+                                className="h-8 w-9 shrink-0 p-0 font-serif italic text-primary border-primary/30 hover:bg-accent  "
                                 title={language === "ar" ? "إدراج صيغة رياضية" : language === "fr" ? "Insérer une formule" : "Insert a formula"}
                               >
                                 fx
@@ -986,7 +986,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                               }}
                               className="rounded border-muted text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                             />
-                            <span className={opt.is_correct ? "text-emerald-700 font-bold text-[11px]" : "text-muted-foreground text-[11px]"}>
+                            <span className={opt.is_correct ? "text-emerald-700 font-semibold text-[11px]" : "text-muted-foreground text-[11px]"}>
                               {language === "ar" ? "صحيحة" : language === "fr" ? "Correcte" : "Correct"}
                             </span>
                           </label>
@@ -1034,7 +1034,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                       className="grid grid-cols-2 gap-3"
                     >
                       <label className="flex items-center justify-between p-3 border rounded-lg cursor-pointer bg-muted/10 hover:bg-muted/30">
-                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           {language === "ar" ? "صحيح (True)" : language === "fr" ? "Vrai (True)" : "True"}
                         </span>
@@ -1042,7 +1042,7 @@ const QuizBuilder: React.FC<QuizBuilderProps> = ({ examId, isOpen = true, onClos
                       </label>
 
                       <label className="flex items-center justify-between p-3 border rounded-lg cursor-pointer bg-muted/10 hover:bg-muted/30">
-                        <span className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-rose-700 flex items-center gap-1.5">
                           <X className="w-4 h-4 text-rose-600" />
                           {language === "ar" ? "خطأ (False)" : language === "fr" ? "Faux (False)" : "False"}
                         </span>

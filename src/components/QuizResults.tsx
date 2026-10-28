@@ -195,7 +195,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">{tr("Résultats du quiz", "نتائج الاختبار", "Quiz Results")}</h2>
+          <h2 className="text-2xl font-semibold">{tr("Résultats du quiz", "نتائج الاختبار", "Quiz Results")}</h2>
           <p className="text-muted-foreground">{exam?.title}</p>
         </div>
         <Button onClick={onClose} variant="outline">{tr("Fermer", "إغلاق", "Close")}</Button>
@@ -213,21 +213,21 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold">{submissions.length}</div>
+                <div className="text-2xl font-semibold">{submissions.length}</div>
                 <div className="text-sm text-muted-foreground">{tr("Élèves ayant terminé", "تلاميذ أنهوا", "Students Completed")}</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{getAverageScore()}%</div>
+                <div className="text-2xl font-semibold">{getAverageScore()}%</div>
                 <div className="text-sm text-muted-foreground">{tr("Moyenne de la classe", "معدل القسم", "Class Average")}</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   {Math.max(...submissions.map(s => getScorePercentage(s.score, s.total_points)))}%
                 </div>
                 <div className="text-sm text-muted-foreground">{tr("Meilleur score", "أعلى نقطة", "Highest Score")}</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   {Math.round(submissions.reduce((sum, s) => sum + (s.time_taken_minutes || 0), 0) / submissions.length)} min
                 </div>
                 <div className="text-sm text-muted-foreground">{tr("Temps moyen", "متوسط الوقت", "Avg. Time")}</div>
@@ -256,7 +256,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                     {isProfessor && (
                       <>
                         <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-muted-foreground">
+                          <span className="text-2xl font-semibold text-muted-foreground">
                             #{index + 1}
                           </span>
                           <Avatar className="h-8 w-8">
@@ -291,7 +291,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                   </div>
                   
                   <div className="text-end">
-                    <div className={`text-2xl font-bold ${getGradeColor(percentage)}`}>
+                    <div className={`text-2xl font-semibold ${getGradeColor(percentage)}`}>
                       {submission.score}/{submission.total_points}
                     </div>
                     <div className="text-sm text-muted-foreground">{percentage}%</div>

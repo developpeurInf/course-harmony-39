@@ -107,7 +107,7 @@ const RichTextEditor = ({
   // Keep editor content in sync when external content prop changes (e.g. form reset or editing question)
   useEffect(() => {
     if (editor && editor.getHTML() !== content) {
-      editor.commands.setContent(content || "", false);
+      editor.commands.setContent(content || "", { emitUpdate: false });
     }
   }, [content, editor]);
 
@@ -190,7 +190,7 @@ const RichTextEditor = ({
           variant="ghost"
           size="sm"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('bold') ? 'bg-primary/15 text-primary font-bold' : 'hover:bg-muted'}`}
+          className={`h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 p-0 rounded-md ${editor.isActive('bold') ? 'bg-primary/15 text-primary font-semibold' : 'hover:bg-muted'}`}
           title={language === "ar" ? "عريض (Ctrl+B)" : language === "fr" ? "Gras (Ctrl+B)" : "Bold (Ctrl+B)"}
         >
           <Bold className="h-3.5 w-3.5" />
@@ -313,7 +313,7 @@ const RichTextEditor = ({
             variant="ghost"
             size="sm"
             onClick={() => setShowMathDialog(true)}
-            className="h-9 [@media(pointer:coarse)]:h-10 px-2 gap-1 rounded-md text-indigo-600 font-medium hover:bg-indigo-500/10"
+            className="h-9 [@media(pointer:coarse)]:h-10 px-2 gap-1 rounded-md text-primary font-medium hover:bg-primary/10"
             title={language === "ar" ? "إدراج صيغة رياضية" : language === "fr" ? "Insérer une formule mathématique" : "Insert a math formula"}
           >
             <Sigma className="h-3.5 w-3.5" />
@@ -518,8 +518,8 @@ const RichTextEditor = ({
 
       {/* Aperçu des formules : rendu exact vu par l'élève */}
       {enableMath && hasMath(content) && (
-        <div className="border-t bg-indigo-50/40 dark:bg-indigo-950/20 px-3 py-2">
-          <div className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+        <div className="border-t bg-accent  px-3 py-2">
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-primary ">
             <Sigma className="h-3 w-3" />
             {language === "ar" ? "معاينة كما يراها التلميذ" : language === "fr" ? "Aperçu élève" : "Student preview"}
           </div>

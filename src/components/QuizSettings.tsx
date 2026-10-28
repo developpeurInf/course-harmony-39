@@ -39,7 +39,7 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
   return (
     <Card className="w-full border-muted/60 shadow-sm">
       <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2 text-base font-bold">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <Settings className="h-5 w-5 text-primary" />
           {language === "ar" ? "إعدادات الاختبار" : language === "fr" ? "Configuration du Quiz" : "Quiz Configuration"}
         </CardTitle>

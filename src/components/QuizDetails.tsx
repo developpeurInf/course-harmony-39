@@ -386,7 +386,7 @@ const QuizDetails = ({ examId }: Props) => {
 
   const gradeTone = (p: number) =>
     p >= excellentPct ? "text-emerald-600 dark:text-emerald-400"
-      : p >= passPct ? "text-sky-600 dark:text-sky-400"
+      : p >= passPct ? "text-primary "
       : "text-rose-600 dark:text-rose-400";
 
   /* ───────────── Export CSV ───────────── */
@@ -455,12 +455,12 @@ const QuizDetails = ({ examId }: Props) => {
   const description = (exam.description || "").replace(/<!--[\s\S]*?-->/g, "").trim();
 
   const Kpi = ({ icon: Icon, label, value, sub, tone }: { icon: any; label: string; value: string; sub?: string; tone?: string }) => (
-    <div className="rounded-2xl border bg-card p-4 shadow-sm">
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <Icon className="h-4 w-4" />
         {label}
       </div>
-      <div className={`mt-1.5 text-2xl font-bold tabular-nums ${tone || "text-foreground"}`}>{value}</div>
+      <div className={`mt-1.5 text-2xl font-semibold tabular-nums ${tone || "text-foreground"}`}>{value}</div>
       {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
@@ -478,7 +478,7 @@ const QuizDetails = ({ examId }: Props) => {
   return (
     <div className="space-y-5" dir={language === "ar" ? "rtl" : "ltr"}>
       {/* ───── En-tête ───── */}
-      <div className="rounded-3xl border bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-6">
+      <div className="rounded-xl border bg-card p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -486,7 +486,7 @@ const QuizDetails = ({ examId }: Props) => {
               <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.cls}`}>{status.label}</span>
               {!exam.is_visible && <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">{tr("Masqué", "مخفي", "Hidden")}</Badge>}
             </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold leading-tight">{exam.title}</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold leading-tight">{exam.title}</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               {[courseTitle, roomName].filter(Boolean).join(" · ")}
             </p>
@@ -534,7 +534,7 @@ const QuizDetails = ({ examId }: Props) => {
         {/* ═════ Élèves ═════ */}
         <TabsContent value="students" className="space-y-4 mt-4">
           {rows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
               {tr("Aucun élève n'a encore rendu ce quiz.", "لم يُرسل أي تلميذ هذا الاختبار بعد.", "No student has submitted this quiz yet.")}
             </div>
           ) : (
@@ -565,13 +565,13 @@ const QuizDetails = ({ examId }: Props) => {
                             {r.email && <div className="text-xs text-muted-foreground">{r.email}</div>}
                           </td>
                           <td className="text-center">
-                            <div className={`font-bold tabular-nums ${gradeTone(r.percent)}`}>{num(to20(r.percent))}/20</div>
+                            <div className={`font-semibold tabular-nums ${gradeTone(r.percent)}`}>{num(to20(r.percent))}/20</div>
                             <div className="text-xs text-muted-foreground tabular-nums">{r.latest.score ?? 0}/{r.latest.total_points ?? totalPoints} · {Math.round(r.percent)} %</div>
                           </td>
                           <td className="text-center tabular-nums">{r.latest.time_taken_minutes ?? "—"} min</td>
                           <td className="text-center">
                             {r.exits.length ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-400"><LogOut className="h-3 w-3" />{r.exits.length}</span>
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400"><LogOut className="h-3 w-3" />{r.exits.length}</span>
                             ) : (
                               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">0</span>
                             )}
@@ -579,7 +579,7 @@ const QuizDetails = ({ examId }: Props) => {
                           <td className="text-center tabular-nums text-xs">{r.exits.length ? fmtDur(r.awayMs) : "—"}</td>
                           <td className="text-center">
                             {r.others.length ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300"><AlertTriangle className="h-3 w-3" />{r.others.length}</span>
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"><AlertTriangle className="h-3 w-3" />{r.others.length}</span>
                             ) : (
                               <span className="text-xs text-muted-foreground">0</span>
                             )}
@@ -613,7 +613,7 @@ const QuizDetails = ({ examId }: Props) => {
           )}
 
           {notSubmitted.length > 0 && (
-            <div className="rounded-2xl border bg-card p-4">
+            <div className="rounded-xl border bg-card p-4">
               <div className="flex items-center gap-2 font-semibold text-sm mb-2">
                 <UserX className="h-4 w-4 text-muted-foreground" />
                 {tr(`N'ont pas rendu le quiz (${notSubmitted.length})`, `لم يُرسلوا الاختبار (${notSubmitted.length})`, `Not submitted (${notSubmitted.length})`)}
@@ -630,16 +630,16 @@ const QuizDetails = ({ examId }: Props) => {
         {/* ═════ Questions ═════ */}
         <TabsContent value="questions" className="space-y-3 mt-4">
           {questionStats.length === 0 && (
-            <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
               {tr("Ce quiz ne contient aucune question.", "لا يحتوي هذا الاختبار على أسئلة.", "This quiz has no questions.")}
             </div>
           )}
           {questionStats.map((qs) => (
-            <div key={qs.q.id} className="rounded-2xl border bg-card p-4 sm:p-5">
+            <div key={qs.q.id} className="rounded-xl border bg-card p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                    <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">Q{qs.index}</span>
+                    <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">Q{qs.index}</span>
                     <span className="rounded-lg border px-2 py-0.5 text-[11px] text-muted-foreground">{typeLabel(qs.q.question_type)}</span>
                     <span className="rounded-lg border px-2 py-0.5 text-[11px] text-muted-foreground">{qs.q.points || 1} {tr("pt", "نقطة", "pt")}</span>
                     {qs.timeLimit && <span className="rounded-lg border px-2 py-0.5 text-[11px] text-muted-foreground">{qs.timeLimit} s</span>}
@@ -647,7 +647,7 @@ const QuizDetails = ({ examId }: Props) => {
                   <MathText as="p" className="text-sm font-medium leading-relaxed" text={qs.text} />
                 </div>
                 <div className="text-end shrink-0">
-                  <div className={`text-2xl font-bold tabular-nums ${qs.total ? gradeTone(qs.rate) : "text-muted-foreground"}`}>{qs.total ? `${Math.round(qs.rate)} %` : "—"}</div>
+                  <div className={`text-2xl font-semibold tabular-nums ${qs.total ? gradeTone(qs.rate) : "text-muted-foreground"}`}>{qs.total ? `${Math.round(qs.rate)} %` : "—"}</div>
                   <div className="text-xs text-muted-foreground">{qs.correct}/{qs.total} {tr("bonnes réponses", "إجابات صحيحة", "correct")}</div>
                 </div>
               </div>
@@ -712,7 +712,7 @@ const QuizDetails = ({ examId }: Props) => {
             <Kpi icon={Hourglass} label={tr("Temps moyen", "متوسط الوقت", "Average time")} value={stats.avgTime ? `${num(stats.avgTime)} min` : "—"} sub={exam.duration_minutes ? `${tr("sur", "من", "of")} ${exam.duration_minutes} min` : undefined} />
           </div>
 
-          <div className="rounded-2xl border bg-card p-4 sm:p-5">
+          <div className="rounded-xl border bg-card p-4 sm:p-5">
             <h3 className="font-semibold text-sm mb-1">{tr("Répartition des notes (/20)", "توزيع النقط (/20)", "Grade distribution (/20)")}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tr("Nombre d'élèves par tranche de note", "عدد التلاميذ حسب فئة النقطة", "Number of students per grade band")}</p>
             {stats.count === 0 ? (
@@ -730,13 +730,13 @@ const QuizDetails = ({ examId }: Props) => {
             )}
           </div>
 
-          <div className="rounded-2xl border bg-card p-4 sm:p-5">
+          <div className="rounded-xl border bg-card p-4 sm:p-5">
             <h3 className="font-semibold text-sm mb-1">{tr("Taux de réussite par question", "نسبة النجاح حسب السؤال", "Success rate per question")}</h3>
             <p className="text-xs text-muted-foreground mb-4">{tr("Les questions les plus difficiles apparaissent en premier", "الأسئلة الأصعب تظهر أولاً", "Hardest questions first")}</p>
             <div className="space-y-2">
               {[...questionStats].sort((a, b) => a.rate - b.rate).map((qs) => (
                 <div key={qs.q.id} className="flex items-center gap-3 text-xs" title={`Q${qs.index} : ${qs.correct}/${qs.total}`}>
-                  <span className="w-9 font-bold">Q{qs.index}</span>
+                  <span className="w-9 font-semibold">Q{qs.index}</span>
                   <MathText className="w-1/3 truncate text-muted-foreground" text={qs.text} />
                   <div className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
                     <div className="h-full rounded-full bg-primary" style={{ width: `${qs.rate}%` }} />
@@ -758,7 +758,7 @@ const QuizDetails = ({ examId }: Props) => {
           </div>
 
           {Object.keys(stats.incidentsByType).length > 0 && (
-            <div className="rounded-2xl border bg-card p-4">
+            <div className="rounded-xl border bg-card p-4">
               <h3 className="font-semibold text-sm mb-3">{tr("Incidents par type", "المخالفات حسب النوع", "Incidents by type")}</h3>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(stats.incidentsByType).sort((a, b) => b[1] - a[1]).map(([t, n]) => (
@@ -772,7 +772,7 @@ const QuizDetails = ({ examId }: Props) => {
           )}
 
           {rows.filter((r) => r.log.length > 0).length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
               <ShieldCheck className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
               {tr("Aucun incident enregistré pour ce quiz.", "لم تُسجل أي مخالفة في هذا الاختبار.", "No incident recorded for this quiz.")}
             </div>
@@ -781,7 +781,7 @@ const QuizDetails = ({ examId }: Props) => {
               .filter((r) => r.log.length > 0)
               .sort((a, b) => b.awayMs - a.awayMs || b.log.length - a.log.length)
               .map((r) => (
-                <div key={r.studentId} className="rounded-2xl border bg-card p-4">
+                <div key={r.studentId} className="rounded-xl border bg-card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <div>
                       <div className="font-semibold">{r.name}</div>
@@ -789,7 +789,7 @@ const QuizDetails = ({ examId }: Props) => {
                         {r.exits.length} {tr("sortie(s)", "مغادرة", "exit(s)")} · {tr("hors quiz", "خارج الاختبار", "away")} {fmtDur(r.awayMs)} · {r.others.length} {tr("autre(s) incident(s)", "مخالفة أخرى", "other incident(s)")}
                       </div>
                     </div>
-                    <div className={`font-bold tabular-nums ${gradeTone(r.percent)}`}>{num(to20(r.percent))}/20</div>
+                    <div className={`font-semibold tabular-nums ${gradeTone(r.percent)}`}>{num(to20(r.percent))}/20</div>
                   </div>
                   <StudentTimeline row={r} tr={tr} fmtTime={fmtTime} fmtDur={fmtDur} incidentLabel={incidentLabel} num={num} />
                 </div>

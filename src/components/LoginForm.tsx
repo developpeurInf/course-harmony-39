@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ const LoginForm = () => {
     <div className="flex justify-center items-center min-h-screen bg-muted/30">
       <Card className="w-full max-w-[350px] shadow-lg animate-fade-in">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">{t("login.title")}</CardTitle>
+          <CardTitle className="text-lg font-semibold text-center">{t("login.title")}</CardTitle>
           <CardDescription className="text-center">
             {t("login.subtitle")}
           </CardDescription>

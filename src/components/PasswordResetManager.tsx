@@ -119,6 +119,7 @@ export const PasswordResetManager = ({ roomId }: PasswordResetManagerProps) => {
       }
 
       await createNotification({
+        user_id: selectedRequest.student_id,
         title: language === "ar" ? "تم إعادة تعيين كلمة المرور"
           : language === "fr" ? "Réinitialisation du mot de passe effectuée"
           : "Password Reset Complete",

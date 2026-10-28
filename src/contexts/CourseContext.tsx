@@ -1842,7 +1842,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('quiz_questions')
-        .insert([question])
+        .insert([question as never])
         .select()
         .single();
 
@@ -1881,7 +1881,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     try {
       const { error } = await supabase
         .from('quiz_questions')
-        .update(updates)
+        .update(updates as never)
         .eq('id', questionId);
 
       if (error) {
@@ -2066,23 +2066,23 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       if (action === 'add') {
         if (itemType === 'course') {
           notifType = 'course_added';
-          notifTitle = `📚 Nouveau cours disponible`;
+          notifTitle = `Nouveau cours disponible`;
           notifMessage = `Le cours "${title}" a été publié pour votre classe.`;
         } else if (itemType === 'exercise') {
           notifType = 'exercise_added';
-          notifTitle = `📝 Nouvel exercice disponible`;
+          notifTitle = `Nouvel exercice disponible`;
           notifMessage = courseTitle
             ? `L'exercice "${title}" a été ajouté dans le cours "${courseTitle}".`
             : `L'exercice "${title}" a été ajouté à vos devoirs.`;
         } else if (itemType === 'quiz') {
           notifType = 'exam_added';
-          notifTitle = `🎯 Nouveau Quiz programmé`;
+          notifTitle = `Nouveau Quiz programmé`;
           notifMessage = examDate
             ? `Le quiz "${title}" est disponible. Date limite : ${new Date(examDate).toLocaleDateString()}.`
             : `Le quiz "${title}" est maintenant disponible.`;
         } else {
           notifType = 'exam_added';
-          notifTitle = `🎓 Nouvel examen programmé`;
+          notifTitle = `Nouvel examen programmé`;
           notifMessage = examDate
             ? `L'examen "${title}" est programmé pour le ${new Date(examDate).toLocaleDateString()}.`
             : `L'examen "${title}" a été ajouté.`;
@@ -2090,29 +2090,29 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       } else if (action === 'update') {
         if (itemType === 'course') {
           notifType = 'course_updated';
-          notifTitle = `🔄 Cours mis à jour`;
+          notifTitle = `Cours mis à jour`;
           notifMessage = `Le contenu du cours "${title}" a été modifié. Veuillez le consulter.`;
         } else if (itemType === 'exercise') {
           notifType = 'exercise_updated';
-          notifTitle = `🔄 Exercice mis à jour`;
+          notifTitle = `Exercice mis à jour`;
           notifMessage = `L'exercice "${title}" a été modifié. Veuillez le consulter.`;
         } else {
           notifType = 'exam_updated';
-          notifTitle = `🔄 Évaluation mise à jour`;
+          notifTitle = `Évaluation mise à jour`;
           notifMessage = `L'évaluation "${title}" a été modifiée. Veuillez vérifier les détails.`;
         }
       } else {
         if (itemType === 'course') {
           notifType = 'course_deleted';
-          notifTitle = `🗑️ Cours retiré`;
+          notifTitle = `Cours retiré`;
           notifMessage = `Le cours "${title}" a été retiré par votre professeur.`;
         } else if (itemType === 'exercise') {
           notifType = 'exercise_deleted';
-          notifTitle = `🗑️ Exercice retiré`;
+          notifTitle = `Exercice retiré`;
           notifMessage = `L'exercice "${title}" a été supprimé.`;
         } else {
           notifType = 'exam_deleted';
-          notifTitle = `🗑️ Évaluation retirée`;
+          notifTitle = `Évaluation retirée`;
           notifMessage = `L'évaluation "${title}" a été supprimée/annulée.`;
         }
       }

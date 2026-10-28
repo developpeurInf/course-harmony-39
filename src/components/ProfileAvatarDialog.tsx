@@ -203,7 +203,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
     <>
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent 
-          className="sm:max-w-md p-0 overflow-hidden bg-background/95 backdrop-blur-md border border-border shadow-2xl rounded-2xl animate-scale-in"
+          className="sm:max-w-md p-0 overflow-hidden bg-background/95 backdrop-blur-md border border-border shadow-2xl rounded-xl animate-scale-in"
           onDragOver={(e) => {
             if (canEdit) {
               e.preventDefault();
@@ -221,7 +221,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
           }}
         >
           {/* Header Banner Background */}
-          <div className="relative h-28 bg-gradient-to-tr from-primary/30 via-primary/15 to-accent/20 flex items-center justify-end p-4 pr-12 rtl:pl-12">
+          <div className="relative h-28 bg-muted flex items-center justify-end p-4 pr-12 rtl:pl-12">
             {user?.role && (
               <Badge 
                 variant="secondary" 
@@ -248,7 +248,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
               {/* Instagram Story Gradient Ring */}
               <div className={`p-[3.5px] rounded-full transition-all duration-300 ${
                 currentAvatarUrl 
-                  ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-indigo-600 shadow-lg shadow-rose-500/20" 
+                  ? "bg-border" 
                   : "bg-muted-foreground/20"
               } ${isDragging ? "ring-4 ring-primary scale-105" : ""}`}>
                 <div className="relative rounded-full overflow-hidden bg-background p-1">
@@ -258,7 +258,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                       alt={user?.name} 
                       className="object-cover h-full w-full" 
                     />
-                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/40 text-primary font-bold text-3xl">
+                    <AvatarFallback className="bg-muted text-foreground font-semibold text-3xl">
                       {getInitials(user?.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -298,7 +298,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={loading}
                   aria-label={language === "ar" ? "تغيير الصورة" : language === "fr" ? "Changer la photo" : "Change photo"}
-                  className="absolute bottom-1 right-1 rtl:right-auto rtl:left-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform duration-150 border-2 border-background z-20 cursor-pointer"
+                  className="absolute bottom-1 right-1 rtl:right-auto rtl:left-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-lg active:scale-95 transition-transform duration-150 border-2 border-background z-20 cursor-pointer"
                   title={language === "ar" ? "تغيير الصورة" : language === "fr" ? "Changer la photo" : "Change photo"}
                 >
                   <Camera className="h-4 w-4" />
@@ -308,7 +308,7 @@ export const ProfileAvatarDialog: React.FC<ProfileAvatarDialogProps> = ({
 
             {/* User Details */}
             <div className="mt-4 space-y-1">
-              <h3 className="text-xl font-bold text-foreground tracking-tight">
+              <h3 className="text-xl font-semibold text-foreground tracking-tight">
                 {user?.name || (language === "ar" ? "مستخدم" : language === "fr" ? "Utilisateur" : "User")}
               </h3>
               {user?.email && (

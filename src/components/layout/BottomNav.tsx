@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "@/lib/router";
 import { Home, BookOpen, FileText, Calendar, User, FolderOpen, BarChart3, FileSpreadsheet, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -75,7 +75,7 @@ const BottomNav = ({ className }: BottomNavProps) => {
       aria-label={navLabel}
       dir={language === "ar" ? "rtl" : "ltr"}
       className={cn(
-        "app-bottomnav lg:hidden print:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-background/95 backdrop-blur-md shadow-[0_-4px_16px_-8px_rgb(15_23_42/0.18)]",
+        "app-bottomnav fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur-md print:hidden lg:hidden",
         className
       )}
     >
@@ -90,18 +90,11 @@ const BottomNav = ({ className }: BottomNavProps) => {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  active ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {active && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-primary" aria-hidden="true" />}
-                <span
-                  className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                    active && "bg-primary/10"
-                  )}
-                  aria-hidden="true"
-                >
-                  <Icon className="h-5 w-5" />
+                <span className="flex h-7 items-center justify-center" aria-hidden="true">
+                  <Icon className={cn("h-5 w-5", active && "text-primary")} strokeWidth={active ? 2 : 1.75} />
                 </span>
                 <span className="max-w-full truncate">{pick(item.label)}</span>
               </NavLink>

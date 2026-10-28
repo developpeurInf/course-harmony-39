@@ -2,16 +2,15 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { Eye, EyeOff, ArrowLeft, GraduationCap, MailCheck, RefreshCw, Presentation, KeyRound, Mail, Phone, MessageCircle, LifeBuoy } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, GraduationCap, MailCheck, RefreshCw, Presentation, KeyRound, Mail, Phone, MessageCircle, LifeBuoy, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { DEFAULT_APP_SETTINGS, pickText, type I18nText, type Lang } from "@/lib/appSettings";
-import { BrandLogo, useBrand } from "@/components/AppBrand";
+import { BrandMark, useBrand } from "@/components/AppBrand";
 
 const USER_TYPE_KEY = "auth-last-user-type";
 
@@ -50,16 +49,12 @@ async function captureToastError<T>(fn: () => Promise<T>): Promise<{ result: T |
 const BrandHeader = ({ language }: { language: string }) => {
   const brand = useBrand(language);
   return (
-    <div className="text-center">
-      {brand.logoUrl && (
-        <div className="mb-2 flex justify-center">
-          <BrandLogo logoUrl={brand.logoUrl} alt={brand.appName} imgClassName="h-14 w-14 rounded-2xl" className="hidden" />
-        </div>
-      )}
-      <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent break-words">
-        {brand.displayName}
-      </h2>
-      {brand.customTagline && <p className="mt-0.5 text-xs font-medium text-muted-foreground">{brand.customTagline}</p>}
+    <div className="flex items-center gap-2.5">
+      <BrandMark logoUrl={brand.logoUrl} alt={brand.appName} size="md" />
+      <div className="min-w-0 leading-tight">
+        <p className="break-words text-sm font-semibold text-foreground">{brand.appName}</p>
+        {brand.customTagline && <p className="text-xs text-muted-foreground">{brand.customTagline}</p>}
+      </div>
     </div>
   );
 };
@@ -73,14 +68,14 @@ export const LoginHelpContact = ({ language }: { language: string }) => {
   const waDigits = (tx.contactWhatsapp || "").replace(/[^0-9]/g, "");
   if (!email && !phone && !waDigits) return null;
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
-  const linkCls = "inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/50 hover:text-primary transition-colors";
+  const linkCls = "inline-flex items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted";
   return (
-    <div className="mt-4 w-full max-w-md rounded-xl border border-dashed bg-muted/30 px-4 py-3 text-center" dir={language === "ar" ? "rtl" : "ltr"}>
-      <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+    <div className="mt-8 w-full border-t pt-5" dir={language === "ar" ? "rtl" : "ltr"}>
+      <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <LifeBuoy className="h-3.5 w-3.5" aria-hidden="true" />
         {tr("Besoin d'aide ?", "تحتاج مساعدة؟", "Need help?")}
       </p>
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {email && (
           <a href={`mailto:${email}`} className={linkCls} dir="ltr">
             <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -95,7 +90,7 @@ export const LoginHelpContact = ({ language }: { language: string }) => {
         )}
         {waDigits && (
           <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer" className={linkCls}>
-            <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             WhatsApp
           </a>
         )}
@@ -268,62 +263,63 @@ const AuthForm = () => {
   if (!userType && !isResetMode && !isOtpMode) {
     // L'élève est le cas le plus fréquent : bouton principal, sauf si le dernier choix était « Professeur »
     const professorFirst = lastUserType === "professor";
-    const studentBtn = (
-      <Button
-        key="student"
+    const roleOption = (
+      key: "student" | "professor",
+      Icon: typeof GraduationCap,
+      label: string,
+      hint: string
+    ) => (
+      <button
+        key={key}
         type="button"
         onClick={() => {
-          setUserType("student");
-          setRole("student");
+          setUserType(key);
+          setRole(key);
         }}
-        className="w-full h-14 flex items-center justify-center gap-2.5 text-base"
-        variant={professorFirst ? "outline" : "default"}
+        className="group flex w-full items-center gap-3.5 rounded-lg border bg-card px-4 py-3.5 text-start shadow-sm transition-colors hover:border-foreground/20 hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <GraduationCap className="h-5 w-5" />
-        {t("Student")}
-      </Button>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground group-hover:text-foreground">
+          <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-foreground">{label}</span>
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        </span>
+        <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5", isRtl && "rotate-180 group-hover:-translate-x-0.5")} />
+      </button>
     );
-    const professorBtn = (
-      <Button
-        key="professor"
-        type="button"
-        onClick={() => {
-          setUserType("professor");
-          setRole("professor");
-        }}
-        className={cn("w-full flex items-center justify-center gap-2.5", professorFirst ? "h-14 text-base" : "h-12")}
-        variant={professorFirst ? "default" : "outline"}
-      >
-        <Presentation className="h-5 w-5" />
-        {t("Professor")}
-      </Button>
+    const studentBtn = roleOption(
+      "student",
+      GraduationCap,
+      t("Student"),
+      tr("Identifiant fourni par ton professeur", "المعرّف الذي قدّمه لك أستاذك", "Username given by your teacher")
+    );
+    const professorBtn = roleOption(
+      "professor",
+      Presentation,
+      t("Professor"),
+      tr("Adresse e-mail et mot de passe", "البريد الإلكتروني وكلمة المرور", "Email and password")
     );
     return (
-      <div className="min-h-[calc(100vh-4.5rem)] flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <div className="mb-4">
-              <BrandHeader language={language} />
-            </div>
-            <CardTitle className="text-2xl text-center">{loginTitle}</CardTitle>
-            <CardDescription className="text-center whitespace-pre-line">
-              {loginSubtitle}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {professorFirst ? [professorBtn, studentBtn] : [studentBtn, professorBtn]}
-          </CardContent>
-        </Card>
+      <div className="w-full">
+        <BrandHeader language={language} />
+        <div className="mt-10 space-y-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">{loginTitle}</h1>
+          <p className="whitespace-pre-line text-sm text-muted-foreground">{loginSubtitle}</p>
+        </div>
+        <div className="mt-6 flex flex-col gap-2.5">
+          {professorFirst ? [professorBtn, studentBtn] : [studentBtn, professorBtn]}
+        </div>
         <LoginHelpContact language={language} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] flex flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4 relative min-h-[40px]">
+    <div className="w-full">
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <BrandHeader language={language} />
             {(isResetMode || isOtpMode || userType) && (
               <Button
                 variant="ghost"
@@ -341,25 +337,24 @@ const AuthForm = () => {
                     setPassword("");
                   }
                 }}
-                className="absolute left-0 top-0 h-10 w-10 p-0 rtl:left-auto rtl:right-0"
+                className="h-8 gap-1.5 px-2 text-muted-foreground"
                 aria-label={tr("Retour", "رجوع", "Back")}
                 title={tr("Retour", "رجوع", "Back")}
               >
-                <ArrowLeft className={cn("h-5 w-5", isRtl && "rotate-180")} />
+                <ArrowLeft className={cn("h-4 w-4", isRtl && "rotate-180")} />
+                <span className="text-[13px]">{tr("Retour", "رجوع", "Back")}</span>
               </Button>
             )}
-            <div className="px-10">
-              <BrandHeader language={language} />
-            </div>
           </div>
-          <CardTitle className="text-2xl text-center">
-            {getTitle()} {!isOtpMode && (userType === "student" ? `- ${t("Student")}` : userType === "professor" ? `- ${t("Professor")}` : "")}
-          </CardTitle>
-          <CardDescription className="text-center">
-            {getDescription()}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          <div className="mb-6 mt-10 space-y-1.5">
+            {!isOtpMode && userType && (
+              <p className="eyebrow">{userType === "student" ? t("Student") : t("Professor")}</p>
+            )}
+            <h1 className="text-2xl font-semibold tracking-tight">{getTitle()}</h1>
+            <p className="text-sm text-muted-foreground">{getDescription()}</p>
+          </div>
+        </div>
+        <div>
           {isOtpMode ? (
             <div className="space-y-5">
               <div className="flex flex-col items-center justify-center text-center space-y-2">
@@ -592,7 +587,7 @@ const AuthForm = () => {
                 </p>
               )}
 
-              <Button type="submit" className="w-full h-11" disabled={loading}>
+              <Button type="submit" className="h-10 w-full" disabled={loading}>
                 {getButtonText()}
               </Button>
 
@@ -632,8 +627,7 @@ const AuthForm = () => {
               )}
             </form>
           )}
-        </CardContent>
-      </Card>
+        </div>
       <LoginHelpContact language={language} />
     </div>
   );

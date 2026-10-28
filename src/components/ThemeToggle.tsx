@@ -1,3 +1,4 @@
+import type React from "react";
 import { useState } from "react";
 import { Moon, Sun, Monitor, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,11 +10,13 @@ import { cn } from "@/lib/utils";
 interface ThemeToggleProps {
   /** Ouverture du menu : vers le bas (défaut) ou vers le haut (bas de la barre latérale). */
   placement?: "top" | "bottom";
+  /** Bord du bouton auquel le menu est aligné (end = côté droit en français) */
+  align?: "start" | "end";
 }
 
 type ThemeChoice = "light" | "dark" | "system";
 
-export function ThemeToggle({ placement = "bottom" }: ThemeToggleProps = {}) {
+export function ThemeToggle({ placement = "bottom", align = "end" }: ThemeToggleProps = {}) {
   const { theme, setTheme } = useTheme();
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
@@ -25,10 +28,10 @@ export function ThemeToggle({ placement = "bottom" }: ThemeToggleProps = {}) {
     if (triggerRef.current) triggerRef.current.focus();
   };
 
-  const options: { value: ThemeChoice; label: string; icon: JSX.Element }[] = [
-    { value: "light", label: t("theme.light"), icon: <Sun className="h-4 w-4 text-amber-500 shrink-0" /> },
-    { value: "dark", label: t("theme.dark"), icon: <Moon className="h-4 w-4 text-blue-400 shrink-0" /> },
-    { value: "system", label: t("theme.system"), icon: <Monitor className="h-4 w-4 text-slate-500 shrink-0" /> },
+  const options: { value: ThemeChoice; label: string; icon: React.ReactElement }[] = [
+    { value: "light", label: t("theme.light"), icon: <Sun className="h-4 w-4 text-muted-foreground shrink-0" /> },
+    { value: "dark", label: t("theme.dark"), icon: <Moon className="h-4 w-4 text-muted-foreground shrink-0" /> },
+    { value: "system", label: t("theme.system"), icon: <Monitor className="h-4 w-4 text-muted-foreground shrink-0" /> },
   ];
 
   return (
@@ -44,14 +47,14 @@ export function ThemeToggle({ placement = "bottom" }: ThemeToggleProps = {}) {
           setIsOpen((prev) => !prev);
         }}
         className={cn(
-          "relative h-10 w-10 rounded-xl transition-all duration-200 cursor-pointer select-none",
-          isOpen ? "bg-primary/15 text-primary" : "hover:bg-primary/10 hover:text-primary"
+          "relative h-8 w-8 rounded-md text-muted-foreground cursor-pointer select-none hover:text-foreground",
+          isOpen && "bg-muted text-foreground"
         )}
         title={t("theme.toggle")}
         {...triggerProps}
       >
-        <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0 text-amber-500 pointer-events-none" />
-        <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100 text-blue-400 pointer-events-none" />
+        <Sun className="h-4 w-4 dark:hidden pointer-events-none" strokeWidth={1.75} />
+        <Moon className="hidden h-4 w-4 dark:block pointer-events-none" strokeWidth={1.75} />
         <span className="sr-only">{t("theme.toggle")}</span>
       </Button>
 
@@ -60,8 +63,9 @@ export function ThemeToggle({ placement = "bottom" }: ThemeToggleProps = {}) {
           ref={menuRef}
           id={menuId}
           className={cn(
-            "absolute right-0 rtl:right-auto rtl:left-0 w-40 p-1.5 rounded-xl shadow-2xl border border-border bg-card text-card-foreground z-50 animate-in fade-in-50 zoom-in-95",
-            placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"
+            "absolute w-40 p-1 rounded-lg shadow-lg border bg-popover text-popover-foreground z-50 animate-in fade-in-0 zoom-in-95",
+            placement === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
+            align === "start" ? "start-0" : "end-0"
           )}
           role="menu"
           aria-orientation="vertical"
@@ -79,8 +83,8 @@ export function ThemeToggle({ placement = "bottom" }: ThemeToggleProps = {}) {
                   handleSelectTheme(opt.value);
                 }}
                 className={cn(
-                  "w-full min-h-[40px] cursor-pointer rounded-lg flex items-center justify-between gap-2.5 px-2.5 py-2 text-sm font-medium transition-colors text-start select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  active ? "bg-primary/15 text-primary font-bold" : "hover:bg-muted focus:bg-muted active:bg-muted/80 text-foreground"
+                  "w-full h-9 cursor-pointer rounded-md flex items-center justify-between gap-2 px-2 text-sm text-start select-none text-foreground hover:bg-muted focus:bg-muted focus:outline-none",
+                  active && "font-medium"
                 )}
                 role="menuitemradio"
                 aria-checked={active}
@@ -89,7 +93,7 @@ export function ThemeToggle({ placement = "bottom" }: ThemeToggleProps = {}) {
                   {opt.icon}
                   <span>{opt.label}</span>
                 </span>
-                {active && <Check className="h-4 w-4 text-primary" />}
+                {active && <Check className="h-4 w-4 text-foreground" />}
               </button>
             );
           })}

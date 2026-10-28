@@ -512,9 +512,9 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
     if (rank === null) return <span className="text-muted-foreground">—</span>;
     const medal = rank === 1 ? "from-amber-300 to-yellow-500 text-amber-950" : rank === 2 ? "from-slate-200 to-slate-400 text-slate-800" : rank === 3 ? "from-orange-300 to-amber-600 text-orange-950" : null;
     if (medal) {
-      return <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${medal} text-sm font-extrabold shadow-sm`}>{rank}</span>;
+      return <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${medal} text-sm font-semibold shadow-sm`}>{rank}</span>;
     }
-    return <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground">{rank}</span>;
+    return <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">{rank}</span>;
   };
 
   const StudentCell = ({ s }: { s: StudentAnalytics }) => (
@@ -522,7 +522,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       <div className="relative shrink-0">
         <Avatar className="h-9 w-9 ring-2 ring-background">
           <AvatarImage src={s.student.avatar_url || undefined} />
-          <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{initials(s.student.name)}</AvatarFallback>
+          <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">{initials(s.student.name)}</AvatarFallback>
         </Avatar>
         {s.online && <span className="absolute -bottom-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-500" />}
       </div>
@@ -535,7 +535,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
   const Empty = ({ icon, title, desc }: { icon: ReactNode; title: string; desc?: string }) => (
     <div className="flex flex-col items-center justify-center py-14 text-center">
-      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">{icon}</div>
+      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-muted text-muted-foreground">{icon}</div>
       <p className="font-semibold">{title}</p>
       {desc && <p className="mt-1 max-w-sm text-sm text-muted-foreground">{desc}</p>}
     </div>
@@ -551,7 +551,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
           <p className="text-xs font-semibold text-primary">
             {tr("Suivi pédagogique", "التتبع التربوي", "Learning analytics")}
           </p>
-          <h1 className="mt-1 text-2xl sm:text-3xl font-bold tracking-tight">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
             {room?.name || tr("Classe", "القسم", "Class")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -592,7 +592,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
           tone="indigo"
           icon={<GraduationCap className="h-5 w-5" />}
           label={tr("Moyenne de la classe", "معدل القسم", "Class average")}
-          value={<span dir="ltr" className={`inline-block ${noteColor(A.classNote20)}`}>{fmtNote(A.classNote20, language)}<span className="text-base text-muted-foreground font-bold"> /20</span></span>}
+          value={<span dir="ltr" className={`inline-block ${noteColor(A.classNote20)}`}>{fmtNote(A.classNote20, language)}<span className="text-base text-muted-foreground font-semibold"> /20</span></span>}
           hint={tr(`${A.evaluatedCount} élève(s) évalué(s)`, `${A.evaluatedCount} تلميذ مقيَّم`, `${A.evaluatedCount} assessed`)}
           progress={A.classAvgPct}
         />
@@ -631,7 +631,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
           tone="violet"
           icon={<Wifi className="h-5 w-5" />}
           label={tr("En ligne maintenant", "متصلون الآن", "Online now")}
-          value={<span dir="ltr" className="inline-block">{A.onlineCount}<span className="text-base text-muted-foreground font-bold"> / {total}</span></span>}
+          value={<span dir="ltr" className="inline-block">{A.onlineCount}<span className="text-base text-muted-foreground font-semibold"> / {total}</span></span>}
           hint={tr("actualisé toutes les 30 s", "يُحدَّث كل 30 ثانية", "refreshed every 30 s")}
           aside={A.onlineCount > 0 ? <span className="relative flex h-3 w-3"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" /></span> : undefined}
         />
@@ -639,7 +639,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
 
       {/* ── Onglets ── */}
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="h-auto flex-wrap gap-1 rounded-2xl bg-muted/60 p-1.5">
+        <TabsList className="h-auto flex-wrap gap-1 rounded-xl bg-muted/60 p-1.5">
           <TabsTrigger value="overview" className="gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md">
             <Sparkles className="h-4 w-4" />{tr("Vue d'ensemble", "نظرة عامة", "Overview")}
           </TabsTrigger>
@@ -704,11 +704,11 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                   </CardHeader>
                   <CardContent className="space-y-2.5">
                     {A.students.filter(s => s.rank !== null).slice(0, 5).map(s => (
-                      <button key={s.student.id} onClick={() => setSelectedId(s.student.id)} className="flex w-full items-center gap-3 rounded-2xl border p-3 text-start transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+                      <button key={s.student.id} onClick={() => setSelectedId(s.student.id)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-start transition-all hover:border-primary/30 hover:shadow-md">
                         <RankBadge rank={s.rank} />
                         <StudentCell s={s} />
                         <div className="ms-auto text-end">
-                          <p className={`text-lg font-extrabold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}</p>
+                          <p className={`text-lg font-semibold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}</p>
                           <p className="text-[10px] text-muted-foreground">/20</p>
                         </div>
                       </button>
@@ -734,7 +734,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                     {A.toSupport.length === 0 ? (
                       <Empty icon={<CheckCircle2 className="h-6 w-6 text-emerald-500" />} title={tr("Aucun élève en alerte", "لا يوجد تلميذ في وضعية تنبيه", "No student flagged")} desc={tr("Tous les élèves suivent bien. Bravo !", "جميع التلاميذ يسيرون بشكل جيد.", "Everyone is on track.")} />
                     ) : A.toSupport.slice(0, 6).map(s => (
-                      <div key={s.student.id} className="flex flex-col gap-2 rounded-2xl border border-rose-500/15 bg-rose-500/[0.03] p-3 sm:flex-row sm:items-center">
+                      <div key={s.student.id} className="flex flex-col gap-2 rounded-xl border border-rose-500/15 bg-rose-500/[0.03] p-3 sm:flex-row sm:items-center">
                         <StudentCell s={s} />
                         <div className="flex flex-1 flex-wrap gap-1.5 sm:justify-end">
                           {s.alerts.map(a => (
@@ -744,7 +744,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                           ))}
                         </div>
                         <div className="flex items-center gap-2 sm:ml-2 rtl:sm:ml-0 rtl:sm:mr-2">
-                          <span className={`text-sm font-extrabold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}{s.note20 !== null && <span className="text-[10px] text-muted-foreground">/20</span>}</span>
+                          <span className={`text-sm font-semibold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}{s.note20 !== null && <span className="text-[10px] text-muted-foreground">/20</span>}</span>
                           <Button size="sm" variant="outline" className="h-8 gap-1 rounded-lg" onClick={() => setSelectedId(s.student.id)}>
                             <Eye className="h-3.5 w-3.5" />{tr("Fiche", "البطاقة", "Profile")}
                           </Button>
@@ -766,15 +766,15 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                 return (
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2"><FileQuestion className="h-5 w-5 text-orange-500" />{tr("Notions à retravailler", "مفاهيم تحتاج إلى مراجعة", "Topics to revisit")}</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2"><FileQuestion className="h-5 w-5 text-muted-foreground" />{tr("Notions à retravailler", "مفاهيم تحتاج إلى مراجعة", "Topics to revisit")}</CardTitle>
                       <CardDescription>{tr("Questions avec le plus faible taux de bonnes réponses", "الأسئلة ذات أدنى نسبة إجابات صحيحة", "Questions with the lowest success rate")}</CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
                       {hard.map(({ q, x }) => (
-                        <div key={x.question.id} className="rounded-2xl border p-3.5 transition-shadow hover:shadow-md">
+                        <div key={x.question.id} className="rounded-xl border p-3.5 transition-shadow hover:shadow-md">
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <span className="truncate text-[11px] font-semibold text-muted-foreground">{q.quiz.title} · Q{x.question.question_order}</span>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${(x.successRate as number) < 50 ? "bg-rose-500/10 text-rose-600" : "bg-amber-500/10 text-amber-600"}`}>{Math.round(x.successRate as number)} %</span>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${(x.successRate as number) < 50 ? "bg-rose-500/10 text-rose-600" : "bg-amber-500/10 text-amber-600"}`}>{Math.round(x.successRate as number)} %</span>
                           </div>
                           <p className="line-clamp-2 text-sm font-medium">{stripHtml(x.question.question) || "—"}</p>
                           <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -835,7 +835,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                         <TableCell><StudentCell s={s} /></TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2.5">
-                            <span className={`w-11 text-base font-extrabold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}</span>
+                            <span className={`w-11 text-base font-semibold tabular-nums ${noteColor(s.note20)}`}>{fmtNote(s.note20, language)}</span>
                             <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
                               <div className={`h-full rounded-full ${barColor(s.avgPct)}`} style={{ width: `${s.avgPct ?? 0}%` }} />
                             </div>
@@ -888,12 +888,12 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                   <CardHeader className="pb-3">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
-                        <CardTitle className="text-lg truncate">{q.quiz.title}</CardTitle>
+                        <CardTitle className="text-base truncate">{q.quiz.title}</CardTitle>
                         <CardDescription className="mt-1">{fmtDate(q.quiz.date)} · {tr(`${q.participants} copie(s) sur ${total}`, `${q.participants} ورقة من ${total}`, `${q.participants} of ${total} submitted`)}</CardDescription>
                       </div>
                       <div className="w-full md:w-64">
                         <div className="mb-1 flex justify-between text-[11px] text-muted-foreground"><span>{tr("Participation", "المشاركة", "Participation")}</span><span className="font-semibold tabular-nums text-foreground">{Math.round(q.participation)} %</span></div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70" style={{ width: `${q.participation}%` }} /></div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${q.participation}%` }} /></div>
                       </div>
                     </div>
                   </CardHeader>
@@ -909,7 +909,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                       ].map((k, i) => (
                         <div key={i} className="rounded-xl border bg-muted/30 px-3 py-2.5">
                           <p className="text-[11px] font-medium text-muted-foreground">{k.l}</p>
-                          <p className={`mt-0.5 text-base font-extrabold tabular-nums ${k.c}`}>{k.v}</p>
+                          <p className={`mt-0.5 text-base font-semibold tabular-nums ${k.c}`}>{k.v}</p>
                         </div>
                       ))}
                     </div>
@@ -923,20 +923,20 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                     </div>
 
                     {q.questions.length > 0 && (
-                      <div className="rounded-2xl border">
+                      <div className="rounded-xl border">
                         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5">
-                          <p className="text-xs font-bold">{tr("Taux de réussite par question", "نسبة النجاح لكل سؤال", "Success rate per question")}</p>
+                          <p className="text-xs font-semibold">{tr("Taux de réussite par question", "نسبة النجاح لكل سؤال", "Success rate per question")}</p>
                           <p className="text-[11px] text-muted-foreground">{tr("en rouge : à retravailler", "بالأحمر: يحتاج إلى مراجعة", "red: needs review")}</p>
                         </div>
                         <div className="divide-y">
                           {q.questions.map(x => (
                             <div key={x.question.id} className="grid grid-cols-[2.5rem_1fr_auto] items-center gap-3 px-4 py-2.5 sm:grid-cols-[2.5rem_1fr_12rem_3.5rem]">
-                              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-xs font-bold">Q{x.question.question_order}</span>
+                              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-xs font-semibold">Q{x.question.question_order}</span>
                               <p className="truncate text-sm">{stripHtml(x.question.question) || "—"}</p>
                               <div className="hidden h-2 w-full overflow-hidden rounded-full bg-muted sm:block">
                                 {x.successRate !== null && <div className={`h-full rounded-full ${barColor(x.successRate)}`} style={{ width: `${x.successRate}%` }} />}
                               </div>
-                              <span className={`text-end text-sm font-bold tabular-nums ${x.successRate === null ? "text-muted-foreground" : x.successRate < 50 ? "text-rose-600" : "text-foreground"}`}>
+                              <span className={`text-end text-sm font-semibold tabular-nums ${x.successRate === null ? "text-muted-foreground" : x.successRate < 50 ? "text-rose-600" : "text-foreground"}`}>
                                 {x.successRate === null ? (x.question.question_type === "short_answer" ? tr("libre", "حر", "open") : "—") : `${Math.round(x.successRate)} %`}
                               </span>
                             </div>
@@ -981,10 +981,10 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                     <div className="flex items-center gap-4">
                       <Avatar className="h-16 w-16 ring-4 ring-background">
                         <AvatarImage src={s.student.avatar_url || undefined} />
-                        <AvatarFallback className="bg-primary/10 text-lg font-bold text-primary">{initials(s.student.name)}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-lg font-semibold text-primary">{initials(s.student.name)}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <DialogTitle className="truncate text-2xl font-extrabold">{s.student.name}</DialogTitle>
+                        <DialogTitle className="truncate text-2xl font-semibold">{s.student.name}</DialogTitle>
                         <DialogDescription className="truncate">{s.student.email || s.student.username}</DialogDescription>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${LEVEL_STYLE[s.level]}`}>{levelLabel(s.level)}</span>
@@ -1004,15 +1004,15 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                       { l: tr("Réussite", "النجاح", "Success"), v: pctTxt(s.successRate) },
                       { l: tr("Temps d'étude", "وقت الدراسة", "Study time"), v: formatMinutes(s.studyMinutes) },
                     ].map((k, i) => (
-                      <div key={i} className="rounded-2xl border p-3">
+                      <div key={i} className="rounded-xl border p-3">
                         <p className="text-[11px] font-medium text-muted-foreground">{k.l}</p>
-                        <p className="mt-0.5 text-xl font-extrabold tabular-nums">{k.v}</p>
+                        <p className="mt-0.5 text-xl font-semibold tabular-nums">{k.v}</p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="rounded-2xl border bg-muted/30 p-4">
-                    <p className="mb-1 flex items-center gap-2 text-xs font-bold text-muted-foreground"><Sparkles className="h-3.5 w-3.5 text-primary" />{tr("Appréciation générée", "ملاحظة تلقائية", "Generated feedback")}</p>
+                  <div className="rounded-xl border bg-muted/30 p-4">
+                    <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Sparkles className="h-3.5 w-3.5 text-primary" />{tr("Appréciation générée", "ملاحظة تلقائية", "Generated feedback")}</p>
                     <p className="text-sm font-medium">{appreciation}</p>
                     {s.alerts.length > 0 && (
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -1022,8 +1022,8 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                   </div>
 
                   {s.results.length > 0 && (
-                    <div className="rounded-2xl border p-4">
-                      <p className="mb-2 text-sm font-bold">{tr("Évolution comparée à la classe", "التطور مقارنة بالقسم", "Progress vs class")}</p>
+                    <div className="rounded-xl border p-4">
+                      <p className="mb-2 text-sm font-semibold">{tr("Évolution comparée à la classe", "التطور مقارنة بالقسم", "Progress vs class")}</p>
                       <TrendChart
                         height={180}
                         labels={s.results.map(r => r.quiz.title)}
@@ -1037,7 +1037,7 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                   )}
 
                   <div>
-                    <p className="mb-2 text-sm font-bold">{tr("Détail des quiz", "تفاصيل الاختبارات", "Quiz details")}</p>
+                    <p className="mb-2 text-sm font-semibold">{tr("Détail des quiz", "تفاصيل الاختبارات", "Quiz details")}</p>
                     {s.results.length === 0 ? (
                       <p className="rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">{tr("Aucun résultat.", "لا توجد نتائج.", "No results.")}</p>
                     ) : (
@@ -1064,11 +1064,11 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
                                 </TableCell>
                                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtDate(r.submission.submitted_at)}</TableCell>
                                 <TableCell className="tabular-nums"><span dir="ltr">{r.submission.score ?? 0} / {r.submission.total_points ?? 0}</span></TableCell>
-                                <TableCell className={`font-extrabold tabular-nums ${noteColor(r.pct / 5)}`}>{fmtNote(r.pct / 5, language)}</TableCell>
+                                <TableCell className={`font-semibold tabular-nums ${noteColor(r.pct / 5)}`}>{fmtNote(r.pct / 5, language)}</TableCell>
                                 <TableCell className="tabular-nums text-muted-foreground">{cm === null ? "—" : fmtNote(cm / 5, language)}</TableCell>
                                 <TableCell>
                                   {gap === null ? "—" : (
-                                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold tabular-nums ${gap >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${gap >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                                       {gap >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                                       {gap >= 0 ? "+" : ""}{fmtNote(gap, language)}
                                     </span>

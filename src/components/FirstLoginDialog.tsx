@@ -98,8 +98,8 @@ export const FirstLoginDialog = () => {
       >
         <DialogHeader>
           <div className="flex items-center justify-center mb-3">
-            <div className="bg-primary/10 p-3 rounded-full">
-              <KeyRound className="h-8 w-8 text-primary" />
+            <div className="border bg-background p-3 rounded-full">
+              <KeyRound className="h-8 w-8 text-muted-foreground" />
             </div>
           </div>
           <DialogTitle className="text-center text-xl">

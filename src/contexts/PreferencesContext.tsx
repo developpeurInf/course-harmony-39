@@ -21,15 +21,15 @@ export type TableDensity = "comfortable" | "compact";
  * h s l = teinte, saturation, luminosité de la couleur principale (mode clair).
  */
 export const ACCENT_PRESETS = {
-  blue:      { h: 217, s: 91, l: 60, fr: "Bleu",      ar: "أزرق",      en: "Blue" },
-  indigo:    { h: 239, s: 84, l: 62, fr: "Indigo",    ar: "نيلي",      en: "Indigo" },
-  violet:    { h: 262, s: 83, l: 60, fr: "Violet",    ar: "بنفسجي",    en: "Violet" },
-  pink:      { h: 330, s: 81, l: 56, fr: "Rose",      ar: "وردي",      en: "Pink" },
-  fuchsia:   { h: 292, s: 70, l: 52, fr: "Fuchsia",   ar: "فوشيا",     en: "Fuchsia" },
-  turquoise: { h: 187, s: 85, l: 38, fr: "Turquoise", ar: "فيروزي",    en: "Teal" },
-  orange:    { h: 24,  s: 94, l: 50, fr: "Orange",    ar: "برتقالي",   en: "Orange" },
-  brown:     { h: 27,  s: 45, l: 40, fr: "Chocolat",  ar: "بني",       en: "Brown" },
-  slate:     { h: 215, s: 25, l: 38, fr: "Ardoise",   ar: "رمادي",     en: "Slate" },
+  blue:      { h: 228, s: 65, l: 48, fr: "Bleu",      ar: "أزرق",      en: "Blue" },
+  indigo:    { h: 243, s: 55, l: 54, fr: "Indigo",    ar: "نيلي",      en: "Indigo" },
+  violet:    { h: 262, s: 48, l: 52, fr: "Violet",    ar: "بنفسجي",    en: "Violet" },
+  pink:      { h: 342, s: 62, l: 47, fr: "Framboise", ar: "توتي",      en: "Raspberry" },
+  fuchsia:   { h: 295, s: 42, l: 45, fr: "Prune",     ar: "برقوقي",    en: "Plum" },
+  turquoise: { h: 184, s: 70, l: 31, fr: "Turquoise", ar: "فيروزي",    en: "Teal" },
+  orange:    { h: 22,  s: 80, l: 46, fr: "Orange",    ar: "برتقالي",   en: "Orange" },
+  brown:     { h: 25,  s: 38, l: 36, fr: "Chocolat",  ar: "بني",       en: "Brown" },
+  slate:     { h: 222, s: 14, l: 30, fr: "Ardoise",   ar: "رمادي",     en: "Slate" },
 } as const;
 export type AccentColor = keyof typeof ACCENT_PRESETS;
 

@@ -51,8 +51,8 @@ const CourseMaterials = ({ materials, compact = false, className = "", title, de
         aria-label={`${tr('عرض مواد الدرس', 'Voir les supports du cours', 'View course materials')}${c.video ? ` · ${c.video} ${tr('فيديو', 'vidéo(s)', 'video(s)')}` : ''}${c.image ? ` · ${c.image} ${tr('صورة', 'image(s)', 'image(s)')}` : ''}${docs ? ` · ${docs} ${tr('وثيقة', 'document(s)', 'document(s)')}` : ''}`}
       >
         <Layers className="h-3.5 w-3.5 text-primary" />
-        {c.video > 0 && <span className="inline-flex items-center gap-0.5"><Film className="h-3.5 w-3.5 text-violet-500" />{c.video}</span>}
-        {c.image > 0 && <span className="inline-flex items-center gap-0.5"><ImageIcon className="h-3.5 w-3.5 text-sky-500" />{c.image}</span>}
+        {c.video > 0 && <span className="inline-flex items-center gap-0.5"><Film className="h-3.5 w-3.5 text-primary" />{c.video}</span>}
+        {c.image > 0 && <span className="inline-flex items-center gap-0.5"><ImageIcon className="h-3.5 w-3.5 text-primary" />{c.image}</span>}
         {docs > 0 && <span className="inline-flex items-center gap-0.5"><FileText className="h-3.5 w-3.5 text-rose-500" />{docs}</span>}
       </Button>
       <CourseViewerDialog

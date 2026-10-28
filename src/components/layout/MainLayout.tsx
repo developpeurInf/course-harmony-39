@@ -1,5 +1,5 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -9,6 +9,7 @@ import { ArrowUp, ArrowDown, Info, AlertTriangle, CheckCircle2, X } from "lucide
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import type { Lang } from "@/lib/appSettings";
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { installIOSFocusScrollFix } from "@/components/ui/ui-i18n";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
@@ -23,8 +24,8 @@ function textHash(text: string): string {
 
 const ANNOUNCEMENT_TONES = {
   info: {
-    box: "border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100",
-    icon: "text-sky-600 dark:text-sky-400",
+    box: "border-primary/30 bg-accent text-primary   ",
+    icon: "text-primary ",
     Icon: Info,
   },
   warning: {
@@ -69,7 +70,7 @@ const AnnouncementBanner = ({ userId, language }: { userId: string; language: st
     <div
       role="status"
       dir={lang === "ar" ? "rtl" : "ltr"}
-      className={`mb-3 sm:mb-4 flex items-start gap-2.5 rounded-xl border px-3 py-2.5 sm:px-4 text-sm shadow-xs print:hidden ${tone.box}`}
+      className={`mb-4 flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm print:hidden sm:px-4 ${tone.box}`}
     >
       <ToneIcon className={`mt-0.5 h-4 w-4 shrink-0 ${tone.icon}`} aria-hidden="true" />
       <p className="min-w-0 flex-1 whitespace-pre-line break-words leading-relaxed">{message}</p>
@@ -89,7 +90,7 @@ const AnnouncementBanner = ({ userId, language }: { userId: string; language: st
 /** Distance de défilement à partir de laquelle les boutons Haut / Bas apparaissent */
 const SCROLL_THRESHOLD = 400;
 
-const MainLayout = () => {
+const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const { isAdmin } = useAccess();
   const { language } = useLanguage();
@@ -190,8 +191,8 @@ const MainLayout = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex min-h-screen items-center justify-center bg-background" role="status" aria-label="…">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground/70" />
       </div>
     );
   }
@@ -208,30 +209,30 @@ const MainLayout = () => {
   const topLabel = tr("Aller en haut", "الانتقال إلى الأعلى", "Back to top");
   const bottomLabel = tr("Aller en bas", "الانتقال إلى الأسفل", "Go to bottom");
   const floatingBtn =
-    "h-10 w-10 rounded-full shadow-lg border border-border/80 bg-background/95 hover:bg-primary hover:text-primary-foreground transition-all duration-200";
+    "h-9 w-9 rounded-md border bg-card text-muted-foreground shadow-md hover:bg-muted hover:text-foreground";
 
   return (
     <div className={`${showBottomNav ? "with-bottomnav " : ""}flex app-viewport bg-background overflow-hidden`}>
-      <aside className="hidden lg:flex lg:w-72 h-full max-h-screen overflow-hidden bg-background border-r rtl:border-r-0 rtl:border-l border-border/70 shadow-xs flex-shrink-0 z-20">
+      <aside className="z-20 hidden h-full max-h-screen w-64 flex-shrink-0 overflow-hidden border-e lg:flex">
         <Sidebar />
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <TopNav />
         <main
           ref={mainRef}
-          className={`flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 pb-12 md:pb-12 ${showBottomNav ? "pb-bottomnav " : ""}touch-auto`}
-          style={{ WebkitOverflowScrolling: "touch" }}
+          className={`flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 pb-12 sm:px-6 md:py-8 ${showBottomNav ? "pb-bottomnav " : ""}touch-auto`}
         >
+          <div className="mx-auto w-full max-w-7xl">
           <Suspense
             fallback={
-              <div className="flex items-center justify-center min-h-[40vh]">
-                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary" />
+              <div className="flex min-h-[40vh] items-center justify-center">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground/70" />
               </div>
             }
           >
             <AnnouncementBanner userId={user.id} language={language} />
             <SubscriptionBanner />
-            <Outlet />
+            <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
           </Suspense>
           {footerText && (
             <footer
@@ -241,6 +242,7 @@ const MainLayout = () => {
               {footerText}
             </footer>
           )}
+          </div>
         </main>
 
         {/* Boutons flottants Haut / Bas (après 400 px de défilement) */}

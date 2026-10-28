@@ -3,27 +3,28 @@ import type { Config } from "tailwindcss";
 
 export default {
 	darkMode: ["class"],
-	content: [
-		"./pages/**/*.{ts,tsx}",
-		"./components/**/*.{ts,tsx}",
-		"./app/**/*.{ts,tsx}",
-		"./src/**/*.{ts,tsx}",
-	],
+	content: ["./src/**/*.{ts,tsx}"],
 	prefix: "",
-	// Tablettes / mobiles : les effets hover: ne s'appliquent qu'avec une vraie souris.
-	// Évite les états "survol bloqué" et le double-tap sur iPad / Android.
+	// Les effets hover: ne s'appliquent qu'avec une vraie souris (pas de survol bloqué au toucher).
 	future: {
 		hoverOnlyWhenSupported: true,
 	},
 	theme: {
 		container: {
 			center: true,
-			padding: '2rem',
+			padding: '1.5rem',
 			screens: {
 				'2xl': '1400px'
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['var(--font-latin)', 'var(--font-arabic)', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+				mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+			},
+			fontSize: {
+				'2xs': ['0.6875rem', { lineHeight: '1rem' }],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -46,6 +47,10 @@ export default {
 				success: {
 					DEFAULT: 'hsl(var(--success))',
 					foreground: 'hsl(var(--success-foreground))'
+				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					foreground: 'hsl(var(--warning-foreground))'
 				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
@@ -75,6 +80,8 @@ export default {
 				}
 			},
 			borderRadius: {
+				'2xl': 'calc(var(--radius) + 6px)',
+				xl: 'calc(var(--radius) + 4px)',
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
@@ -82,8 +89,13 @@ export default {
 			boxShadow: {
 				'2xs': '0 1px rgb(0 0 0 / 0.05)',
 				'xs': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-				'elegant': '0 10px 30px -10px hsl(var(--primary) / 0.2)',
-				'glow': '0 0 40px hsl(var(--primary-glow) / 0.3)'
+				'sm': 'var(--shadow-sm)',
+				'md': 'var(--shadow-md)',
+				'lg': 'var(--shadow-lg)',
+				'xl': 'var(--shadow-lg)',
+				'2xl': 'var(--shadow-lg)',
+				'elegant': 'var(--shadow-md)',
+				'glow': 'var(--shadow-md)'
 			},
 			blur: {
 				xs: '2px'
@@ -116,7 +128,7 @@ export default {
 					to: { opacity: '1' }
 				},
 				'slide-in': {
-					from: { transform: 'translateY(10px)', opacity: '0' },
+					from: { transform: 'translateY(4px)', opacity: '0' },
 					to: { transform: 'translateY(0)', opacity: '1' }
 				},
 				'scale-in': {
@@ -136,8 +148,8 @@ export default {
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
-				'fade-in': 'fade-in 0.3s ease-out',
-				'slide-in': 'slide-in 0.4s ease-out',
+				'fade-in': 'fade-in 0.2s ease-out',
+				'slide-in': 'slide-in 0.25s ease-out',
 				'scale-in': 'scale-in 0.2s ease-out',
 				'wiggle': 'wiggle 0.5s ease-in-out',
 				'caret-blink': 'caret-blink 1.25s ease-out infinite'
