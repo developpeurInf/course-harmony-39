@@ -9,7 +9,7 @@
 //
 // Secrets Supabase : GEMINI_API_KEY ou ANTHROPIC_API_KEY (l'un des deux).
 //   AI_PROVIDER (optionnel) : "gemini" ou "anthropic" ; par défaut gemini si GEMINI_API_KEY existe.
-//   TEACHER_AI_MODEL (optionnel) : défaut gemini-2.5-flash (Gemini) / claude-opus-5-5 (Anthropic).
+//   TEACHER_AI_MODEL (optionnel) : défaut gemini-3.8-flash (Gemini) / claude-opus-5-5 (Anthropic).
 // Habilitations : ai.quiz_generator / ai.lesson_plan / ai.omr ; par professeur et par jour :
 // 40 générations (quiz, fiches) et 400 lectures de feuilles.
 //
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
     }
     content.push({ type: "text", text: prompt });
 
-    const model = Deno.env.get("TEACHER_AI_MODEL") || (provider === "gemini" ? "gemini-2.5-flash" : "claude-opus-5-5");
+    const model = Deno.env.get("TEACHER_AI_MODEL") || (provider === "gemini" ? "gemini-3.8-flash" : "claude-opus-5-5");
     const result = provider === "gemini" ? await callGemini(apiKey, model, content, schema) : await callAnthropic(apiKey, model, content, schema);
 
     if (result.refused) return json({ error: "REFUSED" }, 422);
