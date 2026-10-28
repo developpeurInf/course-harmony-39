@@ -28,6 +28,8 @@ export interface PdfWorkspaceHandle {
   activePageCount: () => number;
   /** Texte actuellement sélectionné dans le document ("" sinon) */
   selectedText: () => Promise<string>;
+  /** Copie le texte sélectionné dans le presse-papiers ; renvoie le texte copié ("" si rien) */
+  copySelection: () => Promise<string>;
   /** Désactive l'outil d'annotation en cours (surligneur, forme…) */
   clearActiveTool: () => void;
 }
@@ -142,6 +144,23 @@ const prepare = async (buffer: ArrayBuffer) => {
     return buffer;
   }
 };
+
+/*
+ * La sélection de texte est dessinée en bleu plein avec un mélange « multiply » : sur un fond foncé
+ * (bandeau bleu d'un titre) elle devient invisible. On la rend translucide et bordée.
+ */
+const SELECTION_CSS = `
+div[style*="isolation: isolate"][style*="mix-blend-mode: multiply"] { mix-blend-mode: normal !important; }
+div[style*="background: rgb(33, 150, 243)"] { background: rgba(33, 150, 243, 0.38) !important; box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.9); }
+`;
+function injectSelectionStyle(container: unknown) {
+  const root = (container as HTMLElement | null | undefined)?.shadowRoot;
+  if (!root || root.getElementById("mi-selection-style")) return;
+  const style = document.createElement("style");
+  style.id = "mi-selection-style";
+  style.textContent = SELECTION_CSS;
+  root.appendChild(style);
+}
 
 const capability = <T,>(registry: PluginRegistry, id: string): T | null => {
   const plugin = registry.getPlugin(id) as unknown as { provides?: () => T } | null;
@@ -271,6 +290,20 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
         return "";
       }
     },
+    copySelection: async () => {
+      const r = registryRef.current;
+      const docId = r && capability<DocManager>(r, "document-manager")?.getActiveDocumentId();
+      const sel = r && capability<{ forDocument: (id: string) => { getSelectedText: () => { toPromise: () => Promise<string[]> } } }>(r, "selection");
+      if (!sel || !docId) return "";
+      let text = "";
+      try {
+        text = (await sel.forDocument(docId).getSelectedText().toPromise()).join("\n").trim();
+      } catch {
+        return "";
+      }
+      if (text) await navigator.clipboard.writeText(text);
+      return text;
+    },
     clearActiveTool: () => {
       const r = registryRef.current;
       const docId = r && capability<DocManager>(r, "document-manager")?.getActiveDocumentId();
@@ -316,6 +349,7 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
       const hidden = new Set(["mode-select-button", "mode-tabs", "spacer-2", "document-menu-button", "divider-1"]);
       ui.mergeSchema({ toolbars: { "main-toolbar": { ...main, items: main.items.filter((it) => !hidden.has(it.id)) } } });
     }
+    injectSelectionStyle(viewerRef.current?.container);
     const dm = capability<DocManager>(r, "document-manager");
     if (!dm) return;
     const notify = () => changeRef.current?.(dm.getDocumentCount(), docName(dm));

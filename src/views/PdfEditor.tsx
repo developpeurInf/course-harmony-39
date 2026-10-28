@@ -368,6 +368,23 @@ const PdfEditor = () => {
     setToolDialog("replace");
   };
 
+  const copySelected = async () => {
+    try {
+      const text = await workspace.current?.copySelection();
+      if (text) toast.success(t("Texte copié", "تم نسخ النص", "Text copied"));
+      else
+        toast.info(t("Aucun texte sélectionné", "لم يتم تحديد أي نص", "No text selected"), {
+          description: t(
+            "Choisissez l'outil Sélection puis faites glisser sur le texte. Une zone de texte ajoutée se copie en double-cliquant dedans.",
+            "اختر أداة التحديد ثم اسحب فوق النص. مربع النص المضاف يُنسخ بالنقر المزدوج داخله.",
+            "Pick the Select tool and drag over the text. An added text box is copied by double-clicking inside it."
+          ),
+        });
+    } catch {
+      toast.error(t("Copie impossible", "تعذر النسخ", "Copy failed"));
+    }
+  };
+
   const shortcuts = useRef({ undoAny, redoAny, openReplace });
   shortcuts.current = { undoAny, redoAny, openReplace };
   useEffect(() => {
@@ -589,6 +606,7 @@ const PdfEditor = () => {
               <CommandButton ws={ws} command="rotate:clockwise" icon={RotateCw} label={t("Pivoter la vue", "تدوير العرض", "Rotate view")} disabled={!hasDoc} />
             </RibbonGroup>
             <RibbonGroup label={t("Rechercher", "بحث", "Find")}>
+              <RibbonButton icon={Copy} label={t("Copier", "نسخ", "Copy")} title={t("Copier le texte sélectionné (Ctrl+C)", "نسخ النص المحدد (Ctrl+C)", "Copy selected text (Ctrl+C)")} disabled={!hasDoc} onClick={() => void copySelected()} />
               <CommandButton ws={ws} command="panel:toggle-search" icon={Search} label={t("Rechercher", "بحث", "Search")} disabled={!hasDoc} />
               <RibbonButton icon={ReplaceAll} label={t("Remplacer", "استبدال", "Replace")} title={t("Rechercher et remplacer (Ctrl+H)", "بحث واستبدال (Ctrl+H)", "Find and replace (Ctrl+H)")} disabled={!hasDoc || busy} onClick={() => void openReplace()} />
               <CommandButton ws={ws} command="panel:toggle-comment" icon={MessageSquare} label={t("Commentaires", "التعليقات", "Comments")} disabled={!hasDoc} />
