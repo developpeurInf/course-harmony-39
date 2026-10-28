@@ -24,7 +24,8 @@ export type FeatureKey =
   | "exams"
   | "studentActivities"
   | "courses"
-  | "bottomNav";
+  | "bottomNav"
+  | "pdfEditor";
 
 export interface AppSettings {
   identity: {
@@ -158,6 +159,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     studentActivities: true,
     courses: true,
     bottomNav: true,
+    pdfEditor: true,
   },
 };
 

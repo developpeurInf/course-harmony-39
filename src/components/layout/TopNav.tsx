@@ -62,6 +62,7 @@ const TopNav = () => {
       [path.includes("/exams"), tr("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")],
       [path.startsWith("/reports"), tr("Rapports", "التقارير", "Reports")],
       [path.startsWith("/diagnostic"), tr("Évaluation diagnostique", "التقويم التشخيصي", "Diagnostic assessment")],
+      [path.startsWith("/pdf-editor"), tr("Éditeur PDF", "محرر PDF", "PDF editor")],
       [path.startsWith("/class-management"), tr("Gestion des classes", "إدارة الأقسام", "Class management")],
       [path.startsWith("/profile"), tr("Mon profil", "الملف الشخصي", "My profile")],
       [path.startsWith("/subscription"), tr("Abonnement", "الاشتراك", "Subscription")],

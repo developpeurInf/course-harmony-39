@@ -18,6 +18,7 @@ import {
   BarChart3,
   Activity,
   FileSpreadsheet,
+  FilePen,
   LogOut,
   CreditCard,
   Lock,
@@ -277,6 +278,9 @@ const Sidebar = () => {
                 label={t("Évaluation diagnostique", "التقويم التشخيصي", "Diagnostic assessment")}
                 locked={!can("diagnostic.use")}
               />
+            )}
+            {feature("pdfEditor") && (
+              <NavItem to="/pdf-editor" icon={FilePen} label={t("Éditeur PDF", "محرر PDF", "PDF editor")} />
             )}
             <NavItem to="/class-management" icon={FolderKanban} label={t("Gestion des classes", "إدارة الأقسام", "Manage classes")} />
           </div>

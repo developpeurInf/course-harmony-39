@@ -100,6 +100,8 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const [scrollState, setScrollState] = useState({ top: false, bottom: false });
   const { settings: appSettings, text: settingText, feature } = useAppSettings();
   const showBottomNav = feature("bottomNav");
+  // Pages « plein écran » (outil de travail) : pas de marge, pas de largeur max, pas de pied de page
+  const isWorkspace = location.pathname.startsWith("/pdf-editor");
   const footerText = settingText(appSettings.texts?.footer, (language === "ar" || language === "en" ? language : "fr") as Lang);
 
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
@@ -220,9 +222,13 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
         <TopNav />
         <main
           ref={mainRef}
-          className={`flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 pb-12 sm:px-6 md:py-8 ${showBottomNav ? "pb-bottomnav " : ""}touch-auto`}
+          className={
+            isWorkspace
+              ? `flex flex-1 flex-col overflow-hidden ${showBottomNav ? "pb-bottomnav " : ""}`
+              : `flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 pb-12 sm:px-6 md:py-8 ${showBottomNav ? "pb-bottomnav " : ""}touch-auto`
+          }
         >
-          <div className="mx-auto w-full max-w-7xl">
+          <div className={isWorkspace ? "flex min-h-0 w-full flex-1 flex-col" : "mx-auto w-full max-w-7xl"}>
           <Suspense
             fallback={
               <div className="flex min-h-[40vh] items-center justify-center">
@@ -234,7 +240,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
             <SubscriptionBanner />
             <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
           </Suspense>
-          {footerText && (
+          {footerText && !isWorkspace && (
             <footer
               dir={language === "ar" ? "rtl" : "ltr"}
               className="mt-10 border-t border-border/60 pt-4 text-center text-xs text-muted-foreground whitespace-pre-line break-words print:hidden"
