@@ -1,5 +1,5 @@
 // Supabase Edge Function : teacher-ai
-// Outils IA pour les professeurs (Claude) :
+// Outils IA pour les professeurs (Claude ou Gemini) :
 //   action "quiz"        → questions de quiz (QCM, vrai/faux, réponse courte) à partir d'un cours
 //   action "lesson_plan" → fiche pédagogique d'une séance (déroulement, activités, évaluation)
 //   action "omr"         → lecture de la photo d'une feuille-réponse de QCM (cases cochées)
@@ -7,7 +7,9 @@
 // Le contenu du cours vient d'un texte collé et/ou d'un document du cours (PDF ou image,
 // table course_materials) lu côté serveur : le professeur doit être propriétaire du cours.
 //
-// Secrets Supabase : ANTHROPIC_API_KEY (obligatoire), TEACHER_AI_MODEL (optionnel, défaut claude-opus-5-5).
+// Secrets Supabase : GEMINI_API_KEY ou ANTHROPIC_API_KEY (l'un des deux).
+//   AI_PROVIDER (optionnel) : "gemini" ou "anthropic" ; par défaut gemini si GEMINI_API_KEY existe.
+//   TEACHER_AI_MODEL (optionnel) : défaut gemini-2.5-flash (Gemini) / claude-opus-5-5 (Anthropic).
 // Habilitations : ai.quiz_generator / ai.lesson_plan / ai.omr ; par professeur et par jour :
 // 40 générations (quiz, fiches) et 400 lectures de feuilles.
 //
@@ -131,10 +133,74 @@ const toBase64 = (buf: ArrayBuffer) => {
   return btoa(s);
 };
 
+// ---- Gemini (API REST generativelanguage) ----
+// Le schéma JSON est converti au format « responseSchema » (sous-ensemble OpenAPI).
+const toGeminiSchema = (s: any): any => {
+  const out: any = { type: String(s.type).toUpperCase() };
+  if (s.enum) out.enum = s.enum;
+  if (s.items) out.items = toGeminiSchema(s.items);
+  if (s.properties) {
+    out.properties = Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, toGeminiSchema(v)]));
+    out.required = s.required;
+    out.propertyOrdering = s.required;
+  }
+  return out;
+};
+
+class AiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+async function callGemini(apiKey: string, model: string, content: any[], schema: Record<string, unknown>) {
+  const parts = content.map((b) => (b.type === "text" ? { text: b.text } : { inlineData: { mimeType: b.source.media_type, data: b.source.data } }));
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(schema), maxOutputTokens: 16000 },
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new AiError(res.status, data?.error?.message || `Gemini HTTP ${res.status}`);
+  const cand = data?.candidates?.[0];
+  const finish = cand?.finishReason;
+  const text = (cand?.content?.parts || []).map((p: any) => p.text || "").join("");
+  return {
+    refused: !cand || finish === "SAFETY" || finish === "PROHIBITED_CONTENT" || finish === "BLOCKLIST",
+    truncated: finish === "MAX_TOKENS",
+    text,
+    usage: { input_tokens: data?.usageMetadata?.promptTokenCount ?? null, output_tokens: data?.usageMetadata?.candidatesTokenCount ?? null },
+  };
+}
+
+async function callAnthropic(apiKey: string, model: string, content: any[], schema: Record<string, unknown>) {
+  const client = new Anthropic({ apiKey });
+  const response = await client.beta.messages.create({
+    model,
+    max_tokens: 16000,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: SYSTEM,
+    output_config: { effort: "medium", format: { type: "json_schema", schema } },
+    messages: [{ role: "user", content }],
+  });
+  return {
+    refused: response.stop_reason === "refusal",
+    truncated: response.stop_reason === "max_tokens",
+    text: response.content.map((b) => (b.type === "text" ? b.text : "")).join(""),
+    usage: { input_tokens: response.usage?.input_tokens ?? null, output_tokens: response.usage?.output_tokens ?? null },
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const provider = Deno.env.get("AI_PROVIDER") === "anthropic" || !geminiKey ? "anthropic" : "gemini";
+    const apiKey = provider === "gemini" ? geminiKey : anthropicKey;
     if (!apiKey) return json({ error: "AI_NOT_CONFIGURED" }, 503);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -238,35 +304,25 @@ Deno.serve(async (req) => {
     }
     content.push({ type: "text", text: prompt });
 
-    const client = new Anthropic({ apiKey });
-    const model = Deno.env.get("TEACHER_AI_MODEL") || "claude-opus-5-5";
-    const response = await client.beta.messages.create({
-      model,
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: SYSTEM,
-      output_config: { effort: "medium", format: { type: "json_schema", schema } },
-      messages: [{ role: "user", content }],
-    });
+    const model = Deno.env.get("TEACHER_AI_MODEL") || (provider === "gemini" ? "gemini-2.5-flash" : "claude-opus-5-5");
+    const result = provider === "gemini" ? await callGemini(apiKey, model, content, schema) : await callAnthropic(apiKey, model, content, schema);
 
-    if (response.stop_reason === "refusal") return json({ error: "REFUSED" }, 422);
-    if (response.stop_reason === "max_tokens") return json({ error: "TOO_LONG" }, 422);
-    const out = response.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-    const parsed = JSON.parse(out);
+    if (result.refused) return json({ error: "REFUSED" }, 422);
+    if (result.truncated) return json({ error: "TOO_LONG" }, 422);
+    const parsed = JSON.parse(result.text);
 
     await admin.from("ai_usage").insert({
       user_id: uid,
       kind: action,
-      input_tokens: response.usage?.input_tokens ?? null,
-      output_tokens: response.usage?.output_tokens ?? null,
+      input_tokens: result.usage.input_tokens,
+      output_tokens: result.usage.output_tokens,
     }).then(() => undefined, () => undefined);
 
     return json(action === "quiz" ? { quiz: parsed } : action === "omr" ? { sheet: parsed } : { plan: parsed });
   } catch (error) {
     console.error(error);
-    if (error instanceof Anthropic.RateLimitError) return json({ error: "AI_BUSY" }, 429);
-    if (error instanceof Anthropic.APIError) return json({ error: "AI_ERROR", status: error.status }, 502);
+    if (error instanceof Anthropic.RateLimitError || (error instanceof AiError && error.status === 429)) return json({ error: "AI_BUSY" }, 429);
+    if (error instanceof Anthropic.APIError || error instanceof AiError) return json({ error: "AI_ERROR", status: (error as any).status, detail: String((error as Error).message).slice(0, 300) }, 502);
     return json({ error: String((error as Error)?.message || error) }, 500);
   }
 });

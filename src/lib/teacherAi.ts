@@ -31,7 +31,7 @@ type Tr = (fr: string, ar: string, en: string) => string;
 /** Message lisible pour un code d'erreur renvoyé par la fonction */
 export function aiErrorMessage(code: string, tr: Tr) {
   switch (code) {
-    case "AI_NOT_CONFIGURED": return tr("L'IA n'est pas encore configurée (clé ANTHROPIC_API_KEY ou fonction teacher-ai manquante).", "الذكاء الاصطناعي غير مهيأ بعد.", "AI is not configured yet.");
+    case "AI_NOT_CONFIGURED": return tr("L'IA n'est pas encore configurée (clé GEMINI_API_KEY ou ANTHROPIC_API_KEY, ou fonction teacher-ai manquante).", "الذكاء الاصطناعي غير مهيأ بعد.", "AI is not configured yet.");
     case "PERMISSION_DENIED": return tr("Cette fonction n'est pas incluse dans votre offre.", "هذه الميزة غير متضمنة في عرضك.", "This feature is not included in your plan.");
     case "DAILY_LIMIT": return tr("Limite quotidienne de générations atteinte. Réessayez demain.", "تم بلوغ الحد اليومي. أعد المحاولة غداً.", "Daily limit reached. Try again tomorrow.");
     case "MATERIAL_TOO_LARGE": return tr("Document trop lourd (20 Mo maximum).", "الوثيقة كبيرة جداً (20 م.ب كحد أقصى).", "Document too large (20 MB max).");
