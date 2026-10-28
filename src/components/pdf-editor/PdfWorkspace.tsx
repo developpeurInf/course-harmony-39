@@ -124,6 +124,7 @@ type Commands = {
   resolve: (id: string, documentId?: string) => { active: boolean; disabled: boolean; label: string };
   onCommandExecuted: (cb: () => void) => () => void;
   onCommandStateChanged: (cb: () => void) => () => void;
+  getAllCommands: (documentId?: string) => { id: string; active: boolean; disabled: boolean; label: string }[];
 };
 type UiCap = {
   getSchema: () => { toolbars: Record<string, { items: { id: string }[] }> };
@@ -256,9 +257,33 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
       const r = registryRef.current;
       const cmds = r && capability<Commands>(r, "commands");
       if (!cmds) return () => undefined;
-      const a = cmds.onCommandExecuted(cb);
-      const b = cmds.onCommandStateChanged(cb);
+      // Les événements arrivent en rafale (et parfois à chaque rendu) : on les regroupe par image
+      // et on ne prévient que si l'état visible des commandes a réellement changé.
+      let frame = 0;
+      let last = "";
+      const signature = () => {
+        try {
+          const docId = capability<DocManager>(r, "document-manager")?.getActiveDocumentId() ?? "";
+          return docId + "|" + cmds.getAllCommands(docId || undefined).map((c) => `${c.id}:${+c.active}${+c.disabled}:${c.label}`).join(",");
+        } catch {
+          return String(Math.random());
+        }
+      };
+      last = signature();
+      const schedule = () => {
+        if (frame) return;
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          const next = signature();
+          if (next === last) return;
+          last = next;
+          cb();
+        });
+      };
+      const a = cmds.onCommandExecuted(schedule);
+      const b = cmds.onCommandStateChanged(schedule);
       return () => {
+        if (frame) window.cancelAnimationFrame(frame);
         a?.();
         b?.();
       };
