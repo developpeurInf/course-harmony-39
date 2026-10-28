@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { ChevronDown, Download, FileText, FolderOpen, HardDrive, Loader2, Save, Search, Upload } from "lucide-react";
+import { ChevronDown, Download, Eraser, FileText, FolderOpen, HardDrive, Loader2, Save, Search, Upload } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { PdfWorkspaceHandle } from "@/components/pdf-editor/PdfWorkspace";
+import WatermarkDialog from "@/components/pdf-editor/WatermarkDialog";
 
 // Moteur PDF (WebAssembly) : chargé uniquement dans le navigateur, à l'ouverture de la page
 const PdfWorkspace = dynamic(() => import("@/components/pdf-editor/PdfWorkspace"), {
@@ -65,6 +66,7 @@ const PdfEditor = () => {
   const [saveCourseId, setSaveCourseId] = useState("");
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cleanOpen, setCleanOpen] = useState(false);
   // Cours d'origine du document ouvert (proposé par défaut à l'enregistrement)
   const originCourse = useRef<Record<string, string>>({});
 
@@ -246,6 +248,10 @@ const PdfEditor = () => {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Button variant="outline" size="sm" className="gap-1.5" disabled={!hasDoc} onClick={() => setCleanOpen(true)}>
+          <Eraser className="h-4 w-4" strokeWidth={1.75} />
+          <span className="hidden md:inline">{t("Supprimer un filigrane", "حذف علامة مائية", "Remove watermark")}</span>
+        </Button>
         <Button variant="outline" size="sm" className="gap-1.5" disabled={!hasDoc} onClick={() => workspace.current?.downloadActive()}>
           <Download className="h-4 w-4" strokeWidth={1.75} />
           <span className="hidden sm:inline">{t("Télécharger", "تحميل", "Download")}</span>
@@ -391,6 +397,22 @@ const PdfEditor = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <WatermarkDialog
+        open={cleanOpen}
+        onOpenChange={setCleanOpen}
+        t={t}
+        getPdf={() => workspace.current?.exportActive() ?? Promise.resolve(null)}
+        onResult={async (bytes, name, removed) => {
+          const origin = activeName ? originCourse.current[activeName] : undefined;
+          if (origin) originCourse.current[name] = origin;
+          const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+          await workspace.current?.openBuffer(buffer, name);
+          toast.success(t("Filigrane retiré", "تم حذف العلامة المائية", "Watermark removed"), {
+            description: t(`${removed} élément(s) retiré(s). Le résultat est ouvert dans un nouvel onglet.`, `تم حذف ${removed} عنصر. فتحت النتيجة في تبويب جديد.`, `${removed} element(s) removed. The result is open in a new tab.`),
+          });
+        }}
+      />
 
       {/* Enregistrer dans un cours */}
       <Dialog open={saveOpen} onOpenChange={(o) => !saving && setSaveOpen(o)}>
