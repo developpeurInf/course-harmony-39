@@ -16,7 +16,6 @@
 // Requête  : { action: "quiz" | "lesson_plan", language: "ar" | "fr", text?: string, material_id?: string, ...options }
 // Réponse  : { quiz: {...} } | { plan: {...} } | { error: string }
 
-import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.54.0";
 
 const corsHeaders = {
@@ -153,15 +152,30 @@ class AiError extends Error {
 
 async function callGemini(apiKey: string, model: string, content: any[], schema: Record<string, unknown>) {
   const parts = content.map((b) => (b.type === "text" ? { text: b.text } : { inlineData: { mimeType: b.source.media_type, data: b.source.data } }));
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: "user", parts }],
-      generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(schema), maxOutputTokens: 16000 },
-    }),
+  // Gemini renvoie 503 / 429 quand le modèle est saturé : jusqu'à 2 nouvelles tentatives.
+  const payload = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: toGeminiSchema(schema),
+      maxOutputTokens: 8192,
+      // Réflexion courte : reste sous les limites de temps / CPU des Edge Functions
+      thinkingConfig: { thinkingLevel: Deno.env.get("GEMINI_THINKING") || "low" },
+    },
   });
+  const send = () =>
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: payload,
+    });
+  let res = await send();
+  for (const wait of [2000, 5000]) {
+    if (res.status !== 503 && res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, wait));
+    res = await send();
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new AiError(res.status, data?.error?.message || `Gemini HTTP ${res.status}`);
   const cand = data?.candidates?.[0];
@@ -176,16 +190,24 @@ async function callGemini(apiKey: string, model: string, content: any[], schema:
 }
 
 async function callAnthropic(apiKey: string, model: string, content: any[], schema: Record<string, unknown>) {
+  // Import à la demande : le SDK n'est chargé que si Anthropic est utilisé
+  const { default: Anthropic } = await import("npm:@anthropic-ai/sdk@1.3.0");
   const client = new Anthropic({ apiKey });
-  const response = await client.beta.messages.create({
-    model,
-    max_tokens: 16000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: SYSTEM,
-    output_config: { effort: "medium", format: { type: "json_schema", schema } },
-    messages: [{ role: "user", content }],
-  });
+  let response;
+  try {
+    response = await client.beta.messages.create({
+      model,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: SYSTEM,
+      output_config: { effort: "medium", format: { type: "json_schema", schema } },
+      messages: [{ role: "user", content }],
+    });
+  } catch (e) {
+    if (e instanceof Anthropic.APIError) throw new AiError(e.status ?? 502, e.message);
+    throw e;
+  }
   return {
     refused: response.stop_reason === "refusal",
     truncated: response.stop_reason === "max_tokens",
@@ -321,8 +343,8 @@ Deno.serve(async (req) => {
     return json(action === "quiz" ? { quiz: parsed } : action === "omr" ? { sheet: parsed } : { plan: parsed });
   } catch (error) {
     console.error(error);
-    if (error instanceof Anthropic.RateLimitError || (error instanceof AiError && error.status === 429)) return json({ error: "AI_BUSY" }, 429);
-    if (error instanceof Anthropic.APIError || error instanceof AiError) return json({ error: "AI_ERROR", status: (error as any).status, detail: String((error as Error).message).slice(0, 300) }, 502);
+    if (error instanceof AiError && (error.status === 429 || error.status === 503 || error.status === 529)) return json({ error: "AI_BUSY", detail: String(error.message).slice(0, 300) }, 503);
+    if (error instanceof AiError) return json({ error: "AI_ERROR", status: error.status, detail: String((error as Error).message).slice(0, 300) }, 502);
     return json({ error: String((error as Error)?.message || error) }, 500);
   }
 });

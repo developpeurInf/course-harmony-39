@@ -51,6 +51,8 @@ export async function callTeacherAi<T>(body: Record<string, unknown>): Promise<T
       const ctx: any = (error as any).context;
       const j = ctx && typeof ctx.json === "function" ? await ctx.json() : null;
       if (j?.error) code = j.error;
+      if (j?.detail) console.error("teacher-ai:", j.status, j.detail);
+      if (j?.code && !j?.error) console.error("teacher-ai:", j.code, j.message);
     } catch {
       /* corps illisible */
     }

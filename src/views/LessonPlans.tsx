@@ -3,7 +3,7 @@
  * éventuel → déroulement complet modifiable, impression A4, enregistrement.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, Loader2, Plus, Printer, Save, Sparkles, Trash2 } from "lucide-react";
+import { Check, Eye, FileText, Loader2, Pencil, Plus, Printer, Save, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,7 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { escapeHtml, getReportBranding, reportHeaderLines } from "@/lib/reportBranding";
+import { getReportBranding } from "@/lib/reportBranding";
+import { loadKatex } from "@/lib/mathRender";
+import { buildLessonPlanHtml, readPlanHeader } from "@/lib/lessonPlanPrint";
 import { openPrintable } from "@/lib/appreciations";
 import { aiErrorMessage, callTeacherAi, loadAiMaterials, type LessonPlan } from "@/lib/teacherAi";
 import type { CourseMaterialLike } from "@/lib/courseMedia";
@@ -28,6 +30,53 @@ const LABELS = {
   fr: { title: "Fiche pédagogique", level: "Niveau", duration: "Durée", competencies: "Compétences visées", objectives: "Objectifs", prerequisites: "Prérequis", materials: "Supports didactiques", steps: "Déroulement", phase: "Étape", time: "Durée", teacher: "Activités du professeur", students: "Activités des élèves", evaluation: "Évaluation", assessment: "Évaluation finale", homework: "Travail à la maison", remediation: "Remédiation / soutien" },
   ar: { title: "جذاذة", level: "المستوى", duration: "المدة", competencies: "الكفايات المستهدفة", objectives: "الأهداف", prerequisites: "المكتسبات القبلية", materials: "الوسائل الديداكتيكية", steps: "سير الحصة", phase: "المرحلة", time: "المدة", teacher: "أنشطة الأستاذ", students: "أنشطة المتعلمين", evaluation: "التقويم", assessment: "التقويم الختامي", homework: "الواجب المنزلي", remediation: "الدعم والمعالجة" },
 };
+
+type Tr = (fr: string, ar: string, en: string) => string;
+
+/** Barre d'avancement et étapes de la rédaction (durée estimée : ~40 s, ~60 s avec un document). */
+function GenerationProgress({ elapsed, finishing, withDocument, tr }: { elapsed: number; finishing: boolean; withDocument: boolean; tr: Tr }) {
+  const expected = withDocument ? 60 : 40;
+  const pct = finishing ? 100 : Math.min(95, Math.round(95 * (1 - Math.exp((-2.3 * elapsed) / expected))));
+  const stages = [
+    { at: 0, label: tr("Envoi de la demande", "إرسال الطلب", "Sending the request") },
+    ...(withDocument ? [{ at: 8, label: tr("Lecture du document du cours", "قراءة وثيقة الدرس", "Reading the course document") }] : []),
+    { at: withDocument ? 22 : 10, label: tr("Compétences, objectifs et prérequis", "الكفايات والأهداف والمكتسبات القبلية", "Competencies, objectives and prerequisites") },
+    { at: 40, label: tr("Déroulement de la séance (étapes)", "سير الحصة (المراحل)", "Lesson steps") },
+    { at: 72, label: tr("Évaluation, devoirs et remédiation", "التقويم والواجب والدعم", "Assessment, homework and remediation") },
+    { at: 100, label: tr("Mise en page de la fiche", "إخراج الجذاذة", "Laying out the plan") },
+  ];
+  const current = stages.reduce((acc, s, i) => (pct >= s.at ? i : acc), 0);
+  const secs = Math.floor(elapsed);
+  return (
+    <div className="mx-auto flex max-w-md flex-col gap-4 py-12">
+      <div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="h-4 w-4 text-violet-500" />{tr("Rédaction de la fiche", "كتابة الجذاذة", "Drafting the plan")}</div>
+      <div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+          <div className="h-full rounded-full bg-violet-500 transition-all duration-300" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+          <span>{pct} %</span>
+          <span>{secs} s{!finishing && elapsed > expected ? ` · ${tr("encore un instant…", "لحظة من فضلك…", "almost there…")}` : ""}</span>
+        </div>
+      </div>
+      <ul className="space-y-2 text-sm">
+        {stages.map((s, i) => (
+          <li key={i} className={cn("flex items-center gap-2", i > current && "text-muted-foreground/60")}>
+            {i < current ? (
+              <Check className="h-4 w-4 text-emerald-600" />
+            ) : i === current ? (
+              <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+            ) : (
+              <span className="inline-block h-4 w-4 rounded-full border" />
+            )}
+            {s.label}
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground">{tr("L'avancement est estimé : l'IA renvoie la fiche complète en une fois. La fiche mise en page s'affichera ici.", "التقدم تقديري: يرسل الذكاء الاصطناعي الجذاذة كاملة دفعة واحدة. ستظهر الجذاذة هنا.", "Progress is estimated: the AI returns the whole plan at once. The laid-out plan will appear here.")}</p>
+    </div>
+  );
+}
 
 const LessonPlans = () => {
   const { user } = useAuth();
@@ -48,6 +97,16 @@ const LessonPlans = () => {
   const [saved, setSaved] = useState<Saved[]>([]);
   const [missing, setMissing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  // Avancement affiché pendant la rédaction (estimé d'après le temps écoulé : l'IA répond en une fois)
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [finishing, setFinishing] = useState(false);
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = window.setInterval(() => setElapsed((Date.now() - startedAt) / 1000), 250);
+    return () => window.clearInterval(id);
+  }, [startedAt]);
 
   const myCourses = useMemo(() => courses.filter((c) => c.professor_id === user?.id), [courses, user?.id]);
   useEffect(() => {
@@ -70,17 +129,25 @@ const LessonPlans = () => {
     if (busy) return;
     if (!accessStore.guard("ai.lesson_plan")) return;
     setBusy(true);
+    setFinishing(false);
+    setElapsed(0);
+    setStartedAt(Date.now());
     try {
       const r = await callTeacherAi<{ plan: LessonPlan }>({
         action: "lesson_plan", language: planLang, topic, level, duration, notes,
         material_id: materialId === "none" ? undefined : materialId,
       });
+      setFinishing(true);
+      const html = await planHtml(r.plan, false);
       setPlan(r.plan);
+      setPreview(html || null);
       setPlanId(null);
+      toast.success(tr("Fiche prête.", "الجذاذة جاهزة.", "Plan ready."));
     } catch (e: any) {
       toast.error(aiErrorMessage(String(e?.message || ""), tr));
     } finally {
       setBusy(false);
+      setStartedAt(null);
     }
   };
 
@@ -122,28 +189,21 @@ const LessonPlans = () => {
     </div>
   );
 
-  const print = () => {
-    if (!plan) return;
-    const b = getReportBranding(planLang);
-    const head = reportHeaderLines(b).map((l) => `<div>${escapeHtml(l)}</div>`).join("");
-    const ul = (a: string[]) => `<ul>${a.filter((x) => x.trim()).map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`;
-    const p = (t: string) => escapeHtml(t || "").replace(/\n/g, "<br>");
-    const steps = plan.steps.map((s) => `<tr><td><b>${p(s.phase)}</b></td><td class="c">${p(s.duration)}</td><td>${p(s.teacher)}</td><td>${p(s.students)}</td><td>${p(s.evaluation)}</td></tr>`).join("");
-    openPrintable(`<!doctype html><html lang="${planLang}" dir="${planLang === "ar" ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>${escapeHtml(plan.title)}</title>
-<style>@page{size:A4 landscape;margin:12mm}body{font-family:${planLang === "ar" ? "'Noto Naskh Arabic',Tahoma," : ""}'Segoe UI',Arial,sans-serif;font-size:12px;color:#111}
-.head{font-weight:600;line-height:1.5;border-bottom:2px solid #222;padding-bottom:6px}h1{text-align:center;font-size:18px;margin:8px 0 2px}.sub{text-align:center;color:#444;margin-bottom:10px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}h2{font-size:13px;margin:10px 0 3px;border-bottom:1px solid #bbb}ul{margin:2px 0;padding-inline-start:18px}
-table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #999;padding:5px 7px;vertical-align:top;text-align:start}th{background:#f1f1f1}.c{text-align:center}tr{page-break-inside:avoid}</style></head>
-<body><div class="head">${head}</div><h1>${escapeHtml(L.title)} · ${escapeHtml(plan.title)}</h1><div class="sub">${escapeHtml(L.level)} : ${escapeHtml(plan.level)} · ${escapeHtml(L.duration)} : ${escapeHtml(plan.duration)}</div>
-<div class="grid"><div><h2>${L.competencies}</h2>${ul(plan.competencies)}</div><div><h2>${L.objectives}</h2>${ul(plan.objectives)}</div>
-<div><h2>${L.prerequisites}</h2>${ul(plan.prerequisites)}</div><div><h2>${L.materials}</h2>${ul(plan.materials)}</div></div>
-<h2>${L.steps}</h2><table><thead><tr><th style="width:13%">${L.phase}</th><th style="width:7%">${L.time}</th><th>${L.teacher}</th><th>${L.students}</th><th style="width:18%">${L.evaluation}</th></tr></thead><tbody>${steps}</tbody></table>
-<div class="grid"><div><h2>${L.assessment}</h2><p>${p(plan.assessment)}</p></div><div><h2>${L.homework}</h2><p>${p(plan.homework)}</p></div></div>
-<h2>${L.remediation}</h2><p>${p(plan.remediation)}</p>
-<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},300);});</script></body></html>`);
+  const planHtml = async (p: LessonPlan | null, autoPrint: boolean) => {
+    if (!p) return "";
+    const katex = await loadKatex().catch(() => null);
+    return buildLessonPlanHtml({ plan: p, lang: planLang, branding: getReportBranding(planLang), header: readPlanHeader(user?.name || ""), katex, autoPrint });
   };
 
-  if (user?.role !== "professor") return <Navigate to="/dashboard" replace />;
+  const print = async () => {
+    const html = await planHtml(plan, true);
+    if (html && !openPrintable(html)) toast.error(tr("Autorisez les fenêtres pop-up pour imprimer.", "اسمح بالنوافذ المنبثقة للطباعة.", "Allow pop-ups to print."));
+  };
+
+  const togglePreview = async () => {
+    if (preview) return setPreview(null);
+    setPreview(await planHtml(plan, false));
+  };
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -199,7 +259,7 @@ table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid 
               <ul className="space-y-1">
                 {saved.map((s) => (
                   <li key={s.id} className={cn("flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm hover:bg-muted", planId === s.id && "bg-muted")}>
-                    <button type="button" className="min-w-0 flex-1 truncate text-start" onClick={() => { setPlan(s.content); setPlanId(s.id); setPlanLang(s.language === "ar" ? "ar" : "fr"); }}>
+                    <button type="button" className="min-w-0 flex-1 truncate text-start" onClick={() => { setPlan(s.content); setPreview(null); setPlanId(s.id); setPlanLang(s.language === "ar" ? "ar" : "fr"); }}>
                       {s.title}{s.level ? <span className="text-xs text-muted-foreground"> · {s.level}</span> : null}
                     </button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => void remove(s.id)} aria-label={tr("Supprimer", "حذف", "Delete")}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -212,16 +272,21 @@ table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid 
 
         <section className="min-w-0 rounded-xl border bg-card p-4" dir={planLang === "ar" ? "rtl" : "ltr"}>
           {busy ? (
-            <div className="flex flex-col items-center gap-2 py-20 text-sm text-muted-foreground"><Loader2 className="h-8 w-8 animate-spin text-violet-500" />{tr("Rédaction de la fiche… (jusqu'à une minute)", "جارٍ كتابة الجذاذة… (قد يستغرق دقيقة)", "Drafting… (up to a minute)")}</div>
+            <GenerationProgress elapsed={elapsed} finishing={finishing} withDocument={materialId !== "none"} tr={tr} />
           ) : !plan ? (
             <div className="flex flex-col items-center gap-2 py-20 text-center text-sm text-muted-foreground"><Plus className="h-8 w-8" />{tr("Remplissez le sujet et cliquez sur « Rédiger la fiche ».", "أدخل الموضوع واضغط « كتابة الجذاذة ».", "Enter a topic and click “Draft the plan”.")}</div>
           ) : (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Input value={plan.title} onChange={(e) => set("title", e.target.value)} className="min-w-[12rem] flex-1 text-lg font-semibold" />
-                <Button variant="outline" className="gap-1.5" onClick={print}><Printer className="h-4 w-4" />{tr("Imprimer", "طباعة", "Print")}</Button>
+                <Button variant="outline" className="gap-1.5" onClick={() => void togglePreview()}>{preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}{preview ? tr("Modifier", "تعديل", "Edit") : tr("Aperçu", "معاينة", "Preview")}</Button>
+                <Button variant="outline" className="gap-1.5" onClick={() => void print()}><Printer className="h-4 w-4" />{tr("Imprimer / PDF", "طباعة / PDF", "Print / PDF")}</Button>
                 <Button className="gap-1.5" onClick={() => void save()} disabled={saving || missing}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{tr("Enregistrer", "حفظ", "Save")}</Button>
               </div>
+              {preview ? (
+                <iframe title={tr("Aperçu de la fiche", "معاينة الجذاذة", "Plan preview")} srcDoc={preview} className="h-[80vh] w-full rounded-lg border bg-slate-200" />
+              ) : (
+                <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label className="text-xs font-semibold">{L.level}</Label><Input value={plan.level} onChange={(e) => set("level", e.target.value)} /></div>
                 <div className="space-y-1"><Label className="text-xs font-semibold">{L.duration}</Label><Input value={plan.duration} onChange={(e) => set("duration", e.target.value)} /></div>
@@ -260,6 +325,8 @@ table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid 
                   <div key={k} className="space-y-1"><Label className="text-xs font-semibold">{L[k]}</Label><Textarea rows={3} value={plan[k]} onChange={(e) => set(k, e.target.value)} className="text-sm" /></div>
                 ))}
               </div>
+                </>
+              )}
             </div>
           )}
         </section>
