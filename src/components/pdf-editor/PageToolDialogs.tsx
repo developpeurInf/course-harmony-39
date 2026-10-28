@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 type Tr = (fr: string, ar: string, en: string) => string;
@@ -514,6 +515,113 @@ export function SplitDialog({
         <span className="shrink-0 text-sm">{t("Avant les pages", "قبل الصفحات", "Before pages")}</span>
         <Input value={at} onChange={(e) => setAt(e.target.value)} placeholder="4, 9" className="h-8" onFocus={() => setMode("at")} dir="ltr" />
       </label>
+    </ToolDialog>
+  );
+}
+
+/* ───────────── rechercher et remplacer ───────────── */
+
+export interface ReplaceFormValue {
+  find: string;
+  replace: string;
+  matchCase: boolean;
+  pages: string;
+}
+
+export function ReplaceDialog({
+  open,
+  onOpenChange,
+  onApply,
+  count,
+  initialFind,
+  busy,
+  total,
+  t,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onApply: (v: ReplaceFormValue) => void;
+  /** occurrences pour la recherche en cours (total et numéros de page à partir de 0) */
+  count: (v: ReplaceFormValue) => Promise<{ total: number; pages: number[] }>;
+  initialFind?: string;
+  busy: boolean;
+  total: number;
+  t: Tr;
+}) {
+  const [v, setV] = useState<ReplaceFormValue>({ find: initialFind || "", replace: "", matchCase: false, pages: "" });
+  const [found, setFound] = useState<{ total: number; pages: number[] } | null>(null);
+  const [counting, setCounting] = useState(false);
+  const set = (patch: Partial<ReplaceFormValue>) => setV((x) => ({ ...x, ...patch }));
+
+  useEffect(() => {
+    if (!v.find.trim()) return setFound(null);
+    let cancelled = false;
+    setCounting(true);
+    const id = window.setTimeout(() => {
+      count(v)
+        .then((r) => !cancelled && setFound(r))
+        .catch(() => !cancelled && setFound(null))
+        .finally(() => !cancelled && setCounting(false));
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v.find, v.matchCase, v.pages]);
+
+  const pageList = (pages: number[]) => {
+    const shown = pages.slice(0, 12).map((p) => p + 1).join(", ");
+    return pages.length > 12 ? `${shown}…` : shown;
+  };
+  const canApply = !!v.find.trim() && !!found?.total && !counting;
+
+  return (
+    <ToolDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("Rechercher et remplacer", "بحث واستبدال", "Find and replace")}
+      description={t(
+        "Le nouveau texte garde la police, la taille, la couleur et la position du texte d'origine.",
+        "يحتفظ النص الجديد بخط النص الأصلي وحجمه ولونه وموضعه.",
+        "The new text keeps the original font, size, colour and position."
+      )}
+      onApply={() => onApply(v)}
+      applyLabel={t("Tout remplacer", "استبدال الكل", "Replace all")}
+      busy={busy}
+      disabled={!canApply}
+      t={t}
+    >
+      <Field label={t("Rechercher", "بحث عن", "Find")} htmlFor="rp-find">
+        <Input id="rp-find" value={v.find} autoFocus onChange={(e) => set({ find: e.target.value })} placeholder={t("Texte à trouver", "النص المراد إيجاده", "Text to find")} />
+      </Field>
+      <Field label={t("Remplacer par", "استبدال بـ", "Replace with")} htmlFor="rp-repl" hint={t("Laissez vide pour effacer le texte trouvé.", "اتركه فارغاً لحذف النص.", "Leave empty to erase the text.")}>
+        <Input
+          id="rp-repl"
+          value={v.replace}
+          onChange={(e) => set({ replace: e.target.value })}
+          onKeyDown={(e) => e.key === "Enter" && canApply && !busy && onApply(v)}
+          placeholder={t("Nouveau texte", "النص الجديد", "New text")}
+        />
+      </Field>
+      <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <Checkbox checked={v.matchCase} onCheckedChange={(c) => set({ matchCase: c === true })} />
+        {t("Respecter les majuscules et minuscules", "مطابقة حالة الأحرف", "Match case")}
+      </label>
+      <PagesField value={v.pages} onChange={(pages) => set({ pages })} total={total} t={t} />
+      <div className={cn("rounded-md border px-3 py-2 text-sm", found?.total ? "border-primary/30 bg-primary/5" : "bg-muted/50 text-muted-foreground")} aria-live="polite">
+        {!v.find.trim()
+          ? t("Saisissez le texte à rechercher.", "اكتب النص المراد البحث عنه.", "Type the text to find.")
+          : counting
+            ? t("Recherche…", "جارٍ البحث…", "Searching…")
+            : found?.total
+              ? t(
+                  `${found.total} occurrence(s) sur ${found.pages.length} page(s) : ${pageList(found.pages)}`,
+                  `${found.total} نتيجة في ${found.pages.length} صفحة: ${pageList(found.pages)}`,
+                  `${found.total} match(es) on ${found.pages.length} page(s): ${pageList(found.pages)}`
+                )
+              : t("Aucune occurrence trouvée.", "لا توجد نتائج.", "No matches found.")}
+      </div>
     </ToolDialog>
   );
 }

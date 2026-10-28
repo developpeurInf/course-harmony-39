@@ -26,6 +26,10 @@ export interface PdfWorkspaceHandle {
   /** Miniatures du document actif (URL d'objets à libérer par l'appelant) */
   renderThumbnails: (scale?: number) => Promise<string[]>;
   activePageCount: () => number;
+  /** Texte actuellement sélectionné dans le document ("" sinon) */
+  selectedText: () => Promise<string>;
+  /** Désactive l'outil d'annotation en cours (surligneur, forme…) */
+  clearActiveTool: () => void;
 }
 
 interface Props {
@@ -243,6 +247,25 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
         urls.push(URL.createObjectURL(blob));
       }
       return urls;
+    },
+    selectedText: async () => {
+      const r = registryRef.current;
+      const docId = r && capability<DocManager>(r, "document-manager")?.getActiveDocumentId();
+      const sel = r && capability<{ forDocument: (id: string) => { getSelectedText: () => { toPromise: () => Promise<string[]> } } }>(r, "selection");
+      if (!sel || !docId) return "";
+      try {
+        return (await sel.forDocument(docId).getSelectedText().toPromise()).join(" ").replace(/\s+/g, " ").trim();
+      } catch {
+        return "";
+      }
+    },
+    clearActiveTool: () => {
+      const r = registryRef.current;
+      const docId = r && capability<DocManager>(r, "document-manager")?.getActiveDocumentId();
+      const annot = r && capability<{ forDocument: (id: string) => { getActiveTool: () => unknown; setActiveTool: (id: string | null) => void } }>(r, "annotation");
+      if (!annot || !docId) return;
+      const scope = annot.forDocument(docId);
+      if (scope.getActiveTool()) scope.setActiveTool(null);
     },
     downloadActive: () => {
       void registry().then((r) => {

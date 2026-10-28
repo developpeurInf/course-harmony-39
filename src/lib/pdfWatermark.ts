@@ -46,12 +46,12 @@ export const normalizeText = (s: string) =>
 
 /* ───────────── octets ↔ chaîne binaire ───────────── */
 
-const toBinary = (bytes: Uint8Array) => {
+export const toBinary = (bytes: Uint8Array) => {
   let out = "";
   for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return out;
 };
-const fromBinary = (s: string) => {
+export const fromBinary = (s: string) => {
   const out = new Uint8Array(s.length);
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
   return out;
@@ -59,14 +59,14 @@ const fromBinary = (s: string) => {
 
 /* ───────────── découpage d'un flux de contenu ───────────── */
 
-type Operand =
+export type Operand =
   | { t: "num"; v: number }
   | { t: "str"; v: string } // octets (chaîne binaire)
   | { t: "name"; v: string }
   | { t: "arr"; v: Operand[] }
   | { t: "other" };
 
-interface Op {
+export interface Op {
   op: string;
   args: Operand[];
   /** début de la première opérande (ou de l'opérateur) et fin de l'opérateur */
@@ -112,7 +112,7 @@ function readLiteral(s: string, i: number): [string, number] {
   return [out, i];
 }
 
-function tokenize(s: string): Op[] {
+export function tokenize(s: string): Op[] {
   const ops: Op[] = [];
   const stack: Operand[][] = [[]]; // tableaux imbriqués
   let argStart = -1;
@@ -248,7 +248,7 @@ function parseToUnicode(cmap: string): FontDecoder {
 const LATIN: FontDecoder = { decode: (b) => b };
 const NONE: FontDecoder = { decode: () => "" };
 
-function streamBytes(obj: unknown): Uint8Array | null {
+export function streamBytes(obj: unknown): Uint8Array | null {
   if (obj instanceof PDFRawStream) return decodePDFRawStream(obj).decode();
   if (obj instanceof PDFStream) {
     const anyStream = obj as unknown as { getContents?: () => Uint8Array; getUnencodedContents?: () => Uint8Array };
@@ -284,7 +284,7 @@ interface FormInfo {
   nestedKeys: string[];
 }
 
-const lookupDict = (doc: PDFDocument, v: unknown): PDFDict | undefined => {
+export const lookupDict = (doc: PDFDocument, v: unknown): PDFDict | undefined => {
   const o = v instanceof PDFRef ? doc.context.lookup(v) : v;
   return o instanceof PDFDict ? o : undefined;
 };

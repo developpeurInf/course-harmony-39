@@ -7,7 +7,7 @@ import {
   MessageSquareQuote, Minus, MousePointer2, Palette, PanelTop, PenLine, Pentagon, Printer, Redo2, RotateCcw, RotateCw,
   Save, Scissors, Search, Signature, Spline, Square, SquareCheck, SquareDashed, Stamp, StickyNote, Strikethrough,
   TextCursorInput, TextSelect, Trash2, Type, Underline, Undo2, Upload, Waves, ZoomIn, ZoomOut, MoveHorizontal, Replace,
-  ChevronDownSquare, PencilLine, CheckCheck, X, PanelRight, Brush, Paperclip,
+  ChevronDownSquare, PencilLine, ReplaceAll, CheckCheck, X, PanelRight, Brush, Paperclip,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
@@ -29,8 +29,8 @@ import WatermarkDialog from "@/components/pdf-editor/WatermarkDialog";
 import PageOrganizer from "@/components/pdf-editor/PageOrganizer";
 import { CommandButton, RibbonBar, RibbonButton, RibbonGroup, RibbonTabs, useCommandRefresh } from "@/components/pdf-editor/Ribbon";
 import {
-  AddWatermarkDialog, HeaderFooterDialog, PageNumbersDialog, SplitDialog,
-  type HeaderFooterFormValue, type PageNumbersFormValue, type WatermarkFormValue,
+  AddWatermarkDialog, HeaderFooterDialog, PageNumbersDialog, ReplaceDialog, SplitDialog,
+  type HeaderFooterFormValue, type ReplaceFormValue, type PageNumbersFormValue, type WatermarkFormValue,
 } from "@/components/pdf-editor/PageToolDialogs";
 
 // Moteur PDF (WebAssembly) : chargé uniquement dans le navigateur, à l'ouverture de la page
@@ -57,7 +57,7 @@ const toArrayBuffer = (b: Uint8Array) => b.buffer.slice(b.byteOffset, b.byteOffs
 const pages = () => import("@/lib/pdfPages");
 
 type TabId = "home" | "comment" | "edit" | "organize" | "form" | "protect";
-type ToolDialogId = "watermark" | "headerFooter" | "pageNumbers" | "split" | null;
+type ToolDialogId = "watermark" | "headerFooter" | "pageNumbers" | "split" | "replace" | null;
 const TAB_MODE: Record<TabId, string> = {
   home: "mode:view",
   comment: "mode:annotate",
@@ -100,6 +100,8 @@ const PdfEditor = () => {
   const [docVersion, setDocVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [toolDialog, setToolDialog] = useState<ToolDialogId>(null);
+  const [replaceFind, setReplaceFind] = useState("");
+  const replaceSource = useRef<ArrayBuffer | null>(null);
   const [thumbs, setThumbs] = useState<string[]>([]);
   const [thumbsLoading, setThumbsLoading] = useState(false);
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
@@ -233,6 +235,11 @@ const PdfEditor = () => {
     return () => window.clearTimeout(id);
   }, [tab, hasDoc, docVersion]);
 
+  // Changer d'onglet range l'outil en cours : un surligneur resté actif colorerait le texte sélectionné
+  useEffect(() => {
+    workspace.current?.clearActiveTool();
+  }, [tab]);
+
   // Nombre de pages du document actif
   useEffect(() => {
     if (!hasDoc) return setPageTotal(0);
@@ -351,8 +358,18 @@ const PdfEditor = () => {
   const undoReady = hasDoc && !busy && (viewerCan("history:undo") || canUndo);
   const redoReady = hasDoc && !busy && (viewerCan("history:redo") || canRedo);
 
-  const shortcuts = useRef({ undoAny, redoAny });
-  shortcuts.current = { undoAny, redoAny };
+  const openReplace = async () => {
+    const w = workspace.current;
+    if (!w || !hasDoc || busy) return;
+    const [text, cur] = await Promise.all([w.selectedText(), w.exportActive()]);
+    if (!cur) return;
+    replaceSource.current = cur.buffer;
+    setReplaceFind(text.length <= 200 ? text : "");
+    setToolDialog("replace");
+  };
+
+  const shortcuts = useRef({ undoAny, redoAny, openReplace });
+  shortcuts.current = { undoAny, redoAny, openReplace };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -360,7 +377,11 @@ const PdfEditor = () => {
       if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       if (document.querySelector("[role=dialog]")) return;
       const key = e.key.toLowerCase();
-      if (key === "z" && !e.shiftKey) {
+      if (key === "h" && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        void shortcuts.current.openReplace();
+      } else if (key === "z" && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
         shortcuts.current.undoAny();
@@ -425,6 +446,39 @@ const PdfEditor = () => {
       t("Numéros de page ajoutés", "تمت إضافة أرقام الصفحات", "Page numbers added")
     );
     if (ok) setToolDialog(null);
+  };
+
+  const replacer = () => import("@/lib/pdfReplace");
+  const replaceOpts = async (v: ReplaceFormValue) => ({ find: v.find, matchCase: v.matchCase, pages: (await pages()).parsePageRange(v.pages, pageTotal) });
+  const countReplace = async (v: ReplaceFormValue) => {
+    const src = replaceSource.current;
+    if (!src) return { total: 0, pages: [] };
+    const { countInPdf } = await replacer();
+    return countInPdf(src.slice(0), await replaceOpts(v));
+  };
+  const applyReplace = async (v: ReplaceFormValue) => {
+    const { replaceInPdf } = await replacer();
+    const opts = await replaceOpts(v);
+    let result = { replaced: 0, fallback: 0, failed: 0 };
+    const ok = await transform(async (b) => {
+      const r = await replaceInPdf(b, { ...opts, replace: v.replace });
+      result = r;
+      return r.bytes;
+    });
+    if (!ok) return;
+    setToolDialog(null);
+    const n = result.replaced;
+    toast.success(t(`${n} remplacement(s) effectué(s)`, `تم ${n} استبدال`, `${n} replacement(s) made`), {
+      description: result.fallback
+        ? t(
+            `${result.fallback} avec une police proche : la police d'origine ne contenait pas toutes les lettres.`,
+            `${result.fallback} بخط قريب: الخط الأصلي لا يحتوي على كل الحروف.`,
+            `${result.fallback} with a similar font: the original font lacked some letters.`
+          )
+        : result.failed
+          ? t(`${result.failed} non remplacé(s) : caractères non pris en charge.`, `${result.failed} لم يُستبدل: أحرف غير مدعومة.`, `${result.failed} not replaced: unsupported characters.`)
+          : undefined,
+    });
   };
 
   const applySplit = async (v: { every?: number; at?: number[] }) => {
@@ -536,6 +590,7 @@ const PdfEditor = () => {
             </RibbonGroup>
             <RibbonGroup label={t("Rechercher", "بحث", "Find")}>
               <CommandButton ws={ws} command="panel:toggle-search" icon={Search} label={t("Rechercher", "بحث", "Search")} disabled={!hasDoc} />
+              <RibbonButton icon={ReplaceAll} label={t("Remplacer", "استبدال", "Replace")} title={t("Rechercher et remplacer (Ctrl+H)", "بحث واستبدال (Ctrl+H)", "Find and replace (Ctrl+H)")} disabled={!hasDoc || busy} onClick={() => void openReplace()} />
               <CommandButton ws={ws} command="panel:toggle-comment" icon={MessageSquare} label={t("Commentaires", "التعليقات", "Comments")} disabled={!hasDoc} />
             </RibbonGroup>
             <RibbonGroup label={t("Historique", "السجل", "History")}>
@@ -582,8 +637,18 @@ const PdfEditor = () => {
 
         {tab === "edit" && (
           <>
+            <RibbonGroup label={t("Texte", "النص", "Text")}>
+              <RibbonButton
+                icon={PencilLine}
+                label={t("Modifier le texte", "تعديل النص", "Edit text")}
+                title={t("Sélectionnez un texte puis cliquez ici pour le remplacer", "حدد نصاً ثم انقر هنا لاستبداله", "Select text, then click here to replace it")}
+                disabled={!hasDoc || busy}
+                onClick={() => void openReplace()}
+              />
+              <RibbonButton icon={ReplaceAll} label={t("Remplacer", "استبدال", "Replace")} title={t("Rechercher et remplacer (Ctrl+H)", "بحث واستبدال (Ctrl+H)", "Find and replace (Ctrl+H)")} disabled={!hasDoc || busy} onClick={() => void openReplace()} />
+              <CommandButton ws={ws} command="annotation:add-text" icon={Type} label={t("Ajouter du texte", "إضافة نص", "Add text")} />
+            </RibbonGroup>
             <RibbonGroup label={t("Insérer", "إدراج", "Insert")}>
-              <CommandButton ws={ws} command="annotation:add-text" icon={Type} label={t("Texte", "نص", "Text")} />
               <CommandButton ws={ws} command="insert:add-image" icon={ImagePlus} label={t("Image", "صورة", "Image")} />
               <CommandButton ws={ws} command="insert:add-signature" icon={Signature} label={t("Signature", "توقيع", "Signature")} />
               <CommandButton ws={ws} command="insert:add-rubber-stamp" icon={Stamp} label={t("Tampon", "ختم", "Stamp")} />
@@ -885,6 +950,9 @@ const PdfEditor = () => {
       {toolDialog === "watermark" && <AddWatermarkDialog open onOpenChange={(o) => !o && setToolDialog(null)} onApply={(v) => void applyWatermark(v)} busy={busy} total={pageTotal} t={t} />}
       {toolDialog === "headerFooter" && <HeaderFooterDialog open onOpenChange={(o) => !o && setToolDialog(null)} onApply={(v) => void applyHeaderFooter(v)} busy={busy} total={pageTotal} t={t} />}
       {toolDialog === "pageNumbers" && <PageNumbersDialog open onOpenChange={(o) => !o && setToolDialog(null)} onApply={(v) => void applyPageNumbers(v)} busy={busy} total={pageTotal} t={t} />}
+      {toolDialog === "replace" && (
+        <ReplaceDialog open onOpenChange={(o) => !o && setToolDialog(null)} onApply={(v) => void applyReplace(v)} count={countReplace} initialFind={replaceFind} busy={busy} total={pageTotal} t={t} />
+      )}
       {toolDialog === "split" && <SplitDialog open onOpenChange={(o) => !o && setToolDialog(null)} onApply={(v) => void applySplit(v)} busy={busy} total={pageTotal} t={t} />}
 
       <WatermarkDialog
