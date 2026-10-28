@@ -24,13 +24,14 @@ import { countByKind, type CourseMaterialLike } from "@/lib/courseMedia";
 import { toast } from "sonner";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
+import { CourseGroupHeader, ExerciseRow, dueState } from "@/components/student/StudentWork";
 
 const Exercises = () => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const { roomId } = useParams();
   const {
-    exercises, courses, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, refreshData,
+    exercises, courses, rooms, addExercise, updateExercise, deleteExercise, toggleExerciseVisibility, refreshData,
     getVisibleExercisesForStudent, loading: dataLoading,
     exerciseMaterials, loadExerciseMaterials, uploadExerciseMaterials, addExerciseVideoLink, deleteExerciseMaterial,
   } = useCourses();
@@ -120,6 +121,17 @@ const Exercises = () => {
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userExercises, isProfessor, courseFilter, exerciseSearch, courses]);
+
+  // Élève : groupes par cours, dans l'ordre d'urgence de leur premier exercice (liste déjà triée)
+  const studentGroups = useMemo(() => {
+    const groups = new Map<string, Exercise[]>();
+    visibleExercises.forEach((ex) => {
+      const list = groups.get(ex.course_id);
+      if (list) list.push(ex);
+      else groups.set(ex.course_id, [ex]);
+    });
+    return [...groups.entries()].map(([id, items]) => ({ course: courses.find((c) => c.id === id) as Course | undefined, items }));
+  }, [visibleExercises, courses]);
 
   const formatDueDate = (dateStr: string) => formatDate(dateStr, language);
 
@@ -402,15 +414,17 @@ const Exercises = () => {
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {isProfessor
               ? tr("Gérer et consulter les exercices associés aux cours", "إدارة وعرض التمارين المرتبطة بالدروس", "Manage and view exercises linked to courses")
-              : tr("Tes exercices à faire, du plus urgent au moins urgent", "تمارينك المطلوبة، من الأكثر استعجالاً", "Your exercises to do, most urgent first")}
+              : tr("Tes exercices classés par cours, du plus urgent au moins urgent", "تمارينك مرتبة حسب الدرس، من الأكثر استعجالاً", "Your exercises by course, most urgent first")}
           </p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* View Toggle */}
-          <ViewToggle
-            view={viewMode === "grid" ? "grid" : "table"}
-            onViewChange={(v) => setViewMode(v === "grid" ? "grid" : "list")}
-          />
+          {isProfessor && (
+            <ViewToggle
+              view={viewMode === "grid" ? "grid" : "table"}
+              onViewChange={(v) => setViewMode(v === "grid" ? "grid" : "list")}
+            />
+          )}
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -561,7 +575,28 @@ const Exercises = () => {
           ))}
         </div>
       ) : visibleExercises.length > 0 ? (
-        viewMode === "grid" ? (
+        !isProfessor ? (
+          // Élève : exercices regroupés par cours (le cours le plus urgent en premier)
+          <div className="space-y-5">
+            {studentGroups.map(({ course, items }) => (
+              <section key={course?.id || "none"} className="overflow-hidden rounded-xl border bg-card">
+                <CourseGroupHeader
+                  title={course?.title || tr("Cours inconnu", "درس غير معروف", "Unknown course")}
+                  roomName={course?.room_id ? rooms.find((r) => r.id === course.room_id)?.name : undefined}
+                  href={course ? `/courses/${course.id}` : "/courses"}
+                  total={items.length}
+                  late={items.filter((ex) => dueState(ex, nowTs) === "late").length}
+                  tr={tr}
+                />
+                <ul className="divide-y">
+                  {items.map((ex) => (
+                    <ExerciseRow key={ex.id} exercise={ex} attachments={attachmentsOf(ex).length} now={nowTs} language={language} tr={tr} onOpen={() => setViewerExerciseId(ex.id)} />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        ) : viewMode === "grid" ? (
           // Grid View
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleExercises.map((exercise) => (

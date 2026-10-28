@@ -56,6 +56,8 @@ import ViewToggle from "@/components/ViewToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
+import { StudentCourseCards, dueState } from "@/components/student/StudentWork";
+import { useNow } from "@/hooks/useNow";
 import { isSmallScreen } from "@/lib/device";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 
@@ -118,6 +120,7 @@ const Courses = () => {
   const [students, setStudents] = useState<UserProfile[]>([]);
   
   const isProfessor = user?.role === "professor";
+  const nowTs = useNow();
   // Liste des élèves : utile seulement à l'enseignant (dialogue d'inscription)
   useEffect(() => {
     if (!user?.id || user.role !== "professor") return;
@@ -526,10 +529,12 @@ const Courses = () => {
         </div>
         
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          <ViewToggle
-            view={viewMode}
-            onViewChange={(view) => setViewMode(view)}
-          />
+          {isProfessor && (
+            <ViewToggle
+              view={viewMode}
+              onViewChange={(view) => setViewMode(view)}
+            />
+          )}
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -690,7 +695,27 @@ const Courses = () => {
           ))}
         </div>
       ) : displayedCourses.length > 0 ? (
-        viewMode === "grid" ? (
+        !isProfessor ? (
+          <StudentCourseCards
+            tr={tr}
+            items={displayedCourses.map((course) => {
+              const courseExercises = statsSource.exercises.filter((e) => e.course_id === course.id && e.is_visible);
+              const states = courseExercises.map((e) => dueState(e, nowTs));
+              return {
+                id: course.id,
+                title: course.title,
+                description: course.description,
+                roomName: course.room_id ? getRoomName(course.room_id) : undefined,
+                cover: <CourseCover materials={courseMaterials[course.id] || []} title={course.title} heightPct={38} />,
+                resources: (courseMaterials[course.id] || []).length,
+                exercises: courseExercises.length,
+                pending: states.filter((st) => st !== "none").length,
+                late: states.filter((st) => st === "late").length,
+                exams: statsSource.exams.filter((e) => e.course_id === course.id).length,
+              };
+            })}
+          />
+        ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedCourses.map((course) => {
               const stats = getCourseStats(course.id);
