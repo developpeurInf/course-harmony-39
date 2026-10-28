@@ -258,8 +258,8 @@ const Sidebar = () => {
             )
           ) : (
             <>
-              {feature("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Mes cours", "دروسي", "My courses")} />}
-              {feature("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Mes exercices", "تماريني", "My exercises")} />}
+              {feature("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
+              {feature("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
               {feature("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
             </>
           )}
