@@ -133,6 +133,16 @@ type Exporter = {
   forDocument: (id: string) => { saveAsCopy: () => { toPromise: () => Promise<ArrayBuffer> }; download: () => void };
 };
 
+/** Corrige le style d'édition des zones de texte venues d'autres éditeurs (sans bloquer l'ouverture) */
+const prepare = async (buffer: ArrayBuffer) => {
+  try {
+    const { normalizeFreeText } = await import("@/lib/pdfFreeText");
+    return await normalizeFreeText(buffer);
+  } catch {
+    return buffer;
+  }
+};
+
 const capability = <T,>(registry: PluginRegistry, id: string): T | null => {
   const plugin = registry.getPlugin(id) as unknown as { provides?: () => T } | null;
   return plugin?.provides ? plugin.provides() : null;
@@ -168,13 +178,15 @@ const PdfWorkspace = forwardRef<PdfWorkspaceHandle, Props>(function PdfWorkspace
     openBuffer: async (buffer, name) => {
       const dm = capability<DocManager>(await registry(), "document-manager");
       if (!dm) return;
-      const res = await dm.openDocumentBuffer({ buffer, name }).toPromise();
+      const res = await dm.openDocumentBuffer({ buffer: await prepare(buffer), name }).toPromise();
       await res.task.toPromise();
     },
     openUrl: async (url, name) => {
       const dm = capability<DocManager>(await registry(), "document-manager");
       if (!dm) return;
-      const res = await dm.openDocumentUrl({ url, name, mode: "full-fetch" }).toPromise();
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const res = await dm.openDocumentBuffer({ buffer: await prepare(await resp.arrayBuffer()), name }).toPromise();
       await res.task.toPromise();
     },
     exportActive: async () => {
