@@ -6,7 +6,7 @@
  * dans les constats / propositions du modèle 1.
  */
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardCopy, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCopy, Loader2, Pencil, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AiProgress, useElapsed } from "@/components/ai/AiProgress";
+import { useElapsed } from "@/components/ai/AiProgress";
 import { accessStore } from "@/contexts/AccessContext";
 import { aiErrorMessage, loadAiMaterials } from "@/lib/teacherAi";
-import { BAND_LABEL, MASTERY_LABEL, emptyAnalysis, generateDiagnosticAnalysis, type DiagnosticAiAnalysis, type Mastery } from "@/lib/diagnosticAi";
+import { BAND_LABEL, DIAG_PARTS, MASTERY_LABEL, emptyAnalysis, generateDiagnosticAnalysis, type DiagPart, type DiagnosticAiAnalysis, type Mastery } from "@/lib/diagnosticAi";
 import { getLangContent, setLangContent, type DiagnosticConfig } from "@/lib/diagnosticStorage";
 import type { DiagnosticClass } from "@/lib/diagnosticStatsEngine";
 import type { DiagLang } from "@/lib/diagnosticTranslations";
@@ -45,7 +45,9 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
   const [materials, setMaterials] = useState<(CourseMaterialLike & { course_id: string; id: string })[]>([]);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
-  const [finishing, setFinishing] = useState(false);
+  // État de chaque partie pendant / après la génération
+  const [partState, setPartState] = useState<Partial<Record<DiagPart, "running" | "done" | "error">>>({});
+  const [partErrors, setPartErrors] = useState<Partial<Record<DiagPart, string>>>({});
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const elapsed = useElapsed(startedAt);
   const [editing, setEditing] = useState(false);
@@ -66,30 +68,46 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
       return { ...c, analyse_ia: next };
     });
 
-  const generate = async () => {
+  const generate = async (only?: DiagPart[]) => {
     if (busy || !accessStore.guard("ai.diagnostic")) return;
     if (!classes.length) return toast.error(tr("Sélectionnez au moins une classe.", "اختر قسماً واحداً على الأقل.", "Select at least one class."));
+    const parts = only && only.length ? only : DIAG_PARTS;
     setBusy(true);
-    setFinishing(false);
+    setPartState(Object.fromEntries(parts.map((p) => [p, "running"])));
+    setPartErrors({});
     setStartedAt(Date.now());
     try {
-      const a = await generateDiagnosticAnalysis({
-        config, classes, lang,
-        exercises: content.exercices.map((e, i) => ({ title: e.titre, description: e.description, rate: rates[String(i)] ?? null })),
-        examId: examId === "none" ? undefined : examId,
-        materialId: materialId === "none" ? undefined : materialId,
-        notes,
-      });
-      setFinishing(true);
-      setAnalysis(a);
-      toast.success(tr("Analyse prête : vérifiez-la et modifiez-la si besoin.", "التحليل جاهز: راجعه وعدّله عند الحاجة.", "Analysis ready: review and edit it if needed."));
-    } catch (e: any) {
-      toast.error(aiErrorMessage(String(e?.message || ""), tr));
+      const { analysis: got, failed } = await generateDiagnosticAnalysis(
+        {
+          config, classes, lang,
+          exercises: content.exercices.map((e, i) => ({ title: e.titre, description: e.description, rate: rates[String(i)] ?? null })),
+          examId: examId === "none" ? undefined : examId,
+          materialId: materialId === "none" ? undefined : materialId,
+          notes,
+        },
+        (part, status, error) => {
+          setPartState((s) => ({ ...s, [part]: status }));
+          if (error) setPartErrors((s) => ({ ...s, [part]: error }));
+        },
+        parts,
+      );
+      // Les parties reçues remplacent les anciennes ; les autres sont conservées
+      if (Object.keys(got).length) {
+        const base = (only ? analysis : null) || emptyAnalysis();
+        setAnalysis({ ...base, ...got, generated_at: new Date().toISOString() });
+      }
+      if (!failed.length) {
+        setPartState({});
+        toast.success(tr("Analyse prête : vérifiez-la et modifiez-la si besoin.", "التحليل جاهز: راجعه وعدّله عند الحاجة.", "Analysis ready: review and edit it if needed."));
+      } else {
+        toast.error(`${aiErrorMessage(failed[0].error, tr)} ${tr("Les parties réussies sont conservées.", "تم الاحتفاظ بالأجزاء الناجحة.", "Successful parts were kept.")}`);
+      }
     } finally {
       setBusy(false);
       setStartedAt(null);
     }
   };
+  const failedParts = DIAG_PARTS.filter((p) => partState[p] === "error");
 
   const copyToModel1 = () => {
     if (!analysis) return;
@@ -112,29 +130,45 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
   const upd = <K extends keyof DiagnosticAiAnalysis>(k: K, v: DiagnosticAiAnalysis[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const dir = lang === "ar" ? "rtl" : "ltr";
 
-  if (busy) {
-    return (
-      <div className="rounded-lg border border-violet-200 bg-violet-50/40 px-3 dark:border-violet-900 dark:bg-violet-950/20">
-        <AiProgress
-          className="py-4"
-          elapsed={elapsed}
-          finishing={finishing}
-          expected={materialId !== "none" ? 60 : 45}
-          title={L("تحليل التقويم التشخيصي", "Analyse de l'évaluation diagnostique", "Analysing the diagnostic")}
-          stages={[
-            { at: 0, label: L("إرسال الإحصائيات (بدون أسماء)", "Envoi des statistiques (sans noms)", "Sending statistics (no names)") },
-            ...(examId !== "none" || materialId !== "none" ? [{ at: 8, label: L("قراءة الاختبار / الوثيقة", "Lecture du test / du document", "Reading the test / document") }] : []),
-            { at: 20, label: L("تحليل التحكم في الموارد", "Maîtrise de chaque ressource", "Mastery of each resource") },
-            { at: 45, label: L("حاجيات الفئات ونوع الدعم", "Besoins des groupes", "Group needs") },
-            { at: 65, label: L("خطة الدعم والمعالجة", "Plan de remédiation", "Remediation plan") },
-            { at: 82, label: L("الملاحظات والمقترحات", "Constats et propositions", "Findings and proposals") },
-          ]}
-          note={L("التقدم تقديري: يرسل الذكاء الاصطناعي التحليل كاملاً دفعة واحدة.", "Avancement estimé : l'IA renvoie l'analyse complète en une fois.", "Estimated progress: the AI returns the whole analysis at once.")}
-          lateLabel={L("لحظة من فضلك…", "encore un instant…", "almost there…")}
-        />
-      </div>
-    );
-  }
+  const partLabel: Record<DiagPart, string> = {
+    summary: L("التقدير العام والملاحظات والمقترحات", "Appréciation, constats et propositions", "Overall level, findings, proposals"),
+    resources: L("التحكم في كل مورد", "Maîtrise de chaque ressource", "Mastery of each resource"),
+    groups: L("حاجيات الفئات ونوع الدعم", "Besoins des groupes", "Group needs"),
+    plan: L("خطة الدعم والمعالجة", "Plan de remédiation", "Remediation plan"),
+  };
+  const tracked = DIAG_PARTS.filter((p) => partState[p]);
+  const doneCount = tracked.filter((p) => partState[p] === "done").length;
+  // Barre : parties terminées + progression estimée de celles en cours (~45 s chacune)
+  const running = tracked.length - doneCount - failedParts.length;
+  const pct = tracked.length ? Math.round(((doneCount + failedParts.length + running * Math.min(0.9, elapsed / 50)) / tracked.length) * 100) : 0;
+  const progress = tracked.length > 0 && (
+    <div className="space-y-2 rounded-md border border-violet-200 bg-white/70 p-2 dark:border-violet-900 dark:bg-slate-900/50">
+      {busy && (
+        <div>
+          <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+            <div className="h-full rounded-full bg-violet-500 transition-all duration-300" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>{doneCount}/{tracked.length}</span><span>{Math.floor(elapsed)} s</span></div>
+        </div>
+      )}
+      <ul className="space-y-1 text-[11px]">
+        {tracked.map((p) => (
+          <li key={p} className="flex items-start gap-1.5">
+            {partState[p] === "done" ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" /> : partState[p] === "error" ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-600" /> : <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-violet-500" />}
+            <span>
+              {partLabel[p]}
+              {partState[p] === "error" && partErrors[p] && <span className="block text-rose-600">{aiErrorMessage(partErrors[p]!, tr)}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {!busy && failedParts.length > 0 && (
+        <Button size="sm" variant="outline" onClick={() => void generate(failedParts)} className="h-7 w-full gap-1 text-[11px]">
+          <RotateCcw className="h-3 w-3" />{L("إعادة الأجزاء الفاشلة", "Relancer les parties manquantes", "Retry failed parts")}
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-3 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-900 dark:bg-violet-950/20">
@@ -196,12 +230,13 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
         <Textarea rows={2} dir={dir} value={notes} onChange={(e) => setNotes(e.target.value)} className="text-xs" placeholder={L("مثلاً: صعوبات في الحساب الحرفي…", "ex. : difficultés en calcul littéral…", "e.g. difficulties with algebra…")} />
       </div>
 
-      <Button onClick={() => void generate()} className="h-9 w-full gap-1.5 bg-violet-600 text-xs font-semibold text-white hover:bg-violet-700">
-        <Sparkles className="h-4 w-4" />{analysis ? L("إعادة التوليد", "Régénérer l'analyse", "Regenerate") : L("توليد التحليل", "Générer l'analyse", "Generate the analysis")}
+      <Button onClick={() => void generate()} disabled={busy} className="h-9 w-full gap-1.5 bg-violet-600 text-xs font-semibold text-white hover:bg-violet-700">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{analysis ? L("إعادة التوليد", "Régénérer l'analyse", "Regenerate") : L("توليد التحليل", "Générer l'analyse", "Generate the analysis")}
       </Button>
+      {progress}
       <p className="text-[10px] leading-snug text-slate-500">{L("تُرسل إحصائيات مجهولة فقط (بدون أسماء أو أرقام مسار).", "Seules des statistiques anonymes sont envoyées (aucun nom ni numéro Massar).", "Only anonymous statistics are sent (no names).")}</p>
 
-      {analysis && (
+      {analysis && !busy && (
         <div className="grid grid-cols-2 gap-2 border-t border-violet-200 pt-2 dark:border-violet-900">
           <Button variant="outline" size="sm" onClick={openEditor} className="gap-1 text-xs"><Pencil className="h-3.5 w-3.5" />{L("تعديل التحليل", "Modifier l'analyse", "Edit analysis")}</Button>
           <Button variant="outline" size="sm" onClick={copyToModel1} className="gap-1 text-xs"><ClipboardCopy className="h-3.5 w-3.5" />{L("نسخ إلى النموذج 1", "Copier vers modèle 1", "Copy to template 1")}</Button>

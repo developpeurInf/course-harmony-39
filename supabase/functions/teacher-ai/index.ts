@@ -13,6 +13,8 @@
 // Secrets Supabase : GEMINI_API_KEY ou ANTHROPIC_API_KEY (l'un des deux).
 //   AI_PROVIDER (optionnel) : "gemini" ou "anthropic" ; par défaut gemini si GEMINI_API_KEY existe.
 //   TEACHER_AI_MODEL (optionnel) : défaut gemini-3.8-flash (Gemini) / claude-opus-5-5 (Anthropic).
+//   GEMINI_FALLBACK_MODEL (optionnel) : modèle Gemini essayé quand le principal est saturé.
+//   AI_TIME_BUDGET_MS (optionnel) : durée maximale d'une génération, 135000 par défaut.
 // Habilitations : ai.quiz_generator / ai.lesson_plan / ai.omr ; par professeur et par jour :
 // 40 générations (quiz, fiches) et 400 lectures de feuilles.
 //
@@ -28,7 +30,7 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400, diagnostic: 30 } as const;
+const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400, diagnostic: 120 } as const; // diagnostic : 4 parties par analyse
 const MAX_TEXT = 60000;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const LANG = { ar: "Arabic (Modern Standard Arabic, as used in Moroccan schools)", fr: "French" } as const;
@@ -206,13 +208,30 @@ const toGeminiSchema = (s: any): any => {
   return out;
 };
 
+/** Parties de l'analyse diagnostique, demandées séparément par l'appli (body.part) */
+const DIAG_PARTS: Record<string, string[]> = {
+  summary: ["appreciation", "summary", "observations", "propositions"],
+  resources: ["resources"],
+  groups: ["groups"],
+  plan: ["plan"],
+};
+
+/** Schéma restreint à certaines parties (sans part : deux moitiés indépendantes) */
+function splitSchema(schema: any, part?: string): Record<string, unknown>[] {
+  const halves = part && DIAG_PARTS[part] ? [DIAG_PARTS[part]] : [["appreciation", "summary", "observations", "propositions", "resources"], ["groups", "plan"]];
+  return halves.map((keys) => ({
+    ...schema,
+    required: keys,
+    properties: Object.fromEntries(keys.map((k) => [k, schema.properties[k]])),
+  }));
+}
+
 class AiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-async function callGemini(apiKey: string, model: string, content: any[], schema: Record<string, unknown>) {
+async function callGemini(apiKey: string, model: string, content: any[], schema: Record<string, unknown>, deadline: number) {
   const parts = content.map((b) => (b.type === "text" ? { text: b.text } : { inlineData: { mimeType: b.source.media_type, data: b.source.data } }));
-  // Gemini renvoie 503 / 429 quand le modèle est saturé : jusqu'à 2 nouvelles tentatives.
   const payload = JSON.stringify({
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents: [{ role: "user", parts }],
@@ -224,18 +243,43 @@ async function callGemini(apiKey: string, model: string, content: any[], schema:
       thinkingConfig: { thinkingLevel: Deno.env.get("GEMINI_THINKING") || "low" },
     },
   });
-  const send = () =>
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  // Durée limitée : chaque appel s'arrête avant la limite de la fonction (150 s sur l'offre
+  // gratuite) pour renvoyer une erreur claire au lieu d'un arrêt brutal (546).
+  const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL");
+  const useFallback = !!fallback && fallback !== model;
+  const send = (m: string, maxMs = Infinity) => {
+    const left = Math.min(deadline - Date.now(), maxMs);
+    if (left < 8000) throw new AiError(504, "AI_TIMEOUT");
+    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: payload,
+      signal: AbortSignal.timeout(left),
+    }).catch((e) => {
+      if (e?.name === "TimeoutError" || e?.name === "AbortError") throw new AiError(504, "AI_TIMEOUT");
+      throw e;
     });
-  let res = await send();
-  for (const wait of [2000, 5000]) {
-    if (res.status !== 503 && res.status !== 429) break;
-    await new Promise((r) => setTimeout(r, wait));
-    res = await send();
+  };
+  // Modèle principal : avec un modèle de secours, on ne lui laisse que 60 s (lent = saturé).
+  // Saturé (503 / 429) ou trop lent : nouvelles tentatives courtes, puis GEMINI_FALLBACK_MODEL.
+  let res: Response | null = null;
+  try {
+    res = await send(model, useFallback ? 60000 : Infinity);
+    for (const wait of [2000, 5000]) {
+      if (res.status !== 503 && res.status !== 429) break;
+      if (deadline - Date.now() < wait + 30000) break;
+      await new Promise((r) => setTimeout(r, wait));
+      res = await send(model, useFallback ? 40000 : Infinity);
+    }
+  } catch (e) {
+    if (!(e instanceof AiError && e.status === 504 && useFallback)) throw e;
+    res = null;
   }
+  if (useFallback && (!res || res.status === 503 || res.status === 429)) {
+    console.log(`teacher-ai: ${model} ${res ? res.status : "trop lent"}, essai de ${fallback}`);
+    res = await send(fallback!);
+  }
+  if (!res) throw new AiError(504, "AI_TIMEOUT");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new AiError(res.status, data?.error?.message || `Gemini HTTP ${res.status}`);
   const cand = data?.candidates?.[0];
@@ -278,6 +322,8 @@ async function callAnthropic(apiKey: string, model: string, content: any[], sche
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Marge sous la limite de durée des Edge Functions (150 s sur l'offre gratuite)
+  const deadline = Date.now() + Number(Deno.env.get("AI_TIME_BUDGET_MS") || 135000);
   try {
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -419,7 +465,8 @@ Deno.serve(async (req) => {
         `\n\n<exercises>\n${exercises.map((e, i) => `${i + 1}. ${e.title} — ${e.description}${e.rate !== null && e.rate !== undefined ? ` (teacher's success rate: ${e.rate}%)` : ""}`).join("\n") || "(none listed)"}\n</exercises>` +
         examBlock +
         (text ? `\n\n<teacher_notes>\n${text}\n</teacher_notes>` : "") +
-        (content.length ? "\n\nThe attached document is the diagnostic test or the related course." : "");
+        (content.length ? "\n\nThe attached document is the diagnostic test or the related course." : "") +
+        (DIAG_PARTS[String(body?.part || "")] ? `\n\nWrite ONLY these fields now: ${DIAG_PARTS[String(body.part)].join(", ")}. Be concise.` : "");
       schema = DIAG_SCHEMA;
     } else {
       const topic = String(body?.topic || "").slice(0, 300).trim();
@@ -439,11 +486,20 @@ Deno.serve(async (req) => {
     content.push({ type: "text", text: prompt });
 
     const model = Deno.env.get("TEACHER_AI_MODEL") || (provider === "gemini" ? "gemini-3.8-flash" : "claude-opus-5-5");
-    const result = provider === "gemini" ? await callGemini(apiKey, model, content, schema) : await callAnthropic(apiKey, model, content, schema);
+    const call = (sch: Record<string, unknown>) => (provider === "gemini" ? callGemini(apiKey, model, content, sch, deadline) : callAnthropic(apiKey, model, content, sch));
+    // Analyse diagnostique : deux demandes plus courtes en parallèle (constats + ressources /
+    // groupes + plan) pour rester sous la limite de durée des Edge Functions.
+    const parts = action === "diagnostic" ? await Promise.all(splitSchema(schema, String(body?.part || "")).map(call)) : [await call(schema)];
 
-    if (result.refused) return json({ error: "REFUSED" }, 422);
-    if (result.truncated) return json({ error: "TOO_LONG" }, 422);
-    const parsed = JSON.parse(result.text);
+    if (parts.some((r) => r.refused)) return json({ error: "REFUSED" }, 422);
+    if (parts.some((r) => r.truncated)) return json({ error: "TOO_LONG" }, 422);
+    const parsed = Object.assign({}, ...parts.map((r) => JSON.parse(r.text)));
+    const result = {
+      usage: {
+        input_tokens: parts.reduce((n, r) => n + (r.usage.input_tokens || 0), 0),
+        output_tokens: parts.reduce((n, r) => n + (r.usage.output_tokens || 0), 0),
+      },
+    };
 
     await admin.from("ai_usage").insert({
       user_id: uid,
@@ -455,6 +511,7 @@ Deno.serve(async (req) => {
     return json(action === "quiz" ? { quiz: parsed } : action === "omr" ? { sheet: parsed } : action === "diagnostic" ? { analysis: parsed } : { plan: parsed });
   } catch (error) {
     console.error(error);
+    if (error instanceof AiError && error.status === 504) return json({ error: "AI_TIMEOUT" }, 504);
     if (error instanceof AiError && (error.status === 429 || error.status === 503 || error.status === 529)) return json({ error: "AI_BUSY", detail: String(error.message).slice(0, 300) }, 503);
     if (error instanceof AiError) return json({ error: "AI_ERROR", status: error.status, detail: String((error as Error).message).slice(0, 300) }, 502);
     return json({ error: String((error as Error)?.message || error) }, 500);

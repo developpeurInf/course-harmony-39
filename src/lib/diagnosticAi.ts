@@ -67,8 +67,20 @@ export interface DiagnosticAiRequest {
   notes?: string;
 }
 
-export async function generateDiagnosticAnalysis(req: DiagnosticAiRequest): Promise<DiagnosticAiAnalysis> {
-  const r = await callTeacherAi<{ analysis: DiagnosticAiAnalysis }>({
+export type DiagPart = "summary" | "resources" | "groups" | "plan";
+export const DIAG_PARTS: DiagPart[] = ["summary", "resources", "groups", "plan"];
+
+/**
+ * Génère l'analyse en 4 demandes courtes et parallèles (une par partie) : chacune reste sous
+ * la limite de durée des Edge Functions, et l'avancement réel est suivi partie par partie.
+ * Les parties déjà présentes dans `previous` ne sont pas redemandées si `onlyMissing`.
+ */
+export async function generateDiagnosticAnalysis(
+  req: DiagnosticAiRequest,
+  onPart?: (part: DiagPart, status: "done" | "error", error?: string) => void,
+  parts: DiagPart[] = DIAG_PARTS,
+): Promise<{ analysis: Partial<DiagnosticAiAnalysis>; failed: { part: DiagPart; error: string }[] }> {
+  const body = {
     action: "diagnostic",
     // L'IA rédige en arabe ou en français ; le rapport anglais reçoit le texte français
     language: req.lang === "ar" ? "ar" : "fr",
@@ -79,13 +91,26 @@ export async function generateDiagnosticAnalysis(req: DiagnosticAiRequest): Prom
     exam_id: req.examId || undefined,
     material_id: req.materialId || undefined,
     text: req.notes || undefined,
-  });
-  const a = r.analysis;
-  // Toujours 4 groupes dans l'ordre t1..t4
-  const groups = (["t1", "t2", "t3", "t4"] as BandKey[]).map(
-    (band) => a.groups.find((g) => g.band === band) || { band, needs: "", support_type: "", activities: "" },
-  );
-  return { ...a, groups, generated_at: new Date().toISOString() };
+  };
+  const analysis: Partial<DiagnosticAiAnalysis> = {};
+  const failed: { part: DiagPart; error: string }[] = [];
+  await Promise.all(parts.map(async (part) => {
+    try {
+      const r = await callTeacherAi<{ analysis: Partial<DiagnosticAiAnalysis> }>({ ...body, part });
+      Object.assign(analysis, r.analysis);
+      onPart?.(part, "done");
+    } catch (e: any) {
+      const error = String(e?.message || "AI_ERROR");
+      failed.push({ part, error });
+      onPart?.(part, "error", error);
+    }
+  }));
+  if (analysis.groups) {
+    // Toujours 4 groupes dans l'ordre t1..t4
+    const g = analysis.groups;
+    analysis.groups = (["t1", "t2", "t3", "t4"] as BandKey[]).map((band) => g.find((x) => x.band === band) || { band, needs: "", support_type: "", activities: "" });
+  }
+  return { analysis, failed };
 }
 
 export const MASTERY_LABEL: Record<DiagLang, Record<Mastery, string>> = {
