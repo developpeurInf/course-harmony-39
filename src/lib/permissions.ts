@@ -46,6 +46,9 @@ export type PermissionKey =
   | "diagnostic.use"
   | "diagnostic.template1"
   | "diagnostic.template2"
+  | "diagnostic.template3"
+  | "diagnostic.template4"
+  | "ai.diagnostic"
   | "diagnostic.charts"
   | "diagnostic.export_pdf"
   | "reports.view"
@@ -131,6 +134,9 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "diagnostic.use": { module: "diagnostic", fr: "Utiliser l'évaluation diagnostique", ar: "استعمال التقويم التشخيصي", en: "Use diagnostic assessment" },
   "diagnostic.template1": { module: "diagnostic", fr: "Modèle de rapport 1", ar: "نموذج التقرير 1", en: "Report template 1" },
   "diagnostic.template2": { module: "diagnostic", fr: "Modèle de rapport 2", ar: "نموذج التقرير 2", en: "Report template 2" },
+  "diagnostic.template3": { module: "diagnostic", fr: "Modèle 3 : analyse des acquis et plan de remédiation", ar: "النموذج 3: تحليل النتائج وخطة الدعم", en: "Template 3: analysis and remediation plan" },
+  "diagnostic.template4": { module: "diagnostic", fr: "Modèle 4 : groupes de besoin (listes nominatives)", ar: "النموذج 4: لوائح فئات الدعم", en: "Template 4: need-based groups" },
+  "ai.diagnostic": { module: "diagnostic", fr: "Analyse de l'évaluation diagnostique par l'IA", ar: "تحليل التقويم التشخيصي بالذكاء الاصطناعي", en: "AI analysis of the diagnostic assessment" },
   "diagnostic.charts": { module: "diagnostic", fr: "Bibliothèque de graphiques", ar: "مكتبة المبيانات", en: "Chart library" },
   "diagnostic.export_pdf": { module: "diagnostic", fr: "Export PDF / impression du rapport", ar: "تصدير PDF / طباعة التقرير", en: "Export / print report" },
   "reports.view": { module: "reports", fr: "Tableaux de bord et rapports", ar: "لوحات القيادة والتقارير", en: "Dashboards and reports" },

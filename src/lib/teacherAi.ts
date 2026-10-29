@@ -37,6 +37,8 @@ export function aiErrorMessage(code: string, tr: Tr) {
     case "MATERIAL_TOO_LARGE": return tr("Document trop lourd (20 Mo maximum).", "الوثيقة كبيرة جداً (20 م.ب كحد أقصى).", "Document too large (20 MB max).");
     case "NO_SOURCE": return tr("Choisissez un document du cours ou collez un texte.", "اختر وثيقة من الدرس أو ألصق نصاً.", "Pick a course document or paste some text.");
     case "REFUSED": return tr("L'IA n'a pas pu traiter ce contenu.", "تعذر على الذكاء الاصطناعي معالجة هذا المحتوى.", "The AI could not process this content.");
+    case "TOO_LONG": return tr("La réponse de l'IA était trop longue. Réessayez (ou réduisez le document).", "رد الذكاء الاصطناعي طويل جداً. أعد المحاولة.", "The AI answer was too long. Try again.");
+    case "EXAM_NOT_FOUND": return tr("Test introuvable.", "الاختبار غير موجود.", "Test not found.");
     case "AI_BUSY": return tr("L'IA est très sollicitée, réessayez dans une minute.", "الذكاء الاصطناعي مشغول، أعد المحاولة بعد دقيقة.", "The AI is busy, retry in a minute.");
     default: return tr("La génération a échoué. Réessayez.", "فشل التوليد. أعد المحاولة.", "Generation failed. Try again.");
   }

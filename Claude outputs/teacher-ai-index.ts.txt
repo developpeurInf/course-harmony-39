@@ -3,6 +3,9 @@
 //   action "quiz"        → questions de quiz (QCM, vrai/faux, réponse courte) à partir d'un cours
 //   action "lesson_plan" → fiche pédagogique d'une séance (déroulement, activités, évaluation)
 //   action "omr"         → lecture de la photo d'une feuille-réponse de QCM (cases cochées)
+//   action "diagnostic"  → analyse d'une évaluation diagnostique : constats, propositions, analyse par
+//                          ressource, besoins par groupe et plan de remédiation (statistiques
+//                          anonymes + test de l'appli ou document ; aucun nom d'élève n'est envoyé)
 //
 // Le contenu du cours vient d'un texte collé et/ou d'un document du cours (PDF ou image,
 // table course_materials) lu côté serveur : le professeur doit être propriétaire du cours.
@@ -25,7 +28,7 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400 } as const;
+const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400, diagnostic: 30 } as const;
 const MAX_TEXT = 60000;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const LANG = { ar: "Arabic (Modern Standard Arabic, as used in Moroccan schools)", fr: "French" } as const;
@@ -86,6 +89,63 @@ const OMR_SCHEMA = {
           n: { type: "integer" },
           marked: { type: "array", items: { type: "string" } },
           doubtful: { type: "boolean" },
+        },
+      },
+    },
+  },
+};
+
+const DIAG_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["appreciation", "summary", "observations", "propositions", "resources", "groups", "plan"],
+  properties: {
+    appreciation: { type: "string" },
+    summary: { type: "string" },
+    observations: { type: "array", items: { type: "string" } },
+    propositions: { type: "array", items: { type: "string" } },
+    resources: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["resource", "mastery", "rate", "difficulties", "error_type", "remediation"],
+        properties: {
+          resource: { type: "string" },
+          mastery: { type: "string", enum: ["acquired", "partial", "not_acquired"] },
+          rate: { type: "integer" },
+          difficulties: { type: "string" },
+          error_type: { type: "string" },
+          remediation: { type: "string" },
+        },
+      },
+    },
+    groups: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["band", "needs", "support_type", "activities"],
+        properties: {
+          band: { type: "string", enum: ["t1", "t2", "t3", "t4"] },
+          needs: { type: "string" },
+          support_type: { type: "string" },
+          activities: { type: "string" },
+        },
+      },
+    },
+    plan: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["period", "content", "target", "activities", "indicators"],
+        properties: {
+          period: { type: "string" },
+          content: { type: "string" },
+          target: { type: "string" },
+          activities: { type: "string" },
+          indicators: { type: "string" },
         },
       },
     },
@@ -239,10 +299,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     if (body?.material_id && body?.action === "omr") delete body.material_id;
     const action = body?.action;
-    if (action !== "quiz" && action !== "lesson_plan" && action !== "omr") return json({ error: "INVALID_ACTION" }, 400);
+    if (action !== "quiz" && action !== "lesson_plan" && action !== "omr" && action !== "diagnostic") return json({ error: "INVALID_ACTION" }, 400);
     const language: "ar" | "fr" = body?.language === "ar" ? "ar" : "fr";
 
-    const perm = action === "quiz" ? "ai.quiz_generator" : action === "omr" ? "ai.omr" : "ai.lesson_plan";
+    const perm = action === "quiz" ? "ai.quiz_generator" : action === "omr" ? "ai.omr" : action === "diagnostic" ? "ai.diagnostic" : "ai.lesson_plan";
     const { data: allowed, error: permErr } = await caller.rpc("has_permission", { p_key: perm });
     if (!permErr && allowed === false) return json({ error: "PERMISSION_DENIED" }, 403);
 
@@ -262,7 +322,7 @@ Deno.serve(async (req) => {
       if (/^https?:\/\//i.test(m.file_path)) return json({ error: "UNSUPPORTED_MATERIAL" }, 400);
       const { data: file, error: dlErr } = await admin.storage.from("course-materials").download(m.file_path);
       if (dlErr || !file) return json({ error: "MATERIAL_DOWNLOAD_FAILED" }, 502);
-      if (file.size > MAX_FILE_BYTES) return json({ error: "MATERIAL_TOO_LARGE" }, 413);
+      if (file.size > (action === "diagnostic" ? MAX_FILE_BYTES / 2 : MAX_FILE_BYTES)) return json({ error: "MATERIAL_TOO_LARGE" }, 413);
       const data = toBase64(await file.arrayBuffer());
       const name = `${m.file_path} ${m.file_name}`.toLowerCase();
       if (/\.pdf\b/.test(name)) {
@@ -309,6 +369,58 @@ Deno.serve(async (req) => {
         "Cover the whole material, from recall to application. title: a short quiz title." +
         (text ? `\n\n<course>\n${text}\n</course>` : "");
       schema = QUIZ_SCHEMA;
+    } else if (action === "diagnostic") {
+      // Statistiques anonymes calculées par l'appli (aucun nom d'élève)
+      const stats = JSON.stringify(body?.stats ?? {}).slice(0, 12000);
+      const exercises: { title: string; description: string; rate?: number | null }[] = (Array.isArray(body?.exercises) ? body.exercises : [])
+        .slice(0, 20)
+        .map((e: any) => ({ title: String(e?.title || "").slice(0, 120), description: String(e?.description || "").slice(0, 400), rate: Number.isFinite(Number(e?.rate)) && e?.rate !== null && e?.rate !== "" ? Math.max(0, Math.min(100, Math.round(Number(e.rate)))) : null }));
+      // Test passé dans l'appli : questions et taux de réussite réels par question
+      let examBlock = "";
+      if (body?.exam_id) {
+        const { data: ex } = await admin.from("exams").select("title, course_id").eq("id", body.exam_id).maybeSingle();
+        if (!ex) return json({ error: "EXAM_NOT_FOUND" }, 404);
+        const { data: c } = await admin.from("courses").select("professor_id").eq("id", ex.course_id).maybeSingle();
+        if (c?.professor_id !== uid) return json({ error: "ACCESS_DENIED" }, 403);
+        const { data: qs } = await admin.from("quiz_questions").select("id, question, points, question_order").eq("exam_id", body.exam_id).order("question_order").limit(60);
+        const ids = (qs || []).map((q: any) => q.id);
+        const rates: Record<string, { got: number; max: number; n: number }> = {};
+        if (ids.length) {
+          const { data: ans } = await admin.from("quiz_answers").select("question_id, is_correct, points_earned").in("question_id", ids).limit(20000);
+          const pts: Record<string, number> = Object.fromEntries((qs || []).map((q: any) => [q.id, Number(q.points) || 1]));
+          for (const a of ans || []) {
+            const r = (rates[a.question_id] ||= { got: 0, max: 0, n: 0 });
+            const max = pts[a.question_id] || 1;
+            r.n++;
+            r.max += max;
+            r.got += a.points_earned != null ? Math.max(0, Math.min(max, Number(a.points_earned))) : a.is_correct ? max : 0;
+          }
+        }
+        examBlock = `\n\n<app_test title="${String(ex.title || "").replace(/"/g, "'").slice(0, 150)}">\n` +
+          (qs || []).map((q: any, i: number) => {
+            const r = rates[q.id];
+            const rate = r && r.max ? `${Math.round((r.got / r.max) * 100)}% success over ${r.n} answers` : "no answers";
+            return `Q${i + 1} (${rate}): ${String(q.question || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 300)}`;
+          }).join("\n") + "\n</app_test>";
+      }
+      prompt =
+        `Analyse the results of a diagnostic assessment (التقويم التشخيصي) of the Moroccan education system and write the teacher's report content in ${LANG[language]}. ` +
+        `Subject: ${String(body?.subject || "unspecified").slice(0, 80)}. Level: ${String(body?.level || "unspecified").slice(0, 120)}. ` +
+        "Score bands used by the ministry: t1 = struggling (المتعثرون, score ≤ 8/20), t2 = keeping up (المسايرون, 8–12), t3 = good (المتفوقون, 12–14), t4 = excellent (المتميزون, 14–20). " +
+        "Base every statement on the data below; do not invent numbers. " +
+        "resources: one entry per exercise / resource listed (in the same order); when a success rate is given (teacher's or measured in the app test), copy it into rate; " +
+        "otherwise estimate it from the class results and the difficulty of the item, and say \"estimated\" in difficulties. mastery: acquired ≥ 70%, partial 40–69%, not_acquired < 40%. " +
+        "difficulties: the observed gaps (1–2 sentences). error_type: nature of the error (conceptual, procedural / calculation, methodological, reading of the statement, prerequisite from previous years…). remediation: a concrete targeted activity. " +
+        "groups: exactly 4 entries t1..t4 with the needs of each group, the type of support (immediate / integrated in lessons / institutional / outside class time) and 2–3 concrete activities. " +
+        "plan: 4 to 6 rows of a remediation plan over the first weeks (period such as \"Semaine 1\" / \"الأسبوع 1\", content, target group, activities and materials, success indicators). " +
+        "observations: 4 to 6 findings; propositions: 4 to 6 remediation proposals. appreciation: one or two words for the overall level (e.g. faible, moyen, satisfaisant / ضعيف، متوسط، مستحسن). " +
+        "summary: 2–3 sentences. Keep every string short (at most 2 sentences). Do NOT use LaTeX: write mathematics in plain Unicode (x², √x, ≤, ≥, π, f(x))." +
+        `\n\n<class_statistics>\n${stats}\n</class_statistics>` +
+        `\n\n<exercises>\n${exercises.map((e, i) => `${i + 1}. ${e.title} — ${e.description}${e.rate !== null && e.rate !== undefined ? ` (teacher's success rate: ${e.rate}%)` : ""}`).join("\n") || "(none listed)"}\n</exercises>` +
+        examBlock +
+        (text ? `\n\n<teacher_notes>\n${text}\n</teacher_notes>` : "") +
+        (content.length ? "\n\nThe attached document is the diagnostic test or the related course." : "");
+      schema = DIAG_SCHEMA;
     } else {
       const topic = String(body?.topic || "").slice(0, 300).trim();
       if (!topic && !text && !content.length) return json({ error: "NO_SOURCE" }, 400);
@@ -340,7 +452,7 @@ Deno.serve(async (req) => {
       output_tokens: result.usage.output_tokens,
     }).then(() => undefined, () => undefined);
 
-    return json(action === "quiz" ? { quiz: parsed } : action === "omr" ? { sheet: parsed } : { plan: parsed });
+    return json(action === "quiz" ? { quiz: parsed } : action === "omr" ? { sheet: parsed } : action === "diagnostic" ? { analysis: parsed } : { plan: parsed });
   } catch (error) {
     console.error(error);
     if (error instanceof AiError && (error.status === 429 || error.status === 503 || error.status === 529)) return json({ error: "AI_BUSY", detail: String(error.message).slice(0, 300) }, 503);

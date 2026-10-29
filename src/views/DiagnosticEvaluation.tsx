@@ -100,6 +100,18 @@ import {
   translateAppreciation
 } from "@/lib/diagnosticTranslations";
 import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportPrint";
+import { DiagnosticReportTemplate3 } from "@/components/diagnostic/DiagnosticReportTemplate3";
+import { DiagnosticReportTemplate4 } from "@/components/diagnostic/DiagnosticReportTemplate4";
+import { DiagnosticAiPanel } from "@/components/diagnostic/DiagnosticAiPanel";
+import type { PermissionKey } from "@/lib/permissions";
+
+type ReportTemplateId = "t1" | "t2" | "t3" | "t4";
+const TEMPLATE_PERMISSION: Record<ReportTemplateId, PermissionKey> = {
+  t1: "diagnostic.template1",
+  t2: "diagnostic.template2",
+  t3: "diagnostic.template3",
+  t4: "diagnostic.template4",
+};
 import ReportScaler from "@/components/diagnostic/ReportScaler";
 import ChartSettingsPanel, { Report1ChartPicker } from "@/components/diagnostic/ChartSettingsPanel";
 import {
@@ -172,19 +184,24 @@ export const DiagnosticEvaluation: React.FC = () => {
     setIncludeGraphsInReportRaw(v);
   };
   const [chartBgTheme, setChartBgTheme] = useState<"gray" | "white">("gray");
-  // Modèle de rapport officiel : 1 = rapport détaillé (existant), 2 = rapport multi-classes par tranches
-  const [reportTemplate, setReportTemplateState] = useState<"t1" | "t2">(() => {
-    try { return localStorage.getItem("diag_report_template") === "t2" ? "t2" : "t1"; } catch { return "t1"; }
+  // Modèle de rapport officiel : 1 = rapport détaillé, 2 = multi-classes par tranches,
+  // 3 = analyse des acquis et plan de remédiation (IA), 4 = groupes de besoin (listes nominatives)
+  const [reportTemplate, setReportTemplateState] = useState<ReportTemplateId>(() => {
+    try {
+      const v = localStorage.getItem("diag_report_template");
+      return v === "t2" || v === "t3" || v === "t4" ? v : "t1";
+    } catch { return "t1"; }
   });
-  const setReportTemplate = (v: "t1" | "t2") => {
-    if (!accessStore.guard(v === "t2" ? "diagnostic.template2" : "diagnostic.template1")) return;
+  const setReportTemplate = (v: ReportTemplateId) => {
+    if (!accessStore.guard(TEMPLATE_PERMISSION[v])) return;
     setReportTemplateState(v);
     try { localStorage.setItem("diag_report_template", v); } catch { /* stockage indisponible */ }
   };
-  // Modèle mémorisé mais non inclus dans l'offre : on bascule sur l'autre
+  // Modèle mémorisé mais non inclus dans l'offre : on bascule sur le premier modèle autorisé
   useEffect(() => {
-    if (reportTemplate === "t2" && !canAccess("diagnostic.template2") && canAccess("diagnostic.template1")) setReportTemplateState("t1");
-    if (reportTemplate === "t1" && !canAccess("diagnostic.template1") && canAccess("diagnostic.template2")) setReportTemplateState("t2");
+    if (canAccess(TEMPLATE_PERMISSION[reportTemplate])) return;
+    const allowed = (["t1", "t2", "t3", "t4"] as ReportTemplateId[]).find(v => canAccess(TEMPLATE_PERMISSION[v]));
+    if (allowed) setReportTemplateState(allowed);
   }, [reportTemplate, canAccess]);
   const [showTemplate2Texts, setShowTemplate2Texts] = useState(false);
   // Aperçu du rapport : ajusté à la largeur de l'écran (téléphone / iPad) ou taille réelle
@@ -552,7 +569,7 @@ export const DiagnosticEvaluation: React.FC = () => {
       const scopeName = reportClassesNames.length === 1
         ? reportClassesNames[0]
         : (reportScope === "all" ? "Toutes_Classes" : "Selection");
-      const filename = `Rapport_Evaluation_Diagnostique_${reportTemplate === "t2" ? "Modele2_" : ""}${scopeName}_${lang}.pdf`;
+      const filename = `Rapport_Evaluation_Diagnostique_${reportTemplate === "t1" ? "" : `Modele${reportTemplate.slice(1)}_`}${scopeName}_${lang}.pdf`;
 
       if (currentTab !== "preview") {
         setCurrentTab("preview");
@@ -2478,6 +2495,8 @@ export const DiagnosticEvaluation: React.FC = () => {
                   {([
                     { id: "t1" as const, title: L("النموذج 1", "Modèle 1", "Template 1"), desc: L("تقرير مفصل مع الفئات والملاحظات", "Rapport détaillé : tranches, observations, propositions", "Detailed: levels, observations, proposals") },
                     { id: "t2" as const, title: L("النموذج 2", "Modèle 2", "Template 2"), desc: L("تقرير حسب الأقسام", "Rapport par classes (<5, 5-10, 10-15, 15-20)", "By class (<5, 5-10, 10-15, 15-20)") },
+                    { id: "t3" as const, title: L("النموذج 3 ✨", "Modèle 3 ✨", "Template 3 ✨"), desc: L("تحليل التحكم في الموارد وخطة الدعم (بالذكاء الاصطناعي)", "Maîtrise par ressource, besoins des groupes, plan de remédiation (IA)", "Mastery per resource, group needs, remediation plan (AI)") },
+                    { id: "t4" as const, title: L("النموذج 4", "Modèle 4", "Template 4"), desc: L("لوائح فئات الدعم بأسماء المتعلمين", "Groupes de besoin : listes nominatives par catégorie", "Need-based groups: named lists") },
                   ]).map(opt => (
                     <button
                       key={opt.id}
@@ -2562,7 +2581,16 @@ export const DiagnosticEvaluation: React.FC = () => {
               {/* 3. Contenu */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
                 {sectionTitle(3, L("المحتوى", "Contenu", "Content"))}
-                {reportTemplate === "t1" ? (
+                {reportTemplate === "t3" || reportTemplate === "t4" ? (
+                  <DiagnosticAiPanel
+                    config={appData.config}
+                    classes={classesForReport}
+                    lang={lang}
+                    exams={exams}
+                    courseIds={courses.filter(c => c.professor_id === user?.id).map(c => c.id)}
+                    onConfig={(updater) => updateAppData(prev => ({ ...prev, config: updater(prev.config) }))}
+                  />
+                ) : reportTemplate === "t1" ? (
                   <>
                     <Report1ChartPicker
                       lang={lang}
@@ -2673,7 +2701,7 @@ export const DiagnosticEvaluation: React.FC = () => {
                 <div className="flex items-center gap-2 min-w-0">
                   <Eye className="w-4 h-4 shrink-0 text-indigo-600" />
                   <span className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {L("معاينة (A4)", "Aperçu (A4)", "Preview (A4)")} — {reportTemplate === "t2" ? L("النموذج 2", "Modèle 2", "Template 2") : L("النموذج 1", "Modèle 1", "Template 1")}
+                    {L("معاينة (A4)", "Aperçu (A4)", "Preview (A4)")} — {L("النموذج", "Modèle", "Template")} {reportTemplate.slice(1)}
                   </span>
                 </div>
                 <div className="inline-flex shrink-0 rounded-md bg-slate-100 dark:bg-slate-800 p-0.5">
@@ -2700,7 +2728,11 @@ export const DiagnosticEvaluation: React.FC = () => {
               ) : (
                 <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                   <ReportScaler fit={previewFit} disabled={isExportingPdf}>
-                    {reportTemplate === "t2" ? (
+                    {reportTemplate === "t3" ? (
+                      <DiagnosticReportTemplate3 config={appData.config} classes={classesForReport} lang={lang} />
+                    ) : reportTemplate === "t4" ? (
+                      <DiagnosticReportTemplate4 config={appData.config} classes={classesForReport} lang={lang} />
+                    ) : reportTemplate === "t2" ? (
                       <DiagnosticReportTemplate2
                         config={appData.config}
                         classes={classesForReport}

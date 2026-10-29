@@ -36,6 +36,10 @@ export interface DiagnosticConfig {
    * modifier un champ en arabe met à jour le rapport arabe, en français le rapport français…
    */
   contenu_par_langue?: Partial<Record<DiagLang, DiagnosticLangContent>>;
+  /** Modèles 3 et 4 : analyse IA (modifiable) par langue — src/lib/diagnosticAi.ts */
+  analyse_ia?: Partial<Record<DiagLang, import("@/lib/diagnosticAi").DiagnosticAiAnalysis>>;
+  /** Taux de réussite saisis par le professeur pour chaque exercice (index → %) */
+  taux_exercices?: Record<string, number | null>;
 }
 
 export interface Report2ChartSettings {

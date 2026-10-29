@@ -3,7 +3,7 @@
  * éventuel → déroulement complet modifiable, impression A4, enregistrement.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Eye, FileText, Loader2, Pencil, Plus, Printer, Save, Sparkles, Trash2 } from "lucide-react";
+import { Eye, FileText, Loader2, Pencil, Plus, Printer, Save, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { AiProgress, useElapsed } from "@/components/ai/AiProgress";
 import { getReportBranding } from "@/lib/reportBranding";
 import { loadKatex } from "@/lib/mathRender";
 import { buildLessonPlanHtml, readPlanHeader } from "@/lib/lessonPlanPrint";
@@ -30,53 +31,6 @@ const LABELS = {
   fr: { title: "Fiche pédagogique", level: "Niveau", duration: "Durée", competencies: "Compétences visées", objectives: "Objectifs", prerequisites: "Prérequis", materials: "Supports didactiques", steps: "Déroulement", phase: "Étape", time: "Durée", teacher: "Activités du professeur", students: "Activités des élèves", evaluation: "Évaluation", assessment: "Évaluation finale", homework: "Travail à la maison", remediation: "Remédiation / soutien" },
   ar: { title: "جذاذة", level: "المستوى", duration: "المدة", competencies: "الكفايات المستهدفة", objectives: "الأهداف", prerequisites: "المكتسبات القبلية", materials: "الوسائل الديداكتيكية", steps: "سير الحصة", phase: "المرحلة", time: "المدة", teacher: "أنشطة الأستاذ", students: "أنشطة المتعلمين", evaluation: "التقويم", assessment: "التقويم الختامي", homework: "الواجب المنزلي", remediation: "الدعم والمعالجة" },
 };
-
-type Tr = (fr: string, ar: string, en: string) => string;
-
-/** Barre d'avancement et étapes de la rédaction (durée estimée : ~40 s, ~60 s avec un document). */
-function GenerationProgress({ elapsed, finishing, withDocument, tr }: { elapsed: number; finishing: boolean; withDocument: boolean; tr: Tr }) {
-  const expected = withDocument ? 60 : 40;
-  const pct = finishing ? 100 : Math.min(95, Math.round(95 * (1 - Math.exp((-2.3 * elapsed) / expected))));
-  const stages = [
-    { at: 0, label: tr("Envoi de la demande", "إرسال الطلب", "Sending the request") },
-    ...(withDocument ? [{ at: 8, label: tr("Lecture du document du cours", "قراءة وثيقة الدرس", "Reading the course document") }] : []),
-    { at: withDocument ? 22 : 10, label: tr("Compétences, objectifs et prérequis", "الكفايات والأهداف والمكتسبات القبلية", "Competencies, objectives and prerequisites") },
-    { at: 40, label: tr("Déroulement de la séance (étapes)", "سير الحصة (المراحل)", "Lesson steps") },
-    { at: 72, label: tr("Évaluation, devoirs et remédiation", "التقويم والواجب والدعم", "Assessment, homework and remediation") },
-    { at: 100, label: tr("Mise en page de la fiche", "إخراج الجذاذة", "Laying out the plan") },
-  ];
-  const current = stages.reduce((acc, s, i) => (pct >= s.at ? i : acc), 0);
-  const secs = Math.floor(elapsed);
-  return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 py-12">
-      <div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="h-4 w-4 text-violet-500" />{tr("Rédaction de la fiche", "كتابة الجذاذة", "Drafting the plan")}</div>
-      <div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-          <div className="h-full rounded-full bg-violet-500 transition-all duration-300" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-          <span>{pct} %</span>
-          <span>{secs} s{!finishing && elapsed > expected ? ` · ${tr("encore un instant…", "لحظة من فضلك…", "almost there…")}` : ""}</span>
-        </div>
-      </div>
-      <ul className="space-y-2 text-sm">
-        {stages.map((s, i) => (
-          <li key={i} className={cn("flex items-center gap-2", i > current && "text-muted-foreground/60")}>
-            {i < current ? (
-              <Check className="h-4 w-4 text-emerald-600" />
-            ) : i === current ? (
-              <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
-            ) : (
-              <span className="inline-block h-4 w-4 rounded-full border" />
-            )}
-            {s.label}
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-muted-foreground">{tr("L'avancement est estimé : l'IA renvoie la fiche complète en une fois. La fiche mise en page s'affichera ici.", "التقدم تقديري: يرسل الذكاء الاصطناعي الجذاذة كاملة دفعة واحدة. ستظهر الجذاذة هنا.", "Progress is estimated: the AI returns the whole plan at once. The laid-out plan will appear here.")}</p>
-    </div>
-  );
-}
 
 const LessonPlans = () => {
   const { user } = useAuth();
@@ -100,13 +54,8 @@ const LessonPlans = () => {
   const [preview, setPreview] = useState<string | null>(null);
   // Avancement affiché pendant la rédaction (estimé d'après le temps écoulé : l'IA répond en une fois)
   const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const elapsed = useElapsed(startedAt);
   const [finishing, setFinishing] = useState(false);
-  useEffect(() => {
-    if (!startedAt) return;
-    const id = window.setInterval(() => setElapsed((Date.now() - startedAt) / 1000), 250);
-    return () => window.clearInterval(id);
-  }, [startedAt]);
 
   const myCourses = useMemo(() => courses.filter((c) => c.professor_id === user?.id), [courses, user?.id]);
   useEffect(() => {
@@ -130,7 +79,6 @@ const LessonPlans = () => {
     if (!accessStore.guard("ai.lesson_plan")) return;
     setBusy(true);
     setFinishing(false);
-    setElapsed(0);
     setStartedAt(Date.now());
     try {
       const r = await callTeacherAi<{ plan: LessonPlan }>({
@@ -272,7 +220,22 @@ const LessonPlans = () => {
 
         <section className="min-w-0 rounded-xl border bg-card p-4" dir={planLang === "ar" ? "rtl" : "ltr"}>
           {busy ? (
-            <GenerationProgress elapsed={elapsed} finishing={finishing} withDocument={materialId !== "none"} tr={tr} />
+            <AiProgress
+              elapsed={elapsed}
+              finishing={finishing}
+              expected={materialId !== "none" ? 60 : 40}
+              title={tr("Rédaction de la fiche", "كتابة الجذاذة", "Drafting the plan")}
+              stages={[
+                { at: 0, label: tr("Envoi de la demande", "إرسال الطلب", "Sending the request") },
+                ...(materialId !== "none" ? [{ at: 8, label: tr("Lecture du document du cours", "قراءة وثيقة الدرس", "Reading the course document") }] : []),
+                { at: materialId !== "none" ? 22 : 10, label: tr("Compétences, objectifs et prérequis", "الكفايات والأهداف والمكتسبات القبلية", "Competencies, objectives and prerequisites") },
+                { at: 40, label: tr("Déroulement de la séance (étapes)", "سير الحصة (المراحل)", "Lesson steps") },
+                { at: 72, label: tr("Évaluation, devoirs et remédiation", "التقويم والواجب والدعم", "Assessment, homework and remediation") },
+                { at: 100, label: tr("Mise en page de la fiche", "إخراج الجذاذة", "Laying out the plan") },
+              ]}
+              note={tr("L'avancement est estimé : l'IA renvoie la fiche complète en une fois. La fiche mise en page s'affichera ici.", "التقدم تقديري: يرسل الذكاء الاصطناعي الجذاذة كاملة دفعة واحدة. ستظهر الجذاذة هنا.", "Progress is estimated: the AI returns the whole plan at once. The laid-out plan will appear here.")}
+              lateLabel={tr("encore un instant…", "لحظة من فضلك…", "almost there…")}
+            />
           ) : !plan ? (
             <div className="flex flex-col items-center gap-2 py-20 text-center text-sm text-muted-foreground"><Plus className="h-8 w-8" />{tr("Remplissez le sujet et cliquez sur « Rédiger la fiche ».", "أدخل الموضوع واضغط « كتابة الجذاذة ».", "Enter a topic and click “Draft the plan”.")}</div>
           ) : (
