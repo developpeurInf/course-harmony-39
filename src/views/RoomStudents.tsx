@@ -12,12 +12,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, Edit, Info, KeyRound, BellOff, Loader2, Copy, Check } from "lucide-react";
+import { Users, UserX, Edit, Info, KeyRound, BellOff, Loader2, Copy, Check, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
 import { EditStudentDialog } from "@/components/EditStudentDialog";
 import { StudentInfoDialog } from "@/components/StudentInfoDialog";
+import TransferStudentDialog from "@/components/TransferStudentDialog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import StudentSearchBar from "@/components/StudentSearchBar";
@@ -90,7 +91,7 @@ const RoomStudents = () => {
   const { t, language } = useLanguage();
   const { roomId } = useParams();
   const { user, resetStudentPassword } = useAuth();
-  const { refreshData } = useCourses();
+  const { refreshData, rooms } = useCourses();
   const { clearRoomStudentsNotifications } = useNotifications();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -108,6 +109,7 @@ const RoomStudents = () => {
   const [copied, setCopied] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<Student | null>(null);
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
   const iconBtn = "h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10";
   const fmtDay = (d: string) => {
@@ -278,6 +280,16 @@ const RoomStudents = () => {
         title={tr("Réinitialiser le mot de passe", "إعادة تعيين كلمة المرور", "Reset Password")}
       >
         <KeyRound className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        className={iconBtn}
+        onClick={() => setTransferTarget(student)}
+        aria-label={tr(`Changer ${student.name} de classe`, `تغيير قسم ${student.name}`, `Move ${student.name} to another class`)}
+        title={tr("Changer de classe", "تغيير القسم", "Move to another class")}
+      >
+        <ArrowRightLeft className="h-4 w-4" />
       </Button>
       <Button
         variant="outline"
@@ -498,6 +510,19 @@ const RoomStudents = () => {
         isOpen={isEditDialogOpen}
         onClose={handleEditClose}
         onStudentUpdated={loadStudents}
+      />
+
+      <TransferStudentDialog
+        student={transferTarget}
+        currentRoomId={roomId}
+        rooms={rooms.filter(r => r.professor_id === user?.id)}
+        language={language === "ar" ? "ar" : language === "fr" ? "fr" : "en"}
+        onClose={() => setTransferTarget(null)}
+        onDone={(id) => {
+          setTransferTarget(null);
+          setStudents(prev => prev.filter(s => s.id !== id));
+          void refreshData(undefined, { force: true });
+        }}
       />
 
       {/* Student Info Dialog */}

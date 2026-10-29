@@ -92,7 +92,20 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
               byStudent.set(sub.student_id, sub);
             }
           }
-          const latestSubs = Array.from(byStudent.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+          let latestSubs = Array.from(byStudent.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+
+          // Élèves partis dans une autre classe (transfer_student) : ne comptent plus dans ce quiz
+          const { data: ex } = await supabase.from('exams').select('course_id').eq('id', examId).maybeSingle();
+          const { data: course } = ex?.course_id ? await supabase.from('courses').select('room_id').eq('id', ex.course_id).maybeSingle() : { data: null };
+          if (course?.room_id) {
+            const { data: moved } = await (supabase as any).from('student_transfers').select('student_id').eq('from_room_id', course.room_id);
+            const movedIds = new Set(((moved || []) as { student_id: string }[]).map(m => m.student_id));
+            if (movedIds.size) {
+              const { data: now } = await supabase.from('profiles').select('id, room_id').in('id', [...movedIds]);
+              const gone = new Set((now || []).filter(p => p.room_id !== course.room_id).map(p => p.id));
+              latestSubs = latestSubs.filter(sub => !gone.has(sub.student_id));
+            }
+          }
 
           // Get student names separately
           const studentIds = latestSubs.map(sub => sub.student_id);

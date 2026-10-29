@@ -220,7 +220,13 @@ const QuizDetails = ({ examId }: Props) => {
         supabase.from("quiz_questions").select("id, question, question_order, question_type, points").eq("exam_id", examId).order("question_order", { ascending: true }),
       ]);
       if (sErr) throw sErr;
-      const subList = (sData || []) as Submission[];
+      // Élèves partis dans une autre classe (transfer_student) : leurs copies ne comptent plus ici
+      let movedOut = new Set<string>();
+      if (roomId) {
+        const { data: tr } = await (supabase as any).from("student_transfers").select("student_id").eq("from_room_id", roomId);
+        movedOut = new Set(((tr || []) as { student_id: string }[]).map((t) => t.student_id).filter((id) => !studentMap.has(id)));
+      }
+      const subList = ((sData || []) as Submission[]).filter((x) => !movedOut.has(x.student_id));
       const qList = (qData || []) as Question[];
       let oList: Option[] = [];
       if (qList.length) {
