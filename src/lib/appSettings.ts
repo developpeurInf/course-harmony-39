@@ -25,7 +25,16 @@ export type FeatureKey =
   | "studentActivities"
   | "courses"
   | "bottomNav"
-  | "pdfEditor";
+  | "pdfEditor"
+  | "students"
+  | "attendance"
+  | "followUp"
+  | "gradebook"
+  | "lessonLog"
+  | "calendar"
+  | "questionBank"
+  | "lessonPlans"
+  | "classManagement";
 
 export interface AppSettings {
   identity: {
@@ -169,6 +178,15 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     courses: true,
     bottomNav: true,
     pdfEditor: true,
+    students: true,
+    attendance: true,
+    followUp: true,
+    gradebook: true,
+    lessonLog: true,
+    calendar: true,
+    questionBank: true,
+    lessonPlans: true,
+    classManagement: true,
   },
   payments: {
     enabled: true,

@@ -1,8 +1,9 @@
 "use client";
 
+import { RequireFeature } from "@/components/access/RequireFeature";
 import RoomGradebook from "@/views/RoomGradebook";
 import { RequirePermission } from "@/components/access/AccessUi";
 
 export default function Page() {
-  return <RequirePermission perm="gradebook.manage"><RoomGradebook /></RequirePermission>;
+  return <RequireFeature feature="gradebook"><RequirePermission perm="gradebook.manage"><RoomGradebook /></RequirePermission></RequireFeature>;
 }

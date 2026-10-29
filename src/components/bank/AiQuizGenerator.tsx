@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MathHtml, MathText } from "@/components/math/MathContent";
 import { accessStore } from "@/contexts/AccessContext";
+import { supabase } from "@/integrations/supabase/client";
 import { insertIntoExam, type DraftQuestion } from "@/lib/questionBank";
 import { aiErrorMessage, callTeacherAi, loadAiMaterials, type AiQuizQuestion } from "@/lib/teacherAi";
 import type { CourseMaterialLike } from "@/lib/courseMedia";
@@ -33,7 +34,8 @@ export default function AiQuizGenerator({
   onDone: () => void | Promise<void>;
 }) {
   const L = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
-  const [materials, setMaterials] = useState<CourseMaterialLike[]>([]);
+  const [materials, setMaterials] = useState<(CourseMaterialLike & { course_id: string; course_title?: string })[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
   const [materialId, setMaterialId] = useState("none");
   const [text, setText] = useState("");
   const [count, setCount] = useState(10);
@@ -48,12 +50,25 @@ export default function AiQuizGenerator({
   useEffect(() => {
     if (!open) return;
     setResult(null);
-    if (courseId) {
-      void loadAiMaterials([courseId]).then((m) => {
-        setMaterials(m);
-        setMaterialId(m.find((x) => /\.pdf/i.test(x.file_path))?.id || m[0]?.id || "none");
-      });
-    }
+    // Documents du cours du quiz d'abord, puis ceux de ses autres cours (le quiz peut ne pas
+    // être rattaché à un cours, ou son cours n'avoir aucun PDF ni image)
+    setLoadingMaterials(true);
+    void (async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const uid = auth?.user?.id;
+        const { data: cs } = uid ? await supabase.from("courses").select("id, title").eq("professor_id", uid) : { data: [] as { id: string; title: string }[] };
+        const titles = new Map(((cs || []) as { id: string; title: string }[]).map((c) => [c.id, c.title]));
+        const ids = [...new Set([...(courseId ? [courseId] : []), ...titles.keys()])];
+        const all = (await loadAiMaterials(ids)).map((m) => ({ ...m, course_title: titles.get(m.course_id) }));
+        all.sort((a, b) => Number(b.course_id === courseId) - Number(a.course_id === courseId) || String(a.course_title || "").localeCompare(String(b.course_title || "")));
+        setMaterials(all);
+        const own = all.filter((x) => x.course_id === courseId);
+        setMaterialId(own.find((x) => /\.pdf/i.test(x.file_path))?.id || own[0]?.id || "none");
+      } finally {
+        setLoadingMaterials(false);
+      }
+    })();
   }, [open, courseId]);
 
   const generate = async () => {
@@ -127,9 +142,20 @@ export default function AiQuizGenerator({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{L("Aucun (texte collé uniquement)", "بدون (نص ملصق فقط)", "None (pasted text only)")}</SelectItem>
-                  {materials.map((m) => <SelectItem key={m.id} value={m.id}>{m.file_name}</SelectItem>)}
+                  {materials.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.file_name}{m.course_id !== courseId && m.course_title ? ` · ${m.course_title}` : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {!loadingMaterials && materials.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {L("Aucun PDF ni image dans vos cours. Ajoutez le document au cours (onglet Documents), ou collez le texte ci-dessous.",
+                    "لا توجد ملفات PDF أو صور في دروسك. أضف الوثيقة إلى الدرس، أو ألصق النص أسفله.",
+                    "No PDF or image in your courses. Add the document to the course, or paste the text below.")}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>{L("Texte du cours ou consignes (facultatif)", "نص الدرس أو توجيهات (اختياري)", "Course text or instructions (optional)")}</Label>
