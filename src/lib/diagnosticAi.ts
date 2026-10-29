@@ -21,6 +21,12 @@ export interface DiagnosticAiAnalysis {
   resources: { resource: string; mastery: Mastery; rate: number; difficulties: string; error_type: string; remediation: string }[];
   groups: { band: BandKey; needs: string; support_type: string; activities: string }[];
   plan: { period: string; content: string; target: string; activities: string; indicators: string }[];
+  /** Modèle 2 : introduction, remarque (absences), méthodes de soutien */
+  intro?: string;
+  remark?: string;
+  support?: string;
+  /** Composition du test (onglet 4), quand un test ou un document est fourni */
+  exercises?: { title: string; description: string }[];
   /** ISO, ajouté par l'appli */
   generated_at?: string;
 }
@@ -67,8 +73,19 @@ export interface DiagnosticAiRequest {
   notes?: string;
 }
 
-export type DiagPart = "summary" | "resources" | "groups" | "plan";
+export type DiagPart = "summary" | "resources" | "groups" | "plan" | "report2" | "exercises";
 export const DIAG_PARTS: DiagPart[] = ["summary", "resources", "groups", "plan"];
+
+/** Parties utiles à chaque modèle de rapport (les mises en page ne changent pas) */
+export function partsForTemplate(template: "t1" | "t2" | "t3" | "t4", hasSource: boolean): DiagPart[] {
+  const ex: DiagPart[] = hasSource ? ["exercises"] : [];
+  switch (template) {
+    case "t1": return ["summary", ...ex];
+    case "t2": return ["summary", "report2"];
+    case "t3": return ["summary", "resources", "groups", "plan"];
+    case "t4": return ["groups"];
+  }
+}
 
 /**
  * Génère l'analyse en 4 demandes courtes et parallèles (une par partie) : chacune reste sous
@@ -82,8 +99,8 @@ export async function generateDiagnosticAnalysis(
 ): Promise<{ analysis: Partial<DiagnosticAiAnalysis>; failed: { part: DiagPart; error: string }[] }> {
   const body = {
     action: "diagnostic",
-    // L'IA rédige en arabe ou en français ; le rapport anglais reçoit le texte français
-    language: req.lang === "ar" ? "ar" : "fr",
+    language: req.lang,
+    context: { year: req.config.annee_scolaire, period: req.config.periode_diagnostic },
     subject: req.config.matiere,
     level: req.config.niveau || req.config.niveau_titre,
     stats: anonymousStats(req.classes),

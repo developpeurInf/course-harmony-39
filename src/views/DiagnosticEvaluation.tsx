@@ -71,6 +71,7 @@ import {
   getLangContent,
   setLangContent,
   numberToWords,
+  fillConfigFromData,
   type DiagnosticLangContent
 } from "@/lib/diagnosticStorage";
 import {
@@ -549,6 +550,23 @@ export const DiagnosticEvaluation: React.FC = () => {
       saveTimerRef.current = window.setTimeout(flushPendingSave, 500);
       return next;
     });
+  };
+  // Mode de rédaction choisi au début : IA (génération depuis les données) ou manuel (onglets 4 et 5)
+  const redactionMode = appData.config.mode_redaction;
+  const fillFromData = (force: boolean) => updateAppData(prev => ({
+    ...prev,
+    config: fillConfigFromData(prev.config, prev.classes, lang, { teacher: user?.name, school: reportBranding.schoolName }, force),
+  }));
+  const chooseRedactionMode = (m: "ai" | "manual") => {
+    updateAppData(prev => ({
+      ...prev,
+      config: m === "ai"
+        ? { ...fillConfigFromData(prev.config, prev.classes, lang, { teacher: user?.name, school: reportBranding.schoolName }), mode_redaction: m }
+        : { ...prev.config, mode_redaction: m },
+    }));
+    if (m === "ai") {
+      toast.success(tx("Paramètres remplis depuis vos données. Générez les textes dans l'onglet 6.", "تم ملء الإعدادات من معطياتك. ولّد النصوص في التبويب 6.", "Settings filled from your data. Generate the texts in tab 6."));
+    }
   };
   // Écrit ce qui reste en attente en quittant la page / l'application
   useEffect(() => {
@@ -1377,6 +1395,35 @@ export const DiagnosticEvaluation: React.FC = () => {
         </div>
       </div>
 
+      {/* CHOIX DU MODE DE RÉDACTION */}
+      {!redactionMode ? (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900 dark:bg-indigo-950/20 no-print print:hidden">
+          <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
+            {tx("Comment voulez-vous rédiger le rapport ?", "كيف تريد تحرير التقرير؟", "How do you want to write the report?")}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => chooseRedactionMode("ai")} className="rounded-lg border-2 border-violet-300 bg-white p-3 text-start transition hover:border-violet-500 dark:border-violet-800 dark:bg-slate-900">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 dark:text-violet-300"><Sparkles className="h-4 w-4" />{tx("Automatique (IA)", "تلقائي (الذكاء الاصطناعي)", "Automatic (AI)")}</span>
+              <span className="mt-1 block text-xs text-slate-600 dark:text-slate-300">{tx("Les paramètres sont remplis depuis vos données, puis l'IA rédige résultats, observations et propositions selon les notes et le test. Tout reste modifiable.", "تُملأ الإعدادات من معطياتك، ثم يحرر الذكاء الاصطناعي النتائج والملاحظات والمقترحات حسب النقط والرائز. كل شيء يبقى قابلا للتعديل.", "Settings are filled from your data, then the AI writes results, findings and proposals from the marks and the test. Everything stays editable.")}</span>
+            </button>
+            <button type="button" onClick={() => chooseRedactionMode("manual")} className="rounded-lg border-2 border-slate-300 bg-white p-3 text-start transition hover:border-slate-500 dark:border-slate-700 dark:bg-slate-900">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100"><Edit3 className="h-4 w-4" />{tx("Manuel", "يدوي", "Manual")}</span>
+              <span className="mt-1 block text-xs text-slate-600 dark:text-slate-300">{tx("Vous remplissez vous-même l'onglet 4 (Résultats & Remédiation) et l'onglet 5 (Paramètres).", "تملأ بنفسك التبويب 4 (النتائج والمعالجة) والتبويب 5 (الإعدادات).", "You fill in tab 4 (Results & Remediation) and tab 5 (Settings) yourself.")}</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300 no-print print:hidden">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${redactionMode === "ai" ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>
+            {redactionMode === "ai" ? <Sparkles className="h-3.5 w-3.5" /> : <Edit3 className="h-3.5 w-3.5" />}
+            {redactionMode === "ai" ? tx("Rédaction automatique (IA)", "تحرير تلقائي (ذكاء اصطناعي)", "Automatic writing (AI)") : tx("Rédaction manuelle", "تحرير يدوي", "Manual writing")}
+          </span>
+          <button type="button" className="underline underline-offset-2 hover:text-indigo-600" onClick={() => chooseRedactionMode(redactionMode === "ai" ? "manual" : "ai")}>
+            {redactionMode === "ai" ? tx("Passer en manuel", "التحويل إلى اليدوي", "Switch to manual") : tx("Passer en automatique (IA)", "التحويل إلى التلقائي", "Switch to automatic (AI)")}
+          </button>
+        </div>
+      )}
+
       {/* NAVIGATION ONGLET */}
       <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 border-b border-slate-200 dark:border-slate-800 no-print print:hidden">
         <Button
@@ -2097,6 +2144,12 @@ export const DiagnosticEvaluation: React.FC = () => {
       {/* ========================================================================= */}
       {currentTab === "observations" && (
         <div className="space-y-6">
+          {redactionMode === "ai" && (
+            <div className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50/60 p-3 text-xs text-violet-900 sm:flex-row sm:items-center sm:justify-between dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
+              <span className="flex items-start gap-1.5"><Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />{tx("Mode automatique : l'appréciation, les observations, les propositions et la composition du test sont rédigées par l'IA (onglet 6). Vous pouvez les modifier ici après la génération.", "الوضع التلقائي: التقدير والملاحظات والمقترحات ومكونات الرائز يحررها الذكاء الاصطناعي (التبويب 6). يمكنك تعديلها هنا بعد التوليد.", "Automatic mode: the overall level, findings, proposals and test structure are written by the AI (tab 6). You can edit them here afterwards.")}</span>
+              <Button size="sm" onClick={() => guardLeave(() => setCurrentTab("preview"))} className="h-8 shrink-0 gap-1 bg-violet-600 text-xs text-white hover:bg-violet-700"><Sparkles className="h-3.5 w-3.5" />{tx("Générer (onglet 6)", "التوليد (التبويب 6)", "Generate (tab 6)")}</Button>
+            </div>
+          )}
           {/* Barre d'action supérieure */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div>
@@ -2311,8 +2364,11 @@ export const DiagnosticEvaluation: React.FC = () => {
       {currentTab === "config" && (
         <div className="space-y-6">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base font-semibold">{t.adminConfigTitle}</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => { fillFromData(true); toast.success(tx("Paramètres remplis depuis vos données.", "تم ملء الإعدادات من معطياتك.", "Settings filled from your data.")); }} className="gap-1.5 text-xs">
+                <Database className="h-3.5 w-3.5 text-indigo-600" />{tx("Remplir depuis les données", "ملء من المعطيات", "Fill from data")}
+              </Button>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -2581,7 +2637,7 @@ export const DiagnosticEvaluation: React.FC = () => {
               {/* 3. Contenu */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
                 {sectionTitle(3, L("المحتوى", "Contenu", "Content"))}
-                {reportTemplate === "t3" || reportTemplate === "t4" ? (
+                {(reportTemplate === "t3" || reportTemplate === "t4" || redactionMode === "ai") && (
                   <DiagnosticAiPanel
                     config={appData.config}
                     classes={classesForReport}
@@ -2589,8 +2645,12 @@ export const DiagnosticEvaluation: React.FC = () => {
                     exams={exams}
                     courseIds={courses.filter(c => c.professor_id === user?.id).map(c => c.id)}
                     onConfig={(updater) => updateAppData(prev => ({ ...prev, config: updater(prev.config) }))}
+                    template={reportTemplate}
+                    mode={redactionMode === "ai" ? "ai" : "manual"}
+                    onOpenTexts={() => guardLeave(() => setCurrentTab("observations"))}
                   />
-                ) : reportTemplate === "t1" ? (
+                )}
+                {reportTemplate === "t3" || reportTemplate === "t4" ? null : reportTemplate === "t1" ? (
                   <>
                     <Report1ChartPicker
                       lang={lang}
@@ -2636,20 +2696,26 @@ export const DiagnosticEvaluation: React.FC = () => {
                           )}
                         </p>
                         {([
-                          { key: "rapport2_intro" as const, label: L("النص التمهيدي", "Introduction", "Introduction"), ph: defaultTemplate2Intro(appData.config, classesForReport, lang) },
-                          { key: "rapport2_remarque" as const, label: L("ملاحظة (الغياب)", "Remarque (absences)", "Note (absences)"), ph: L("نص تلقائي حسب نسبة الغياب", "Texte automatique selon le taux d'absence", "Automatic text based on the absence rate") },
-                          { key: "rapport2_soutien" as const, label: L("أساليب الدعم وطرق المعالجة", "Méthodes de soutien et de remédiation", "Support and remediation methods"), ph: defaultTemplate2Support(lang) },
+                          { key: "intro" as const, label: L("النص التمهيدي", "Introduction", "Introduction"), ph: defaultTemplate2Intro(appData.config, classesForReport, lang) },
+                          { key: "remarque" as const, label: L("ملاحظة (الغياب)", "Remarque (absences)", "Note (absences)"), ph: L("نص تلقائي حسب نسبة الغياب", "Texte automatique selon le taux d'absence", "Automatic text based on the absence rate") },
+                          { key: "soutien" as const, label: L("أساليب الدعم وطرق المعالجة", "Méthodes de soutien et de remédiation", "Support and remediation methods"), ph: defaultTemplate2Support(lang) },
                         ]).map(f => (
                           <div key={f.key} className="space-y-1">
                             <Label className="text-xs font-semibold">{f.label}</Label>
                             <Textarea
                               rows={3}
-                              value={(appData.config as any)[f.key] || ""}
+                              value={appData.config.rapport2_par_langue?.[lang]?.[f.key] ?? (appData.config[`rapport2_${f.key}` as const] || "")}
                               placeholder={f.ph}
                               dir={getDirection()}
                               onChange={(e) => {
                                 const v = e.target.value;
-                                updateAppData(prev => ({ ...prev, config: { ...prev.config, [f.key]: v } }));
+                                updateAppData(prev => ({
+                                  ...prev,
+                                  config: {
+                                    ...prev.config,
+                                    rapport2_par_langue: { ...(prev.config.rapport2_par_langue || {}), [lang]: { ...(prev.config.rapport2_par_langue?.[lang] || {}), [f.key]: v } },
+                                  },
+                                }));
                               }}
                               className="text-xs"
                             />

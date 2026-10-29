@@ -33,7 +33,7 @@ const json = (body: unknown, status = 200) =>
 const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400, diagnostic: 120 } as const; // diagnostic : 4 parties par analyse
 const MAX_TEXT = 60000;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
-const LANG = { ar: "Arabic (Modern Standard Arabic, as used in Moroccan schools)", fr: "French" } as const;
+const LANG = { ar: "Arabic (Modern Standard Arabic, as used in Moroccan schools)", fr: "French", en: "English" } as const;
 
 const SYSTEM =
   "You assist teachers of the Moroccan education system (primary, collège, lycée). " +
@@ -104,6 +104,18 @@ const DIAG_SCHEMA = {
   properties: {
     appreciation: { type: "string" },
     summary: { type: "string" },
+    intro: { type: "string" },
+    remark: { type: "string" },
+    support: { type: "string" },
+    exercises: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "description"],
+        properties: { title: { type: "string" }, description: { type: "string" } },
+      },
+    },
     observations: { type: "array", items: { type: "string" } },
     propositions: { type: "array", items: { type: "string" } },
     resources: {
@@ -214,6 +226,8 @@ const DIAG_PARTS: Record<string, string[]> = {
   resources: ["resources"],
   groups: ["groups"],
   plan: ["plan"],
+  report2: ["intro", "remark", "support"],
+  exercises: ["exercises"],
 };
 
 /** Schéma restreint à certaines parties (sans part : deux moitiés indépendantes) */
@@ -346,7 +360,7 @@ Deno.serve(async (req) => {
     if (body?.material_id && body?.action === "omr") delete body.material_id;
     const action = body?.action;
     if (action !== "quiz" && action !== "lesson_plan" && action !== "omr" && action !== "diagnostic") return json({ error: "INVALID_ACTION" }, 400);
-    const language: "ar" | "fr" = body?.language === "ar" ? "ar" : "fr";
+    const language: "ar" | "fr" | "en" = body?.language === "ar" ? "ar" : body?.language === "en" && action === "diagnostic" ? "en" : "fr";
 
     const perm = action === "quiz" ? "ai.quiz_generator" : action === "omr" ? "ai.omr" : action === "diagnostic" ? "ai.diagnostic" : "ai.lesson_plan";
     const { data: allowed, error: permErr } = await caller.rpc("has_permission", { p_key: perm });
@@ -459,7 +473,16 @@ Deno.serve(async (req) => {
         "difficulties: the observed gaps (1–2 sentences). error_type: nature of the error (conceptual, procedural / calculation, methodological, reading of the statement, prerequisite from previous years…). remediation: a concrete targeted activity. " +
         "groups: exactly 4 entries t1..t4 with the needs of each group, the type of support (immediate / integrated in lessons / institutional / outside class time) and 2–3 concrete activities. " +
         "plan: 4 to 6 rows of a remediation plan over the first weeks (period such as \"Semaine 1\" / \"الأسبوع 1\", content, target group, activities and materials, success indicators). " +
-        "observations: 4 to 6 findings; propositions: 4 to 6 remediation proposals. appreciation: one or two words for the overall level (e.g. faible, moyen, satisfaisant / ضعيف، متوسط، مستحسن). " +
+        "observations: 4 to 6 findings; propositions: 4 to 6 remediation proposals. " +
+        (language === "ar"
+          ? "appreciation: one adjective (or two words) that completes the sentence \"النتائج المحصل عليها ___\" (feminine, e.g. ضعيفة، متوسطة، مستحسنة). "
+          : language === "en"
+          ? "appreciation: one adjective (or two words) that completes \"The results obtained are ___\" (e.g. weak, moderate, satisfactory). "
+          : "appreciation: one adjective (or two words), masculine plural, that completes \"Les résultats obtenus sont ___\" (e.g. faibles, moyens, satisfaisants). ") +
+        `intro: 2–3 sentences introducing the report (start of the ${String(body?.context?.year || "").slice(0, 20)} school year, diagnostic period ${String(body?.context?.period || "").slice(0, 60)}, prior learning assessed in the first lessons) ending with a colon before the list of classes. ` +
+        "remark: one sentence on student absence during the test, using the absence rate from the statistics. " +
+        "support: one paragraph (4–5 sentences) on the support and remediation methods adopted after the test (correction sessions, reminders, integrated support in each lesson, extra sessions). " +
+        "exercises: one entry per exercise of the test document or app test, title such as \"Exercice 1\" / \"التمرين 1\" / \"Exercise 1\" and a short description of the resources it assesses. " +
         "summary: 2–3 sentences. Keep every string short (at most 2 sentences). Do NOT use LaTeX: write mathematics in plain Unicode (x², √x, ≤, ≥, π, f(x))." +
         `\n\n<class_statistics>\n${stats}\n</class_statistics>` +
         `\n\n<exercises>\n${exercises.map((e, i) => `${i + 1}. ${e.title} — ${e.description}${e.rate !== null && e.rate !== undefined ? ` (teacher's success rate: ${e.rate}%)` : ""}`).join("\n") || "(none listed)"}\n</exercises>` +

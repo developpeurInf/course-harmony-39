@@ -17,8 +17,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useElapsed } from "@/components/ai/AiProgress";
 import { accessStore } from "@/contexts/AccessContext";
 import { aiErrorMessage, loadAiMaterials } from "@/lib/teacherAi";
-import { BAND_LABEL, DIAG_PARTS, MASTERY_LABEL, emptyAnalysis, generateDiagnosticAnalysis, type DiagPart, type DiagnosticAiAnalysis, type Mastery } from "@/lib/diagnosticAi";
-import { getLangContent, setLangContent, type DiagnosticConfig } from "@/lib/diagnosticStorage";
+import { BAND_LABEL, MASTERY_LABEL, emptyAnalysis, generateDiagnosticAnalysis, partsForTemplate, type DiagPart, type DiagnosticAiAnalysis, type Mastery } from "@/lib/diagnosticAi";
+import { getLangContent, numberToWords, setLangContent, type DiagnosticConfig } from "@/lib/diagnosticStorage";
 import type { DiagnosticClass } from "@/lib/diagnosticStatsEngine";
 import type { DiagLang } from "@/lib/diagnosticTranslations";
 import type { CourseMaterialLike } from "@/lib/courseMedia";
@@ -31,9 +31,15 @@ interface Props {
   exams: { id: string; title: string; course_id: string }[];
   courseIds: string[];
   onConfig: (updater: (c: DiagnosticConfig) => DiagnosticConfig) => void;
+  /** modèle affiché : décide des parties à générer */
+  template: "t1" | "t2" | "t3" | "t4";
+  /** mode de rédaction choisi au début (ai = génération, manual = saisie) */
+  mode: "ai" | "manual";
+  /** ouvre l'onglet 4 (textes du modèle 1) */
+  onOpenTexts?: () => void;
 }
 
-export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onConfig }: Props) {
+export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onConfig, template, mode, onOpenTexts }: Props) {
   const L = (ar: string, fr: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : fr);
   const tr = (fr: string, ar: string, en: string) => L(ar, fr, en);
   const content = getLangContent(config, lang);
@@ -71,7 +77,7 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
   const generate = async (only?: DiagPart[]) => {
     if (busy || !accessStore.guard("ai.diagnostic")) return;
     if (!classes.length) return toast.error(tr("Sélectionnez au moins une classe.", "اختر قسماً واحداً على الأقل.", "Select at least one class."));
-    const parts = only && only.length ? only : DIAG_PARTS;
+    const parts = only && only.length ? only : partsForTemplate(template, examId !== "none" || materialId !== "none");
     setBusy(true);
     setPartState(Object.fromEntries(parts.map((p) => [p, "running"])));
     setPartErrors({});
@@ -91,14 +97,39 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
         },
         parts,
       );
-      // Les parties reçues remplacent les anciennes ; les autres sont conservées
+      // Les parties reçues remplacent les anciennes ; les autres sont conservées.
+      // Constats, propositions, appréciation et composition du test vont aussi dans l'onglet 4
+      // (modèles 1 et 3), l'introduction / remarque / soutien dans les textes du modèle 2.
       if (Object.keys(got).length) {
-        const base = (only ? analysis : null) || emptyAnalysis();
-        setAnalysis({ ...base, ...got, generated_at: new Date().toISOString() });
+        onConfig((c) => {
+          const base = c.analyse_ia?.[lang] || emptyAnalysis();
+          let next: DiagnosticConfig = { ...c, analyse_ia: { ...(c.analyse_ia || {}), [lang]: { ...base, ...got, generated_at: new Date().toISOString() } } };
+          if (got.observations || got.propositions || got.appreciation) {
+            next = setLangContent(next, lang, {
+              ...(got.observations?.length ? { observations: got.observations } : {}),
+              ...(got.propositions?.length ? { propositions: got.propositions } : {}),
+              ...(got.appreciation ? { appreciation_globale: got.appreciation } : {}),
+            });
+          }
+          if (got.exercises?.length) {
+            next = setLangContent(next, lang, {
+              exercices: got.exercises.map((e) => ({ titre: e.title, description: e.description })),
+              nombre_exercices_texte: numberToWords(got.exercises.length, lang),
+            });
+          }
+          if (got.intro || got.remark || got.support) {
+            const r2 = { ...(next.rapport2_par_langue?.[lang] || {}) };
+            if (got.intro) r2.intro = got.intro;
+            if (got.remark) r2.remarque = got.remark;
+            if (got.support) r2.soutien = got.support;
+            next = { ...next, rapport2_par_langue: { ...(next.rapport2_par_langue || {}), [lang]: r2 } };
+          }
+          return next;
+        });
       }
       if (!failed.length) {
         setPartState({});
-        toast.success(tr("Analyse prête : vérifiez-la et modifiez-la si besoin.", "التحليل جاهز: راجعه وعدّله عند الحاجة.", "Analysis ready: review and edit it if needed."));
+        toast.success(tr("Textes générés : vérifiez-les et modifiez-les si besoin.", "تم توليد النصوص: راجعها وعدّلها عند الحاجة.", "Texts generated: review and edit them if needed."));
       } else {
         toast.error(`${aiErrorMessage(failed[0].error, tr)} ${tr("Les parties réussies sont conservées.", "تم الاحتفاظ بالأجزاء الناجحة.", "Successful parts were kept.")}`);
       }
@@ -107,7 +138,8 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
       setStartedAt(null);
     }
   };
-  const failedParts = DIAG_PARTS.filter((p) => partState[p] === "error");
+  const ALL_PARTS: DiagPart[] = ["summary", "exercises", "report2", "resources", "groups", "plan"];
+  const failedParts = ALL_PARTS.filter((p) => partState[p] === "error");
 
   const copyToModel1 = () => {
     if (!analysis) return;
@@ -131,12 +163,14 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
   const dir = lang === "ar" ? "rtl" : "ltr";
 
   const partLabel: Record<DiagPart, string> = {
+    exercises: L("مكونات الرائز (التمارين)", "Composition du test (exercices)", "Test structure (exercises)"),
+    report2: L("التقديم والملاحظة وأساليب الدعم", "Introduction, remarque et soutien", "Introduction, note and support"),
     summary: L("التقدير العام والملاحظات والمقترحات", "Appréciation, constats et propositions", "Overall level, findings, proposals"),
     resources: L("التحكم في كل مورد", "Maîtrise de chaque ressource", "Mastery of each resource"),
     groups: L("حاجيات الفئات ونوع الدعم", "Besoins des groupes", "Group needs"),
     plan: L("خطة الدعم والمعالجة", "Plan de remédiation", "Remediation plan"),
   };
-  const tracked = DIAG_PARTS.filter((p) => partState[p]);
+  const tracked = ALL_PARTS.filter((p) => partState[p]);
   const doneCount = tracked.filter((p) => partState[p] === "done").length;
   // Barre : parties terminées + progression estimée de celles en cours (~45 s chacune)
   const running = tracked.length - doneCount - failedParts.length;
@@ -170,80 +204,7 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
     </div>
   );
 
-  return (
-    <div className="space-y-3 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-900 dark:bg-violet-950/20">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-800 dark:text-violet-200">
-        <Sparkles className="h-3.5 w-3.5" />{L("التحليل بالذكاء الاصطناعي", "Analyse par l'IA", "AI analysis")}
-      </div>
-
-      <div className="space-y-1">
-        <Label className="text-[11px]">{L("الاختبار المنجز في التطبيق (اختياري)", "Test passé dans l'appli (facultatif)", "Test taken in the app (optional)")}</Label>
-        <Select value={examId} onValueChange={setExamId}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">—</SelectItem>
-            {myExams.map((e) => <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <p className="text-[10px] text-slate-500">{L("نسب النجاح الحقيقية لكل سؤال تُحسب تلقائياً.", "Les taux de réussite réels de chaque question sont calculés.", "Real success rates per question are used.")}</p>
-      </div>
-
-      {materials.length > 0 && (
-        <div className="space-y-1">
-          <Label className="text-[11px]">{L("وثيقة الاختبار أو الدرس (اختياري)", "Document du test ou du cours (facultatif)", "Test or course document (optional)")}</Label>
-          <Select value={materialId} onValueChange={setMaterialId}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">—</SelectItem>
-              {materials.map((m) => <SelectItem key={m.id} value={m.id}>{m.file_name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {content.exercices.length > 0 && (
-        <div className="space-y-1">
-          <Label className="text-[11px]">{L("نسبة النجاح لكل تمرين % (اختياري)", "Taux de réussite par exercice % (facultatif)", "Success rate per exercise % (optional)")}</Label>
-          <div className="space-y-1">
-            {content.exercices.map((e, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-[11px] text-slate-600 dark:text-slate-300" title={e.description}>{e.titre}</span>
-                <Input
-                  type="number" min={0} max={100} inputMode="numeric"
-                  className="h-7 w-16 text-xs"
-                  value={rates[String(i)] ?? ""}
-                  placeholder="—"
-                  onChange={(ev) => {
-                    const v = ev.target.value === "" ? null : Math.max(0, Math.min(100, Number(ev.target.value)));
-                    onConfig((c) => ({ ...c, taux_exercices: { ...(c.taux_exercices || {}), [String(i)]: v } }));
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-slate-500">{L("بدونها، يقدّر الذكاء الاصطناعي النسب ويشير إلى ذلك.", "Sans ces taux, l'IA les estime et l'indique.", "Without them, the AI estimates and says so.")}</p>
-        </div>
-      )}
-
-      <div className="space-y-1">
-        <Label className="text-[11px]">{L("ملاحظاتك (اختياري)", "Vos remarques (facultatif)", "Your notes (optional)")}</Label>
-        <Textarea rows={2} dir={dir} value={notes} onChange={(e) => setNotes(e.target.value)} className="text-xs" placeholder={L("مثلاً: صعوبات في الحساب الحرفي…", "ex. : difficultés en calcul littéral…", "e.g. difficulties with algebra…")} />
-      </div>
-
-      <Button onClick={() => void generate()} disabled={busy} className="h-9 w-full gap-1.5 bg-violet-600 text-xs font-semibold text-white hover:bg-violet-700">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{analysis ? L("إعادة التوليد", "Régénérer l'analyse", "Regenerate") : L("توليد التحليل", "Générer l'analyse", "Generate the analysis")}
-      </Button>
-      {progress}
-      <p className="text-[10px] leading-snug text-slate-500">{L("تُرسل إحصائيات مجهولة فقط (بدون أسماء أو أرقام مسار).", "Seules des statistiques anonymes sont envoyées (aucun nom ni numéro Massar).", "Only anonymous statistics are sent (no names).")}</p>
-
-      {analysis && !busy && (
-        <div className="grid grid-cols-2 gap-2 border-t border-violet-200 pt-2 dark:border-violet-900">
-          <Button variant="outline" size="sm" onClick={openEditor} className="gap-1 text-xs"><Pencil className="h-3.5 w-3.5" />{L("تعديل التحليل", "Modifier l'analyse", "Edit analysis")}</Button>
-          <Button variant="outline" size="sm" onClick={copyToModel1} className="gap-1 text-xs"><ClipboardCopy className="h-3.5 w-3.5" />{L("نسخ إلى النموذج 1", "Copier vers modèle 1", "Copy to template 1")}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setAnalysis(null)} className="col-span-2 gap-1 text-xs text-rose-600"><Trash2 className="h-3.5 w-3.5" />{L("حذف التحليل", "Effacer l'analyse", "Clear analysis")}</Button>
-        </div>
-      )}
-
+  const editorDialog = (
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[92vh] w-[96vw] overflow-y-auto sm:max-w-5xl" dir={dir}>
           <DialogHeader>
@@ -334,6 +295,106 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
           </DialogFooter>
         </DialogContent>
       </Dialog>
+  );
+
+  const advanced = template === "t3" || template === "t4";
+
+  // Mode manuel (modèles 3 et 4) : saisie directe de l'analyse, sans IA
+  if (mode === "manual") {
+    return (
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+        <p className="text-[11px] text-slate-600 dark:text-slate-300">{L("الوضع اليدوي: املأ التحليل بنفسك (الموارد، الفئات، خطة الدعم).", "Mode manuel : remplissez vous-même l'analyse (ressources, groupes, plan de remédiation).", "Manual mode: fill in the analysis yourself (resources, groups, plan).")}</p>
+        <Button variant="outline" size="sm" onClick={openEditor} className="w-full gap-1 text-xs"><Pencil className="h-3.5 w-3.5" />{analysis ? L("تعديل التحليل", "Modifier l'analyse", "Edit analysis") : L("ملء التحليل يدوياً", "Remplir l'analyse", "Fill in the analysis")}</Button>
+        {editorDialog}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-900 dark:bg-violet-950/20">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-800 dark:text-violet-200">
+        <Sparkles className="h-3.5 w-3.5" />{advanced ? L("التحليل بالذكاء الاصطناعي", "Analyse par l'IA", "AI analysis") : L("التحرير بالذكاء الاصطناعي", "Rédaction par l'IA", "AI writing")}
+      </div>
+      {!advanced && (
+        <p className="text-[10px] leading-snug text-slate-600 dark:text-slate-300">
+          {template === "t1"
+            ? L("يحرر الذكاء الاصطناعي التقدير العام والملاحظات والمقترحات، ومكونات الرائز إذا اخترت الاختبار أو وثيقته. النموذج لا يتغير.", "L'IA rédige l'appréciation, les observations et les propositions, et la composition du test si vous choisissez le test ou son document. La mise en page ne change pas.", "The AI writes the overall level, findings and proposals, and the test structure if you pick the test or its document. The layout does not change.")
+            : L("يحرر الذكاء الاصطناعي التقديم والملاحظة وأساليب الدعم، والملاحظات والمقترحات. النموذج لا يتغير.", "L'IA rédige l'introduction, la remarque et les méthodes de soutien, ainsi que les observations et propositions. La mise en page ne change pas.", "The AI writes the introduction, the note and the support methods, plus findings and proposals. The layout does not change.")}
+        </p>
+      )}
+
+      <div className="space-y-1">
+        <Label className="text-[11px]">{L("الاختبار المنجز في التطبيق (اختياري)", "Test passé dans l'appli (facultatif)", "Test taken in the app (optional)")}</Label>
+        <Select value={examId} onValueChange={setExamId}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">—</SelectItem>
+            {myExams.map((e) => <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <p className="text-[10px] text-slate-500">{L("نسب النجاح الحقيقية لكل سؤال تُحسب تلقائياً.", "Les taux de réussite réels de chaque question sont calculés.", "Real success rates per question are used.")}</p>
+      </div>
+
+      {materials.length > 0 && (
+        <div className="space-y-1">
+          <Label className="text-[11px]">{L("وثيقة الاختبار أو الدرس (اختياري)", "Document du test ou du cours (facultatif)", "Test or course document (optional)")}</Label>
+          <Select value={materialId} onValueChange={setMaterialId}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">—</SelectItem>
+              {materials.map((m) => <SelectItem key={m.id} value={m.id}>{m.file_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {content.exercices.length > 0 && (
+        <div className="space-y-1">
+          <Label className="text-[11px]">{L("نسبة النجاح لكل تمرين % (اختياري)", "Taux de réussite par exercice % (facultatif)", "Success rate per exercise % (optional)")}</Label>
+          <div className="space-y-1">
+            {content.exercices.map((e, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[11px] text-slate-600 dark:text-slate-300" title={e.description}>{e.titre}</span>
+                <Input
+                  type="number" min={0} max={100} inputMode="numeric"
+                  className="h-7 w-16 text-xs"
+                  value={rates[String(i)] ?? ""}
+                  placeholder="—"
+                  onChange={(ev) => {
+                    const v = ev.target.value === "" ? null : Math.max(0, Math.min(100, Number(ev.target.value)));
+                    onConfig((c) => ({ ...c, taux_exercices: { ...(c.taux_exercices || {}), [String(i)]: v } }));
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-500">{L("بدونها، يقدّر الذكاء الاصطناعي النسب ويشير إلى ذلك.", "Sans ces taux, l'IA les estime et l'indique.", "Without them, the AI estimates and says so.")}</p>
+        </div>
+      )}
+
+      <div className="space-y-1">
+        <Label className="text-[11px]">{L("ملاحظاتك (اختياري)", "Vos remarques (facultatif)", "Your notes (optional)")}</Label>
+        <Textarea rows={2} dir={dir} value={notes} onChange={(e) => setNotes(e.target.value)} className="text-xs" placeholder={L("مثلاً: صعوبات في الحساب الحرفي…", "ex. : difficultés en calcul littéral…", "e.g. difficulties with algebra…")} />
+      </div>
+
+      <Button onClick={() => void generate()} disabled={busy} className="h-9 w-full gap-1.5 bg-violet-600 text-xs font-semibold text-white hover:bg-violet-700">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{analysis ? L("إعادة التوليد", "Régénérer", "Regenerate") : advanced ? L("توليد التحليل", "Générer l'analyse", "Generate the analysis") : L("توليد النصوص", "Générer les textes", "Generate the texts")}
+      </Button>
+      {progress}
+      <p className="text-[10px] leading-snug text-slate-500">{L("تُرسل إحصائيات مجهولة فقط (بدون أسماء أو أرقام مسار).", "Seules des statistiques anonymes sont envoyées (aucun nom ni numéro Massar).", "Only anonymous statistics are sent (no names).")}</p>
+
+      {analysis && !busy && !advanced && template === "t1" && onOpenTexts && (
+        <Button variant="outline" size="sm" onClick={onOpenTexts} className="w-full gap-1 text-xs"><Pencil className="h-3.5 w-3.5" />{L("مراجعة النصوص وتعديلها (4)", "Relire et modifier les textes (onglet 4)", "Review and edit the texts (tab 4)")}</Button>
+      )}
+      {analysis && !busy && advanced && (
+        <div className="grid grid-cols-2 gap-2 border-t border-violet-200 pt-2 dark:border-violet-900">
+          <Button variant="outline" size="sm" onClick={openEditor} className="gap-1 text-xs"><Pencil className="h-3.5 w-3.5" />{L("تعديل التحليل", "Modifier l'analyse", "Edit analysis")}</Button>
+          <Button variant="outline" size="sm" onClick={copyToModel1} className="gap-1 text-xs"><ClipboardCopy className="h-3.5 w-3.5" />{L("نسخ إلى النموذج 1", "Copier vers modèle 1", "Copy to template 1")}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setAnalysis(null)} className="col-span-2 gap-1 text-xs text-rose-600"><Trash2 className="h-3.5 w-3.5" />{L("حذف التحليل", "Effacer l'analyse", "Clear analysis")}</Button>
+        </div>
+      )}
+
+      {editorDialog}
     </div>
   );
 }

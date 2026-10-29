@@ -27,6 +27,10 @@ export interface DiagnosticConfig {
   rapport2_intro?: string;
   rapport2_soutien?: string;
   rapport2_remarque?: string;
+  /** Textes du modèle 2 par langue (IA ou saisie) ; prioritaires sur les champs ci-dessus */
+  rapport2_par_langue?: Partial<Record<DiagLang, { intro?: string; remarque?: string; soutien?: string }>>;
+  /** Choisi à l'ouverture : rédaction par l'IA ou saisie manuelle */
+  mode_redaction?: "ai" | "manual";
   /** Modèle 2 : graphiques (bibliothèque src/components/diagnostic/ReportCharts.tsx) */
   rapport2_graphiques?: Report2ChartSettings;
   /** Modèle 1 : choix des 2 graphiques de la page « Résultats » */
@@ -277,4 +281,66 @@ export function resetDiagnosticDataToDefaults(): DiagnosticAppData {
   const defaults = JSON.parse(JSON.stringify(DEFAULT_DIAGNOSTIC_DATA));
   saveDiagnosticData(defaults);
   return defaults;
+}
+
+/** Année scolaire marocaine en cours (rentrée en septembre) */
+export function currentSchoolYear(d = new Date()): string {
+  const y = d.getFullYear();
+  return d.getMonth() >= 8 ? `${y} / ${y + 1}` : `${y - 1} / ${y}`;
+}
+
+const MONTHS: Record<DiagLang, string[]> = {
+  fr: ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+  ar: ["يناير", "فبراير", "مارس", "أبريل", "ماي", "يونيو", "يوليوز", "غشت", "شتنبر", "أكتوبر", "نونبر", "دجنبر"],
+  en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+};
+
+/** Période de passation d'après les dates des classes, ex. « 01 au 09 octobre 2026 » */
+export function periodFromDates(dates: string[], lang: DiagLang): string {
+  const ds = dates.map((s) => new Date(s)).filter((d) => !isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime());
+  if (!ds.length) return "";
+  const a = ds[0], b = ds[ds.length - 1];
+  const dd = (d: Date) => String(d.getDate()).padStart(2, "0");
+  const m = MONTHS[lang] || MONTHS.fr;
+  const full = (d: Date) => `${dd(d)} ${m[d.getMonth()]} ${d.getFullYear()}`;
+  const same = a.toDateString() === b.toDateString();
+  const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  const start = sameMonth ? dd(a) : a.getFullYear() === b.getFullYear() ? `${dd(a)} ${m[a.getMonth()]}` : full(a);
+  if (same) return full(a);
+  if (lang === "ar") return `من ${start} إلى ${full(b)}`;
+  if (lang === "en") return `${start} to ${full(b)}`;
+  return `${start} au ${full(b)}`;
+}
+
+const listJoin = (items: string[], lang: DiagLang) => {
+  if (items.length < 2) return items.join("");
+  const and = lang === "ar" ? " و" : lang === "en" ? " and " : " et ";
+  return `${items.slice(0, -1).join(lang === "ar" ? "، " : ", ")}${and}${items[items.length - 1]}`;
+};
+
+/**
+ * Remplit les paramètres (onglet 5) depuis les données de l'appli : enseignant connecté,
+ * établissement de la personnalisation, année scolaire, classes et dates de passation.
+ * Sans `force`, seuls les champs vides ou encore à la valeur d'exemple sont remplacés.
+ */
+export function fillConfigFromData(
+  config: DiagnosticConfig,
+  classes: { nom: string; date: string }[],
+  lang: DiagLang,
+  src: { teacher?: string; school?: string },
+  force = false,
+): DiagnosticConfig {
+  const demo = DEFAULT_DIAGNOSTIC_DATA.config as unknown as Record<string, unknown>;
+  const out = { ...config } as DiagnosticConfig & Record<string, unknown>;
+  const put = (key: keyof DiagnosticConfig, value: string | undefined) => {
+    if (!value) return;
+    const cur = out[key as string];
+    if (force || !cur || cur === demo[key as string]) out[key as string] = value;
+  };
+  put("nom_enseignant", src.teacher);
+  put("lycee", src.school);
+  put("annee_scolaire", currentSchoolYear());
+  put("periode_diagnostic", periodFromDates(classes.map((c) => c.date), lang));
+  put("classes_concernees", listJoin(classes.map((c) => c.nom), lang));
+  return out;
 }

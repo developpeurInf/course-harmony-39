@@ -244,9 +244,10 @@ export const DiagnosticReportTemplate2: React.FC<Props> = ({ config, classes, la
   const presentAll = bands.reduce((s, b) => s + b.present, 0);
   const absentPct = totalAll ? ((totalAll - presentAll) / totalAll) * 100 : 0;
 
-  const intro = (cfg.rapport2_intro || "").trim() || defaultTemplate2Intro(config, classes, lang);
-  const support = (cfg.rapport2_soutien || "").trim() || defaultTemplate2Support(lang);
-  const remark = (cfg.rapport2_remarque || "").trim() || defaultTemplate2Remark(absentPct, lang);
+  const own = config.rapport2_par_langue?.[lang] || {};
+  const intro = (own.intro ?? cfg.rapport2_intro ?? "").trim() || defaultTemplate2Intro(config, classes, lang);
+  const support = (own.soutien ?? cfg.rapport2_soutien ?? "").trim() || defaultTemplate2Support(lang);
+  const remark = (own.remarque ?? cfg.rapport2_remarque ?? "").trim() || defaultTemplate2Remark(absentPct, lang);
 
   // Blocs du rapport, dans l'ordre
   const gsKey = JSON.stringify(gs);
