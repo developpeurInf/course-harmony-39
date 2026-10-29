@@ -6,6 +6,7 @@
  * Sans analyse, les tableaux restent imprimables avec des lignes vides à remplir à la main.
  */
 import React from "react";
+import { renderOfficialChart, useOfficialCharts, type ChartBlock } from "@/components/diagnostic/OfficialCharts";
 import type { DiagnosticConfig } from "@/lib/diagnosticStorage";
 import { getLangContent } from "@/lib/diagnosticStorage";
 import { calculateClassStats, parseNoteValue, type DiagnosticClass } from "@/lib/diagnosticStatsEngine";
@@ -53,14 +54,14 @@ type Block =
   | { kind: "header" } | { kind: "overall" } | { kind: "generalTitle" } | { kind: "general" }
   | { kind: "bandsTitle" } | { kind: "bands" } | { kind: "resTitle" } | { kind: "resources" }
   | { kind: "groupsTitle" } | { kind: "groups" } | { kind: "planTitle" } | { kind: "plan" }
-  | { kind: "conclTitle" } | { kind: "conclusions" } | { kind: "signatures" };
+  | { kind: "conclTitle" } | { kind: "conclusions" } | { kind: "signatures" } | ChartBlock;
 
 const fmt = (n: number, lang: DiagLang) => (lang === "en" ? n.toFixed(2) : n.toFixed(2).replace(".", ","));
 const masteryClass = { acquired: "or-ok", partial: "or-mid", not_acquired: "or-ko" } as const;
 
-interface Props { config: DiagnosticConfig; classes: DiagnosticClass[]; lang?: DiagLang }
+interface Props { config: DiagnosticConfig; classes: DiagnosticClass[]; lang?: DiagLang; includeGraphs?: boolean }
 
-export const DiagnosticReportTemplate3: React.FC<Props> = ({ config, classes, lang = "ar" }) => {
+export const DiagnosticReportTemplate3: React.FC<Props> = ({ config, classes, lang = "ar", includeGraphs = false }) => {
   const t = TXT[lang] || TXT.fr;
   const footer = useReportFooter(lang);
   const a: DiagnosticAiAnalysis = config.analyse_ia?.[lang] || emptyAnalysis();
@@ -83,20 +84,24 @@ export const DiagnosticReportTemplate3: React.FC<Props> = ({ config, classes, la
     : content.exercices.map((e) => ({ resource: `${e.titre} : ${e.description}`, mastery: null as null, rate: null as number | null, difficulties: "", error_type: "", remediation: "" }));
   const plan = a.plan.length ? a.plan : Array.from({ length: 4 }, () => ({ period: "", content: "", target: "", activities: "", indicators: "" }));
 
+  const charts = useOfficialCharts(config, classes, includeGraphs);
   const blocks: Block[] = [
     { kind: "header" }, { kind: "overall" },
     { kind: "generalTitle" }, { kind: "general" },
     { kind: "bandsTitle" }, { kind: "bands" },
+    // Graphiques (mêmes réglages que le modèle 2) sous la répartition par catégorie
+    ...charts.perClass.filter((c): c is NonNullable<typeof c> => !!c), ...charts.global,
     { kind: "resTitle" }, { kind: "resources" },
     { kind: "groupsTitle" }, { kind: "groups" },
     { kind: "planTitle" }, { kind: "plan" },
     { kind: "conclTitle" }, { kind: "conclusions" },
     { kind: "signatures" },
   ];
-  const titleKinds = new Set(["generalTitle", "bandsTitle", "resTitle", "groupsTitle", "planTitle", "conclTitle"]);
-  const contentKey = JSON.stringify([lang, a, observations, propositions, appreciation, stats, resources.length, config.lycee, config.nom_enseignant, config.matiere, config.annee_scolaire, config.academie, config.direction]);
+  const titleKinds = new Set(["chartsTitle", "generalTitle", "bandsTitle", "resTitle", "groupsTitle", "planTitle", "conclTitle"]);
+  const contentKey = JSON.stringify([lang, a, observations, propositions, appreciation, stats, resources.length, config.lycee, config.nom_enseignant, config.matiere, config.annee_scolaire, config.academie, config.direction, charts.key]);
 
   const renderBlock = (b: Block, key: number): React.ReactNode => {
+    if (b.kind === "classChart" || b.kind === "globalChart" || b.kind === "chartsTitle") return renderOfficialChart(b, key, lang, charts);
     switch (b.kind) {
       case "header":
         return <div key={key}><OfficialHeader config={config} lang={lang} title={t.title} subtitle={t.subtitle} /></div>;

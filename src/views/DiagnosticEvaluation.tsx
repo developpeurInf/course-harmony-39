@@ -104,6 +104,8 @@ import { DiagnosticReportPrint } from "@/components/diagnostic/DiagnosticReportP
 import { DiagnosticReportTemplate3 } from "@/components/diagnostic/DiagnosticReportTemplate3";
 import { DiagnosticReportTemplate4 } from "@/components/diagnostic/DiagnosticReportTemplate4";
 import { DiagnosticAiPanel } from "@/components/diagnostic/DiagnosticAiPanel";
+import { emptyAnalysis, generateDiagnosticAnalysis } from "@/lib/diagnosticAi";
+import { aiErrorMessage } from "@/lib/teacherAi";
 import type { PermissionKey } from "@/lib/permissions";
 
 type ReportTemplateId = "t1" | "t2" | "t3" | "t4";
@@ -566,6 +568,43 @@ export const DiagnosticEvaluation: React.FC = () => {
     }));
     if (m === "ai") {
       toast.success(tx("Paramètres remplis depuis vos données. Générez les textes dans l'onglet 6.", "تم ملء الإعدادات من معطياتك. ولّد النصوص في التبويب 6.", "Settings filled from your data. Generate the texts in tab 6."));
+    }
+  };
+  // Onglet 4 : rédaction directe des observations, propositions et appréciation par l'IA
+  const [quickAiBusy, setQuickAiBusy] = useState(false);
+  const quickGenerateTexts = async () => {
+    if (!classesForReport.length) {
+      toast.error(tx("Sélectionnez au moins une classe.", "اختر قسماً واحداً على الأقل.", "Select at least one class."));
+      return;
+    }
+    setQuickAiBusy(true);
+    try {
+      const rates = appData.config.taux_exercices || {};
+      const { analysis: got, failed } = await generateDiagnosticAnalysis({
+        config: appData.config,
+        classes: classesForReport,
+        lang,
+        exercises: langContent.exercices.map((e, i) => ({ title: e.titre, description: e.description, rate: rates[String(i)] ?? null })),
+      }, undefined, ["summary"]);
+      if (failed.length) {
+        toast.error(aiErrorMessage(failed[0].error, tx));
+        return;
+      }
+      updateAppData(prev => {
+        const base = prev.config.analyse_ia?.[lang] || emptyAnalysis();
+        const cfg = { ...prev.config, analyse_ia: { ...(prev.config.analyse_ia || {}), [lang]: { ...base, ...got, generated_at: new Date().toISOString() } } };
+        return {
+          ...prev,
+          config: setLangContent(cfg, lang, {
+            ...(got.observations?.length ? { observations: got.observations } : {}),
+            ...(got.propositions?.length ? { propositions: got.propositions } : {}),
+            ...(got.appreciation ? { appreciation_globale: got.appreciation } : {}),
+          }),
+        };
+      });
+      toast.success(tx("Textes rédigés : relisez-les et modifiez-les si besoin.", "تم تحرير النصوص: راجعها وعدّلها عند الحاجة.", "Texts written: review and edit them if needed."));
+    } finally {
+      setQuickAiBusy(false);
     }
   };
   // Écrit ce qui reste en attente en quittant la page / l'application
@@ -2144,10 +2183,13 @@ export const DiagnosticEvaluation: React.FC = () => {
       {/* ========================================================================= */}
       {currentTab === "observations" && (
         <div className="space-y-6">
-          {redactionMode === "ai" && (
+          {canAccess("ai.diagnostic") && (
             <div className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50/60 p-3 text-xs text-violet-900 sm:flex-row sm:items-center sm:justify-between dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-200">
-              <span className="flex items-start gap-1.5"><Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />{tx("Mode automatique : l'appréciation, les observations, les propositions et la composition du test sont rédigées par l'IA (onglet 6). Vous pouvez les modifier ici après la génération.", "الوضع التلقائي: التقدير والملاحظات والمقترحات ومكونات الرائز يحررها الذكاء الاصطناعي (التبويب 6). يمكنك تعديلها هنا بعد التوليد.", "Automatic mode: the overall level, findings, proposals and test structure are written by the AI (tab 6). You can edit them here afterwards.")}</span>
-              <Button size="sm" onClick={() => guardLeave(() => setCurrentTab("preview"))} className="h-8 shrink-0 gap-1 bg-violet-600 text-xs text-white hover:bg-violet-700"><Sparkles className="h-3.5 w-3.5" />{tx("Générer (onglet 6)", "التوليد (التبويب 6)", "Generate (tab 6)")}</Button>
+              <span className="flex items-start gap-1.5"><Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />{tx("L'IA peut rédiger l'appréciation, les observations pédagogiques et les propositions à partir des notes des classes choisies. Vous pourrez tout modifier ensuite.", "يمكن للذكاء الاصطناعي تحرير التقدير العام والملاحظات البيداغوجية والمقترحات انطلاقا من نقط الأقسام المختارة. يمكنك تعديل كل شيء بعد ذلك.", "The AI can write the overall level, the findings and the proposals from the marks of the selected classes. You can edit everything afterwards.")}</span>
+              <Button size="sm" disabled={quickAiBusy} onClick={() => void quickGenerateTexts()} className="h-8 shrink-0 gap-1 bg-violet-600 text-xs text-white hover:bg-violet-700">
+                {quickAiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {quickAiBusy ? tx("Rédaction…", "جارٍ التحرير…", "Writing…") : tx("Générer avec l'IA", "التوليد بالذكاء الاصطناعي", "Generate with AI")}
+              </Button>
             </div>
           )}
           {/* Barre d'action supérieure */}
@@ -2637,8 +2679,7 @@ export const DiagnosticEvaluation: React.FC = () => {
               {/* 3. Contenu */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
                 {sectionTitle(3, L("المحتوى", "Contenu", "Content"))}
-                {(reportTemplate === "t3" || reportTemplate === "t4" || redactionMode === "ai") && (
-                  <DiagnosticAiPanel
+                <DiagnosticAiPanel
                     config={appData.config}
                     classes={classesForReport}
                     lang={lang}
@@ -2647,10 +2688,21 @@ export const DiagnosticEvaluation: React.FC = () => {
                     onConfig={(updater) => updateAppData(prev => ({ ...prev, config: updater(prev.config) }))}
                     template={reportTemplate}
                     mode={redactionMode === "ai" ? "ai" : "manual"}
-                    onOpenTexts={() => guardLeave(() => setCurrentTab("observations"))}
+                    onOpenTexts={() => (reportTemplate === "t2" ? setShowTemplate2Texts(true) : guardLeave(() => setCurrentTab("observations")))}
                   />
-                )}
-                {reportTemplate === "t3" || reportTemplate === "t4" ? null : reportTemplate === "t1" ? (
+                {reportTemplate === "t3" || reportTemplate === "t4" ? (
+                  <ChartSettingsPanel
+                    lang={lang}
+                    enabled={includeGraphsInReport}
+                    onEnabledChange={setIncludeGraphsInReport}
+                    settings={appData.config.rapport2_graphiques}
+                    onChange={(patch) => updateAppData(prev => ({
+                      ...prev,
+                      config: { ...prev.config, rapport2_graphiques: { ...DEFAULT_REPORT2_CHARTS, ...(prev.config.rapport2_graphiques || {}), ...patch } },
+                    }))}
+                    classNames={classesForReport.map(c => c.nom)}
+                  />
+                ) : reportTemplate === "t1" ? (
                   <>
                     <Report1ChartPicker
                       lang={lang}
@@ -2795,9 +2847,9 @@ export const DiagnosticEvaluation: React.FC = () => {
                 <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                   <ReportScaler fit={previewFit} disabled={isExportingPdf}>
                     {reportTemplate === "t3" ? (
-                      <DiagnosticReportTemplate3 config={appData.config} classes={classesForReport} lang={lang} />
+                      <DiagnosticReportTemplate3 config={appData.config} classes={classesForReport} lang={lang} includeGraphs={includeGraphsInReport} />
                     ) : reportTemplate === "t4" ? (
-                      <DiagnosticReportTemplate4 config={appData.config} classes={classesForReport} lang={lang} />
+                      <DiagnosticReportTemplate4 config={appData.config} classes={classesForReport} lang={lang} includeGraphs={includeGraphsInReport} />
                     ) : reportTemplate === "t2" ? (
                       <DiagnosticReportTemplate2
                         config={appData.config}

@@ -5,6 +5,7 @@
  * catégorie. Les noms restent dans l'appli : ils ne sont jamais envoyés à l'IA.
  */
 import React from "react";
+import { renderOfficialChart, useOfficialCharts, type ChartBlock } from "@/components/diagnostic/OfficialCharts";
 import type { DiagnosticConfig } from "@/lib/diagnosticStorage";
 import { parseNoteValue, type DiagnosticClass } from "@/lib/diagnosticStatsEngine";
 import type { DiagLang } from "@/lib/diagnosticTranslations";
@@ -20,11 +21,11 @@ const TXT = {
 const BANDS: BandKey[] = ["t1", "t2", "t3", "t4"];
 
 type Row = { num: number; name: string; note: number };
-type Block = { kind: "header" } | { kind: "intro" } | { kind: "class"; nom: string; groups: Record<BandKey, Row[]>; absents: string[]; present: number } | { kind: "needs" } | { kind: "signatures" };
+type Block = { kind: "header" } | { kind: "intro" } | { kind: "class"; nom: string; groups: Record<BandKey, Row[]>; absents: string[]; present: number } | { kind: "needs" } | { kind: "signatures" } | ChartBlock;
 
-interface Props { config: DiagnosticConfig; classes: DiagnosticClass[]; lang?: DiagLang }
+interface Props { config: DiagnosticConfig; classes: DiagnosticClass[]; lang?: DiagLang; includeGraphs?: boolean }
 
-export const DiagnosticReportTemplate4: React.FC<Props> = ({ config, classes, lang = "ar" }) => {
+export const DiagnosticReportTemplate4: React.FC<Props> = ({ config, classes, lang = "ar", includeGraphs = false }) => {
   const t = TXT[lang] || TXT.fr;
   const footer = useReportFooter(lang);
   const a = config.analyse_ia?.[lang] || emptyAnalysis();
@@ -42,11 +43,19 @@ export const DiagnosticReportTemplate4: React.FC<Props> = ({ config, classes, la
     return { kind: "class" as const, nom: c.nom, groups, absents, present: BANDS.reduce((n, k) => n + groups[k].length, 0) };
   }), [classes]);
 
-  const blocks: Block[] = [{ kind: "header" }, { kind: "intro" }, ...(hasNeeds ? [{ kind: "needs" as const }] : []), ...classBlocks, { kind: "signatures" }];
-  const contentKey = JSON.stringify([lang, classBlocks, a.groups, config.lycee, config.nom_enseignant, config.matiere, config.annee_scolaire]);
+  const charts = useOfficialCharts(config, classes, includeGraphs);
+  // Graphique de chaque classe sous sa liste, graphiques d'ensemble avant les signatures
+  const blocks: Block[] = [
+    { kind: "header" }, { kind: "intro" }, ...(hasNeeds ? [{ kind: "needs" as const }] : []),
+    ...classBlocks.flatMap((cb, i): Block[] => (charts.perClass[i] ? [cb, charts.perClass[i]!] : [cb])),
+    ...charts.global,
+    { kind: "signatures" },
+  ];
+  const contentKey = JSON.stringify([lang, classBlocks, a.groups, config.lycee, config.nom_enseignant, config.matiere, config.annee_scolaire, charts.key]);
   const note = (n: number) => (lang === "en" ? String(n) : String(n).replace(".", ","));
 
   const renderBlock = (b: Block, key: number): React.ReactNode => {
+    if (b.kind === "classChart" || b.kind === "globalChart" || b.kind === "chartsTitle") return renderOfficialChart(b, key, lang, charts);
     switch (b.kind) {
       case "header": return <div key={key}><OfficialHeader config={config} lang={lang} title={t.title} subtitle={t.subtitle} /></div>;
       case "intro": return <p key={key} className="or-para">{t.intro}</p>;
@@ -91,7 +100,7 @@ export const DiagnosticReportTemplate4: React.FC<Props> = ({ config, classes, la
     }
   };
 
-  return <OfficialPages lang={lang} blocks={blocks} renderBlock={renderBlock} contentKey={contentKey} footerText={footer} />;
+  return <OfficialPages lang={lang} blocks={blocks} renderBlock={renderBlock} contentKey={contentKey} footerText={footer} keepWithNext={(i) => blocks[i].kind === "chartsTitle"} />;
 };
 
 export default DiagnosticReportTemplate4;

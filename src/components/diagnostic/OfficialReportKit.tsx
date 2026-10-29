@@ -200,6 +200,9 @@ function officialCss(isRtl: boolean) {
     .or-sign-cell { height: 24mm; vertical-align: top !important; padding-top: 2mm !important; }
     .or-class-title { font-size: 11pt; font-weight: bold; text-decoration: underline; margin: 1mm 0 1mm 0; }
     .or-names { font-size: 8.8pt; }
+    .or-figure { margin: 1.5mm 0 2mm 0; break-inside: avoid; page-break-inside: avoid; }
+    .or-figure svg { width: 100%; height: auto; }
+    .or-caption { font-size: 9.5pt; font-style: italic; text-align: center; margin-top: 0.5mm; color: #222; }
     .or-names td { text-align: ${start}; vertical-align: top; padding: 0.4mm 1.2mm; }
     .or-page-footer { position: absolute; left: 12mm; right: 12mm; bottom: 2.5mm; font-size: 7.5pt; line-height: 1.2; text-align: center; color: #555; white-space: pre-line; overflow: hidden; max-height: 6.5mm; }
   `;

@@ -299,6 +299,22 @@ export function DiagnosticAiPanel({ config, classes, lang, exams, courseIds, onC
 
   const advanced = template === "t3" || template === "t4";
 
+  // Mode manuel, modèles 1 et 2 : le professeur rédige les textes lui-même
+  if (mode === "manual" && !advanced) {
+    return (
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+        <p className="text-[11px] text-slate-600 dark:text-slate-300">
+          {template === "t1"
+            ? L("الوضع اليدوي: املأ بنفسك النتائج والمعالجة (التبويب 4) والإعدادات (التبويب 5).", "Mode manuel : remplissez vous-même les résultats et la remédiation (onglet 4) et les paramètres (onglet 5).", "Manual mode: fill in results & remediation (tab 4) and settings (tab 5) yourself.")
+            : L("الوضع اليدوي: اكتب بنفسك التقديم والملاحظة وأساليب الدعم.", "Mode manuel : rédigez vous-même l'introduction, la remarque et les méthodes de soutien.", "Manual mode: write the introduction, the note and the support methods yourself.")}
+        </p>
+        {onOpenTexts && (
+          <Button variant="outline" size="sm" onClick={onOpenTexts} className="w-full gap-1 text-xs"><Pencil className="h-3.5 w-3.5" />{template === "t1" ? L("تعديل النتائج والمقترحات (4)", "Modifier les résultats (onglet 4)", "Edit the results (tab 4)") : L("تعديل نصوص النموذج 2", "Modifier les textes du modèle 2", "Edit template 2 texts")}</Button>
+        )}
+      </div>
+    );
+  }
+
   // Mode manuel (modèles 3 et 4) : saisie directe de l'analyse, sans IA
   if (mode === "manual") {
     return (
