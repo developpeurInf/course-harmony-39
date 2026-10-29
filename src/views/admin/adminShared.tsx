@@ -102,6 +102,7 @@ export const PAYMENT_METHODS: { id: string; fr: string; ar: string; en: string }
   { id: "cash", fr: "Espèces", ar: "نقدا", en: "Cash" },
   { id: "card", fr: "Carte", ar: "بطاقة", en: "Card" },
   { id: "mobile", fr: "Paiement mobile", ar: "أداء عبر الهاتف", en: "Mobile payment" },
+  { id: "agency", fr: "Agence (CashPlus, Wafacash…)", ar: "وكالة (كاش بلوس، وفاكاش…)", en: "Agency (CashPlus, Wafacash…)" },
   { id: "check", fr: "Chèque", ar: "شيك", en: "Check" },
   { id: "other", fr: "Autre", ar: "أخرى", en: "Other" },
 ];

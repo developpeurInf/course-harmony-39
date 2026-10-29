@@ -85,6 +85,15 @@ export interface AppSettings {
     receiptFooter: I18nText;      // mentions des reçus de paiement
   };
   features: Record<FeatureKey, boolean>;
+  payments: {
+    enabled: boolean;             // les profs peuvent payer et envoyer un reçu depuis « Mon abonnement »
+    bankName: string;
+    accountHolder: string;
+    rib: string;                  // RIB à 24 chiffres
+    agencyName: string;           // bénéficiaire CashPlus / Wafacash
+    agencyPhone: string;
+    instructions: I18nText;       // consignes affichées au prof
+  };
 }
 
 const t = (fr: string, ar: string, en: string): I18nText => ({ fr, ar, en });
@@ -160,6 +169,19 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     courses: true,
     bottomNav: true,
     pdfEditor: true,
+  },
+  payments: {
+    enabled: true,
+    bankName: "",
+    accountHolder: "",
+    rib: "",
+    agencyName: "",
+    agencyPhone: "",
+    instructions: t(
+      "Indiquez votre nom et votre e-mail dans le motif du virement, puis envoyez la photo du reçu ici.",
+      "اكتب اسمك وبريدك الإلكتروني في سبب التحويل، ثم أرسل صورة الوصل هنا.",
+      "Put your name and e-mail in the transfer reference, then send a photo of the receipt here."
+    ),
   },
 };
 

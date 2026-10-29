@@ -4,6 +4,7 @@ import { Users, UserCheck, Hourglass, AlertTriangle, Ban, Wallet, GraduationCap,
 import { toast } from "sonner";
 import { daysLeftLabel, db, fmtDate, fmtMoney, PageTitle, StatusBadge, useT } from "./adminShared";
 import { useConfirm } from "./ConfirmDialog";
+import PaymentRequestDialog from "./PaymentRequestDialog";
 
 interface Dash {
   teachers: number;
@@ -29,6 +30,7 @@ export default function AdminDashboard() {
   const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [handling, setHandling] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<any | null>(null);
   const { ask, dialog: confirmDialog } = useConfirm();
 
   useEffect(() => {
@@ -118,10 +120,25 @@ export default function AdminDashboard() {
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                 <div className="min-w-0">
                   <p className="font-semibold">{names[r.teacher_id] || "—"} · {r.plans?.name || L("renouvellement", "تجديد", "renewal")}</p>
-                  <p className="text-xs text-muted-foreground">{fmtDate(r.created_at, lang)}{r.message ? ` · « ${r.message} »` : ""}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fmtDate(r.created_at, lang)}
+                    {r.amount_mad != null ? ` · ${fmtMoney(r.amount_mad, lang)}` : ""}
+                    {r.receipt_path ? ` · ${L("reçu joint", "وصل مرفق", "receipt attached")}` : ""}
+                    {r.message ? ` · « ${r.message} »` : ""}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <Link to={`/admin/teachers/${r.teacher_id}`} className="inline-flex h-9 items-center rounded-md border bg-background px-3 text-xs font-semibold hover:bg-muted">{L("Ouvrir la fiche", "فتح البطاقة", "Open")}</Link>
+                  {r.receipt_path || r.amount_mad != null ? (
+                    <button
+                      type="button"
+                      onClick={() => setReviewing(r)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                    >
+                      <Wallet className="h-3.5 w-3.5" />
+                      {L("Vérifier le paiement", "التحقق من الأداء", "Check payment")}
+                    </button>
+                  ) : (
                   <button
                     type="button"
                     onClick={() => markDone(r)}
@@ -131,12 +148,22 @@ export default function AdminDashboard() {
                     {handling === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                     {L("Traitée", "تمت المعالجة", "Done")}
                   </button>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         </section>
       )}
+      <PaymentRequestDialog
+        request={reviewing}
+        teacherName={reviewing ? names[reviewing.teacher_id] || "—" : ""}
+        onClose={() => setReviewing(null)}
+        onDone={id => {
+          setReviewing(null);
+          setRequests(list => list.filter(x => x.id !== id));
+        }}
+      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cards.map(c => (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  BookOpen, Check, Download, FileText, GraduationCap, LayoutGrid, Loader2, Lock, Palette, RefreshCw, ScrollText, Upload, XCircle,
+  BookOpen, Check, Download, FileText, GraduationCap, LayoutGrid, Loader2, Lock, Palette, RefreshCw, ScrollText, Upload, Wallet, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAccess } from "@/contexts/AccessContext";
@@ -17,9 +17,10 @@ import TextsSection from "./customization/TextsSection";
 import PedagogySection from "./customization/PedagogySection";
 import ReportsSection from "./customization/ReportsSection";
 import FeaturesSection from "./customization/FeaturesSection";
+import PaymentsSection from "./customization/PaymentsSection";
 import LivePreview from "./customization/LivePreview";
 
-type TabId = "identity" | "theme" | "texts" | "pedagogy" | "reports" | "features";
+type TabId = "identity" | "theme" | "texts" | "pedagogy" | "reports" | "payments" | "features";
 
 const TAB_SECTIONS: Record<TabId, (keyof AppSettings)[]> = {
   identity: ["identity"],
@@ -27,6 +28,7 @@ const TAB_SECTIONS: Record<TabId, (keyof AppSettings)[]> = {
   texts: ["texts"],
   pedagogy: ["pedagogy"],
   reports: ["reports"],
+  payments: ["payments"],
   features: ["features"],
 };
 
@@ -237,6 +239,7 @@ export default function AdminCustomization() {
     { id: "texts", label: L("Textes", "النصوص", "Texts"), icon: ScrollText },
     { id: "pedagogy", label: L("Pédagogie", "البيداغوجيا", "Teaching"), icon: GraduationCap },
     { id: "reports", label: L("Rapports PDF", "تقارير PDF", "PDF reports"), icon: FileText },
+    { id: "payments", label: L("Paiements", "الأداءات", "Payments"), icon: Wallet },
     { id: "features", label: L("Modules", "الوحدات", "Modules"), icon: LayoutGrid },
   ];
   const tabChanges = (t: TabId) => TAB_SECTIONS[t].reduce((n, k) => n + countChanges(baseline[k], draft[k]), 0);
@@ -338,6 +341,7 @@ export default function AdminCustomization() {
           {tab === "texts" && <TextsSection {...props} />}
           {tab === "pedagogy" && <PedagogySection {...props} />}
           {tab === "reports" && <ReportsSection {...props} />}
+          {tab === "payments" && <PaymentsSection {...props} />}
           {tab === "features" && <FeaturesSection {...props} />}
         </div>
         <div className="order-1 min-w-0 lg:sticky lg:top-2 lg:order-2">

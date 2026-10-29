@@ -9,6 +9,8 @@ import { useAccess } from "@/contexts/AccessContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { MODULE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
 import { Label } from "@/components/ui/label";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import PayPlanSection from "@/components/subscription/PayPlanSection";
 
 const db = supabase as any;
 
@@ -26,6 +28,7 @@ export default function MySubscription() {
   const { user } = useAuth();
   const { access, enforced, refresh, loading: accessLoading } = useAccess();
   const { language } = useLanguage();
+  const { settings } = useAppSettings();
   const lang = (language === "ar" || language === "en" ? language : "fr") as "fr" | "ar" | "en";
   const L = (fr: string, ar: string, en: string) => (lang === "ar" ? ar : lang === "en" ? en : fr);
   const [plans, setPlans] = useState<any[]>([]);
@@ -41,7 +44,9 @@ export default function MySubscription() {
       const [{ data: p }, { data: c }, { data: r }] = await Promise.all([
         db.from("plans").select("*").eq("is_active", true).order("sort_order"),
         db.from("plan_permissions").select("*"),
-        db.from("subscription_requests").select("*").order("created_at", { ascending: false }).limit(5),
+        user
+          ? db.from("subscription_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(5)
+          : Promise.resolve({ data: [] }),
       ]);
       setPlans(p || []);
       setContent(c || []);
@@ -240,6 +245,9 @@ export default function MySubscription() {
         </section>
       )}
 
+      {settings.payments.enabled && user && plans.some(p => !p.is_trial_plan && Number(p.price_mad) > 0) ? (
+        <PayPlanSection userId={user.id} plans={plans} currentPlanId={sub?.plan_id} requests={requests} onChanged={() => void load()} L={L} lang={lang} fmt={fmt} fmtPrice={fmtPrice} />
+      ) : (
       <section className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-semibold">{L("Renouveler ou changer d'offre", "تجديد أو تغيير العرض", "Renew or change plan")}</h2>
         {pending ? (
@@ -262,6 +270,7 @@ export default function MySubscription() {
           </div>
         )}
       </section>
+      )}
     </div>
   );
 }
