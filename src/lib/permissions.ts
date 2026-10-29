@@ -9,6 +9,7 @@ export type PermissionKey =
   | "class.edit"
   | "class.clear"
   | "class.delete"
+  | "class.calendar"
   | "student.view"
   | "student.create"
   | "student.import_excel"
@@ -57,6 +58,13 @@ export type PermissionKey =
   | "reports.parent_report"
   | "gradebook.manage"
   | "notify.send"
+  | "pdf.use"
+  | "pdf.annotate"
+  | "pdf.edit"
+  | "pdf.layout"
+  | "pdf.watermark_remove"
+  | "pdf.organize"
+  | "pdf.protect"
   | "profile.edit"
   | "settings.edit";
 
@@ -85,6 +93,7 @@ export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string 
   "quiz": { fr: "Quiz et examens", ar: "الاختبارات والامتحانات", en: "Quizzes & exams" },
   "diagnostic": { fr: "Évaluation diagnostique", ar: "التقويم التشخيصي", en: "Diagnostic assessment" },
   "reports": { fr: "Rapports", ar: "التقارير", en: "Reports" },
+  "pdf": { fr: "Éditeur PDF", ar: "محرر PDF", en: "PDF editor" },
   "notify": { fr: "Notifications", ar: "الإشعارات", en: "Notifications" },
   "account": { fr: "Compte", ar: "الحساب", en: "Account" },
   "quota": { fr: "Quotas", ar: "الحصص", en: "Quotas" },
@@ -97,6 +106,7 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "class.edit": { module: "class", fr: "Renommer / modifier une classe", ar: "تعديل قسم", en: "Edit a class" },
   "class.clear": { module: "class", fr: "Vider une classe", ar: "إفراغ قسم", en: "Empty a class" },
   "class.delete": { module: "class", fr: "Supprimer une classe", ar: "حذف قسم", en: "Delete a class" },
+  "class.calendar": { module: "class", fr: "Calendrier des échéances (exercices, quiz, examens)", ar: "يومية الآجال (تمارين، اختبارات، امتحانات)", en: "Due-date calendar (exercises, quizzes, exams)" },
   "student.view": { module: "student", fr: "Voir les élèves", ar: "عرض التلاميذ", en: "View students" },
   "student.create": { module: "student", fr: "Créer un élève à la main", ar: "إضافة تلميذ يدويا", en: "Create a student" },
   "student.import_excel": { module: "student", fr: "Importer des élèves depuis Excel", ar: "استيراد التلاميذ من Excel", en: "Import students from Excel" },
@@ -144,6 +154,13 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "student.appreciations": { module: "reports", fr: "Appréciations des bulletins", ar: "ملاحظات النشرات", en: "Report card comments" },
   "reports.parent_report": { module: "reports", fr: "Bilan par élève pour les parents", ar: "حصيلة التلميذ للآباء", en: "Student report for parents" },
   "gradebook.manage": { module: "reports", fr: "Carnet de notes et export Massar", ar: "دفتر النقط والتصدير إلى مسار", en: "Gradebook and Massar export" },
+  "pdf.use": { module: "pdf", fr: "Ouvrir l'éditeur PDF (lire, télécharger, mode tableau)", ar: "فتح محرر PDF (قراءة، تحميل، وضع السبورة)", en: "Open the PDF editor (read, download, board mode)" },
+  "pdf.annotate": { module: "pdf", fr: "Annoter un PDF (surligner, dessiner, notes)", ar: "التعليق على PDF (تظليل، رسم، ملاحظات)", en: "Annotate a PDF (highlight, draw, notes)" },
+  "pdf.edit": { module: "pdf", fr: "Modifier le texte, insérer images et signatures, formulaires", ar: "تعديل النص وإدراج الصور والتوقيعات والنماذج", en: "Edit text, insert images and signatures, forms" },
+  "pdf.layout": { module: "pdf", fr: "Filigrane, en-tête / pied de page et numéros de page", ar: "العلامة المائية والرأس والتذييل وترقيم الصفحات", en: "Watermark, header / footer and page numbers" },
+  "pdf.watermark_remove": { module: "pdf", fr: "Supprimer un filigrane ou des éléments répétés", ar: "حذف علامة مائية أو عناصر مكررة", en: "Remove a watermark or repeated elements" },
+  "pdf.organize": { module: "pdf", fr: "Organiser les pages (insérer, fusionner, scinder, pivoter)", ar: "تنظيم الصفحات (إدراج، دمج، تقسيم، تدوير)", en: "Organize pages (insert, merge, split, rotate)" },
+  "pdf.protect": { module: "pdf", fr: "Masquer des informations (caviardage)", ar: "إخفاء المعلومات", en: "Redact information" },
   "notify.send": { module: "notify", fr: "Envoyer des notifications aux élèves", ar: "إرسال إشعارات للتلاميذ", en: "Send notifications" },
   "profile.edit": { module: "account", fr: "Modifier son profil et sa photo", ar: "تعديل الملف الشخصي والصورة", en: "Edit profile" },
   "settings.edit": { module: "account", fr: "Paramètres de l'application", ar: "إعدادات التطبيق", en: "App settings" },

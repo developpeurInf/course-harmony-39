@@ -10,7 +10,8 @@ import {
   ChevronDownSquare, PencilLine, ReplaceAll, CheckCheck, X, PanelRight, Brush, Paperclip, MonitorPlay, Minimize2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAccess } from "@/contexts/AccessContext";
+import { accessStore, useAccess } from "@/contexts/AccessContext";
+import type { PermissionKey } from "@/lib/permissions";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses } from "@/contexts/CourseContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -58,6 +59,14 @@ const pages = () => import("@/lib/pdfPages");
 
 type TabId = "home" | "comment" | "edit" | "organize" | "form" | "protect";
 type ToolDialogId = "watermark" | "headerFooter" | "pageNumbers" | "split" | "replace" | null;
+/** Habilitation demandée par chaque onglet du ruban (Accueil : pdf.use, vérifiée par la page) */
+const TAB_PERMISSION: Partial<Record<TabId, PermissionKey>> = {
+  comment: "pdf.annotate",
+  edit: "pdf.edit",
+  organize: "pdf.organize",
+  form: "pdf.edit",
+  protect: "pdf.protect",
+};
 const TAB_MODE: Record<TabId, string> = {
   home: "mode:view",
   comment: "mode:annotate",
@@ -437,6 +446,7 @@ const PdfEditor = () => {
   const openReplace = async () => {
     const w = workspace.current;
     if (!w || !hasDoc || busy) return;
+    if (!accessStore.guard("pdf.edit")) return;
     const [text, cur] = await Promise.all([w.selectedText(), w.exportActive()]);
     if (!cur) return;
     replaceSource.current = cur.buffer;
@@ -640,7 +650,11 @@ const PdfEditor = () => {
       {!board && (
       <RibbonTabs
         value={tab}
-        onChange={(id) => setTab(id as TabId)}
+        onChange={(id) => {
+          const perm = TAB_PERMISSION[id as TabId];
+          if (perm && !accessStore.guard(perm)) return;
+          setTab(id as TabId);
+        }}
         tabs={[
           { id: "home", label: t("Accueil", "الرئيسية", "Home") },
           { id: "comment", label: t("Commentaire", "تعليق", "Comment") },
@@ -783,10 +797,10 @@ const PdfEditor = () => {
               <CommandButton ws={ws} command="insert:add-attachment" icon={Paperclip} label={t("Pièce jointe", "مرفق", "Attachment")} />
             </RibbonGroup>
             <RibbonGroup label={t("Mise en page", "التنسيق", "Page design")}>
-              <RibbonButton icon={Droplet} label={t("Filigrane", "علامة مائية", "Watermark")} disabled={!hasDoc || busy} onClick={() => setToolDialog("watermark")} />
-              <RibbonButton icon={Eraser} label={t("Supprimer un filigrane", "حذف علامة مائية", "Remove watermark")} disabled={!hasDoc || busy} onClick={() => setCleanOpen(true)} />
-              <RibbonButton icon={PanelTop} label={t("En-tête / pied", "رأس / تذييل", "Header / footer")} disabled={!hasDoc || busy} onClick={() => setToolDialog("headerFooter")} />
-              <RibbonButton icon={Hash} label={t("Numéros de page", "ترقيم الصفحات", "Page numbers")} disabled={!hasDoc || busy} onClick={() => setToolDialog("pageNumbers")} />
+              <RibbonButton icon={Droplet} label={t("Filigrane", "علامة مائية", "Watermark")} disabled={!hasDoc || busy} onClick={() => accessStore.guard("pdf.layout") && setToolDialog("watermark")} />
+              <RibbonButton icon={Eraser} label={t("Supprimer un filigrane", "حذف علامة مائية", "Remove watermark")} disabled={!hasDoc || busy} onClick={() => accessStore.guard("pdf.watermark_remove") && setCleanOpen(true)} />
+              <RibbonButton icon={PanelTop} label={t("En-tête / pied", "رأس / تذييل", "Header / footer")} disabled={!hasDoc || busy} onClick={() => accessStore.guard("pdf.layout") && setToolDialog("headerFooter")} />
+              <RibbonButton icon={Hash} label={t("Numéros de page", "ترقيم الصفحات", "Page numbers")} disabled={!hasDoc || busy} onClick={() => accessStore.guard("pdf.layout") && setToolDialog("pageNumbers")} />
             </RibbonGroup>
             <RibbonGroup label={t("Historique", "السجل", "History")}>
               <RibbonButton icon={Undo2} label={t("Annuler", "تراجع", "Undo")} title={t("Annuler (Ctrl+Z)", "تراجع (Ctrl+Z)", "Undo (Ctrl+Z)")} disabled={!undoReady} onClick={undoAny} />
@@ -893,7 +907,7 @@ const PdfEditor = () => {
             </RibbonGroup>
             <RibbonGroup label={t("Sécurité", "الأمان", "Security")}>
               <CommandButton ws={ws} command="document:protect" icon={Lock} label={t("Mot de passe", "كلمة المرور", "Password")} />
-              <RibbonButton icon={Eraser} label={t("Supprimer un filigrane", "حذف علامة مائية", "Remove watermark")} disabled={!hasDoc || busy} onClick={() => setCleanOpen(true)} />
+              <RibbonButton icon={Eraser} label={t("Supprimer un filigrane", "حذف علامة مائية", "Remove watermark")} disabled={!hasDoc || busy} onClick={() => accessStore.guard("pdf.watermark_remove") && setCleanOpen(true)} />
             </RibbonGroup>
           </>
         )}
