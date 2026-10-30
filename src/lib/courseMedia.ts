@@ -351,6 +351,39 @@ export const saveCourseMaterials = async ({
   return { saved, failed };
 };
 
+/**
+ * Retire du stockage les fichiers qui ne servent plus à aucun cours ni exercice.
+ * Un cours ou un exercice copié partage les fichiers de l'original : on ne supprime un fichier
+ * qu'une fois sa dernière référence partie. À appeler après la suppression des lignes.
+ */
+export const removeUnreferencedFiles = async (paths: (string | null | undefined)[]) => {
+  const uniq = [...new Set(paths.filter((p): p is string => !!p && !isExternalUrl(p)))];
+  if (!uniq.length) return;
+  const db = supabase as any;
+  const used = new Set<string>();
+  const urlOf = (p: string) => supabase.storage.from(COURSE_BUCKET).getPublicUrl(p).data.publicUrl;
+  for (let i = 0; i < uniq.length; i += 100) {
+    const part = uniq.slice(i, i + 100);
+    const urls = part.map(urlOf);
+    const res = await Promise.all([
+      db.from("course_materials").select("file_path").in("file_path", part),
+      db.from("exercise_materials").select("file_path").in("file_path", part),
+      db.from("courses").select("pdf_url").in("pdf_url", urls),
+      db.from("exercises").select("pdf_url").in("pdf_url", urls),
+    ]);
+    // exercise_materials peut manquer sur une ancienne base ; toute autre erreur : dans le doute, on garde
+    if (res.some((r: any, k: number) => r.error && !(k === 1 && /exercise_materials/.test(r.error.message || "")))) return;
+    for (const r of res) for (const row of r.data || []) {
+      const p = row.file_path ?? storagePathFromPublicUrl(row.pdf_url);
+      if (p) used.add(p);
+    }
+  }
+  const free = uniq.filter((p) => !used.has(p));
+  for (let i = 0; i < free.length; i += 100) {
+    await supabase.storage.from(COURSE_BUCKET).remove(free.slice(i, i + 100)).catch(() => undefined);
+  }
+};
+
 /** Delete one material row (+ its storage object when it is an uploaded file). */
 export const deleteCourseMaterial = async (m: CourseMaterialLike): Promise<boolean> => {
   const { error } = await supabase.from("course_materials").delete().eq("id", m.id);
@@ -358,9 +391,7 @@ export const deleteCourseMaterial = async (m: CourseMaterialLike): Promise<boole
     console.error("Error deleting material:", error);
     return false;
   }
-  if (!isExternalUrl(m.file_path)) {
-    await supabase.storage.from(COURSE_BUCKET).remove([m.file_path]).catch(() => undefined);
-  }
+  await removeUnreferencedFiles([m.file_path]);
   return true;
 };
 

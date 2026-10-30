@@ -26,8 +26,10 @@ import {
   Trash, 
   Plus,
   Loader2,
-  FileText
+  FileText,
+  Copy
 } from "lucide-react";
+import { CopyToDialog, type CopySource } from "@/components/CopyToDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import MultiPdfUpload from "@/components/MultiPdfUpload";
@@ -63,6 +65,7 @@ const RoomCourses = () => {
   } = useCourses();
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [copySource, setCopySource] = useState<CopySource | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -502,6 +505,16 @@ const RoomCourses = () => {
                     <Button
                       variant="outline"
                       size="icon"
+                      onClick={() => setCopySource({ kind: "course", id: course.id, title: course.title, parentId: course.room_id })}
+                      className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10"
+                      aria-label={tr(`Copier le cours ${course.title} vers une classe`, `نسخ الدرس ${course.title} إلى قسم`, `Copy course ${course.title} to a class`)}
+                      title={tr("Copier vers une classe", "نسخ إلى قسم", "Copy to a class")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
                       onClick={() => handleDeleteCourse(course)}
                       className="h-9 w-9 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 text-destructive hover:text-destructive"
                       aria-label={tr(`Supprimer le cours ${course.title}`, `حذف الدرس ${course.title}`, `Delete course ${course.title}`)}
@@ -590,6 +603,16 @@ const RoomCourses = () => {
                         title={tr("Modifier", "تعديل", "Edit")}
                       >
                         <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCopySource({ kind: "course", id: course.id, title: course.title, parentId: course.room_id })}
+                        className="flex-1 md:flex-none"
+                        aria-label={tr(`Copier le cours ${course.title} vers une classe`, `نسخ الدرس ${course.title} إلى قسم`, `Copy course ${course.title} to a class`)}
+                        title={tr("Copier vers une classe", "نسخ إلى قسم", "Copy to a class")}
+                      >
+                        <Copy className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
@@ -739,6 +762,7 @@ const RoomCourses = () => {
         subtitle={currentRoom?.name}
         materials={viewerCourse ? (courseMaterials[viewerCourse.id] || []) : []}
       />
+      <CopyToDialog source={copySource} onClose={() => setCopySource(null)} onDone={() => refreshData(roomId, { force: true })} tr={tr} />
     </div>
   );
 };

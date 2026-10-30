@@ -10,6 +10,7 @@ import { saveCourseMaterials, deleteCourseMaterial } from "@/lib/courseMedia";
 import type { VideoLinkDraft } from "@/components/MultiPdfUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CopyToDialog, type CopySource } from "@/components/CopyToDialog";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -32,6 +33,7 @@ import {
   Edit, 
   Trash, 
   Trash2,
+  Copy,
   Plus,
   Users,
   UserPlus,
@@ -93,6 +95,7 @@ const Courses = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [copySource, setCopySource] = useState<CopySource | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -863,6 +866,16 @@ const Courses = () => {
                           <Button 
                             variant="ghost" 
                             size="icon"
+                            className="h-9 w-9"
+                            onClick={() => setCopySource({ kind: "course", id: course.id, title: course.title, parentId: course.room_id })}
+                            title={tr("Copier vers une classe", "نسخ إلى قسم", "Copy to a class")}
+                            aria-label={tr("Copier vers une classe", "نسخ إلى قسم", "Copy to a class")}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
                             className="h-9 w-9 text-destructive hover:text-destructive"
                             onClick={() => openDeleteDialog(course)}
                             title={language === "ar" ? "حذف الدرس" : language === "fr" ? "Supprimer le cours" : "Delete course"}
@@ -1008,6 +1021,16 @@ const Courses = () => {
                               aria-label={tr("Modifier", "تعديل", "Edit")}
                             >
                               <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={() => setCopySource({ kind: "course", id: course.id, title: course.title, parentId: course.room_id })}
+                              title={tr("Copier vers une classe", "نسخ إلى قسم", "Copy to a class")}
+                              aria-label={tr("Copier vers une classe", "نسخ إلى قسم", "Copy to a class")}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1306,6 +1329,7 @@ const Courses = () => {
         subtitle={viewerCourse?.room_id ? getRoomName(viewerCourse.room_id) : undefined}
         materials={viewerCourse ? (courseMaterials[viewerCourse.id] || []) : []}
       />
+      <CopyToDialog source={copySource} onClose={() => setCopySource(null)} onDone={() => refreshData(undefined, { force: true })} tr={tr} />
     </div>
   );
 };

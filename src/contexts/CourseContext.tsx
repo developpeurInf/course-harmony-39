@@ -4,7 +4,7 @@ import { accessStore } from "@/contexts/AccessContext";
 import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { COURSE_BUCKET, getFileKind, isExternalUrl, parseVideoUrl, storagePathFromPublicUrl, uploadMaterialFile } from "@/lib/courseMedia";
+import { COURSE_BUCKET, getFileKind, isExternalUrl, parseVideoUrl, removeUnreferencedFiles, storagePathFromPublicUrl, uploadMaterialFile } from "@/lib/courseMedia";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 
 // Types
@@ -1157,7 +1157,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       setExercises(prev => prev.filter(e => e.id !== exerciseId));
       setExerciseMaterials(prev => prev.filter(m => m.exercise_id !== exerciseId));
       if (storagePaths.length > 0) {
-        void supabase.storage.from(COURSE_BUCKET).remove(storagePaths).catch(() => undefined);
+        void removeUnreferencedFiles(storagePaths).catch(() => undefined);
       }
 
       // Notify students about exercise deletion
@@ -1388,7 +1388,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         }
         setExercises(prev => prev.map(e => (e.id === exerciseId ? { ...e, pdf_url: undefined } : e)));
         const path = storagePathFromPublicUrl(ex?.pdf_url);
-        if (path) void supabase.storage.from(COURSE_BUCKET).remove([path]).catch(() => undefined);
+        if (path) void removeUnreferencedFiles([path]).catch(() => undefined);
         toast.success(trc("Fichier supprimé", "تم حذف الملف", "File deleted"));
         return true;
       }
@@ -1403,9 +1403,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       setExerciseMaterials(prev => prev.filter(m => m.id !== materialId));
 
       if (material) {
-        if (!isExternalUrl(material.file_path)) {
-          void supabase.storage.from(COURSE_BUCKET).remove([material.file_path]).catch(() => undefined);
-        }
+        void removeUnreferencedFiles([material.file_path]).catch(() => undefined);
         // Le raccourci exercises.pdf_url ne doit pas pointer vers un fichier supprimé
         const ex = exercises.find(e => e.id === material.exercise_id);
         const deletedPath = material.file_path;

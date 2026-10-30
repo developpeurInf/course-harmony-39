@@ -14,7 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, Paperclip, Film, Image as ImageIcon, ClipboardCheck } from "lucide-react";
+import { FileText, Plus, Eye, EyeOff, Edit, Trash2, BookOpen, Clock, Loader2, X, Paperclip, Film, Image as ImageIcon, ClipboardCheck, Copy } from "lucide-react";
+import { CopyToDialog, type CopySource } from "@/components/CopyToDialog";
 import ViewToggle from "@/components/ViewToggle";
 import { formatDate, toLocalDateInput, localEndOfDayIso } from "@/lib/formatDate";
 import { useNow } from "@/hooks/useNow";
@@ -49,6 +50,7 @@ const Exercises = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [copySource, setCopySource] = useState<CopySource | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
   const [formData, setFormData] = useState({
@@ -746,6 +748,16 @@ const Exercises = () => {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setCopySource({ kind: "exercise", id: exercise.id, title: exercise.title, parentId: exercise.course_id })}
+                      className="h-9 w-9 p-0"
+                      aria-label={tr("Copier vers un cours", "نسخ إلى درس", "Copy to a course")}
+                      title={tr("Copier vers un cours", "نسخ إلى درس", "Copy to a course")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleDeleteExercise(exercise)}
                       className="h-9 w-9 p-0 text-destructive hover:text-destructive"
                       aria-label={tr("Supprimer", "حذف", "Delete")}
@@ -856,6 +868,16 @@ const Exercises = () => {
                         title={tr("Modifier", "تعديل", "Edit")}
                       >
                         <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCopySource({ kind: "exercise", id: exercise.id, title: exercise.title, parentId: exercise.course_id })}
+                        className="h-9 flex-1 md:flex-none"
+                        aria-label={tr("Copier vers un cours", "نسخ إلى درس", "Copy to a course")}
+                        title={tr("Copier vers un cours", "نسخ إلى درس", "Copy to a course")}
+                      >
+                        <Copy className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
@@ -1058,6 +1080,7 @@ const Exercises = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CopyToDialog source={copySource} onClose={() => setCopySource(null)} onDone={() => refreshData(roomId, { force: true })} tr={tr} />
     </div>
   );
 };

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { COURSE_BUCKET } from "@/lib/courseMedia";
+import { COURSE_BUCKET, removeUnreferencedFiles } from "@/lib/courseMedia";
 
 type ClearKey = "notifications" | "students" | "courses" | "exercises" | "exams" | "quizzes";
 
@@ -60,15 +60,13 @@ const deleteExamsCascade = async (examIds: string[]) => {
   await deleteIn("exams", "id", examIds);
 };
 
-/** Removes every uploaded file of a course folder (courses/<id>/...) from storage. */
+/** Removes the uploaded files of a course folder (courses/<id>/...) that no copied course or exercise still uses. */
 const removeCourseFolder = async (courseId: string) => {
   try {
     const folder = `courses/${courseId}`;
     const { data } = await supabase.storage.from(COURSE_BUCKET).list(folder, { limit: 1000 });
     const paths = (data || []).filter(f => f && f.name).map(f => `${folder}/${f.name}`);
-    for (const part of chunk(paths, 100)) {
-      await supabase.storage.from(COURSE_BUCKET).remove(part);
-    }
+    await removeUnreferencedFiles(paths);
   } catch (e) {
     console.warn("Storage cleanup failed for course", courseId, e);
   }
