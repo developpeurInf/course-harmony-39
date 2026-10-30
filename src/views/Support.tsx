@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SupportThread, ticketStatusLabelAuthor, ticketStatusTone, unreadForAuthor, type Ticket } from "@/components/support/SupportThread";
 import { SUPPORT_ACCEPT, formatBytes, uploadSupportFiles } from "@/lib/supportAttachments";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/contexts/AccessContext";
 
 const db = supabase as any;
 
@@ -27,6 +28,7 @@ export default function Support() {
   const [missing, setMissing] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+  const { can } = useAccess();
 
   const load = () => db.from("support_tickets").select("*").order("updated_at", { ascending: false }).limit(200)
     .then(({ data, error }: any) => {
@@ -131,10 +133,10 @@ export default function Support() {
                 </div>
               )}
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <label className="me-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted">
+                {can("support.attachments") ? <label className="me-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted">
                   <Paperclip className="h-4 w-4" />{tr("Joindre des fichiers (photos, vidéos, documents…)", "إرفاق ملفات", "Attach files")}
                   <input type="file" multiple accept={SUPPORT_ACCEPT} hidden onChange={e => { setFiles(prev => [...prev, ...Array.from(e.target.files || [])].slice(0, 10)); e.target.value = ""; }} />
-                </label>
+                </label> : <span className="me-auto" />}
                 <Button variant="outline" onClick={() => setCreating(false)}>{tr("Annuler", "إلغاء", "Cancel")}</Button>
                 <Button onClick={create} disabled={sending || subject.trim().length < 2 || !body.trim()}>{sending ? tr("Envoi…", "جارٍ الإرسال…", "Sending…") : tr("Envoyer", "إرسال", "Send")}</Button>
               </div>

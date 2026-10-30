@@ -122,7 +122,7 @@ export function StudentExtras({ studentId, studentName, tr, locale }: { studentI
         </section>
       )}
 
-      <section className="space-y-2">
+      {can("student.notes") && <section className="space-y-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Lock className="h-4 w-4" />{tr("Notes privées", "ملاحظات خاصة", "Private notes")}</h3>
         <Textarea rows={2} value={text} onChange={e => setText(e.target.value)} maxLength={4000}
           placeholder={tr("Visible par vous seul : comportement, rendez-vous avec les parents…", "مرئية لك وحدك: السلوك، موعد مع الآباء…", "Only you can see it: behaviour, parent meeting…")}
@@ -137,7 +137,7 @@ export function StudentExtras({ studentId, studentName, tr, locale }: { studentI
             </div>
           </div>
         ))}
-      </section>
+      </section>}
 
       {transfers.length > 0 && (
         <section className="space-y-1.5">

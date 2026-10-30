@@ -424,6 +424,9 @@ Deno.serve(async (req) => {
     const body = await req.json();
     if (body?.action === "remediation") {
       if (prof?.role !== "student") return json({ error: "STUDENTS_ONLY" }, 403);
+      // Fonction accordée par l'offre du professeur de l'élève (absente avant migration : autorisée)
+      const { data: okForStudent, error: sfErr } = await caller.rpc("student_teacher_can", { p_key: "student.remediation_ai" });
+      if (!sfErr && okForStudent === false) return json({ error: "PERMISSION_DENIED" }, 403);
       return await remediation(admin, uid, body, provider, apiKey, deadline);
     }
     if (prof?.role !== "professor") return json({ error: "PROFESSORS_ONLY" }, 403);

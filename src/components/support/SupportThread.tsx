@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/contexts/AccessContext";
 import {
   SUPPORT_ACCEPT, attachmentKind, currentLocation, formatBytes, mapsUrl, osmEmbedUrl, signSupportPaths, uploadSupportFiles,
   type SupportAttachment, type SupportLocation,
@@ -123,6 +124,9 @@ export function SupportThread({ ticket, staff, tr, locale, onChanged, authorName
   const cameraInput = useRef<HTMLInputElement>(null);
   const chunks = useRef<Blob[]>([]);
   const keepRecording = useRef(true);
+  const { can } = useAccess();
+  // L'équipe peut toujours joindre ; le professeur selon son offre
+  const canAttach = staff || can("support.attachments");
 
   const load = () => db.from("support_messages").select("*").eq("ticket_id", ticket.id).order("created_at")
     .then(async ({ data }: any) => {
@@ -176,7 +180,7 @@ export function SupportThread({ ticket, staff, tr, locale, onChanged, authorName
   }, [recording]);
 
   const addFiles = (list: FileList | File[] | null) => {
-    if (!list) return;
+    if (!list || !canAttach) return;
     const arr = Array.from(list);
     if (!arr.length) return;
     setFiles(prev => [...prev, ...arr].slice(0, 10));
@@ -469,7 +473,7 @@ export function SupportThread({ ticket, staff, tr, locale, onChanged, authorName
             <input ref={mediaInput} type="file" accept="image/*,video/*" multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ""; }} />
             <input ref={docInput} type="file" accept={SUPPORT_ACCEPT} multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ""; }} />
             <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={e => { addFiles(e.target.files); e.target.value = ""; }} />
-            <DropdownMenu>
+            {canAttach && <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button type="button" size="icon" variant="ghost" className="h-9 w-9" disabled={busy || !!recording} aria-label={tr("Joindre", "إرفاق", "Attach")} title={tr("Joindre", "إرفاق", "Attach")}>
                   <Paperclip className="h-4 w-4" />
@@ -483,8 +487,8 @@ export function SupportThread({ ticket, staff, tr, locale, onChanged, authorName
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => void pickLocation()}><MapPin className="me-2 h-4 w-4" />{tr("Ma position", "موقعي", "My location")}</DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
-            {typeof window !== "undefined" && "MediaRecorder" in window && (
+            </DropdownMenu>}
+            {canAttach && typeof window !== "undefined" && "MediaRecorder" in window && (
               <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={startRecording} disabled={busy || !!recording} aria-label={tr("Message vocal", "رسالة صوتية", "Voice message")} title={tr("Message vocal", "رسالة صوتية", "Voice message")}>
                 <Mic className="h-4 w-4" />
               </Button>

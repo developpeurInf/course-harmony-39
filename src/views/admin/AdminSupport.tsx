@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowLeft, Clock, Inbox, Mail, MessageSquare, Pencil, Pl
 import { toast } from "sonner";
 import { Link } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAccess } from "@/contexts/AccessContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,9 @@ export default function AdminSupport() {
   const [sort, setSort] = useState<Sort>("recent");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [macrosOpen, setMacrosOpen] = useState(false);
+  const { adminCan } = useAccess();
+  const canAssign = adminCan("admin.support.assign");
+  const canMacros = adminCan("admin.support.macros");
 
   const load = useCallback(() => {
     db.rpc("support_admin_tickets").then(({ data, error }: any) => {
@@ -143,7 +147,7 @@ export default function AdminSupport() {
         title={L("Support", "الدعم", "Support")}
         subtitle={L("Les demandes des professeurs, avec leur historique complet.", "طلبات الأساتذة مع سجلها الكامل.", "Teachers' requests with their full history.")}
         actions={<>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMacrosOpen(true)}><Zap className="h-4 w-4" />{L("Réponses types", "ردود جاهزة", "Canned replies")}</Button>
+          {canMacros && <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMacrosOpen(true)}><Zap className="h-4 w-4" />{L("Réponses types", "ردود جاهزة", "Canned replies")}</Button>}
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} aria-label={L("Actualiser", "تحديث", "Refresh")}><RefreshCw className="h-4 w-4" /></Button>
         </>}
       />
@@ -272,13 +276,13 @@ export default function AdminSupport() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">{L("Priorité", "الأولوية", "Priority")}</Label>
-                    <select value={ticket.priority || "normal"} onChange={e => update({ priority: e.target.value })} className={cn(selectCls, "w-full")}>
+                    <select value={ticket.priority || "normal"} onChange={e => update({ priority: e.target.value })} disabled={!canAssign} className={cn(selectCls, "w-full disabled:opacity-60")}>
                       {["urgent", "high", "normal", "low"].map(p => <option key={p} value={p}>{priorityLabel(p, L)}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">{L("Assigné à", "مسند إلى", "Assigned to")}</Label>
-                    <select value={ticket.assigned_to || ""} onChange={e => update({ assigned_to: e.target.value || null })} className={cn(selectCls, "w-full")}>
+                    <select value={ticket.assigned_to || ""} onChange={e => update({ assigned_to: e.target.value || null })} disabled={!canAssign} className={cn(selectCls, "w-full disabled:opacity-60")}>
                       <option value="">{L("Personne", "لا أحد", "Nobody")}</option>
                       {team.map(m => <option key={m.user_id} value={m.user_id}>{m.user_id === user?.id ? `${m.name} (${L("moi", "أنا", "me")})` : m.name}</option>)}
                     </select>

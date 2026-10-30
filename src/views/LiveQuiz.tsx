@@ -5,6 +5,7 @@
  *   Élève (téléphone) : grands boutons de réponse, résultat après chaque question.
  * Synchronisation : temps réel Supabase + relecture périodique (si le temps réel est coupé).
  */
+import { accessStore } from "@/contexts/AccessContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckCircle2, ChevronRight, Download, Eye, EyeOff, Loader2, Maximize, Radio, RotateCcw, Square, Trophy, Users, XCircle } from "lucide-react";
 import { downloadBlob } from "@/lib/download";
@@ -153,6 +154,7 @@ function LiveHost({ sessionId }: { sessionId: string }) {
     setSession((s: any) => ({ ...s, state: "question", question_started_at: new Date().toISOString() }));
   };
   const exportCsv = () => {
+    if (!accessStore.guard("quiz.results_export")) return;
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const head = [tr("Rang", "الرتبة", "Rank"), tr("Élève", "التلميذ", "Student"), tr("Bonnes réponses", "إجابات صحيحة", "Correct"), tr("Questions", "الأسئلة", "Questions"),
       ...questions.map((_, i) => `Q${i + 1}`)];

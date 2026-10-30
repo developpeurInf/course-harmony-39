@@ -6,6 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getUserPrefs, saveUserPrefs, type UserPrefs } from "@/lib/userPrefs";
+import { useAuth } from "@/contexts/AuthContext";
+import { useStudentFeatures } from "@/lib/studentFeatures";
 
 type Key = "reminders";
 
@@ -13,12 +15,14 @@ export function NotificationPrefsCard({ student }: { student: boolean }) {
   const { language } = useLanguage();
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
+  const { user } = useAuth();
+  const sf = useStudentFeatures(user?.id);
 
   useEffect(() => {
     getUserPrefs().then(setPrefs);
   }, []);
 
-  if (!prefs || !student) return null;
+  if (!prefs || !student || !sf?.reminders) return null;
   const notify = prefs.notify || {};
   const rows: { key: Key; label: string; hint: string }[] = [
     { key: "reminders", label: tr("Rappels de devoirs", "تذكيرات الواجبات", "Homework reminders"), hint: tr("La veille d'une date limite, si rien n'est rendu.", "قبل يوم من الموعد إن لم يُسلَّم شيء.", "The day before a deadline, if nothing was handed in.") },

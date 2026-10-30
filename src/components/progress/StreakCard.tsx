@@ -5,6 +5,9 @@ import { Link } from "@/lib/router";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { computeBadges, type ProgressData } from "@/lib/badges";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { useStudentFeatures } from "@/lib/studentFeatures";
 
 const db = supabase as any;
 
@@ -12,6 +15,9 @@ export function StreakCard() {
   const { language } = useLanguage();
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
   const [p, setP] = useState<ProgressData | null>(null);
+  const { user } = useAuth();
+  const { feature } = useAppSettings();
+  const sf = useStudentFeatures(user?.id);
 
   useEffect(() => {
     let alive = true;
@@ -21,7 +27,8 @@ export function StreakCard() {
     return () => { alive = false; };
   }, []);
 
-  if (!p) return null;
+  // Carte visible si la page « Ma progression » et les badges sont ouverts à l'élève
+  if (!p || !sf?.progress || !sf.badges || !feature("progress") || !feature("gamification")) return null;
   const badges = computeBadges(p);
   const earned = badges.filter((b) => b.earned);
   const next = badges.find((b) => !b.earned);

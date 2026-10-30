@@ -333,7 +333,7 @@ const RoomStudents = () => {
               variant="outline"
               size="sm"
               className="flex items-center gap-1.5 text-xs h-8"
-              onClick={() => printCredentialCards([...students].sort((a, b) => a.name.localeCompare(b.name)), rooms.find(r => r.id === roomId)?.name || "", language as "fr" | "ar" | "en")}
+              onClick={() => accessStore.guard("student.print_cards") && printCredentialCards([...students].sort((a, b) => a.name.localeCompare(b.name)), rooms.find(r => r.id === roomId)?.name || "", language as "fr" | "ar" | "en")}
               title={tr("Imprimer une carte par élève avec son identifiant et son mot de passe provisoire", "طباعة بطاقة لكل تلميذ ببيانات دخوله", "Print one card per student with their username and temporary password")}
             >
               <IdCard className="h-3.5 w-3.5" />

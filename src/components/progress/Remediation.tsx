@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MathText } from "@/components/math/MathContent";
 import { aiErrorMessage, callTeacherAi } from "@/lib/teacherAi";
+import { useAuth } from "@/contexts/AuthContext";
+import { useStudentFeatures } from "@/lib/studentFeatures";
 
 type Tr = (fr: string, ar: string, en: string) => string;
 interface Remediation {
@@ -18,6 +20,8 @@ export function RemediationButton({ submissionId, language, tr, size = "sm" }: {
   const [busy, setBusy] = useState(false);
   const [data, setData] = useState<Remediation | null>(null);
   const [shown, setShown] = useState<Record<string, boolean>>({});
+  const { user } = useAuth();
+  const sf = useStudentFeatures(user?.id);
 
   const run = async () => {
     setOpen(true);
@@ -34,6 +38,7 @@ export function RemediationButton({ submissionId, language, tr, size = "sm" }: {
     }
   };
 
+  if (!sf?.remediation) return null;
   return (
     <>
       <Button size={size} variant="outline" className="gap-1.5" onClick={run}><Sparkles className="h-4 w-4 text-violet-600" />{tr("M'entraîner sur mes erreurs", "التدرب على أخطائي", "Practise my mistakes")}</Button>

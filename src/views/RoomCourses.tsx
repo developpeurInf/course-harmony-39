@@ -1,3 +1,4 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useEffect, useRef, useState } from "react";
 import { useParams, Navigate } from "@/lib/router";
 import { useAuth, UserProfile } from "@/contexts/AuthContext";
@@ -343,7 +344,7 @@ const RoomCourses = () => {
           <ViewToggle view={viewMode === 'grid' ? 'grid' : 'table'} onViewChange={(v) => setViewMode(v === 'grid' ? 'grid' : 'list')} />
           {isProfessor && roomCourses.length > 1 && (
             <>
-              <Button variant="outline" className="text-xs sm:text-sm" onClick={() => setOrderOpen(true)}>{tr("Réordonner", "إعادة الترتيب", "Reorder")}</Button>
+              <Button variant="outline" className="text-xs sm:text-sm" onClick={() => { if (accessStore.guard("course.schedule")) setOrderOpen(true); }}>{tr("Réordonner", "إعادة الترتيب", "Reorder")}</Button>
               <CourseOrderDialog open={orderOpen} onOpenChange={setOrderOpen} roomId={roomId!} courses={roomCourses} tr={tr} onSaved={() => refreshData(roomId, { force: true })} />
             </>
           )}

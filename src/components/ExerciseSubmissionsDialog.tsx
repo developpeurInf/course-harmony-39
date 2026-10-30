@@ -139,12 +139,12 @@ function ReviewForm({
             <Input value={maxGrade} onChange={(e) => setMaxGrade(e.target.value)} inputMode="decimal" className="h-9 w-16 text-center" aria-label={tr("Barème", "سلم التنقيط", "Scale")} />
           </span>
         </label>
-        <RubricPicker tr={tr} onApply={(g, max, lines) => {
+        {accessStore.can("exercise.annotate") && <RubricPicker tr={tr} onApply={(g, max, lines) => {
           const fmt = (n: number) => String(Math.round(n * 100) / 100).replace(".", language === "en" ? "." : ",");
           setGrade(fmt(g));
           setMaxGrade(fmt(max));
           setFeedback((f) => [f.trim(), lines.join("\n")].filter(Boolean).join("\n\n"));
-        }} />
+        }} />}
       </div>
       <Textarea
         value={feedback}
@@ -183,7 +183,7 @@ function ReviewForm({
         />
         <div className="flex flex-wrap gap-2">
           {images.map((f) => (
-            <Button key={f.path} type="button" variant="outline" size="sm" className="gap-1.5" disabled={!urls[f.path]} onClick={() => setAnnotating(f)}>
+            <Button key={f.path} type="button" variant="outline" size="sm" className="gap-1.5" disabled={!urls[f.path]} onClick={() => accessStore.guard("exercise.annotate") && setAnnotating(f)}>
               <PenLine className="h-3.5 w-3.5" />
               {images.length > 1 ? tr(`Annoter « ${f.name} »`, `التصحيح على « ${f.name} »`, `Annotate “${f.name}”`) : tr("Annoter la copie", "التصحيح على الورقة", "Annotate the work")}
             </Button>

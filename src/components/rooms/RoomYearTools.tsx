@@ -13,7 +13,7 @@ type Tr = (fr: string, ar: string, en: string) => string;
 
 /** Archiver une classe en fin d'année : masquée aux élèves, contenu et notes conservés */
 export async function archiveRoom(roomId: string, archive: boolean, tr: Tr): Promise<boolean> {
-  if (!accessStore.guard("class.duplicate")) return false;
+  if (!accessStore.guard("class.archive")) return false;
   const { error } = await db.from("rooms")
     .update(archive ? { archived_at: new Date().toISOString(), is_visible: false } : { archived_at: null, is_visible: true })
     .eq("id", roomId);

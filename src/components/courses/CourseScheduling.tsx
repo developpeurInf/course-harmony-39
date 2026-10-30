@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { accessStore, useAccess } from "@/contexts/AccessContext";
 
 const db = supabase as any;
 type Tr = (fr: string, ar: string, en: string) => string;
@@ -21,6 +22,8 @@ export const toLocalInput = (iso?: string | null) => {
 
 /** Champ « Publier automatiquement le … » (visible quand le contenu est masqué) */
 export function PublishAtField({ id, value, onChange, tr }: { id: string; value: string; onChange: (v: string) => void; tr: Tr }) {
+  const { can } = useAccess();
+  if (!can("course.schedule")) return null;
   return (
     <div className="space-y-1.5 rounded-lg border border-dashed p-3">
       <Label htmlFor={id} className="flex items-center gap-1.5 text-sm"><CalendarClock className="h-4 w-4" />{tr("Publier automatiquement le (facultatif)", "النشر تلقائيا في (اختياري)", "Publish automatically on (optional)")}</Label>
@@ -33,6 +36,7 @@ export function PublishAtField({ id, value, onChange, tr }: { id: string; value:
 /** Enregistre la date de publication programmée (null pour l'annuler) */
 export async function savePublishAt(table: "courses" | "exercises", id: string, local: string): Promise<boolean> {
   const iso = local ? new Date(local).toISOString() : null;
+  if (iso && !accessStore.guard("course.schedule")) return false;
   const { error } = await db.from(table).update({ publish_at: iso }).eq("id", id);
   if (error && !/publish_at/.test(error.message)) toast.error(error.message);
   return !error;

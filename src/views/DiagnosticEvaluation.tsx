@@ -1373,7 +1373,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:flex-wrap md:items-center">
-          <DiagnosticCompare classes={appData.classes} tr={tx} lang={lang} />
+          {canAccess("diagnostic.compare") && <DiagnosticCompare classes={appData.classes} tr={tx} lang={lang} />}
           <Button
             variant="outline"
             size="sm"

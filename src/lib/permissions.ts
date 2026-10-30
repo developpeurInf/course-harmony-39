@@ -10,6 +10,20 @@ export type PermissionKey =
   | "class.clear"
   | "class.delete"
   | "class.duplicate"
+  | "class.archive"
+  | "dashboard.today"
+  | "student.notes"
+  | "student.print_cards"
+  | "course.schedule"
+  | "exercise.annotate"
+  | "diagnostic.compare"
+  | "parents.messages"
+  | "support.tickets"
+  | "support.attachments"
+  | "student.progress"
+  | "student.badges"
+  | "student.remediation_ai"
+  | "student.reminders"
   | "class.calendar"
   | "student.view"
   | "student.create"
@@ -89,7 +103,9 @@ export type AdminPermissionKey =
   | "admin.roles.manage"
   | "admin.settings.manage"
   | "admin.support.manage"
-  | "admin.library.manage";
+  | "admin.library.manage"
+  | "admin.support.macros"
+  | "admin.support.assign";
 
 /** Modules de l'application : mêmes identifiants que les interrupteurs de Personnalisation → Modules
  *  (FeatureKey) et que la colonne permissions.module. Ordre = barre latérale. */
@@ -112,6 +128,8 @@ export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string 
   "pdfEditor": { fr: "Éditeur PDF", ar: "محرر PDF", en: "PDF editor" },
   "parents": { fr: "Portail parents", ar: "فضاء الآباء", en: "Parent portal" },
   "library": { fr: "Bibliothèque partagée", ar: "المكتبة المشتركة", en: "Shared library" },
+  "support": { fr: "Aide et support", ar: "المساعدة والدعم", en: "Help & support" },
+  "progress": { fr: "Espace élève : progression, badges, remédiation", ar: "فضاء التلميذ: التقدم والشارات والدعم", en: "Student space: progress, badges, remediation" },
   "notifications": { fr: "Notifications", ar: "الإشعارات", en: "Notifications" },
   "account": { fr: "Compte", ar: "الحساب", en: "Account" },
   "quota": { fr: "Quotas", ar: "الحصص", en: "Quotas" },
@@ -124,7 +142,21 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "class.edit": { module: "classManagement", fr: "Renommer / modifier une classe", ar: "تعديل قسم", en: "Edit a class" },
   "class.clear": { module: "classManagement", fr: "Vider une classe", ar: "إفراغ قسم", en: "Empty a class" },
   "class.delete": { module: "classManagement", fr: "Supprimer une classe", ar: "حذف قسم", en: "Delete a class" },
-  "class.duplicate": { module: "classManagement", fr: "Dupliquer et archiver une classe", ar: "نسخ وأرشفة قسم", en: "Duplicate and archive a class" },
+  "class.duplicate": { module: "classManagement", fr: "Dupliquer une classe (nouvelle année)", ar: "نسخ قسم (سنة جديدة)", en: "Duplicate a class (new year)" },
+  "class.archive": { module: "classManagement", fr: "Archiver / désarchiver une classe", ar: "أرشفة / إلغاء أرشفة قسم", en: "Archive / unarchive a class" },
+  "dashboard.today": { module: "studentActivities", fr: "Carte « À faire aujourd'hui » et alertes élèves", ar: "بطاقة « مهام اليوم » وتنبيهات التلاميذ", en: "“To do today” card and student alerts" },
+  "student.notes": { module: "students", fr: "Notes privées sur un élève", ar: "ملاحظات خاصة عن تلميذ", en: "Private notes on a student" },
+  "student.print_cards": { module: "students", fr: "Imprimer les cartes d'identifiants", ar: "طباعة بطاقات الولوج", en: "Print login cards" },
+  "course.schedule": { module: "courses", fr: "Programmer la publication et réordonner les chapitres", ar: "برمجة النشر وإعادة ترتيب الفصول", en: "Schedule publishing and reorder chapters" },
+  "exercise.annotate": { module: "exercises", fr: "Annoter les copies et grilles de correction", ar: "التعليق على الأوراق وشبكات التصحيح", en: "Annotate papers and grading rubrics" },
+  "diagnostic.compare": { module: "diagnostic", fr: "Comparer deux évaluations diagnostiques", ar: "مقارنة تقويمين تشخيصيين", en: "Compare two diagnostic assessments" },
+  "parents.messages": { module: "parents", fr: "Recevoir les messages des parents", ar: "استقبال رسائل الآباء", en: "Receive messages from parents" },
+  "support.tickets": { module: "support", fr: "Contacter le support (tickets)", ar: "التواصل مع الدعم (تذاكر)", en: "Contact support (tickets)" },
+  "support.attachments": { module: "support", fr: "Joindre des fichiers au support (photos, vidéos, documents, vocal, position)", ar: "إرفاق ملفات للدعم (صور، فيديو، وثائق، صوت، موقع)", en: "Attach files to support (photos, videos, documents, voice, location)" },
+  "student.progress": { module: "progress", fr: "Page « Ma progression » pour mes élèves", ar: "صفحة « تقدمي » لتلاميذي", en: "“My progress” page for my students" },
+  "student.badges": { module: "progress", fr: "Badges et séries pour mes élèves", ar: "الشارات والسلاسل لتلاميذي", en: "Badges and streaks for my students" },
+  "student.remediation_ai": { module: "progress", fr: "Exercices de remédiation IA pour mes élèves", ar: "تمارين الدعم بالذكاء الاصطناعي لتلاميذي", en: "AI remediation exercises for my students" },
+  "student.reminders": { module: "progress", fr: "Rappels automatiques de devoirs à mes élèves", ar: "تذكيرات تلقائية بالواجبات لتلاميذي", en: "Automatic homework reminders to my students" },
   "parents.links": { module: "parents", fr: "Liens parents (bulletin en lecture seule)", ar: "روابط الآباء (كشف للاطلاع فقط)", en: "Parent links (read-only report)" },
   "library.import": { module: "library", fr: "Importer depuis la bibliothèque partagée", ar: "الاستيراد من المكتبة المشتركة", en: "Import from the shared library" },
   "library.publish": { module: "library", fr: "Publier dans la bibliothèque partagée", ar: "النشر في المكتبة المشتركة", en: "Publish to the shared library" },
@@ -201,9 +233,11 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "admin.settings.manage": { module: "admin", fr: "Personnaliser l'application", ar: "تخصيص التطبيق", en: "Customize the app" },
   "admin.support.manage": { module: "admin", fr: "Répondre aux tickets de support", ar: "الرد على تذاكر الدعم", en: "Answer support tickets" },
   "admin.library.manage": { module: "admin", fr: "Valider la bibliothèque partagée", ar: "المصادقة على المكتبة المشتركة", en: "Review the shared library" },
+  "admin.support.macros": { module: "admin", fr: "Gérer les réponses types du support", ar: "تدبير الردود الجاهزة للدعم", en: "Manage support canned replies" },
+  "admin.support.assign": { module: "admin", fr: "Assigner les tickets et changer leur priorité", ar: "إسناد التذاكر وتغيير أولويتها", en: "Assign tickets and change priority" },
 };
 
-export const ADMIN_PERMISSION_KEYS: AdminPermissionKey[] = ["admin.teachers.manage", "admin.plans.manage", "admin.subscriptions.manage", "admin.payments.manage", "admin.overrides.manage", "admin.audit.view", "admin.roles.manage", "admin.settings.manage", "admin.support.manage", "admin.library.manage"];
+export const ADMIN_PERMISSION_KEYS: AdminPermissionKey[] = ["admin.teachers.manage", "admin.plans.manage", "admin.subscriptions.manage", "admin.payments.manage", "admin.overrides.manage", "admin.audit.view", "admin.roles.manage", "admin.settings.manage", "admin.support.manage", "admin.support.macros", "admin.support.assign", "admin.library.manage"];
 
 /** Type de fichier → permission d'ajout (même règle que le déclencheur SQL) */
 export function uploadPermissionFor(fileName: string, mime = ""): PermissionKey {

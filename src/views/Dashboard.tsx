@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAccess } from "@/contexts/AccessContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useCourses } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -91,6 +92,7 @@ const Dashboard = () => {
   const { prefs } = usePreferences();
   // Personnalisation centrale : phrase d'accueil et modules activés
   const { settings: appSettings, text: settingText, feature } = useAppSettings();
+  const { can } = useAccess();
   const dashboardWelcome = settingText(appSettings.texts?.dashboardWelcome, (language === "ar" || language === "en" ? language : "fr") as Lang);
   const hasCourses = feature("courses");
   const hasExercises = feature("exercises");
@@ -432,8 +434,8 @@ const Dashboard = () => {
         </div>
       )}
 
-      {isProfessor && professorRooms.length > 0 && <TodayCard />}
-      {isProfessor && feature("parents") && <ParentMessagesCard />}
+      {isProfessor && professorRooms.length > 0 && can("dashboard.today") && <TodayCard />}
+      {isProfessor && feature("parents") && can("parents.messages") && <ParentMessagesCard />}
       {isProfessor && professorRooms.length > 0 && <WeekSummaryCard />}
       {user?.role === "student" && <StreakCard />}
 

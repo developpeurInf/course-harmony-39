@@ -6,6 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { RemediationButton } from "@/components/progress/Remediation";
 import { computeBadges, on20, type ProgressData } from "@/lib/badges";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { useStudentFeatures } from "@/lib/studentFeatures";
 import { cn } from "@/lib/utils";
 
 const db = supabase as any;
@@ -16,6 +19,9 @@ export default function MyProgress() {
   const locale = language === "ar" ? "ar-MA" : language === "en" ? "en-GB" : "fr-FR";
   const [p, setP] = useState<ProgressData | null>(null);
   const [error, setError] = useState(false);
+  const { user } = useAuth();
+  const { feature } = useAppSettings();
+  const sf = useStudentFeatures(user?.id);
 
   useEffect(() => {
     db.rpc("my_progress").then(({ data, error }: any) => {
@@ -45,9 +51,11 @@ export default function MyProgress() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p, locale]);
 
+  if (sf && !sf.progress) return <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">{tr("Cette page n'est pas activée par ton professeur.", "هذه الصفحة غير مفعلة من طرف أستاذك.", "Your teacher hasn't enabled this page.")}</p>;
   if (error) return <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">{tr("Ta progression sera disponible très bientôt.", "سيتوفر تقدمك قريبا.", "Your progress will be available soon.")}</p>;
   if (!p || !stats) return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   const badges = computeBadges(p);
+  const showBadges = !!sf?.badges && feature("gamification");
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -94,7 +102,7 @@ export default function MyProgress() {
           )}
         </section>
 
-        <section className="rounded-xl border bg-card p-4">
+        {showBadges && <section className="rounded-xl border bg-card p-4">
           <h2 className="mb-2 text-sm font-semibold">{tr("Mes badges", "شاراتي", "My badges")}</h2>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {badges.map(b => (
@@ -105,7 +113,7 @@ export default function MyProgress() {
               </li>
             ))}
           </ul>
-        </section>
+        </section>}
       </div>
 
       <section className="rounded-xl border bg-card p-4">

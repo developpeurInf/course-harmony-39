@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses } from "@/contexts/CourseContext";
 import { useAccess } from "@/contexts/AccessContext";
+import { useStudentFeatures } from "@/lib/studentFeatures";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import {
   LayoutGrid,
@@ -122,6 +123,8 @@ const Sidebar = () => {
   const { feature } = useAppSettings();
   // module affiché : allumé dans Personnalisation ET inclus dans l'offre (sinon masqué)
   const show = (m: Parameters<typeof feature>[0]) => feature(m) && hasModule(m);
+  // Élève : fonctions accordées par l'offre de son professeur
+  const studentFeatures = useStudentFeatures(isProfessor ? undefined : user?.id);
 
   const t = (fr: string, ar: string, en: string = fr) =>
     language === "ar" ? ar : language === "fr" ? fr : en;
@@ -310,7 +313,7 @@ const Sidebar = () => {
               {show("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
               {show("lessonLog") && <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />}
               {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
-              {show("progress") && <NavItem to="/progress" icon={TrendingUp} label={t("Ma progression", "تقدمي", "My progress")} />}
+              {show("progress") && studentFeatures?.progress && <NavItem to="/progress" icon={TrendingUp} label={t("Ma progression", "تقدمي", "My progress")} />}
             </>
           )}
         </div>
@@ -337,7 +340,7 @@ const Sidebar = () => {
             )}
             {show("classManagement") && <NavItem to="/class-management" icon={FolderKanban} label={t("Gestion des classes", "إدارة الأقسام", "Manage classes")} />}
             {show("library") && <NavItem to="/library" icon={LibraryBig} label={t("Bibliothèque partagée", "المكتبة المشتركة", "Shared library")} locked={!can("library.import")} />}
-            {feature("support") && <NavItem to="/support" icon={LifeBuoy} label={t("Aide et support", "المساعدة والدعم", "Help & support")} />}
+            {show("support") && <NavItem to="/support" icon={LifeBuoy} label={t("Aide et support", "المساعدة والدعم", "Help & support")} locked={!can("support.tickets")} />}
           </div>
         )}
 

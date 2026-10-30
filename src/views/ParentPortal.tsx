@@ -28,6 +28,7 @@ export default function ParentPortal() {
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);
+  const [canMessage, setCanMessage] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -39,6 +40,8 @@ export default function ParentPortal() {
       else if (data?.error) setError(data.error);
       else setData(data);
     });
+    // Messagerie ouverte seulement si l'offre du professeur l'inclut (absent avant migration : ouverte)
+    db.rpc("parent_can_message", { p_token: token }).then(({ data, error }: any) => setCanMessage(error ? true : !!data));
   }, [token]);
 
   const day = (d: string) => new Date(d.length === 10 ? `${d}T12:00:00` : d).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
@@ -170,12 +173,12 @@ export default function ParentPortal() {
               </Section>
             )}
 
-            <section className="space-y-2 rounded-xl border bg-card p-4 print:hidden">
+            {canMessage && <section className="space-y-2 rounded-xl border bg-card p-4 print:hidden">
               <h2 className="flex items-center gap-2 text-sm font-semibold"><Send className="h-4 w-4 text-primary" />{tr("Écrire au professeur", "مراسلة الأستاذ", "Write to the teacher")}</h2>
               <Input value={name} onChange={e => setName(e.target.value)} maxLength={120} placeholder={tr("Votre nom (ex. mère de l'élève)", "اسمك (مثال: أم التلميذ)", "Your name (e.g. student's mother)")} aria-label={tr("Votre nom", "اسمك", "Your name")} />
               <Textarea rows={3} value={msg} onChange={e => setMsg(e.target.value)} maxLength={2000} placeholder={tr("Votre message", "رسالتك", "Your message")} aria-label={tr("Votre message", "رسالتك", "Your message")} />
               <div className="flex justify-end"><Button onClick={send} disabled={sending || !msg.trim()} className="gap-1.5">{sending && <Loader2 className="h-4 w-4 animate-spin" />}{tr("Envoyer", "إرسال", "Send")}</Button></div>
-            </section>
+            </section>}
           </>
         )}
       </main>
