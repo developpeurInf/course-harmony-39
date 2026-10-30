@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
-import { PERMISSION_LABELS, type PermissionKey, type QuotaKey } from "@/lib/permissions";
+import { moduleIncluded, PERMISSION_LABELS, type PermissionKey, type QuotaKey } from "@/lib/permissions";
 
 /**
  * Habilitations du professeur (offre + abonnement + exceptions), lues dans la base
@@ -41,6 +41,8 @@ interface AccessContextType {
   status: SubscriptionStatus | null;
   readOnly: boolean;
   can: (key: PermissionKey) => boolean;
+  /** module inclus dans l'offre (au moins une de ses fonctions) ; sinon il est masqué */
+  hasModule: (module: string) => boolean;
   adminCan: (key: string) => boolean;
   quota: (key: QuotaKey) => { limit: number | null; used: number; remaining: number | null };
   /** true si autorisé ; sinon affiche un message et renvoie false */
@@ -75,6 +77,7 @@ export const permissionLabel = (key: string) => {
 let current: AccessContextType | null = null;
 export const accessStore = {
   can: (key: PermissionKey) => (current ? current.can(key) : true),
+  hasModule: (module: string) => (current ? current.hasModule(module) : true),
   guard: (key: PermissionKey) => (current ? current.guard(key) : true),
   guardQuota: (key: QuotaKey, adding = 1) => (current ? current.guardQuota(key, adding) : true),
   refresh: () => current?.refresh(),
@@ -256,6 +259,8 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     [quota, load]
   );
 
+  const hasModule = useCallback((module: string) => moduleIncluded(module, can), [can]);
+
   const value = useMemo<AccessContextType>(
     () => ({
       loading,
@@ -265,13 +270,14 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
       status,
       readOnly: gated && (status === "expired" || status === "none" || status === "suspended"),
       can,
+      hasModule,
       adminCan,
       quota,
       guard,
       guardQuota,
       refresh: load,
     }),
-    [loading, enforced, access, isAdmin, status, gated, can, adminCan, quota, guard, guardQuota, load]
+    [loading, enforced, access, isAdmin, status, gated, can, hasModule, adminCan, quota, guard, guardQuota, load]
   );
   current = value;
 

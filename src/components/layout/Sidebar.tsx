@@ -114,9 +114,11 @@ const Sidebar = () => {
   const [openRooms, setOpenRooms] = useState<Record<string, boolean>>({});
   const isProfessor = user?.role === "professor";
   const isRtl = language === "ar";
-  const { can, enforced, access } = useAccess();
+  const { can, enforced, access, hasModule } = useAccess();
   const brand = useBrand(language);
   const { feature } = useAppSettings();
+  // module affiché : allumé dans Personnalisation ET inclus dans l'offre (sinon masqué)
+  const show = (m: Parameters<typeof feature>[0]) => feature(m) && hasModule(m);
 
   const t = (fr: string, ar: string, en: string = fr) =>
     language === "ar" ? ar : language === "fr" ? fr : en;
@@ -239,10 +241,10 @@ const Sidebar = () => {
                       />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="ms-[17px] space-y-0.5 border-s ps-2 pt-0.5">
-                      {feature("students") && (
+                      {show("students") && (
                         <NavItem nested to={`/rooms/${room.id}/students`} icon={Users} label={t("Élèves", "التلاميذ", "Students")} />
                       )}
-                      {feature("studentActivities") && (
+                      {show("studentActivities") && (
                         <NavItem
                           nested
                           to={`/rooms/${room.id}/students-activities`}
@@ -251,7 +253,7 @@ const Sidebar = () => {
                           locked={!can("student.activity_view")}
                         />
                       )}
-                      {feature("attendance") && (
+                      {show("attendance") && (
                         <NavItem
                           nested
                           to={`/rooms/${room.id}/attendance`}
@@ -260,7 +262,7 @@ const Sidebar = () => {
                           locked={!can("attendance.manage")}
                         />
                       )}
-                      {feature("followUp") && (
+                      {show("followUp") && (
                         <NavItem
                           nested
                           to={`/rooms/${room.id}/follow-up`}
@@ -269,7 +271,7 @@ const Sidebar = () => {
                           locked={!can("student.view")}
                         />
                       )}
-                      {feature("gradebook") && (
+                      {show("gradebook") && (
                         <NavItem
                           nested
                           to={`/rooms/${room.id}/gradebook`}
@@ -278,19 +280,19 @@ const Sidebar = () => {
                           locked={!can("gradebook.manage")}
                         />
                       )}
-                      {feature("lessonLog") && (
+                      {show("lessonLog") && (
                         <NavItem nested to={`/rooms/${room.id}/lesson-log`} icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />
                       )}
-                      {feature("calendar") && (
+                      {show("calendar") && (
                         <NavItem nested to={`/rooms/${room.id}/calendar`} icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />
                       )}
-                      {feature("courses") && (
+                      {show("courses") && (
                         <NavItem nested to={`/rooms/${room.id}/courses`} icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />
                       )}
-                      {feature("exercises") && (
+                      {show("exercises") && (
                         <NavItem nested to={`/rooms/${room.id}/exercises`} icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />
                       )}
-                      {feature("exams") && (
+                      {show("exams") && (
                         <NavItem nested to={`/rooms/${room.id}/exams`} icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />
                       )}
                     </CollapsibleContent>
@@ -300,11 +302,11 @@ const Sidebar = () => {
             )
           ) : (
             <>
-              {feature("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
-              {feature("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
-              {feature("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
-              {feature("lessonLog") && <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />}
-              {feature("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
+              {show("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
+              {show("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
+              {show("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
+              {show("lessonLog") && <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />}
+              {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
             </>
           )}
         </div>
@@ -312,13 +314,13 @@ const Sidebar = () => {
         {isProfessor && (
           <div className="space-y-0.5">
             <SectionLabel>{t("Outils", "الأدوات", "Tools")}</SectionLabel>
-            {feature("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
-            {feature("questionBank") && <NavItem to="/question-bank" icon={Library} label={t("Banque de questions", "بنك الأسئلة", "Question bank")} locked={!can("quiz.bank")} />}
-            {feature("lessonPlans") && <NavItem to="/lesson-plans" icon={Sparkles} label={t("Fiches pédagogiques", "الجذاذات", "Lesson plans")} locked={!can("ai.lesson_plan")} />}
-            {feature("reports") && (
+            {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
+            {show("questionBank") && <NavItem to="/question-bank" icon={Library} label={t("Banque de questions", "بنك الأسئلة", "Question bank")} locked={!can("quiz.bank")} />}
+            {show("lessonPlans") && <NavItem to="/lesson-plans" icon={Sparkles} label={t("Fiches pédagogiques", "الجذاذات", "Lesson plans")} locked={!can("ai.lesson_plan")} />}
+            {show("reports") && (
               <NavItem to="/reports" icon={BarChart3} label={t("Rapports", "التقارير", "Reports")} locked={!can("reports.view")} />
             )}
-            {feature("diagnostic") && (
+            {show("diagnostic") && (
               <NavItem
                 to="/diagnostic"
                 icon={FileSpreadsheet}
@@ -326,10 +328,10 @@ const Sidebar = () => {
                 locked={!can("diagnostic.use")}
               />
             )}
-            {feature("pdfEditor") && (
+            {show("pdfEditor") && (
               <NavItem to="/pdf-editor" icon={FilePen} label={t("Éditeur PDF", "محرر PDF", "PDF editor")} locked={!can("pdf.use")} />
             )}
-            {feature("classManagement") && <NavItem to="/class-management" icon={FolderKanban} label={t("Gestion des classes", "إدارة الأقسام", "Manage classes")} />}
+            {show("classManagement") && <NavItem to="/class-management" icon={FolderKanban} label={t("Gestion des classes", "إدارة الأقسام", "Manage classes")} />}
           </div>
         )}
 

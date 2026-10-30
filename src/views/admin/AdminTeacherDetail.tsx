@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAccess } from "@/contexts/AccessContext";
-import { MODULE_LABELS } from "@/lib/permissions";
+import { MODULE_LABELS, moduleOf } from "@/lib/permissions";
 import {
   addDaysIso, adminInvoke, copyWithToast, db, endDateInput, fmtDate, fmtMoney, fromDateInput, localDateStr, moduleLabel,
   PAYMENT_METHODS, permLabel, StatusBadge, toDateInput, useT, type Lang,
@@ -673,7 +673,7 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
     ]);
     if (error) toast.error(error.message);
     setRows(eff || []);
-    setPerms(cat || []);
+    setPerms((cat || []).map((x: any) => ({ ...x, module: x.kind === "quota" ? "quota" : moduleOf(x.key, x.module) })));
     const map: Record<string, Ov> = {};
     (ov || []).forEach((o: any) => (map[o.permission_key] = { effect: o.effect, limit_value: o.limit_value, expires_at: o.expires_at, reason: o.reason }));
     setSaved(map);
@@ -794,7 +794,23 @@ function PermissionsTab({ teacherId, canEdit }: { teacherId: string; canEdit: bo
       </p>
       {modules.map(m => (
         <section key={m.key} className="overflow-hidden rounded-xl border bg-card">
-          <h3 className="border-b bg-muted/40 px-4 py-2 text-sm font-semibold">{moduleLabel(m.key, lang)}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-1.5">
+            <h3 className="text-sm font-semibold">{moduleLabel(m.key, lang)}</h3>
+            {canEdit && !["quota", "account"].includes(m.key) && (
+              // Exception pour tout le module : selon l'offre / masqué (tout interdire) / complet (tout autoriser)
+              <div className="inline-flex flex-wrap gap-1">
+                <button type="button" className="min-h-[32px] rounded px-2 text-xs font-semibold text-muted-foreground hover:bg-muted" onClick={() => m.items.forEach((p: any) => setEffect(p.key, "plan"))}>
+                  {L("Selon l'offre", "حسب العرض", "Per plan")}
+                </button>
+                <button type="button" className="min-h-[32px] rounded px-2 text-xs font-semibold text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40" onClick={() => m.items.forEach((p: any) => setEffect(p.key, "deny"))}>
+                  {L("Masquer le module", "إخفاء الوحدة", "Hide module")}
+                </button>
+                <button type="button" className="min-h-[32px] rounded px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40" onClick={() => m.items.forEach((p: any) => setEffect(p.key, "allow"))}>
+                  {L("Tout le module", "الوحدة كاملة", "Whole module")}
+                </button>
+              </div>
+            )}
+          </div>
           <ul className="divide-y">
             {m.items.map((p: any) => {
               const r = eff[p.key];

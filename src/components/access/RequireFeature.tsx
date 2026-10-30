@@ -2,14 +2,23 @@ import type { ReactNode } from "react";
 import { Link } from "@/lib/router";
 import { PowerOff } from "lucide-react";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { useAccess } from "@/contexts/AccessContext";
+import { NotInPlan } from "@/components/access/AccessUi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { FeatureKey } from "@/lib/appSettings";
 
-/** Page entière d'un module que l'administration peut désactiver (Personnalisation → Modules) */
+/**
+ * Page entière d'un module : coupé par l'administration (Personnalisation → Modules)
+ * ou non inclus dans l'offre du professeur (aucune de ses fonctions).
+ */
 export function RequireFeature({ feature, children }: { feature: FeatureKey; children: ReactNode }) {
   const { feature: enabled } = useAppSettings();
+  const { hasModule, loading } = useAccess();
   const { language } = useLanguage();
-  if (enabled(feature)) return <>{children}</>;
+  if (enabled(feature)) {
+    if (loading) return null;
+    return hasModule(feature) ? <>{children}</> : <NotInPlan />;
+  }
   const L = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
   return (
     <div className="mx-auto mt-10 max-w-md rounded-xl border bg-card p-6 text-center">

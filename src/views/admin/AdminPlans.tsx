@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAccess } from "@/contexts/AccessContext";
-import { MODULE_LABELS } from "@/lib/permissions";
+import { MODULE_LABELS, moduleOf } from "@/lib/permissions";
 import { db, fmtMoney, moduleLabel, PageTitle, PERIODS, permLabel, useT } from "./adminShared";
 import type { PlanRow } from "./AdminTeachers";
 import { useConfirm } from "./ConfirmDialog";
@@ -25,6 +25,8 @@ export default function AdminPlans() {
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [content, setContent] = useState<any[]>([]);
   const [catalog, setCatalog] = useState<any[]>([]);
+  // modules « Complet » de chaque offre (plan_modules)
+  const [fullMods, setFullMods] = useState<Record<string, Set<string>>>({});
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<PlanRow | "new" | null>(null);
   const [view, setView] = useState<"cards" | "matrix">("cards");
@@ -32,17 +34,22 @@ export default function AdminPlans() {
   const { ask, dialog: confirmDialog } = useConfirm();
 
   const load = async () => {
-    const [{ data: p, error }, { data: c }, { data: cat }, { data: t }] = await Promise.all([
+    const [{ data: p, error }, { data: c }, { data: cat }, { data: t }, { data: pm }] = await Promise.all([
       db.from("plans").select("*").order("sort_order"),
       db.from("plan_permissions").select("*"),
       db.from("permissions").select("*").neq("kind", "admin").order("sort_order"),
       db.rpc("admin_teachers"),
+      db.from("plan_modules").select("plan_id, module"), // absente avant la migration 20261104090000 : ignorée
     ]);
     if (error) toast.error(error.message);
     setLoading(false);
     setPlans(p || []);
     setContent(c || []);
-    setCatalog(cat || []);
+    // module de l'application (catalogue du code), même si la base n'est pas encore migrée
+    setCatalog((cat || []).map((x: any) => ({ ...x, module: x.kind === "quota" ? "quota" : moduleOf(x.key, x.module) })));
+    const fm: Record<string, Set<string>> = {};
+    ((pm || []) as any[]).forEach(r => (fm[r.plan_id] = fm[r.plan_id] || new Set()).add(r.module));
+    setFullMods(fm);
     const m: Record<string, number> = {};
     (t || []).forEach((r: any) => {
       if (r.plan_id && !["expired", "none"].includes(r.sub_status)) m[r.plan_id] = (m[r.plan_id] || 0) + 1;
@@ -201,6 +208,7 @@ export default function AdminPlans() {
         onClose={() => setEditing(null)}
         catalog={catalog}
         content={editing && editing !== "new" ? byPlan[editing.id] || {} : {}}
+        fullModules={editing && editing !== "new" ? fullMods[editing.id] : undefined}
         onSaved={load}
       />
       {confirmDialog}
@@ -237,12 +245,15 @@ function ModuleRows({ module, catalog, plans, byPlan }: any) {
 
 // ---------------------------------------------------------------------------
 
-function PlanEditor({ plan, onClose, catalog, content, onSaved }: {
-  plan: PlanRow | "new" | null; onClose: () => void; catalog: any[]; content: Record<string, any>; onSaved: () => void;
+type ModuleMode = "none" | "partial" | "full";
+
+function PlanEditor({ plan, onClose, catalog, content, fullModules, onSaved }: {
+  plan: PlanRow | "new" | null; onClose: () => void; catalog: any[]; content: Record<string, any>; fullModules?: Set<string>; onSaved: () => void;
 }) {
   const { L, lang } = useT();
   const [f, setF] = useState<any>({});
   const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [full, setFull] = useState<Set<string>>(new Set());
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -275,6 +286,7 @@ function PlanEditor({ plan, onClose, catalog, content, onSaved }: {
       catalog.filter(c => c.kind === "feature" && !c.is_write).forEach(c => (s[c.key] = true));
       setSel(s);
       setLimits({});
+      setFull(new Set());
     } else {
       setF({ ...plan, price_mad: String(plan.price_mad ?? 0), duration_days: plan.duration_days === null ? "" : String(plan.duration_days), trial_days: String(plan.trial_days ?? 0), grace_days: String(plan.grace_days ?? 7), sort_order: String(plan.sort_order ?? 0) });
       const s: Record<string, boolean> = {};
@@ -285,14 +297,40 @@ function PlanEditor({ plan, onClose, catalog, content, onSaved }: {
       });
       setSel(s);
       setLimits(l);
+      setFull(new Set(fullModules || []));
     }
-  }, [plan, catalog, content]);
+  }, [plan, catalog, content, fullModules]);
 
   const modules = Object.keys(MODULE_LABELS).filter(m => m !== "admin" && catalog.some(c => c.module === m));
-  const setModule = (m: string, v: boolean) => {
+  // Non inclus : masqué pour les profs de l'offre · Partiel : fonctions cochées · Complet : tout, y compris les futures fonctions
+  const moduleMode = (m: string): ModuleMode => {
+    const items = catalog.filter(c => c.module === m && c.kind === "feature");
+    if (full.has(m)) return "full";
+    return items.some(c => sel[c.key]) ? "partial" : "none";
+  };
+  const setModuleMode = (m: string, mode: ModuleMode) => {
+    const items = catalog.filter(c => c.module === m && c.kind === "feature");
     const s = { ...sel };
-    catalog.filter(c => c.module === m && c.kind === "feature").forEach(c => (s[c.key] = v));
+    const fu = new Set(full);
+    if (mode === "full") {
+      items.forEach(c => (s[c.key] = true));
+      fu.add(m);
+    } else {
+      fu.delete(m);
+      if (mode === "none") items.forEach(c => (s[c.key] = false));
+      // Partiel depuis « Non inclus » : la première fonction (en général « voir / ouvrir ») est cochée
+      else if (!items.some(c => s[c.key]) && items[0]) s[items[0].key] = true;
+    }
     setSel(s);
+    setFull(fu);
+  };
+  const toggleKey = (m: string, key: string, v: boolean) => {
+    setSel({ ...sel, [key]: v });
+    if (!v && full.has(m)) {
+      const fu = new Set(full);
+      fu.delete(m);
+      setFull(fu);
+    }
   };
 
   const save = async (e: React.FormEvent) => {
@@ -357,6 +395,25 @@ function PlanEditor({ plan, onClose, catalog, content, onSaved }: {
     if (toUpsert.length) {
       const { error } = await db.from("plan_permissions").upsert(toUpsert, { onConflict: "plan_id,permission_key" });
       if (error) errors.push(error.message);
+    }
+    // Modules « Complet » (après les fonctions : un retrait de fonction fait passer le module en Partiel)
+    if (!errors.length) {
+      const { data: curMods, error: modErr } = await db.from("plan_modules").select("module").eq("plan_id", planId);
+      if (!modErr) {
+        const had = new Set(((curMods || []) as any[]).map(r => r.module));
+        const add = [...full].filter(m => !had.has(m)).map(m => ({ plan_id: planId, module: m }));
+        const del = [...had].filter(m => !full.has(m));
+        if (add.length) {
+          const { error } = await db.from("plan_modules").upsert(add, { onConflict: "plan_id,module" });
+          if (error) errors.push(error.message);
+        }
+        if (del.length) {
+          const { error } = await db.from("plan_modules").delete().eq("plan_id", planId).in("module", del);
+          if (error) errors.push(error.message);
+        }
+      } else if (full.size) {
+        errors.push(L("« Complet » nécessite la migration 20261104090000_plan_modules.sql", "« كامل » يتطلب ترحيل 20261104090000_plan_modules.sql", "“Full” requires migration 20261104090000_plan_modules.sql"));
+      }
     }
     setSaving(false);
     if (errors.length) {
@@ -438,26 +495,54 @@ function PlanEditor({ plan, onClose, catalog, content, onSaved }: {
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold">{L("Fonctions autorisées", "الوظائف المسموح بها", "Allowed features")}</h3>
+            <h3 className="text-sm font-semibold">{L("Modules et fonctions", "الوحدات والوظائف", "Modules and features")}</h3>
+            <p className="text-xs text-muted-foreground">
+              {L(
+                "Non inclus : le module est masqué pour les professeurs de cette offre. Partiel : seules les fonctions cochées. Complet : toutes les fonctions, y compris celles ajoutées plus tard.",
+                "غير مدرج: الوحدة مخفية عن أساتذة هذا العرض. جزئي: الوظائف المحددة فقط. كامل: كل الوظائف بما فيها التي ستضاف لاحقا.",
+                "Not included: the module is hidden for this plan's teachers. Partial: only the ticked features. Full: every feature, including those added later."
+              )}
+            </p>
             {modules.filter(m => m !== "quota").map(m => {
               const items = catalog.filter(c => c.module === m && c.kind === "feature");
-              const all = items.every(c => sel[c.key]);
+              const alwaysOn = m === "account"; // toujours visible : seulement des fonctions à cocher
+              const mode: ModuleMode = alwaysOn ? "partial" : moduleMode(m);
+              const modes: { id: ModuleMode; label: string }[] = [
+                { id: "none", label: L("Non inclus", "غير مدرج", "Not included") },
+                { id: "partial", label: L("Partiel", "جزئي", "Partial") },
+                { id: "full", label: L("Complet", "كامل", "Full") },
+              ];
               return (
-                <div key={m} className="rounded-lg border">
-                  <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-0.5">
+                <div key={m} className={`rounded-lg border ${mode === "none" ? "opacity-70" : ""}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1.5">
                     <span className="text-xs font-semibold uppercase tracking-wide">{moduleLabel(m, lang)}</span>
-                    <button type="button" className="min-h-[36px] px-1 text-xs font-semibold text-primary" onClick={() => setModule(m, !all)}>
-                      {all ? L("Tout décocher", "إلغاء الكل", "Uncheck all") : L("Tout cocher", "تحديد الكل", "Check all")}
-                    </button>
+                    {!alwaysOn && (
+                    <div role="radiogroup" aria-label={moduleLabel(m, lang)} className="inline-flex rounded-md border bg-background p-0.5">
+                      {modes.map(o => (
+                        <button
+                          key={o.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={mode === o.id}
+                          onClick={() => setModuleMode(m, o.id)}
+                          className={`min-h-[32px] rounded px-2.5 text-xs font-semibold ${mode === o.id ? (o.id === "none" ? "bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white" : "bg-primary text-primary-foreground") : "text-muted-foreground hover:bg-muted"}`}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                    )}
                   </div>
+                  {mode !== "none" && (
                   <div className="grid gap-x-4 px-3 py-1.5 sm:grid-cols-2">
                     {items.map(c => (
                       <label key={c.key} className="flex min-h-[40px] cursor-pointer items-center gap-3 text-sm">
-                        <input type="checkbox" className="h-5 w-5 flex-shrink-0" checked={!!sel[c.key]} onChange={e => setSel({ ...sel, [c.key]: e.target.checked })} />
+                        <input type="checkbox" className="h-5 w-5 flex-shrink-0" checked={!!sel[c.key]} onChange={e => toggleKey(m, c.key, e.target.checked)} />
                         <span>{permLabel(c.key, lang)}{!c.is_write && <span className="text-[11px] text-muted-foreground"> · {L("lecture", "قراءة", "read")}</span>}</span>
                       </label>
                     ))}
                   </div>
+                  )}
                 </div>
               );
             })}

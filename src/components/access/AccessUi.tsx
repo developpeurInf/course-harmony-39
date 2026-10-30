@@ -14,15 +14,20 @@ const useL = () => {
 /** Page entière réservée à une permission (route) */
 export function RequirePermission({ perm, children }: { perm: PermissionKey; children: ReactNode }) {
   const { can, loading } = useAccess();
-  const L = useL();
   if (loading) return null;
   if (can(perm)) return <>{children}</>;
+  return <NotInPlan title={permissionLabel(perm)} />;
+}
+
+/** Message « non inclus dans votre offre » (page d'une fonction ou d'un module) */
+export function NotInPlan({ title }: { title?: string }) {
+  const L = useL();
   return (
     <div className="mx-auto mt-10 max-w-md rounded-xl border bg-card p-6 text-center">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
         <Lock className="h-6 w-6" />
       </span>
-      <h1 className="mt-3 text-lg font-semibold">{permissionLabel(perm)}</h1>
+      <h1 className="mt-3 text-lg font-semibold">{title || L("Module non inclus", "وحدة غير مدرجة", "Module not included")}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {L("Cette fonction n'est pas incluse dans votre offre actuelle.", "هذه الوظيفة غير مدرجة في عرضك الحالي.", "This feature is not included in your current plan.")}
       </p>

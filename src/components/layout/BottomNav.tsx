@@ -3,6 +3,7 @@ import { Home, BookOpen, FileText, Calendar, User, FolderOpen, BarChart3, FileSp
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/contexts/AccessContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import type { FeatureKey } from "@/lib/appSettings";
 
@@ -46,7 +47,10 @@ const BottomNav = ({ className }: BottomNavProps) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const location = useLocation();
-  const { feature } = useAppSettings();
+  const { feature: enabled } = useAppSettings();
+  const { hasModule } = useAccess();
+  // module affiché : allumé dans Personnalisation ET inclus dans l'offre
+  const feature = (m: Parameters<typeof enabled>[0]) => enabled(m) && (m === "bottomNav" || hasModule(m));
 
   if (!user || !feature("bottomNav")) return null;
 
