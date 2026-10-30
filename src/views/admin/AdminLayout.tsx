@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "@/lib/router";
 import { LayoutDashboard, Users, Layers, CalendarClock, Wallet, ScrollText, ShieldCheck, LogOut, Palette, Megaphone, Gift, LifeBuoy, LibraryBig } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,7 +8,7 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/AppBrand";
-import { useT } from "./adminShared";
+import { db, useT } from "./adminShared";
 import { useConfirm } from "./ConfirmDialog";
 import { AdminMfaGate } from "./AdminMfa";
 
@@ -22,6 +22,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { pathname } = useLocation();
   const mobileNav = useRef<HTMLElement>(null);
   const { ask, dialog: confirmDialog } = useConfirm();
+  const canSupport = adminCan("admin.support.manage");
+  const [supportUnread, setSupportUnread] = useState(0);
+
+  // Pastille du menu Support : tickets à traiter non lus
+  useEffect(() => {
+    if (!canSupport) return;
+    const tick = () => db.rpc("support_unread_count").then(({ data }: any) => setSupportUnread(Number(data) || 0));
+    tick();
+    const t = setInterval(tick, 60000);
+    return () => clearInterval(t);
+  }, [canSupport, pathname]);
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
@@ -81,7 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { to: "/admin/payments", icon: Wallet, label: L("Paiements", "الأداءات", "Payments"), show: true },
     { to: "/admin/promos", icon: Gift, label: L("Codes promo", "رموز التخفيض", "Promo codes"), show: adminCan("admin.plans.manage") },
     { to: "/admin/announcements", icon: Megaphone, label: L("Annonces", "الإعلانات", "Announcements"), show: adminCan("admin.settings.manage") },
-    { to: "/admin/support", icon: LifeBuoy, label: L("Support", "الدعم", "Support"), show: adminCan("admin.support.manage") },
+    { to: "/admin/support", icon: LifeBuoy, label: L("Support", "الدعم", "Support"), show: canSupport, badge: supportUnread },
     { to: "/admin/library", icon: LibraryBig, label: L("Bibliothèque", "المكتبة", "Library"), show: adminCan("admin.library.manage") },
     { to: "/admin/audit", icon: ScrollText, label: L("Journal", "السجل", "Audit log"), show: adminCan("admin.audit.view") },
     { to: "/admin/team", icon: ShieldCheck, label: L("Équipe admin", "فريق الإدارة", "Admin team"), show: true },
@@ -131,6 +142,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <it.icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
               {it.label}
+              {"badge" in it && it.badge ? <span className="ms-auto rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">{it.badge}</span> : null}
             </NavLink>
           ))}
         </nav>
@@ -178,6 +190,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <it.icon className="h-3.5 w-3.5" />
                 {it.label}
+                {"badge" in it && it.badge ? <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">{it.badge}</span> : null}
               </NavLink>
             ))}
           </nav>

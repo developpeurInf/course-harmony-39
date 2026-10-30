@@ -1,6 +1,6 @@
 /** Aide et support (professeur) : questions fréquentes + tickets avec l'administration */
 import { useEffect, useState } from "react";
-import { LifeBuoy, Plus } from "lucide-react";
+import { LifeBuoy, Paperclip, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SupportThread, ticketStatusLabel, ticketStatusTone, type Ticket } from "@/components/support/SupportThread";
+import { SupportThread, ticketStatusLabelAuthor, ticketStatusTone, unreadForAuthor, type Ticket } from "@/components/support/SupportThread";
+import { SUPPORT_ACCEPT, formatBytes, uploadSupportFiles } from "@/lib/supportAttachments";
 import { cn } from "@/lib/utils";
 
 const db = supabase as any;
@@ -24,8 +25,10 @@ export default function Support() {
   const [category, setCategory] = useState("question");
   const [body, setBody] = useState("");
   const [missing, setMissing] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
 
-  const load = () => db.from("support_tickets").select("*").order("updated_at", { ascending: false })
+  const load = () => db.from("support_tickets").select("*").order("updated_at", { ascending: false }).limit(200)
     .then(({ data, error }: any) => {
       if (error) setMissing(true);
       setTickets(data || []);
@@ -34,13 +37,21 @@ export default function Support() {
 
   const create = async () => {
     if (subject.trim().length < 2 || !body.trim()) return;
-    const { data: u } = await supabase.auth.getUser();
-    const { data, error } = await db.from("support_tickets").insert({ subject: subject.trim(), category, author_id: u?.user?.id }).select("*").single();
-    if (error) {
-      toast.error(error.message);
+    setSending(true);
+    const { data, error } = await db.rpc("support_create_ticket", { p_subject: subject.trim(), p_category: category, p_body: body.trim() });
+    if (error || !data) {
+      setSending(false);
+      toast.error(error?.message || tr("Envoi impossible", "تعذر الإرسال", "Could not send"));
       return;
     }
-    await db.from("support_messages").insert({ ticket_id: data.id, body: body.trim(), author_id: u?.user?.id });
+    if (files.length) {
+      const { data: u } = await supabase.auth.getUser();
+      const { done, failed } = await uploadSupportFiles(data.id, files);
+      if (done.length) await db.from("support_messages").insert({ ticket_id: data.id, body: "", author_id: u?.user?.id, attachments: done });
+      if (failed.length) toast.error(tr(`Non envoyé : ${failed.join(", ")}`, `لم يُرسل: ${failed.join(", ")}`, `Not sent: ${failed.join(", ")}`));
+    }
+    setSending(false);
+    setFiles([]);
     setSubject("");
     setBody("");
     setCreating(false);
@@ -67,7 +78,7 @@ export default function Support() {
         <Button className="gap-1.5" onClick={() => { setCreating(true); setCurrent(null); }} disabled={missing}><Plus className="h-4 w-4" />{tr("Nouvelle demande", "طلب جديد", "New request")}</Button>
       </div>
 
-      {missing && <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">{tr("Le support sera disponible après la mise à jour de la base de données (migration 20261107090000).", "سيتوفر الدعم بعد تحديث قاعدة البيانات.", "Support will be available after the database update.")}</p>}
+      {missing && <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">{tr("Le support sera disponible après la mise à jour de la base de données (migration 20261108090000_support_desk).", "سيتوفر الدعم بعد تحديث قاعدة البيانات.", "Support will be available after the database update.")}</p>}
 
       <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
         <aside className="space-y-2">
@@ -78,9 +89,13 @@ export default function Support() {
               <li key={t.id}>
                 <button type="button" onClick={() => { setCurrent(t.id); setCreating(false); }}
                   className={cn("w-full rounded-lg border px-3 py-2 text-start text-sm hover:bg-muted", current === t.id && "border-primary bg-muted")}>
-                  <span className="block truncate font-medium">{t.subject}</span>
+                  <span className="flex items-center gap-1.5">
+                    {unreadForAuthor(t) && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label={tr("Nouvelle réponse", "رد جديد", "New reply")} />}
+                    <span className={cn("block truncate", unreadForAuthor(t) ? "font-semibold" : "font-medium")}>{t.number ? `#${t.number} ` : ""}{t.subject}</span>
+                  </span>
+                  {t.last_message_preview && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{t.last_from_staff ? tr("Support : ", "الدعم: ", "Support: ") : ""}{t.last_message_preview}</span>}
                   <span className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span className={cn("rounded-full px-2", ticketStatusTone(t.status))}>{ticketStatusLabel(t.status, tr)}</span>
+                    <span className={cn("rounded-full px-2", ticketStatusTone(t.status))}>{ticketStatusLabelAuthor(t.status, tr)}</span>
                     {new Date(t.updated_at).toLocaleDateString(locale)}
                   </span>
                 </button>
@@ -89,7 +104,7 @@ export default function Support() {
           </ul>
         </aside>
 
-        <div className="rounded-xl border bg-card p-4">
+        <div className={cn("rounded-xl border bg-card p-4", ticket && !creating && "flex flex-col lg:h-[calc(100dvh-13rem)] lg:min-h-[32rem]")}>
           {creating ? (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
@@ -105,13 +120,27 @@ export default function Support() {
                 </div>
               </div>
               <div className="space-y-1.5"><Label htmlFor="sp-body">{tr("Message", "الرسالة", "Message")}</Label><Textarea id="sp-body" rows={5} value={body} onChange={e => setBody(e.target.value)} maxLength={5000} /></div>
-              <div className="flex justify-end gap-2">
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {files.map((f, i) => (
+                    <span key={i} className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-lg border bg-background px-2 py-1 text-xs">
+                      <span className="truncate">{f.name}</span><span className="text-muted-foreground">{formatBytes(f.size)}</span>
+                      <button type="button" onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} aria-label={tr("Retirer", "إزالة", "Remove")}><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <label className="me-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted">
+                  <Paperclip className="h-4 w-4" />{tr("Joindre des fichiers (photos, vidéos, documents…)", "إرفاق ملفات", "Attach files")}
+                  <input type="file" multiple accept={SUPPORT_ACCEPT} hidden onChange={e => { setFiles(prev => [...prev, ...Array.from(e.target.files || [])].slice(0, 10)); e.target.value = ""; }} />
+                </label>
                 <Button variant="outline" onClick={() => setCreating(false)}>{tr("Annuler", "إلغاء", "Cancel")}</Button>
-                <Button onClick={create} disabled={subject.trim().length < 2 || !body.trim()}>{tr("Envoyer", "إرسال", "Send")}</Button>
+                <Button onClick={create} disabled={sending || subject.trim().length < 2 || !body.trim()}>{sending ? tr("Envoi…", "جارٍ الإرسال…", "Sending…") : tr("Envoyer", "إرسال", "Send")}</Button>
               </div>
             </div>
           ) : ticket ? (
-            <SupportThread ticket={ticket} staff={false} tr={tr} locale={locale} onChanged={load} />
+            <SupportThread key={ticket.id} ticket={ticket} staff={false} tr={tr} locale={locale} onChanged={load} />
           ) : (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold">{tr("Questions fréquentes", "أسئلة شائعة", "Frequent questions")}</h2>
