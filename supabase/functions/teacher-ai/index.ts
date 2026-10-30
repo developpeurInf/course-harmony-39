@@ -30,7 +30,7 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400, diagnostic: 120 } as const; // diagnostic : 4 parties par analyse
+const DAILY_LIMIT = { quiz: 40, lesson_plan: 40, omr: 400, diagnostic: 120, remediation: 6 } as const; // diagnostic : 4 parties par analyse
 const MAX_TEXT = 60000;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const LANG = { ar: "Arabic (Modern Standard Arabic, as used in Moroccan schools)", fr: "French", en: "English" } as const;
@@ -40,6 +40,30 @@ const SYSTEM =
   "You write classroom material that a teacher will review before use: precise, correct, adapted to the stated level, " +
   "using the official Moroccan curriculum vocabulary. Mathematical expressions are written in LaTeX between $...$. " +
   "Base the content strictly on the course material provided when there is one; do not invent facts outside it.";
+
+// Remédiation pour l'élève : exercices ciblés sur ses erreurs d'un quiz
+const REMEDIATION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["summary", "exercises"],
+  properties: {
+    summary: { type: "string" },
+    exercises: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["skill", "statement", "hint", "answer"],
+        properties: {
+          skill: { type: "string" },
+          statement: { type: "string" },
+          hint: { type: "string" },
+          answer: { type: "string" },
+        },
+      },
+    },
+  },
+} as const;
 
 const QUIZ_SCHEMA = {
   type: "object",
@@ -334,6 +358,49 @@ async function callAnthropic(apiKey: string, model: string, content: any[], sche
   };
 }
 
+/** Exercices de remédiation à partir des questions ratées d'une copie de quiz de l'élève */
+async function remediation(admin: any, uid: string, body: any, provider: string, apiKey: string, deadline: number) {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count } = await admin.from("ai_usage").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("kind", "remediation").gte("created_at", since);
+  if ((count || 0) >= DAILY_LIMIT.remediation) return json({ error: "DAILY_LIMIT" }, 429);
+  const { data: sub } = await admin.from("quiz_submissions").select("id, student_id, exam_id").eq("id", body?.submission_id).maybeSingle();
+  if (!sub || sub.student_id !== uid) return json({ error: "ACCESS_DENIED" }, 403);
+  const { data: exam } = await admin.from("exams").select("title, course_id").eq("id", sub.exam_id).maybeSingle();
+  const { data: course } = exam?.course_id ? await admin.from("courses").select("title, professor_id").eq("id", exam.course_id).maybeSingle() : { data: null };
+  if (course?.professor_id) {
+    const { data: s } = await admin.from("app_settings").select("data").eq("id", 1).maybeSingle();
+    if (s?.data?.features?.progress === false) return json({ error: "PERMISSION_DENIED" }, 403);
+  }
+  const { data: answers } = await admin.from("quiz_answers").select("question_id, is_correct, text_answer, selected_option_id").eq("submission_id", sub.id);
+  const wrong = (answers || []).filter((a: any) => a.is_correct === false);
+  if (!wrong.length) return json({ error: "NOTHING_TO_REMEDIATE" }, 400);
+  const ids = wrong.map((a: any) => a.question_id);
+  const [{ data: qs }, { data: opts }] = await Promise.all([
+    admin.from("quiz_questions").select("id, question").in("id", ids),
+    admin.from("quiz_options").select("id, question_id, option_text, is_correct").in("question_id", ids),
+  ]);
+  const strip = (h: string) => String(h || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 600);
+  const lines = wrong.slice(0, 12).map((a: any, i: number) => {
+    const q = (qs || []).find((x: any) => x.id === a.question_id);
+    const right = (opts || []).filter((o: any) => o.question_id === a.question_id && o.is_correct).map((o: any) => strip(o.option_text)).join(" / ");
+    const given = a.selected_option_id ? strip((opts || []).find((o: any) => o.id === a.selected_option_id)?.option_text) : strip(a.text_answer);
+    return `${i + 1}. Question: ${strip(q?.question)}\n   Student answer: ${given || "(none)"}\n   Correct answer: ${right || "(open question)"}`;
+  });
+  const language: "ar" | "fr" | "en" = body?.language === "ar" ? "ar" : body?.language === "en" ? "en" : "fr";
+  const prompt =
+    `A student got these questions wrong in the quiz "${strip(exam?.title || "")}" (course: ${strip(course?.title || "")}).\n` + lines.join("\n") +
+    `\n\nWrite in ${LANG[language]}, addressing the student directly and kindly. summary: two sentences naming the misunderstood notions. ` +
+    "exercises: 3 to 6 short practice exercises, easier than or as hard as the missed questions, each targeting one missed notion (skill), " +
+    "with a hint and the full worked answer. Do not repeat the quiz questions word for word.";
+  const content = [{ type: "text", text: prompt }];
+  const model = Deno.env.get("TEACHER_AI_MODEL") || (provider === "gemini" ? "gemini-3.8-flash" : "claude-opus-5-5");
+  const r = provider === "gemini" ? await callGemini(apiKey, model, content, REMEDIATION_SCHEMA, deadline) : await callAnthropic(apiKey, model, content, REMEDIATION_SCHEMA);
+  if (r.refused) return json({ error: "REFUSED" }, 422);
+  if (r.truncated) return json({ error: "TOO_LONG" }, 422);
+  await admin.from("ai_usage").insert({ user_id: uid, kind: "remediation", input_tokens: r.usage.input_tokens, output_tokens: r.usage.output_tokens }).then(() => undefined, () => undefined);
+  return json({ remediation: JSON.parse(r.text) });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   // Marge sous la limite de durée des Edge Functions (150 s sur l'offre gratuite)
@@ -354,9 +421,13 @@ Deno.serve(async (req) => {
     const uid = who?.user?.id;
     if (!uid) return json({ error: "NOT_AUTHENTICATED" }, 401);
     const { data: prof } = await admin.from("profiles").select("role").eq("id", uid).maybeSingle();
+    const body = await req.json();
+    if (body?.action === "remediation") {
+      if (prof?.role !== "student") return json({ error: "STUDENTS_ONLY" }, 403);
+      return await remediation(admin, uid, body, provider, apiKey, deadline);
+    }
     if (prof?.role !== "professor") return json({ error: "PROFESSORS_ONLY" }, 403);
 
-    const body = await req.json();
     if (body?.material_id && body?.action === "omr") delete body.material_id;
     const action = body?.action;
     if (action !== "quiz" && action !== "lesson_plan" && action !== "omr" && action !== "diagnostic") return json({ error: "INVALID_ACTION" }, 400);

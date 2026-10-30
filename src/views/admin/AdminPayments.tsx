@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@/lib/router";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
+import { printInvoice } from "@/lib/invoicePrint";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,10 +48,12 @@ export default function AdminPayments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
-  const total = useMemo(() => rows.reduce((s, r) => s + Number(r.amount_mad || 0), 0), [rows]);
+  const kept = useMemo(() => rows.filter(r => !r.refunded_at), [rows]);
+  const total = useMemo(() => kept.reduce((s, r) => s + Number(r.amount_mad || 0), 0), [kept]);
+  const refunded = useMemo(() => rows.filter(r => r.refunded_at).reduce((s, r) => s + Number(r.amount_mad || 0), 0), [rows]);
   const byMethod = useMemo(() => {
     const m: Record<string, number> = {};
-    rows.forEach(r => (m[r.method] = (m[r.method] || 0) + Number(r.amount_mad || 0)));
+    kept.forEach(r => (m[r.method] = (m[r.method] || 0) + Number(r.amount_mad || 0)));
     return m;
   }, [rows]);
   const methodLabel = (id: string) => {
@@ -62,10 +65,12 @@ export default function AdminPayments() {
     const head = [
       L("Date", "التاريخ", "Date"), L("Professeur", "الأستاذ", "Teacher"), L("E-mail", "البريد الإلكتروني", "Email"), L("Offre", "العرض", "Plan"),
       L("Montant (MAD)", "المبلغ (درهم)", "Amount (MAD)"), L("Moyen", "الوسيلة", "Method"), L("Référence", "المرجع", "Reference"), L("Reçu", "الوصل", "Receipt"),
+      L("Remise (MAD)", "التخفيض (درهم)", "Discount (MAD)"), L("Code promo", "رمز التخفيض", "Promo code"), L("Remboursé le", "مسترجع في", "Refunded on"),
     ];
     const lines = rows.map(r => [
       r.paid_at, names[r.teacher_id]?.name || "", names[r.teacher_id]?.email || "", r.subscriptions?.plans?.name || "",
       lang === "en" ? String(r.amount_mad) : String(r.amount_mad).replace(".", ","), methodLabel(r.method), r.reference || "", r.receipt_number || "",
+      r.discount_mad ? (lang === "en" ? String(r.discount_mad) : String(r.discount_mad).replace(".", ",")) : "", r.promo_code || "", r.refunded_at ? String(r.refunded_at).slice(0, 10) : "",
     ]);
     const csv = "﻿" + [head, ...lines].map(l => l.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
     downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `${L("paiements", "payments", "payments")}_${from}_${to}.csv`);
@@ -91,6 +96,12 @@ export default function AdminPayments() {
           <p className="text-xs text-muted-foreground">{L("Total", "المجموع", "Total")}</p>
           <p className="text-lg font-semibold">{loading ? "…" : fmtMoney(total, lang)}</p>
         </div>
+        {refunded > 0 && (
+          <div className="rounded-xl border border-red-200 bg-card px-3 py-2 dark:border-red-900">
+            <p className="text-xs text-muted-foreground">{L("Remboursé", "مسترجع", "Refunded")}</p>
+            <p className="text-sm font-semibold text-red-600">{fmtMoney(refunded, lang)}</p>
+          </div>
+        )}
         {Object.entries(byMethod).map(([m, v]) => (
           <div key={m} className="rounded-xl border bg-card px-3 py-2">
             <p className="text-xs text-muted-foreground">{methodLabel(m)}</p>
@@ -110,16 +121,22 @@ export default function AdminPayments() {
         ) : (
           <ul className="divide-y">
             {rows.map(r => (
-              <li key={r.id}>
-                <Link to={`/admin/teachers/${r.teacher_id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/40">
+              <li key={r.id} className="flex items-center gap-1 pe-2 hover:bg-muted/40">
+                <Link to={`/admin/teachers/${r.teacher_id}`} className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 px-4 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{names[r.teacher_id]?.name || "—"}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {fmtDate(r.paid_at, lang)} · {methodLabel(r.method)}{r.subscriptions?.plans?.name ? ` · ${r.subscriptions.plans.name}` : ""}{r.reference ? ` · ${r.reference}` : ""}
+                      {r.promo_code ? ` · ${L("code", "رمز", "code")} ${r.promo_code}` : ""}
+                      {r.refunded_at ? ` · ${L("remboursé", "مسترجع", "refunded")}` : ""}
                     </p>
                   </div>
-                  <span className="text-sm font-semibold">{fmtMoney(r.amount_mad, lang)}</span>
+                  <span className={`text-sm font-semibold ${r.refunded_at ? "line-through opacity-60" : ""}`}>{fmtMoney(r.amount_mad, lang)}</span>
                 </Link>
+                <Button size="icon" variant="ghost" title={L("Facture", "فاتورة", "Invoice")}
+                  onClick={() => printInvoice(r, { name: names[r.teacher_id]?.name || "—", email: names[r.teacher_id]?.email }, r.subscriptions ? { plans: r.subscriptions.plans } : null, lang)}>
+                  <Printer className="h-4 w-4" />
+                </Button>
               </li>
             ))}
           </ul>

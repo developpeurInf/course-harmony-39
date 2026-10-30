@@ -5,6 +5,7 @@ import { useAuth, UserProfile, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { COURSE_BUCKET, getFileKind, isExternalUrl, parseVideoUrl, storagePathFromPublicUrl, uploadMaterialFile } from "@/lib/courseMedia";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 // Types
 export interface Room {
@@ -13,6 +14,8 @@ export interface Room {
   description: string;
   professor_id: string;
   is_visible: boolean;
+  /** classe archivée (fin d'année) : masquée des listes par défaut */
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -25,9 +28,20 @@ export interface Course {
   professor_id: string;
   room_id?: string;
   pdf_url?: string;
+  /** ordre choisi par le professeur (null = date de création) */
+  position?: number | null;
+  /** publication programmée : le cours devient visible à cette date */
+  publish_at?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** Ordre des cours : position choisie d'abord, puis du plus récent au plus ancien */
+export const sortCourses = <T extends { position?: number | null; created_at: string }>(list: T[]): T[] =>
+  [...list].sort((a, b) => {
+    const pa = a.position ?? Number.MAX_SAFE_INTEGER, pb = b.position ?? Number.MAX_SAFE_INTEGER;
+    return pa !== pb ? pa - pb : b.created_at.localeCompare(a.created_at);
+  });
 
 export interface Exercise {
   id: string;
@@ -421,6 +435,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const lastFetchRef = useRef<{ key: string; at: number; href: string } | null>(null);
   const inFlightRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   const fetchSeqRef = useRef(0);
+  const publishCheckedRef = useRef(false);
   /** room_id du périmètre affiché ('' = vue globale) */
   const scopeRoomRef = useRef<string>("");
 
@@ -477,6 +492,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     const run = async () => {
       if (!hasDataRef.current) setLoading(true);
       try {
+        // Contenus programmés arrivés à échéance (sans effet si la migration n'est pas appliquée)
+        if (!publishCheckedRef.current) {
+          publishCheckedRef.current = true;
+          await (supabase as any).rpc('publish_scheduled_content').then(() => undefined, () => undefined);
+        }
         // Fetch rooms first - always get all rooms for the professor
         let roomsQuery = supabase.from('rooms').select('*').order('created_at', { ascending: false });
         if (userRole === 'professor') {
@@ -542,43 +562,43 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         // limitées aux examens du périmètre. Repli sans filtre si la jointure est refusée.
         const questionsQuery = async () => {
           if (examCourseFilter) {
-            const res = await (supabase as any)
+            const res = await fetchAllRows((supabase as any)
               .from('quiz_questions')
               .select(`${QUESTION_COLUMNS}, exams!inner ( courses!inner ( ${examCourseFilter.column} ) )`)
               .eq(`exams.courses.${examCourseFilter.column}`, examCourseFilter.value)
-              .order('question_order', { ascending: true });
+              .order('question_order', { ascending: true }));
             if (!res.error) return res;
           }
-          return (supabase as any).from('quiz_questions').select(QUESTION_COLUMNS).order('question_order', { ascending: true });
+          return fetchAllRows((supabase as any).from('quiz_questions').select(QUESTION_COLUMNS).order('question_order', { ascending: true }));
         };
 
         // Copies : un élève ne lit que les siennes ; un professeur celles de ses examens
         const submissionsQuery = async () => {
           if (userRole === 'student') {
-            return (supabase as any)
+            return fetchAllRows((supabase as any)
               .from('quiz_submissions')
               .select(SUBMISSION_COLUMNS)
               .eq('student_id', userId)
-              .order('submitted_at', { ascending: false });
+              .order('submitted_at', { ascending: false }));
           }
           if (examCourseFilter) {
-            const res = await (supabase as any)
+            const res = await fetchAllRows((supabase as any)
               .from('quiz_submissions')
               .select(`${SUBMISSION_COLUMNS}, exams!inner ( courses!inner ( ${examCourseFilter.column} ) )`)
               .eq(`exams.courses.${examCourseFilter.column}`, examCourseFilter.value)
-              .order('submitted_at', { ascending: false });
+              .order('submitted_at', { ascending: false }));
             if (!res.error) return res;
           }
-          return (supabase as any).from('quiz_submissions').select(SUBMISSION_COLUMNS).order('submitted_at', { ascending: false });
+          return fetchAllRows((supabase as any).from('quiz_submissions').select(SUBMISSION_COLUMNS).order('submitted_at', { ascending: false }));
         };
 
         // Fetch all data in parallel
         const [roomsData, coursesData, exercisesData, examsData, enrollmentsData, questionsData, submissionsData] = await Promise.all([
-          roomsQuery,
-          coursesQuery,
-          exercisesQuery,
-          examsQuery,
-          enrollmentsQuery,
+          fetchAllRows<any>(roomsQuery),
+          fetchAllRows<any>(coursesQuery),
+          fetchAllRows<any>(exercisesQuery),
+          fetchAllRows<any>(examsQuery),
+          fetchAllRows<any>(enrollmentsQuery),
           questionsQuery(),
           submissionsQuery(),
         ]);
@@ -590,7 +610,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         else setRooms(roomsData.data || []);
 
         if (coursesData.error) console.error('Courses fetch error:', coursesData.error);
-        else setCourses(coursesData.data || []);
+        else setCourses(sortCourses(coursesData.data || []));
 
         let loadedExerciseIds: string[] | null = null;
         if (exercisesData.error) console.error('Exercises fetch error:', exercisesData.error);
@@ -694,7 +714,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const updateRoom = async (roomId: string, updates: Partial<Room>): Promise<boolean> => {
     if (!accessStore.guard("class.edit")) return false;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('rooms')
         .update(updates)
         .eq('id', roomId)
@@ -797,7 +817,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const updateCourse = async (courseId: string, updates: Partial<Course>): Promise<boolean> => {
     if (!accessStore.guard("course.edit")) return false;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('courses')
         .update(updates)
         .eq('id', courseId)

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@/lib/router";
-import { RefreshCw, CalendarPlus, Loader2 } from "lucide-react";
+import { RefreshCw, CalendarPlus, Loader2, BellRing } from "lucide-react";
+import { whatsappLink } from "./AdminTeacherExtras";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,15 @@ export default function AdminSubscriptions() {
     });
   };
 
+  const [sending, setSending] = useState(false);
+  const sendReminders = async () => {
+    setSending(true);
+    const { data, error } = await db.rpc("send_renewal_reminders");
+    setSending(false);
+    if (error) toast.error(error.message);
+    else toast.success(L(`${data || 0} relance(s) envoyée(s)`, `تم إرسال ${data || 0} تذكير(ات)`, `${data || 0} reminder(s) sent`));
+  };
+
   const doExtend = async (n: number) => {
     setBusy(true);
     let ok = 0;
@@ -171,7 +181,20 @@ export default function AdminSubscriptions() {
       <PageTitle
         title={L("Abonnements", "الاشتراكات", "Subscriptions")}
         subtitle={L("Suivi des dates de fin, renouvellements et prolongations, un par un ou en groupe.", "تتبع تواريخ النهاية والتجديد والتمديد، فرديا أو جماعيا.", "Track end dates, renew or extend one by one or in bulk.")}
+        actions={canEdit && (
+          <Button variant="outline" className="gap-1.5" disabled={sending} onClick={sendReminders}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
+            {L("Envoyer les relances", "إرسال التذكيرات", "Send reminders")}
+          </Button>
+        )}
       />
+      <p className="-mt-3 mb-3 text-xs text-muted-foreground">
+        {L(
+          "Relances automatiques : notification au prof 7 jours avant, la veille, puis le dernier jour de grâce (chaque jour à 8 h si pg_cron est activé dans Supabase, sinon avec ce bouton).",
+          "تذكيرات تلقائية: إشعار للأستاذ قبل 7 أيام، ثم قبل يوم، ثم في آخر يوم من المهلة (يوميا على الساعة 8 إذا فُعّل pg_cron في Supabase، وإلا بهذا الزر).",
+          "Automatic reminders: the teacher is notified 7 days before, the day before, then on the last grace day (daily at 8 am if pg_cron is enabled in Supabase, otherwise with this button)."
+        )}
+      </p>
       <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: "touch" } as any}>
         {filters.map(f => (
           <button key={f.id} type="button" onClick={() => { setFilter(f.id); setChecked({}); }}
@@ -243,6 +266,17 @@ export default function AdminSubscriptions() {
                     <p className="truncate text-xs text-muted-foreground">{t.plan_name || "—"} · {t.email}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {whatsappLink(t.phone, "") && t.ends_at && (
+                      <a
+                        href={whatsappLink(t.phone, L(
+                          `Bonjour ${t.name}, votre abonnement ${t.plan_name || ""} se termine le ${fmtDate(t.ends_at, lang)}. Vous pouvez le renouveler depuis « Mon abonnement ».`,
+                          `مرحبا ${t.name}، ينتهي اشتراكك ${t.plan_name || ""} في ${fmtDate(t.ends_at, lang)}. يمكنك تجديده من «اشتراكي».`,
+                          `Hello ${t.name}, your ${t.plan_name || ""} subscription ends on ${fmtDate(t.ends_at, lang)}. You can renew it from “My subscription”.`
+                        )) || "#"}
+                        target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                        className="rounded-md px-1.5 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                      >WhatsApp</a>
+                    )}
                     <span className="text-xs text-muted-foreground">{t.ends_at ? fmtDate(t.ends_at, lang) : L("sans fin", "بدون نهاية", "no end")}</span>
                     <StatusBadge status={t.account_status === "suspended" ? "suspended" : t.sub_status} />
                   </div>

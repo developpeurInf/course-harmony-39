@@ -57,6 +57,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import SearchInput from "@/components/SearchInput";
 import { matchesText } from "@/lib/search";
 import { StudentCourseCards, dueState } from "@/components/student/StudentWork";
+import { useCourseProgress } from "@/lib/courseProgress";
 import { useNow } from "@/hooks/useNow";
 import { isSmallScreen } from "@/lib/device";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
@@ -120,6 +121,7 @@ const Courses = () => {
   const [students, setStudents] = useState<UserProfile[]>([]);
   
   const isProfessor = user?.role === "professor";
+  const readProgress = useCourseProgress(isProfessor ? undefined : user?.id);
   const nowTs = useNow();
   // Liste des élèves : utile seulement à l'enseignant (dialogue d'inscription)
   useEffect(() => {
@@ -712,6 +714,7 @@ const Courses = () => {
                 pending: states.filter((st) => st !== "none").length,
                 late: states.filter((st) => st === "late").length,
                 exams: statsSource.exams.filter((e) => e.course_id === course.id).length,
+                readAt: readProgress[course.id] ? readProgress[course.id].read_at : undefined,
               };
             })}
           />

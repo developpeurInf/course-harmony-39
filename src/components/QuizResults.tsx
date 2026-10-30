@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { RemediationButton } from "@/components/progress/Remediation";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +63,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
     }
   };
   const isProfessor = user?.role === "professor";
+  const { feature } = useAppSettings();
 
   useEffect(() => {
     loadSubmissions();
@@ -313,6 +316,9 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                 
                 <div className="space-y-3">
                   <Progress value={percentage} className="h-2" />
+                  {!isProfessor && feature("progress") && submission.total_points > 0 && submission.score < submission.total_points && (
+                    <RemediationButton submissionId={submission.id} language={language} tr={tr} />
+                  )}
                   
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <div className="flex flex-wrap items-center gap-4">

@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, Eraser, Pencil, Check, X, Loader2 } from "lucide-react";
+import { Building, Plus, Trash2, Edit, Users, BookOpen, FileText, Calendar, AlertTriangle, Eraser, Pencil, Check, X, Loader2, Copy, Archive, ArchiveRestore } from "lucide-react";
+import { DuplicateRoomDialog, archiveRoom } from "@/components/rooms/RoomYearTools";
 import ClearRoomDialog from "@/components/ClearRoomDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +24,7 @@ interface Room {
   name: string;
   description?: string;
   is_visible: boolean;
+  archived_at?: string | null;
   created_at: string;
   professor_id: string;
   _count?: {
@@ -38,6 +40,8 @@ const ClassManagement = () => {
   const { t, language } = useLanguage();
   const { rooms, addRoom, updateRoom, deleteRoom, refreshData } = useCourses();
   const [clearTarget, setClearTarget] = useState<Room | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<Room | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -69,7 +73,10 @@ const ClassManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomKey, user?.id]);
 
-  const roomsWithCounts: Room[] = rooms.map(r => ({ ...(r as any), _count: counts[r.id] || { courses: 0, students: 0, exercises: 0, exams: 0 } }));
+  const archivedCount = rooms.filter(r => r.archived_at).length;
+  const roomsWithCounts: Room[] = rooms
+    .filter(r => showArchived || !r.archived_at)
+    .map(r => ({ ...(r as any), _count: counts[r.id] || { courses: 0, students: 0, exercises: 0, exams: 0 } }));
 
   /** Lit toutes les lignes (pagination par 1000, limite par défaut de l'API). */
   const fetchAll = async <T,>(make: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>): Promise<T[]> => {
@@ -337,6 +344,7 @@ const ClassManagement = () => {
     ) : (
       <span className="group/name inline-flex items-center gap-1.5 min-w-0">
         <span className={`truncate ${big ? "" : "font-medium"}`}>{room.name}</span>
+        {room.archived_at && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{tr("Archivée", "مؤرشف", "Archived")}</span>}
         <button
           type="button"
           onClick={e => { e.stopPropagation(); startRename(room); }}
@@ -360,6 +368,26 @@ const ClassManagement = () => {
         title={tr("Modifier", "تعديل", "Edit")}
       >
         <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={iconBtn}
+        onClick={() => setDuplicateTarget(room)}
+        aria-label={tr(`Dupliquer la classe ${room.name}`, `نسخ القسم ${room.name}`, `Duplicate class ${room.name}`)}
+        title={tr("Dupliquer pour l'année suivante", "نسخ للسنة المقبلة", "Duplicate for next year")}
+      >
+        <Copy className="h-4 w-4 text-muted-foreground" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={iconBtn}
+        onClick={async () => { if (await archiveRoom(room.id, !room.archived_at, tr)) refreshData(undefined, { force: true }); }}
+        aria-label={room.archived_at ? tr(`Désarchiver ${room.name}`, `إلغاء أرشفة ${room.name}`, `Unarchive ${room.name}`) : tr(`Archiver ${room.name}`, `أرشفة ${room.name}`, `Archive ${room.name}`)}
+        title={room.archived_at ? tr("Désarchiver", "إلغاء الأرشفة", "Unarchive") : tr("Archiver (fin d'année)", "أرشفة (نهاية السنة)", "Archive (end of year)")}
+      >
+        {room.archived_at ? <ArchiveRestore className="h-4 w-4 text-muted-foreground" /> : <Archive className="h-4 w-4 text-muted-foreground" />}
       </Button>
       <Button
         variant="ghost"
@@ -416,6 +444,12 @@ const ClassManagement = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {archivedCount > 0 && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowArchived(v => !v)} aria-pressed={showArchived}>
+              <Archive className="h-4 w-4" />
+              {showArchived ? tr("Masquer les archives", "إخفاء الأرشيف", "Hide archived") : tr(`Archives (${archivedCount})`, `الأرشيف (${archivedCount})`, `Archived (${archivedCount})`)}
+            </Button>
+          )}
           <ViewToggle
             view={viewMode}
             onViewChange={(view) => setViewMode(view)}
@@ -681,6 +715,7 @@ const ClassManagement = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <DuplicateRoomDialog room={duplicateTarget} onClose={() => setDuplicateTarget(null)} tr={tr} onDone={() => refreshData(undefined, { force: true })} />
       <ClearRoomDialog
         open={!!clearTarget}
         onOpenChange={(o) => { if (!o) setClearTarget(null); }}

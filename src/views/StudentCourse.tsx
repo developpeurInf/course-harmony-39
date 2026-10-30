@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Building, ChevronRight, ClipboardCheck, FileText, Layers } from "lucide-react";
+import { BookOpen, Building, CheckCircle2, ChevronRight, ClipboardCheck, FileText, Layers } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { markCourseOpened, setCourseRead, useCourseProgress } from "@/lib/courseProgress";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, type Exercise } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -71,6 +74,24 @@ const StudentCourse = () => {
     };
   }, [courseId]);
 
+  // Progression de lecture : ouverture enregistrée, « Marquer comme lu »
+  const progress = useCourseProgress(isProfessor ? undefined : user?.id);
+  const [readAt, setReadAt] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (courseId && progress[courseId]) setReadAt(progress[courseId].read_at);
+  }, [progress, courseId]);
+  useEffect(() => {
+    if (!isProfessor && user && courseId && course) void markCourseOpened(user.id, courseId);
+  }, [isProfessor, user, courseId, course]);
+  const toggleRead = async () => {
+    if (!user || !courseId) return;
+    const next = !readAt;
+    if (await setCourseRead(user.id, courseId, next)) {
+      setReadAt(next ? new Date().toISOString() : null);
+      if (next) toast.success(tr("Chapitre marqué comme lu", "تم تعليم الدرس كمقروء", "Chapter marked as read"));
+    }
+  };
+
   // Pièces jointes des exercices
   const exerciseIds = courseExercises.map((e) => e.id).join(",");
   useEffect(() => {
@@ -134,7 +155,15 @@ const StudentCourse = () => {
         )}
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{course.title}</h1>
         {course.description && <p className="max-w-3xl whitespace-pre-line text-muted-foreground">{course.description}</p>}
-        <p className="text-xs text-muted-foreground">{tr("Mis à jour le", "آخر تحديث", "Updated")} {formatDate(course.updated_at || course.created_at, language)}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs text-muted-foreground">{tr("Mis à jour le", "آخر تحديث", "Updated")} {formatDate(course.updated_at || course.created_at, language)}</p>
+          {!isProfessor && user && (
+            <Button size="sm" variant={readAt ? "secondary" : "outline"} className="h-8 gap-1.5" onClick={toggleRead}>
+              <CheckCircle2 className={cn("h-3.5 w-3.5", readAt && "text-emerald-600")} />
+              {readAt ? tr("Lu ✓", "مقروء ✓", "Read ✓") : tr("Marquer comme lu", "تعليم كمقروء", "Mark as read")}
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* Résumé : accès direct aux sections */}

@@ -1,4 +1,5 @@
 import { accessStore, useAccess } from "@/contexts/AccessContext";
+import { DiagnosticCompare } from "@/components/diagnostic/DiagnosticCompare";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1372,6 +1373,7 @@ export const DiagnosticEvaluation: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:flex-wrap md:items-center">
+          <DiagnosticCompare classes={appData.classes} tr={tx} lang={lang} />
           <Button
             variant="outline"
             size="sm"

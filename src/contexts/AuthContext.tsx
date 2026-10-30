@@ -64,9 +64,6 @@ const sameProfile = (a: UserProfile | null, b: UserProfile | null): boolean => {
     (a.username || null) === (b.username || null);
 };
 
-/** Échappe les jokers de LIKE (%, _ et \) pour une comparaison exacte insensible à la casse */
-const escapeLike = (v: string) => v.replace(/[\\%_]/g, (c) => "\\" + c);
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -305,7 +302,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (profile) {
-          if (profile.role !== 'professor') {
+          // un compte élève reste élève, même connecté par e-mail
+          if (profile.role !== 'professor' && profile.role !== 'student') {
             await supabase.from('profiles').update({ role: 'professor' }).eq('id', data.user.id);
             profile.role = 'professor';
           }
@@ -401,25 +399,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       // Code Massar comparé sans tenir compte des majuscules / minuscules
       // (ilike sans joker = égalité insensible à la casse)
-      const { data: rows, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email, username, temporary_password')
-        .ilike('username', escapeLike(cleanUsername))
-        .eq('role', 'student')
-        .limit(5);
+      // l'e-mail technique de l'élève est retrouvé côté serveur (la table profiles
+      // n'est plus lisible sans être connecté)
+      const { data: email, error: lookupError } = await (supabase as any).rpc('student_login_email', { p_username: cleanUsername });
 
-      const list = rows || [];
-      // correspondance exacte d'abord, sinon la seule correspondance insensible à la casse
-      const profile = list.find(r => r.username === cleanUsername) || (list.length === 1 ? list[0] : null);
-
-      if (profileError || !profile || !profile.email) {
+      if (lookupError || !email) {
         invalid();
         return false;
       }
 
       // Login directly with Supabase Auth using the student's email and password
       const { error } = await supabase.auth.signInWithPassword({
-        email: profile.email,
+        email: String(email),
         password: password
       });
 
@@ -428,12 +419,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // If temporary_password is still active and matches what was entered, prompt first-login choice
-      if (profile.temporary_password && profile.temporary_password === password) {
-        setIsFirstLogin(true);
-      } else {
-        setIsFirstLogin(false);
-      }
+      // Mot de passe provisoire encore actif : proposer de le changer
+      const { data: isTemp } = await (supabase as any).rpc('is_my_temporary_password', { p_password: password });
+      setIsFirstLogin(!!isTemp);
 
       return true;
     } catch (error) {

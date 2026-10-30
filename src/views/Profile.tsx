@@ -23,6 +23,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
+import { NotificationPrefsCard } from "@/components/NotificationPrefsCard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -210,6 +211,7 @@ const Profile = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Information */}
         <div className="lg:col-span-2 space-y-6">
+          <NotificationPrefsCard student={isStudent} />
           <Card className="shadow-xs border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">

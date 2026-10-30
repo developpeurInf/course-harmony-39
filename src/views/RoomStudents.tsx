@@ -12,7 +12,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, Edit, Info, KeyRound, BellOff, Loader2, Copy, Check, ArrowRightLeft } from "lucide-react";
+import { Users, UserX, Edit, Info, KeyRound, BellOff, Loader2, Copy, Check, ArrowRightLeft, IdCard } from "lucide-react";
+import { printCredentialCards } from "@/lib/credentialCards";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StudentExcelManager } from "@/components/StudentExcelManager";
@@ -26,6 +27,7 @@ import { matchesStudent, type StudentSearchMode } from "@/lib/search";
 import { isSmallScreen } from "@/lib/device";
 import ViewToggle from "@/components/ViewToggle";
 import { localeFor } from "@/lib/formatDate";
+import { fetchRoomPasswords } from "@/lib/studentPasswords";
 
 /** Mot de passe aléatoire (crypto.getRandomValues, repli Math.random sur très vieux navigateurs). */
 const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -131,7 +133,7 @@ const RoomStudents = () => {
       // Get students specifically for this room
       const { data: roomStudents, error: roomStudentsError } = await supabase
         .from('profiles')
-        .select('id, name, email, username, role, avatar_url, created_at, temporary_password')
+        .select('id, name, email, username, role, avatar_url, created_at')
         .eq('role', 'student')
         .eq('room_id', roomId);
 
@@ -141,7 +143,8 @@ const RoomStudents = () => {
         return;
       }
 
-      setStudents(roomStudents || []);
+      const passwords = await fetchRoomPasswords(roomId);
+      setStudents((roomStudents || []).map((s: any) => ({ ...s, temporary_password: passwords.get(s.id) || undefined })));
 
     } catch (error) {
       console.error('Error in loadStudents:', error);
@@ -325,6 +328,18 @@ const RoomStudents = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {students.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs h-8"
+              onClick={() => printCredentialCards([...students].sort((a, b) => a.name.localeCompare(b.name)), rooms.find(r => r.id === roomId)?.name || "", language as "fr" | "ar" | "en")}
+              title={tr("Imprimer une carte par élève avec son identifiant et son mot de passe provisoire", "طباعة بطاقة لكل تلميذ ببيانات دخوله", "Print one card per student with their username and temporary password")}
+            >
+              <IdCard className="h-3.5 w-3.5" />
+              <span>{tr("Cartes d'identifiants", "بطاقات الدخول", "Credential cards")}</span>
+            </Button>
+          )}
           {roomId && (
             <AlertDialog>
               <AlertDialogTrigger asChild>

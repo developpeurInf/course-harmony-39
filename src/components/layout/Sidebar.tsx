@@ -27,6 +27,9 @@ import {
   CalendarCheck,
   Layers,
   Library,
+  LibraryBig,
+  LifeBuoy,
+  TrendingUp,
   BookOpenCheck,
   Table2,
   Sparkles,
@@ -127,7 +130,7 @@ const Sidebar = () => {
   const getEnrolledRooms = () => {
     if (isProfessor) {
       if (!can("class.view")) return []; // habilitation « Voir ses classes » retirée
-      return rooms.filter((room) => room.professor_id === user?.id);
+      return rooms.filter((room) => room.professor_id === user?.id && !room.archived_at);
     }
     if (!user) return [];
     const studentEnrollments = enrollments.filter((e) => e.student_id === user.id);
@@ -307,6 +310,7 @@ const Sidebar = () => {
               {show("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
               {show("lessonLog") && <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />}
               {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
+              {show("progress") && <NavItem to="/progress" icon={TrendingUp} label={t("Ma progression", "تقدمي", "My progress")} />}
             </>
           )}
         </div>
@@ -332,6 +336,8 @@ const Sidebar = () => {
               <NavItem to="/pdf-editor" icon={FilePen} label={t("Éditeur PDF", "محرر PDF", "PDF editor")} locked={!can("pdf.use")} />
             )}
             {show("classManagement") && <NavItem to="/class-management" icon={FolderKanban} label={t("Gestion des classes", "إدارة الأقسام", "Manage classes")} />}
+            {show("library") && <NavItem to="/library" icon={LibraryBig} label={t("Bibliothèque partagée", "المكتبة المشتركة", "Shared library")} locked={!can("library.import")} />}
+            {feature("support") && <NavItem to="/support" icon={LifeBuoy} label={t("Aide et support", "المساعدة والدعم", "Help & support")} />}
           </div>
         )}
 

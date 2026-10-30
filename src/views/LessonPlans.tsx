@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, FileText, Loader2, Pencil, Plus, Printer, Save, Sparkles, Trash2 } from "lucide-react";
+import { PublishToLibraryButton } from "@/components/library/LibraryShared";
 import { toast } from "sonner";
 import { Navigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -210,6 +211,7 @@ const LessonPlans = () => {
                     <button type="button" className="min-w-0 flex-1 truncate text-start" onClick={() => { setPlan(s.content); setPreview(null); setPlanId(s.id); setPlanLang(s.language === "ar" ? "ar" : "fr"); }}>
                       {s.title}{s.level ? <span className="text-xs text-muted-foreground"> · {s.level}</span> : null}
                     </button>
+                    <PublishToLibraryButton kind="lesson_plan" sourceId={s.id} tr={tr} iconOnly />
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => void remove(s.id)} aria-label={tr("Supprimer", "حذف", "Delete")}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </li>
                 ))}

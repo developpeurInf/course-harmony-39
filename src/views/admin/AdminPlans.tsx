@@ -149,9 +149,13 @@ export default function AdminPlans() {
                 <div className="flex flex-shrink-0 gap-1">
                   {p.is_trial_plan && <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-primary  ">{L("ESSAI", "تجريبي", "TRIAL")}</span>}
                   {!p.is_active && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">{L("ARCHIVÉE", "مؤرشف", "ARCHIVED")}</span>}
+                  {p.is_public === false && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">{L("SUR INVITATION", "بدعوة", "INVITE-ONLY")}</span>}
                 </div>
               </div>
-              <p className="mt-2 text-2xl font-semibold">{fmtMoney(p.price_mad, lang)}</p>
+              <p className="mt-2 text-2xl font-semibold">
+                {fmtMoney(p.price_mad, lang)}
+                {p.compare_at_mad && Number(p.compare_at_mad) > Number(p.price_mad) && <span className="ms-2 text-sm font-normal text-muted-foreground line-through">{fmtMoney(p.compare_at_mad, lang)}</span>}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {period(p.billing_period)}
                 {p.billing_period !== "unlimited" && ` · ${p.duration_days ? `${p.duration_days} ${L("jours", "يوم", "days")}` : L("sans fin", "بدون نهاية", "no end")}`}
@@ -281,14 +285,14 @@ function PlanEditor({ plan, onClose, catalog, content, fullModules, onSaved }: {
     setCreatedId("");
     setNeedsReload(false);
     if (plan === "new") {
-      setF({ name: "", description: "", price_mad: "0", billing_period: "school_year", duration_days: "300", trial_days: "14", grace_days: "7", is_active: true, is_trial_plan: false, color: "indigo", sort_order: "10" });
+      setF({ name: "", description: "", price_mad: "0", billing_period: "school_year", duration_days: "300", trial_days: "14", grace_days: "7", is_active: true, is_trial_plan: false, is_public: true, compare_at_mad: "", color: "indigo", sort_order: "10" });
       const s: Record<string, boolean> = {};
       catalog.filter(c => c.kind === "feature" && !c.is_write).forEach(c => (s[c.key] = true));
       setSel(s);
       setLimits({});
       setFull(new Set());
     } else {
-      setF({ ...plan, price_mad: String(plan.price_mad ?? 0), duration_days: plan.duration_days === null ? "" : String(plan.duration_days), trial_days: String(plan.trial_days ?? 0), grace_days: String(plan.grace_days ?? 7), sort_order: String(plan.sort_order ?? 0) });
+      setF({ ...plan, is_public: plan.is_public !== false, compare_at_mad: plan.compare_at_mad == null ? "" : String(plan.compare_at_mad), price_mad: String(plan.price_mad ?? 0), duration_days: plan.duration_days === null ? "" : String(plan.duration_days), trial_days: String(plan.trial_days ?? 0), grace_days: String(plan.grace_days ?? 7), sort_order: String(plan.sort_order ?? 0) });
       const s: Record<string, boolean> = {};
       const l: Record<string, string> = {};
       Object.values(content).forEach((c: any) => {
@@ -341,6 +345,9 @@ function PlanEditor({ plan, onClose, catalog, content, fullModules, onSaved }: {
       duration_days: f.duration_days === "" ? null : Number(f.duration_days), trial_days: Number(f.trial_days || 0),
       grace_days: Number(f.grace_days || 0), is_active: !!f.is_active, is_trial_plan: !!f.is_trial_plan, color: f.color,
       sort_order: Number(f.sort_order || 0),
+      // colonnes ajoutées par 20261106090000_admin_tools.sql
+      ...(f.is_public !== undefined ? { is_public: f.is_public !== false } : {}),
+      ...(f.compare_at_mad !== undefined ? { compare_at_mad: f.compare_at_mad === "" ? null : Number(f.compare_at_mad) } : {}),
     };
     setSaveError("");
     let planId = plan !== "new" && plan ? plan.id : createdId;
@@ -450,6 +457,10 @@ function PlanEditor({ plan, onClose, catalog, content, fullModules, onSaved }: {
               <Label htmlFor="plan-f-2">{L("Prix (MAD)", "الثمن (درهم)", "Price (MAD)")}</Label>
               <Input id="plan-f-2" type="number" min="0" step="0.01" value={f.price_mad || ""} onChange={e => setF({ ...f, price_mad: e.target.value })} />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="plan-f-2b">{L("Prix barré (MAD, facultatif)", "الثمن قبل التخفيض (اختياري)", "Compare-at price (MAD, optional)")}</Label>
+              <Input id="plan-f-2b" type="number" min="0" step="0.01" value={f.compare_at_mad || ""} onChange={e => setF({ ...f, compare_at_mad: e.target.value })} />
+            </div>
             <div className="space-y-1.5 sm:col-span-3">
               <Label htmlFor="plan-f-3">{L("Description", "الوصف", "Description")}</Label>
               <Textarea id="plan-f-3" rows={2} value={f.description || ""} onChange={e => setF({ ...f, description: e.target.value })} />
@@ -491,6 +502,7 @@ function PlanEditor({ plan, onClose, catalog, content, fullModules, onSaved }: {
           </div>
           <div className="flex flex-wrap gap-x-4 text-sm">
             <label className="flex min-h-[40px] cursor-pointer items-center gap-3"><input type="checkbox" className="h-5 w-5 flex-shrink-0" checked={!!f.is_active} onChange={e => setF({ ...f, is_active: e.target.checked })} />{L("Proposée (non archivée)", "معروض (غير مؤرشف)", "Offered (not archived)")}</label>
+            <label className="flex min-h-[40px] cursor-pointer items-center gap-3"><input type="checkbox" className="h-5 w-5 flex-shrink-0" checked={f.is_public !== false} onChange={e => setF({ ...f, is_public: e.target.checked })} />{L("Visible par les profs (sinon : sur invitation, attribuée par l'admin)", "ظاهر للأساتذة (وإلا: بدعوة، تمنحه الإدارة)", "Visible to teachers (otherwise invite-only, assigned by admins)")}</label>
             <label className="flex min-h-[40px] cursor-pointer items-center gap-3"><input type="checkbox" className="h-5 w-5 flex-shrink-0" checked={!!f.is_trial_plan} onChange={e => setF({ ...f, is_trial_plan: e.target.checked })} />{L("Offre d'essai par défaut pour les nouveaux comptes", "عرض تجريبي افتراضي للحسابات الجديدة", "Default trial plan for new accounts")}</label>
           </div>
 

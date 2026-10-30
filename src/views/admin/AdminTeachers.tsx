@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@/lib/router";
-import { Plus, Search, Copy, Check, UserPlus, Eye, Pencil, Ban, PlayCircle, Trash2 } from "lucide-react";
+import { Plus, Search, Copy, Check, UserPlus, Eye, Pencil, Ban, PlayCircle, Trash2, Download, Loader2 } from "lucide-react";
+import { downloadBlob } from "@/lib/download";
+import { whatsappLink } from "./AdminTeacherExtras";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +12,7 @@ import { useAccess } from "@/contexts/AccessContext";
 import {
   adminInvoke, copyWithToast, db, endDateInput, fmtDate, fromDateInput, localDateStr, PageTitle, PAYMENT_METHODS, StatusBadge, useT,
 } from "./adminShared";
-import { DeleteTeacherDialog, EditTeacherDialog, suspensionConfirm } from "./TeacherDialogs";
+import { DeleteTeacherDialog, EditTeacherDialog, setTeacherSuspension, suspensionConfirm } from "./TeacherDialogs";
 import { useConfirm } from "./ConfirmDialog";
 
 export interface PlanRow {
@@ -26,6 +28,8 @@ export interface PlanRow {
   color: string;
   sort_order: number;
   description: string | null;
+  is_public?: boolean;
+  compare_at_mad?: number | null;
 }
 
 const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm";
@@ -38,6 +42,9 @@ export default function AdminTeachers() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [plan, setPlan] = useState("all");
+  const [sort, setSort] = useState("name");
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
@@ -58,13 +65,53 @@ export default function AdminTeachers() {
   const plans = useMemo(() => Array.from(new Set(rows.map(r => r.plan_name).filter(Boolean))) as string[], [rows]);
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return rows.filter(r => {
-      if (status !== "all" && (r.sub_status || "none") !== status) return false;
+    const month = Date.now() - 30 * 86400000;
+    const list = rows.filter(r => {
+      if (status === "inactive") {
+        if (r.last_sign_in_at && new Date(r.last_sign_in_at).getTime() > month) return false;
+      } else if (status !== "all" && (r.sub_status || "none") !== status) return false;
       if (plan !== "all" && r.plan_name !== plan) return false;
       if (!s) return true;
       return [r.name, r.email, r.school, r.city, r.phone].some(v => (v || "").toLowerCase().includes(s));
     });
-  }, [rows, q, status, plan]);
+    const time = (v: string | null) => (v ? new Date(v).getTime() : 0);
+    const by: Record<string, (a: any, b: any) => number> = {
+      name: (a, b) => String(a.name || "").localeCompare(String(b.name || "")),
+      created: (a, b) => time(b.created_at) - time(a.created_at),
+      ends: (a, b) => (time(a.ends_at) || Infinity) - (time(b.ends_at) || Infinity),
+      login: (a, b) => time(b.last_sign_in_at) - time(a.last_sign_in_at),
+      students: (a, b) => (b.students_count || 0) - (a.students_count || 0),
+    };
+    return [...list].sort(by[sort] || by.name);
+  }, [rows, q, status, plan, sort]);
+
+  const selected = filtered.filter(r => checked[r.user_id]);
+
+  const exportCsv = (list: any[]) => {
+    const head = [L("Nom", "الاسم", "Name"), "E-mail", L("Téléphone", "الهاتف", "Phone"), L("École", "المؤسسة", "School"), L("Ville", "المدينة", "City"),
+      L("Offre", "العرض", "Plan"), L("Statut", "الحالة", "Status"), L("Fin", "النهاية", "Ends"), L("Classes", "الأقسام", "Classes"), L("Élèves", "التلاميذ", "Students"),
+      L("Créé le", "أنشئ في", "Created"), L("Dernière connexion", "آخر دخول", "Last login")];
+    const lines = list.map(r => [r.name, r.email, r.phone || "", r.school || "", r.city || "", r.plan_name || "", r.account_status === "suspended" ? "suspended" : r.sub_status || "none",
+      r.ends_at ? String(r.ends_at).slice(0, 10) : "", r.classes_count, r.students_count, String(r.created_at || "").slice(0, 10), String(r.last_sign_in_at || "").slice(0, 10)]);
+    const csv = "\uFEFF" + [head, ...lines].map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `${L("professeurs", "الأساتذة", "teachers")}_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const bulkSuspend = (suspend: boolean) => ask({
+    title: suspend
+      ? L(`Suspendre ${selected.length} compte(s) ?`, `توقيف ${selected.length} حساب؟`, `Suspend ${selected.length} account(s)?`)
+      : L(`Réactiver ${selected.length} compte(s) ?`, `إعادة تفعيل ${selected.length} حساب؟`, `Reactivate ${selected.length} account(s)?`),
+    destructive: suspend,
+    input: suspend ? { label: L("Motif (facultatif)", "السبب (اختياري)", "Reason (optional)") } : undefined,
+    confirmLabel: suspend ? L("Suspendre", "توقيف", "Suspend") : L("Réactiver", "إعادة التفعيل", "Reactivate"),
+    onConfirm: async (reason: string) => {
+      setBulkBusy(true);
+      for (const r of selected) await setTeacherSuspension(r, suspend, reason, L);
+      setBulkBusy(false);
+      setChecked({});
+      void load();
+    },
+  });
 
   // Actions d'une ligne : voir, modifier, suspendre / réactiver, supprimer
   const RowActions = ({ r, labels }: { r: any; labels?: boolean }) => {
@@ -110,12 +157,15 @@ export default function AdminTeachers() {
         title={L("Professeurs", "الأساتذة", "Teachers")}
         subtitle={L(`${rows.length} compte(s)`, `${rows.length} حساب`, `${rows.length} account(s)`)}
         actions={
-          adminCan("admin.teachers.manage") && (
-            <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              {L("Nouveau professeur", "أستاذ جديد", "New teacher")}
-            </Button>
-          )
+          <>
+            <Button variant="outline" className="gap-1.5" onClick={() => exportCsv(filtered)} disabled={!filtered.length}><Download className="h-4 w-4" />CSV</Button>
+            {adminCan("admin.teachers.manage") && (
+              <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                {L("Nouveau professeur", "أستاذ جديد", "New teacher")}
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -132,12 +182,32 @@ export default function AdminTeachers() {
           <option value="expired">{L("Expiré", "منتهي", "Expired")}</option>
           <option value="suspended">{L("Suspendu", "موقوف", "Suspended")}</option>
           <option value="none">{L("Sans abonnement", "بدون اشتراك", "No subscription")}</option>
+          <option value="inactive">{L("Inactifs depuis 30 j", "غير نشطين منذ 30 يوما", "Inactive for 30 d")}</option>
+        </select>
+        <select aria-label={L("Trier", "ترتيب", "Sort")} value={sort} onChange={e => setSort(e.target.value)} className={`${selectCls} sm:w-44`}>
+          <option value="name">{L("Tri : nom", "ترتيب: الاسم", "Sort: name")}</option>
+          <option value="created">{L("Tri : plus récents", "ترتيب: الأحدث", "Sort: newest")}</option>
+          <option value="ends">{L("Tri : fin la plus proche", "ترتيب: أقرب نهاية", "Sort: ending soonest")}</option>
+          <option value="login">{L("Tri : dernière connexion", "ترتيب: آخر دخول", "Sort: last login")}</option>
+          <option value="students">{L("Tri : nombre d'élèves", "ترتيب: عدد التلاميذ", "Sort: students")}</option>
         </select>
         <select aria-label={L("Offre", "العرض", "Plan")} value={plan} onChange={e => setPlan(e.target.value)} className={`${selectCls} sm:w-44`}>
           <option value="all">{L("Toutes les offres", "كل العروض", "All plans")}</option>
           {plans.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
       </div>
+
+      {canManage && selected.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-accent p-2.5">
+          <span className="text-sm font-semibold">{selected.length} {L("sélectionné(s)", "محدد", "selected")}</span>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => exportCsv(selected)} className="gap-1.5"><Download className="h-3.5 w-3.5" />CSV</Button>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkSuspend(true)} className="gap-1.5 text-amber-700">
+            {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}{L("Suspendre", "توقيف", "Suspend")}
+          </Button>
+          <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkSuspend(false)} className="gap-1.5 text-emerald-700"><PlayCircle className="h-3.5 w-3.5" />{L("Réactiver", "إعادة التفعيل", "Reactivate")}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setChecked({})}>{L("Désélectionner", "إلغاء التحديد", "Clear")}</Button>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border bg-card">
         {loading ? (
@@ -154,11 +224,19 @@ export default function AdminTeachers() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs text-muted-foreground">
                   <tr>
+                    {canManage && (
+                      <th className="w-10 px-3 py-2.5">
+                        <input type="checkbox" className="h-4 w-4" aria-label={L("Tout sélectionner", "تحديد الكل", "Select all")}
+                          checked={filtered.length > 0 && selected.length === filtered.length}
+                          onChange={e => { const m: Record<string, boolean> = {}; if (e.target.checked) filtered.forEach(r => (m[r.user_id] = true)); setChecked(m); }} />
+                      </th>
+                    )}
                     <th className="px-4 py-2.5 text-start font-semibold">{L("Professeur", "الأستاذ", "Teacher")}</th>
                     <th className="px-4 py-2.5 text-start font-semibold">{L("École / ville", "المؤسسة / المدينة", "School / city")}</th>
                     <th className="px-4 py-2.5 text-start font-semibold">{L("Offre", "العرض", "Plan")}</th>
                     <th className="px-4 py-2.5 text-start font-semibold">{L("Statut", "الحالة", "Status")}</th>
                     <th className="px-4 py-2.5 text-start font-semibold">{L("Fin", "النهاية", "Ends")}</th>
+                    <th className="px-4 py-2.5 text-start font-semibold">{L("Connexion", "الدخول", "Login")}</th>
                     <th className="px-4 py-2.5 text-end font-semibold">{L("Classes / élèves", "الأقسام / التلاميذ", "Classes / students")}</th>
                     <th className="px-4 py-2.5 text-end font-semibold">{L("Actions", "إجراءات", "Actions")}</th>
                   </tr>
@@ -166,6 +244,12 @@ export default function AdminTeachers() {
                 <tbody className="divide-y">
                   {filtered.map(r => (
                     <tr key={r.user_id} className="hover:bg-muted/40">
+                      {canManage && (
+                        <td className="px-3 py-2.5">
+                          <input type="checkbox" className="h-4 w-4" aria-label={L(`Sélectionner ${r.name}`, `تحديد ${r.name}`, `Select ${r.name}`)}
+                            checked={!!checked[r.user_id]} onChange={e => setChecked({ ...checked, [r.user_id]: e.target.checked })} />
+                        </td>
+                      )}
                       <td className="px-4 py-2.5">
                         <Link to={`/admin/teachers/${r.user_id}`} className="block">
                           <span className="font-semibold text-foreground hover:text-primary">{r.name}</span>
@@ -176,6 +260,7 @@ export default function AdminTeachers() {
                       <td className="px-4 py-2.5">{r.plan_name || "—"}</td>
                       <td className="px-4 py-2.5"><StatusBadge status={r.account_status === "suspended" ? "suspended" : r.sub_status} /></td>
                       <td className="px-4 py-2.5 text-muted-foreground">{r.ends_at ? fmtDate(r.ends_at, lang) : L("Sans fin", "بدون نهاية", "No end")}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{r.last_sign_in_at ? fmtDate(r.last_sign_in_at, lang) : L("jamais", "أبدا", "never")}</td>
                       <td className="px-4 py-2.5 text-end tabular-nums">{r.classes_count} / {r.students_count}</td>
                       <td className="px-4 py-2.5"><RowActions r={r} /></td>
                     </tr>
@@ -312,6 +397,14 @@ export function CreateTeacherDialog({ open, onOpenChange, onCreated }: { open: b
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {L("Copier", "نسخ", "Copy")}
+              </Button>
+              {whatsappLink(f.phone, credentials) && (
+                <Button asChild type="button" variant="outline" className="gap-1.5 text-emerald-700">
+                  <a href={whatsappLink(f.phone, credentials) || "#"} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+                </Button>
+              )}
+              <Button asChild type="button" variant="outline">
+                <a href={`mailto:${result.email}?subject=${encodeURIComponent(L("Votre compte", "حسابك", "Your account"))}&body=${encodeURIComponent(credentials)}`}>E-mail</a>
               </Button>
               <Button type="button" onClick={() => onOpenChange(false)}>{L("Terminer", "إنهاء", "Done")}</Button>
             </div>

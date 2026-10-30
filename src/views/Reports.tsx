@@ -1,3 +1,5 @@
+import { htmlToText } from "@/lib/sanitizeHtml";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { accessStore } from "@/contexts/AccessContext";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@/lib/router";
@@ -170,7 +172,7 @@ const Reports = () => {
         supabase.from("courses").select("id, title, room_id").eq("professor_id", user.id),
         roomIds.length ? inChunks(roomIds, async (c) => ((await supabase.from("profiles").select("id, name, email, username, avatar_url, room_id").eq("role", "student").in("room_id", c)).data || []) as any[]) : Promise.resolve([] as any[]),
         roomIds.length ? inChunks(roomIds, async (c) => ((await supabase.from("enrollments").select("student_id, room_id").in("room_id", c)).data || []) as any[]) : Promise.resolve([] as any[]),
-        roomIds.length ? inChunks(roomIds, async (c) => ((await supabase.from("student_sessions").select("student_id, session_start, last_activity, duration_minutes, is_active, room_id").in("room_id", c).order("session_start", { ascending: false }).limit(10000)).data || []) as any[]) : Promise.resolve([] as any[]),
+        roomIds.length ? inChunks(roomIds, async (c) => ((await fetchAllRows(supabase.from("student_sessions").select("student_id, session_start, last_activity, duration_minutes, is_active, room_id").in("room_id", c).order("session_start", { ascending: false }), { maxRows: 10000 })).data || []) as any[]) : Promise.resolve([] as any[]),
       ]);
 
       // Élèves : room_id du profil, sinon classe d'inscription
@@ -193,11 +195,11 @@ const Reports = () => {
       ]);
       const quizIds = (exams as ExamRow[]).filter((e) => e.type === "quiz").map((e) => e.id);
       const [subs, questions] = await Promise.all([
-        quizIds.length ? inChunks(quizIds, async (c) => ((await supabase.from("quiz_submissions").select("*").in("exam_id", c).eq("is_completed", true)).data || []) as any[]) : Promise.resolve([] as any[]),
+        quizIds.length ? inChunks(quizIds, async (c) => ((await fetchAllRows(supabase.from("quiz_submissions").select("*").in("exam_id", c).eq("is_completed", true))).data || []) as any[]) : Promise.resolve([] as any[]),
         quizIds.length ? inChunks(quizIds, async (c) => ((await supabase.from("quiz_questions").select("id, exam_id, question, question_order, points, question_type").in("exam_id", c)).data || []) as any[]) : Promise.resolve([] as any[]),
       ]);
       const answers = subs.length
-        ? await inChunks(subs.map((s: any) => s.id), async (c) => ((await supabase.from("quiz_answers").select("submission_id, question_id, is_correct").in("submission_id", c)).data || []) as any[])
+        ? await inChunks(subs.map((s: any) => s.id), async (c) => ((await fetchAllRows(supabase.from("quiz_answers").select("submission_id, question_id, is_correct").in("submission_id", c))).data || []) as any[])
         : [];
 
       setData({
@@ -345,9 +347,7 @@ const Reports = () => {
       r.analytics.quizzes.forEach((q) =>
         q.questions.forEach((qs) => {
           if (qs.successRate === null || qs.answered < 3) return;
-          const div = document.createElement("div");
-          div.innerHTML = (qs.question.question || "").replace(/<!--[\s\S]*?-->/g, "");
-          rows.push({ text: (div.textContent || "").replace(/\s+/g, " ").trim() || "—", quiz: q.quiz.title, room: r.room.name, rate: qs.successRate, answered: qs.answered });
+          rows.push({ text: htmlToText(qs.question.question) || "—", quiz: q.quiz.title, room: r.room.name, rate: qs.successRate, answered: qs.answered });
         })
       )
     );

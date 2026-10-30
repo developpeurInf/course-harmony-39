@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { useNow } from "@/hooks/useNow";
 import { WeekSummaryCard } from "@/components/WeekSummaryCard";
+import { TodayCard } from "@/components/TodayCard";
+import { ParentMessagesCard } from "@/components/ParentMessagesCard";
+import { StreakCard } from "@/components/progress/StreakCard";
 import { formatDecimal } from "@/lib/formatDate";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import type { Lang } from "@/lib/appSettings";
@@ -113,7 +116,7 @@ const Dashboard = () => {
 
   const professorRooms = useMemo(() => {
     if (!user) return [];
-    if (isProfessor) return rooms.filter(r => r.professor_id === user.id);
+    if (isProfessor) return rooms.filter(r => r.professor_id === user.id && !r.archived_at);
     const ids = new Set(enrollments.filter(e => e.student_id === user.id).map(e => e.room_id).filter(Boolean));
     return rooms.filter(r => r.is_visible && ids.has(r.id));
   }, [rooms, user, isProfessor, enrollments]);
@@ -429,7 +432,10 @@ const Dashboard = () => {
         </div>
       )}
 
+      {isProfessor && professorRooms.length > 0 && <TodayCard />}
+      {isProfessor && feature("parents") && <ParentMessagesCard />}
       {isProfessor && professorRooms.length > 0 && <WeekSummaryCard />}
+      {user?.role === "student" && <StreakCard />}
 
       {/* ── Aucune classe ── */}
       {isProfessor && professorRooms.length === 0 && !firstLoad && (

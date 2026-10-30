@@ -45,6 +45,10 @@ export interface BankQuestion extends DraftQuestion {
   template: QuestionTemplate | null;
   times_used: number;
   created_at: string;
+  /** manual | ai | quiz | param */
+  source?: string | null;
+  source_course_id?: string | null;
+  last_used_at?: string | null;
 }
 
 const db = () => supabase as any;
@@ -52,17 +56,29 @@ const db = () => supabase as any;
 export async function loadBank(): Promise<BankQuestion[]> {
   const { data, error } = await db()
     .from("question_bank")
-    .select("id, question, question_type, points, options, chapter, level, tags, template, times_used, created_at")
+    .select("id, question, question_type, points, options, chapter, level, tags, template, times_used, created_at, source, source_course_id, last_used_at")
     .order("created_at", { ascending: false })
     .limit(2000);
+  if (error && /source|last_used_at/.test(error.message || "")) {
+    // base pas encore à jour : colonnes de la migration 20261107 absentes
+    const r = await db().from("question_bank")
+      .select("id, question, question_type, points, options, chapter, level, tags, template, times_used, created_at")
+      .order("created_at", { ascending: false }).limit(2000);
+    if (r.error) throw r.error;
+    return (r.data || []) as BankQuestion[];
+  }
   if (error) throw error;
   return (data || []) as BankQuestion[];
 }
 
-export async function saveToBank(items: (DraftQuestion & { chapter?: string | null; level?: string | null; tags?: string[]; template?: QuestionTemplate | null })[]) {
+export async function saveToBank(
+  items: (DraftQuestion & { chapter?: string | null; level?: string | null; tags?: string[]; template?: QuestionTemplate | null })[],
+  origin?: { source: "manual" | "ai" | "quiz" | "param"; courseId?: string | null }
+) {
   if (!items.length) return;
   const { error } = await db().from("question_bank").insert(
     items.map((q) => ({
+      ...(origin ? { source: origin.source, source_course_id: origin.courseId || null } : {}),
       question: q.question,
       question_type: q.question_type,
       points: q.points || 1,
@@ -77,7 +93,11 @@ export async function saveToBank(items: (DraftQuestion & { chapter?: string | nu
 }
 
 export async function markUsed(ids: string[], current: Map<string, number>) {
-  await Promise.all(ids.map((id) => db().from("question_bank").update({ times_used: (current.get(id) || 0) + 1 }).eq("id", id)));
+  const at = new Date().toISOString();
+  await Promise.all(ids.map(async (id) => {
+    const { error } = await db().from("question_bank").update({ times_used: (current.get(id) || 0) + 1, last_used_at: at }).eq("id", id);
+    if (error) await db().from("question_bank").update({ times_used: (current.get(id) || 0) + 1 }).eq("id", id);
+  }));
 }
 
 /** Question d'un quiz → brouillon (sans la durée par question) */

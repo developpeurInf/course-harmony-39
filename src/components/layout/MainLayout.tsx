@@ -11,6 +11,8 @@ import type { Lang } from "@/lib/appSettings";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LiveQuizBanner } from "@/components/LiveQuizBanner";
+import { BroadcastBanner } from "@/components/BroadcastBanner";
+import { pickText } from "@/lib/appSettings";
 import { installIOSFocusScrollFix } from "@/components/ui/ui-i18n";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
@@ -209,6 +211,20 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/admin" replace />;
   }
 
+  // Maintenance : application fermée aux profs et élèves (l'équipe admin garde l'accès)
+  if (appSettings.maintenance?.enabled) {
+    return (
+      <div dir={language === "ar" ? "rtl" : "ltr"} className="flex min-h-screen items-center justify-center bg-background p-6 text-center">
+        <div className="max-w-md space-y-3">
+          <AlertTriangle className="mx-auto h-10 w-10 text-amber-500" />
+          <h1 className="text-lg font-semibold">{tr("Maintenance en cours", "صيانة جارية", "Maintenance in progress")}</h1>
+          <p className="whitespace-pre-line text-sm text-muted-foreground">{pickText(appSettings.maintenance.message, (language as Lang) || "fr")}</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>{tr("Réessayer", "إعادة المحاولة", "Try again")}</Button>
+        </div>
+      </div>
+    );
+  }
+
   const topLabel = tr("Aller en haut", "الانتقال إلى الأعلى", "Back to top");
   const bottomLabel = tr("Aller en bas", "الانتقال إلى الأسفل", "Go to bottom");
   const floatingBtn =
@@ -238,6 +254,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
             }
           >
             <AnnouncementBanner userId={user.id} language={language} />
+            <BroadcastBanner userId={user.id} language={language} />
             <SubscriptionBanner />
             {user.role === "student" && <LiveQuizBanner language={language} />}
             <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>

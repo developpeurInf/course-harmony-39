@@ -6,7 +6,8 @@
  * Synchronisation : temps réel Supabase + relecture périodique (si le temps réel est coupé).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckCircle2, ChevronRight, Eye, Loader2, Maximize, Radio, Square, Trophy, Users, XCircle } from "lucide-react";
+import { Check, CheckCircle2, ChevronRight, Download, Eye, EyeOff, Loader2, Maximize, Radio, RotateCcw, Square, Trophy, Users, XCircle } from "lucide-react";
+import { downloadBlob } from "@/lib/download";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -138,6 +139,31 @@ function LiveHost({ sessionId }: { sessionId: string }) {
   const goTo = (i: number) => update({ state: "question", current_index: i, question_started_at: new Date().toISOString() });
   const reveal = () => update({ state: "reveal" });
   const finish = () => update({ state: "ended", ended_at: new Date().toISOString() });
+  const anonymous = !!session?.anonymous;
+  const replay = async () => {
+    if (busy) return;
+    setBusy(true);
+    const { error } = await (supabase as any).rpc("live_restart_question", { p_session: sessionId, p_index: index });
+    setBusy(false);
+    if (error) {
+      toast.error(tr("Relance impossible (mise à jour de la base nécessaire).", "تعذرت إعادة السؤال (يلزم تحديث قاعدة البيانات).", "Replay failed (database update needed)."));
+      return;
+    }
+    setAnswers((l) => l.filter((a) => a.question_id !== q?.id));
+    setSession((s: any) => ({ ...s, state: "question", question_started_at: new Date().toISOString() }));
+  };
+  const exportCsv = () => {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const head = [tr("Rang", "الرتبة", "Rank"), tr("Élève", "التلميذ", "Student"), tr("Bonnes réponses", "إجابات صحيحة", "Correct"), tr("Questions", "الأسئلة", "Questions"),
+      ...questions.map((_, i) => `Q${i + 1}`)];
+    const lines = leaderboard.map((r, i) => [i + 1, r.name, r.correct, questions.length,
+      ...questions.map((qq) => {
+        const a = answers.find((x) => x.question_id === qq.id && x.student_id === r.id);
+        return a ? (a.is_correct ? 1 : 0) : "";
+      })]);
+    const csv = "\ufeff" + [head, ...lines].map((l) => l.map(esc).join(";")).join("\r\n");
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `quiz-direct-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
 
   const leaderboard = useMemo(() => {
     const m = new Map<string, { correct: number; ms: number }>();
@@ -181,6 +207,10 @@ function LiveHost({ sessionId }: { sessionId: string }) {
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{title}</h1>
         {q && state !== "ended" && <span className="text-sm text-muted-foreground">{tr("Question", "السؤال", "Question")} {index + 1} / {questions.length}</span>}
         <Button variant="ghost" size="icon" onClick={fullscreen} title={tr("Plein écran", "ملء الشاشة", "Fullscreen")} aria-label={tr("Plein écran", "ملء الشاشة", "Fullscreen")}><Maximize className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => update({ anonymous: !anonymous })} disabled={busy} aria-pressed={anonymous}
+          title={tr("Classement anonyme : seuls les 3 premiers sont nommés", "ترتيب مجهول: يُذكر الثلاثة الأوائل فقط", "Anonymous ranking: only the top 3 are named")}>
+          {anonymous ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}{anonymous ? tr("Classement anonyme", "ترتيب مجهول", "Anonymous ranking") : tr("Classement nominatif", "ترتيب بالأسماء", "Named ranking")}
+        </Button>
         {state !== "ended" && <Button variant="outline" size="sm" className="gap-1.5" onClick={finish} disabled={busy}><Square className="h-3.5 w-3.5" />{tr("Terminer", "إنهاء", "End")}</Button>}
       </header>
 
@@ -235,6 +265,7 @@ function LiveHost({ sessionId }: { sessionId: string }) {
               <span className="text-sm text-muted-foreground">{Math.round((qAnswers.filter((a) => a.is_correct).length / qAnswers.length) * 100)} % {tr("de bonnes réponses", "إجابات صحيحة", "correct")}</span>
             )}
             <div className="ms-auto flex gap-2">
+              {state === "reveal" && <Button size="lg" variant="outline" className="gap-2" onClick={replay} disabled={busy}><RotateCcw className="h-5 w-5" />{tr("Relancer la question", "إعادة السؤال", "Replay question")}</Button>}
               {state === "question" && <Button size="lg" className="gap-2" onClick={reveal} disabled={busy}><Eye className="h-5 w-5" />{tr("Afficher la réponse", "إظهار الجواب", "Show the answer")}</Button>}
               {state === "reveal" && (index + 1 < questions.length
                 ? <Button size="lg" className="gap-2" onClick={() => goTo(index + 1)} disabled={busy}>{tr("Question suivante", "السؤال التالي", "Next question")}<ChevronRight className="h-5 w-5 rtl:rotate-180" /></Button>
@@ -254,13 +285,14 @@ function LiveHost({ sessionId }: { sessionId: string }) {
               {leaderboard.map((r, i) => (
                 <li key={r.id} className={cn("flex items-center gap-3 px-4 py-2.5", i < 3 && "font-semibold")}>
                   <span className="w-6 text-center tabular-nums">{i + 1}</span>
-                  <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                  <span className="min-w-0 flex-1 truncate">{anonymous && i >= 3 ? tr(`Élève n° ${i + 1}`, `التلميذ رقم ${i + 1}`, `Student #${i + 1}`) : r.name}</span>
                   <span className="tabular-nums">{r.correct} / {questions.length}</span>
                 </li>
               ))}
             </ol>
           )}
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-2">
+            {leaderboard.length > 0 && <Button variant="outline" className="gap-1.5" onClick={exportCsv}><Download className="h-4 w-4" />{tr("Exporter les résultats", "تصدير النتائج", "Export results")}</Button>}
             <Button variant="outline" onClick={() => navigate(`/exams?quiz=${session.exam_id}`)}>{tr("Retour au quiz", "العودة إلى الاختبار", "Back to the quiz")}</Button>
           </div>
         </div>

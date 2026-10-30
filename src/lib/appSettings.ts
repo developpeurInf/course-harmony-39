@@ -34,7 +34,12 @@ export type FeatureKey =
   | "calendar"
   | "questionBank"
   | "lessonPlans"
-  | "classManagement";
+  | "classManagement"
+  | "parents"
+  | "library"
+  | "support"
+  | "progress"
+  | "gamification";
 
 export interface AppSettings {
   identity: {
@@ -102,6 +107,18 @@ export interface AppSettings {
     agencyName: string;           // bénéficiaire CashPlus / Wafacash
     agencyPhone: string;
     instructions: I18nText;       // consignes affichées au prof
+    promoCodes: boolean;          // champ « code promo » à l'envoi du reçu
+    referralEnabled: boolean;     // parrainage entre profs
+    referralBonusDays: number;    // jours offerts au parrain
+    referralDiscountPct: number;  // remise du filleul (%)
+    invoiceLegal: string;         // mentions légales des factures (ICE, IF, RC, adresse…)
+  };
+  security: {
+    requireAdminMfa: boolean;     // double authentification obligatoire pour l'équipe admin
+  };
+  maintenance: {
+    enabled: boolean;             // application fermée aux profs et élèves
+    message: I18nText;
   };
 }
 
@@ -187,6 +204,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     questionBank: true,
     lessonPlans: true,
     classManagement: true,
+    parents: true,
+    library: true,
+    support: true,
+    progress: true,
+    gamification: true,
   },
   payments: {
     enabled: true,
@@ -199,6 +221,22 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
       "Indiquez votre nom et votre e-mail dans le motif du virement, puis envoyez la photo du reçu ici.",
       "اكتب اسمك وبريدك الإلكتروني في سبب التحويل، ثم أرسل صورة الوصل هنا.",
       "Put your name and e-mail in the transfer reference, then send a photo of the receipt here."
+    ),
+    promoCodes: true,
+    referralEnabled: true,
+    referralBonusDays: 30,
+    referralDiscountPct: 10,
+    invoiceLegal: "",
+  },
+  security: {
+    requireAdminMfa: false,
+  },
+  maintenance: {
+    enabled: false,
+    message: t(
+      "L'application est en maintenance. Elle sera de nouveau disponible dans quelques instants.",
+      "التطبيق في طور الصيانة. سيعود متاحا بعد قليل.",
+      "The app is under maintenance. It will be back shortly."
     ),
   },
 };

@@ -277,6 +277,8 @@ export interface CourseCardData {
   pending: number;
   late: number;
   exams: number;
+  /** undefined : jamais ouvert ; null : ouvert, pas fini ; date : lu */
+  readAt?: string | null;
 }
 
 export function StudentCourseCards({ items, tr }: { items: CourseCardData[]; tr: Tr }) {
@@ -286,7 +288,14 @@ export function StudentCourseCards({ items, tr }: { items: CourseCardData[]; tr:
         <article key={c.id} className="group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-colors hover:border-foreground/20">
           <div className="pointer-events-none">{c.cover}</div>
           <div className="flex flex-1 flex-col p-4">
-            {c.roomName && <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{c.roomName}</p>}
+            <div className="flex items-center justify-between gap-2">
+              {c.roomName ? <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{c.roomName}</p> : <span />}
+              {c.readAt ? (
+                <Badge variant="secondary" className="gap-1 text-[10px]"><CheckCircle2 className="h-3 w-3 text-emerald-600" />{tr("Lu", "مقروء", "Read")}</Badge>
+              ) : c.readAt === null ? (
+                <Badge variant="outline" className="text-[10px]">{tr("Reprendre", "متابعة", "Resume")}</Badge>
+              ) : null}
+            </div>
             <h3 className="mt-0.5 font-semibold leading-snug">
               <Link to={`/courses/${c.id}`} className="after:absolute after:inset-0 group-hover:text-primary">{c.title}</Link>
             </h3>

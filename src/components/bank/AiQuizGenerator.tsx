@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { MathHtml, MathText } from "@/components/math/MathContent";
 import { accessStore } from "@/contexts/AccessContext";
 import { supabase } from "@/integrations/supabase/client";
-import { insertIntoExam, type DraftQuestion } from "@/lib/questionBank";
+import { insertIntoExam, saveToBank, type DraftQuestion } from "@/lib/questionBank";
 import { aiErrorMessage, callTeacherAi, loadAiMaterials, type AiQuizQuestion } from "@/lib/teacherAi";
 import type { CourseMaterialLike } from "@/lib/courseMedia";
 
@@ -43,6 +43,7 @@ export default function AiQuizGenerator({
   const [qLang, setQLang] = useState<"ar" | "fr">(language === "ar" ? "ar" : "fr");
   const [types, setTypes] = useState({ multiple_choice: true, true_false: true, short_answer: false });
   const [busy, setBusy] = useState(false);
+  const [alsoBank, setAlsoBank] = useState(true);
   const [result, setResult] = useState<AiQuizQuestion[] | null>(null);
   const [keep, setKeep] = useState<Set<number>>(new Set());
   const [adding, setAdding] = useState(false);
@@ -111,6 +112,11 @@ export default function AiQuizGenerator({
     setAdding(true);
     try {
       const n = await insertIntoExam(examId, startOrder, chosen);
+      if (alsoBank) {
+        const src = materials.find((m) => m.id === materialId);
+        await saveToBank(chosen.map((d) => ({ ...d, chapter: src?.course_title || null })), { source: "ai", courseId: src?.course_id || courseId || null })
+          .catch((e) => console.warn("bank", e));
+      }
       toast.success(L(`${n} question(s) ajoutée(s).`, `تمت إضافة ${n} سؤال.`, `${n} question(s) added.`));
       onOpenChange(false);
       await onDone();
@@ -231,6 +237,10 @@ export default function AiQuizGenerator({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy || adding}>{L("Fermer", "إغلاق", "Close")}</Button>
           {result ? (
             <>
+              <label className="me-auto flex items-center gap-2 text-sm">
+                <Checkbox checked={alsoBank} onCheckedChange={(v) => setAlsoBank(!!v)} />
+                {L("Garder aussi dans ma banque", "الاحتفاظ بها في بنكي أيضا", "Also keep in my bank")}
+              </label>
               <Button variant="outline" onClick={() => setResult(null)} disabled={adding}>{L("Recommencer", "إعادة", "Start over")}</Button>
               <Button onClick={() => void add()} disabled={adding || !keep.size} className="gap-1.5">
                 {adding && <Loader2 className="h-4 w-4 animate-spin" />}{L(`Ajouter ${keep.size} question(s)`, `إضافة ${keep.size} سؤال`, `Add ${keep.size} question(s)`)}

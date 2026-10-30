@@ -1,4 +1,5 @@
 import { accessStore } from "@/contexts/AccessContext";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { downloadBlob } from "@/lib/download";
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -264,13 +265,13 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       let qs: AQuestion[] = [];
       if (quizIds.length) {
         const [{ data: s }, { data: q }] = await Promise.all([
-          supabase.from("quiz_submissions")
+          fetchAllRows(supabase.from("quiz_submissions")
             .select("id, exam_id, student_id, score, total_points, submitted_at, time_taken_minutes")
             .in("exam_id", quizIds)
-            .eq("is_completed", true),
-          supabase.from("quiz_questions")
+            .eq("is_completed", true)),
+          fetchAllRows(supabase.from("quiz_questions")
             .select("id, exam_id, question, question_order, points, question_type")
-            .in("exam_id", quizIds),
+            .in("exam_id", quizIds)),
         ]);
         subs = (s || []) as ASubmission[];
         qs = (q || []) as AQuestion[];
@@ -281,21 +282,20 @@ const StudentActivities = ({ roomId }: StudentActivityProps) => {
       const subIds = subs.map(s => s.id);
       const ans: AAnswer[] = [];
       for (let i = 0; i < subIds.length; i += 150) {
-        const { data: a } = await supabase
+        const { data: a } = await fetchAllRows(supabase
           .from("quiz_answers")
           .select("submission_id, question_id, is_correct")
-          .in("submission_id", subIds.slice(i, i + 150));
+          .in("submission_id", subIds.slice(i, i + 150)));
         ans.push(...((a || []) as AAnswer[]));
       }
       setAnswers(ans);
 
       // 4) Sessions (temps d'étude, dernière activité)
-      const { data: sess } = await supabase
+      const { data: sess } = await fetchAllRows(supabase
         .from("student_sessions")
         .select("student_id, session_start, last_activity, duration_minutes, is_active")
         .eq("room_id", roomId)
-        .order("session_start", { ascending: false })
-        .limit(5000);
+        .order("session_start", { ascending: false }), { maxRows: 5000 });
       setSessions((sess || []) as ASession[]);
 
       await loadActiveSessions();

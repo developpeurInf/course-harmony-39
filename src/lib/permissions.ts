@@ -9,6 +9,7 @@ export type PermissionKey =
   | "class.edit"
   | "class.clear"
   | "class.delete"
+  | "class.duplicate"
   | "class.calendar"
   | "student.view"
   | "student.create"
@@ -66,7 +67,10 @@ export type PermissionKey =
   | "pdf.organize"
   | "pdf.protect"
   | "profile.edit"
-  | "settings.edit";
+  | "settings.edit"
+  | "parents.links"
+  | "library.import"
+  | "library.publish";
 
 export type QuotaKey =
   | "classes.max"
@@ -83,7 +87,9 @@ export type AdminPermissionKey =
   | "admin.overrides.manage"
   | "admin.audit.view"
   | "admin.roles.manage"
-  | "admin.settings.manage";
+  | "admin.settings.manage"
+  | "admin.support.manage"
+  | "admin.library.manage";
 
 /** Modules de l'application : mêmes identifiants que les interrupteurs de Personnalisation → Modules
  *  (FeatureKey) et que la colonne permissions.module. Ordre = barre latérale. */
@@ -104,6 +110,8 @@ export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string 
   "diagnostic": { fr: "Évaluation diagnostique", ar: "التقويم التشخيصي", en: "Diagnostic assessment" },
   "reports": { fr: "Rapports", ar: "التقارير", en: "Reports" },
   "pdfEditor": { fr: "Éditeur PDF", ar: "محرر PDF", en: "PDF editor" },
+  "parents": { fr: "Portail parents", ar: "فضاء الآباء", en: "Parent portal" },
+  "library": { fr: "Bibliothèque partagée", ar: "المكتبة المشتركة", en: "Shared library" },
   "notifications": { fr: "Notifications", ar: "الإشعارات", en: "Notifications" },
   "account": { fr: "Compte", ar: "الحساب", en: "Account" },
   "quota": { fr: "Quotas", ar: "الحصص", en: "Quotas" },
@@ -116,6 +124,10 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "class.edit": { module: "classManagement", fr: "Renommer / modifier une classe", ar: "تعديل قسم", en: "Edit a class" },
   "class.clear": { module: "classManagement", fr: "Vider une classe", ar: "إفراغ قسم", en: "Empty a class" },
   "class.delete": { module: "classManagement", fr: "Supprimer une classe", ar: "حذف قسم", en: "Delete a class" },
+  "class.duplicate": { module: "classManagement", fr: "Dupliquer et archiver une classe", ar: "نسخ وأرشفة قسم", en: "Duplicate and archive a class" },
+  "parents.links": { module: "parents", fr: "Liens parents (bulletin en lecture seule)", ar: "روابط الآباء (كشف للاطلاع فقط)", en: "Parent links (read-only report)" },
+  "library.import": { module: "library", fr: "Importer depuis la bibliothèque partagée", ar: "الاستيراد من المكتبة المشتركة", en: "Import from the shared library" },
+  "library.publish": { module: "library", fr: "Publier dans la bibliothèque partagée", ar: "النشر في المكتبة المشتركة", en: "Publish to the shared library" },
   "class.calendar": { module: "calendar", fr: "Calendrier des échéances (exercices, quiz, examens)", ar: "يومية الآجال (تمارين، اختبارات، امتحانات)", en: "Due-date calendar (exercises, quizzes, exams)" },
   "student.view": { module: "students", fr: "Voir les élèves", ar: "عرض التلاميذ", en: "View students" },
   "student.create": { module: "students", fr: "Créer un élève à la main", ar: "إضافة تلميذ يدويا", en: "Create a student" },
@@ -187,9 +199,11 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "admin.audit.view": { module: "admin", fr: "Consulter le journal", ar: "الاطلاع على السجل", en: "View audit log" },
   "admin.roles.manage": { module: "admin", fr: "Gérer l'équipe d'administration", ar: "تدبير فريق الإدارة", en: "Manage admin team" },
   "admin.settings.manage": { module: "admin", fr: "Personnaliser l'application", ar: "تخصيص التطبيق", en: "Customize the app" },
+  "admin.support.manage": { module: "admin", fr: "Répondre aux tickets de support", ar: "الرد على تذاكر الدعم", en: "Answer support tickets" },
+  "admin.library.manage": { module: "admin", fr: "Valider la bibliothèque partagée", ar: "المصادقة على المكتبة المشتركة", en: "Review the shared library" },
 };
 
-export const ADMIN_PERMISSION_KEYS: AdminPermissionKey[] = ["admin.teachers.manage", "admin.plans.manage", "admin.subscriptions.manage", "admin.payments.manage", "admin.overrides.manage", "admin.audit.view", "admin.roles.manage", "admin.settings.manage"];
+export const ADMIN_PERMISSION_KEYS: AdminPermissionKey[] = ["admin.teachers.manage", "admin.plans.manage", "admin.subscriptions.manage", "admin.payments.manage", "admin.overrides.manage", "admin.audit.view", "admin.roles.manage", "admin.settings.manage", "admin.support.manage", "admin.library.manage"];
 
 /** Type de fichier → permission d'ajout (même règle que le déclencheur SQL) */
 export function uploadPermissionFor(fileName: string, mime = ""): PermissionKey {

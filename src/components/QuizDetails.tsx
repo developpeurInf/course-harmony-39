@@ -45,6 +45,8 @@ import { MathText } from "@/components/math/MathContent";
 import ShortAnswerGrader, { type GradeUpdate } from "@/components/ShortAnswerGrader";
 import { QuizTeachingActions } from "@/components/QuizTeachingActions";
 import { PaperQuizDialog } from "@/components/PaperQuizDialog";
+import { htmlToText } from "@/lib/sanitizeHtml";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 /* ═══════════════════════════════ Types ═══════════════════════════════ */
 
@@ -112,11 +114,7 @@ interface Props {
 
 const pct = (score: number | null, total: number | null) => (total ? ((score || 0) / total) * 100 : 0);
 const to20 = (p: number) => Math.round((p / 5) * 10) / 10;
-const stripHtml = (html: string) => {
-  const div = document.createElement("div");
-  div.innerHTML = html;
-  return (div.textContent || div.innerText || "").replace(/\s+/g, " ").trim();
-};
+const stripHtml = (html: string) => htmlToText(html);
 const median = (values: number[]) => {
   if (!values.length) return 0;
   const s = [...values].sort((a, b) => a - b);
@@ -253,11 +251,11 @@ const QuizDetails = ({ examId }: Props) => {
       let cols = `id, ${base}, points_earned, graded_at, teacher_comment`;
       for (let i = 0; i < ids.length; i += 150) {
         const batch = ids.slice(i, i + 150);
-        const first = await supabase.from("quiz_answers").select(cols).in("submission_id", batch);
+        const first = await fetchAllRows(supabase.from("quiz_answers").select(cols).in("submission_id", batch));
         let rowsData = first.data;
         if (first.error && cols !== base) {
           cols = base;
-          rowsData = (await supabase.from("quiz_answers").select(cols).in("submission_id", batch)).data;
+          rowsData = (await fetchAllRows(supabase.from("quiz_answers").select(cols).in("submission_id", batch))).data;
         }
         ans.push(...((rowsData || []) as unknown as Answer[]));
       }

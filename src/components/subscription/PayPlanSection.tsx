@@ -39,7 +39,8 @@ export default function PayPlanSection({ userId, plans, currentPlanId, requests,
   const hasBank = !!pay.rib.trim();
   const hasAgency = !!(pay.agencyName.trim() || pay.agencyPhone.trim());
 
-  const payable = useMemo(() => plans.filter(p => !p.is_trial_plan && Number(p.price_mad) > 0), [plans]);
+  // offres « sur invitation » : visibles seulement par le prof qui l'a déjà
+  const payable = useMemo(() => plans.filter(p => !p.is_trial_plan && Number(p.price_mad) > 0 && (p.is_public !== false || p.id === currentPlanId)), [plans, currentPlanId]);
   const [planId, setPlanId] = useState<string>("");
   const plan = payable.find(p => p.id === planId) || payable.find(p => p.id === currentPlanId) || payable[0];
   const [method, setMethod] = useState<string>(hasBank ? "transfer" : hasAgency ? "agency" : "other");
@@ -50,6 +51,30 @@ export default function PayPlanSection({ userId, plans, currentPlanId, requests,
   const [sending, setSending] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [promo, setPromo] = useState<{ code: string; plan: string; discount_mad: number; bonus_days: number; price_mad: number; referral: boolean } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const activePromo = promo && plan && promo.plan === plan.id ? promo : null;
+  const toPay = activePromo ? activePromo.price_mad : plan ? Number(plan.price_mad) : 0;
+
+  const applyPromo = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code || !plan) return;
+    setChecking(true);
+    const { data, error } = await db.rpc("check_promo_code", { p_code: code, p_plan: plan.id });
+    setChecking(false);
+    if (error || !data?.valid) {
+      setPromo(null);
+      toast.error(
+        data?.reason === "own_code" ? L("Vous ne pouvez pas utiliser votre propre code.", "لا يمكنك استعمال رمزك الخاص.", "You cannot use your own code.")
+          : data?.reason === "other_plan" ? L("Ce code ne s'applique pas à cette offre.", "هذا الرمز لا ينطبق على هذا العرض.", "This code does not apply to this plan.")
+            : L("Code invalide ou expiré.", "رمز غير صالح أو منتهي.", "Invalid or expired code.")
+      );
+      return;
+    }
+    setPromo({ code: data.code, plan: plan.id, discount_mad: Number(data.discount_mad || 0), bonus_days: Number(data.bonus_days || 0), price_mad: Number(data.price_mad), referral: !!data.referral });
+    toast.success(L("Code appliqué", "تم تطبيق الرمز", "Code applied"));
+  };
 
   const pending = requests.find(r => r.status === "pending");
   const last = requests.find(r => r.status !== "canceled");
@@ -93,7 +118,8 @@ export default function PayPlanSection({ userId, plans, currentPlanId, requests,
         teacher_id: userId,
         plan_id: plan.id,
         message: message.trim() || null,
-        amount_mad: Number(plan.price_mad),
+        amount_mad: toPay,
+        ...(activePromo ? { promo_code: activePromo.code, discount_mad: activePromo.discount_mad || null } : {}),
         pay_method: method,
         pay_reference: reference.trim() || null,
         paid_on: paidOn || null,
@@ -108,6 +134,8 @@ export default function PayPlanSection({ userId, plans, currentPlanId, requests,
       setFile(null);
       setReference("");
       setMessage("");
+      setPromo(null);
+      setPromoInput("");
       onChanged();
     } finally {
       setSending(false);
@@ -207,7 +235,10 @@ export default function PayPlanSection({ userId, plans, currentPlanId, requests,
                   <input type="radio" name="pay-plan" className="mt-1" checked={plan?.id === p.id} onChange={() => setPlanId(p.id)} />
                   <span className="min-w-0">
                     <span className="block font-semibold">{p.name}{p.id === currentPlanId ? ` · ${L("renouveler", "تجديد", "renew")}` : ""}</span>
-                    <span className="block text-base font-bold text-primary">{fmtPrice(p.price_mad)}</span>
+                    <span className="block text-base font-bold text-primary">
+                      {fmtPrice(p.price_mad)}
+                      {p.compare_at_mad && Number(p.compare_at_mad) > Number(p.price_mad) && <span className="ms-1.5 text-xs font-normal text-muted-foreground line-through">{fmtPrice(p.compare_at_mad)}</span>}
+                    </span>
                     {p.duration_days ? <span className="block text-xs text-muted-foreground">{L(`${p.duration_days} jours`, `${p.duration_days} يوما`, `${p.duration_days} days`)}</span> : null}
                   </span>
                 </label>
@@ -215,8 +246,27 @@ export default function PayPlanSection({ userId, plans, currentPlanId, requests,
             </div>
           </fieldset>
 
+          {pay.promoCodes !== false && (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="pay-promo" className="text-xs">{L("Code promo ou de parrainage", "رمز التخفيض أو الإحالة", "Promo or referral code")}</Label>
+                <Input id="pay-promo" value={promoInput} maxLength={32} className="w-48 font-mono uppercase" onChange={e => setPromoInput(e.target.value.toUpperCase())} />
+              </div>
+              <Button type="button" variant="outline" onClick={applyPromo} disabled={checking || !promoInput.trim()}>
+                {checking && <Loader2 className="h-4 w-4 animate-spin" />}{L("Appliquer", "تطبيق", "Apply")}
+              </Button>
+              {activePromo && (
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                  {activePromo.bonus_days > 0
+                    ? L(`+${activePromo.bonus_days} jours offerts`, `+${activePromo.bonus_days} يوما مجانا`, `+${activePromo.bonus_days} free days`)
+                    : L(`Remise de ${fmtPrice(activePromo.discount_mad)}`, `تخفيض ${fmtPrice(activePromo.discount_mad)}`, `${fmtPrice(activePromo.discount_mad)} off`)}
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
-            <p className="mb-2 text-xs font-semibold text-muted-foreground">2. {L(`Payez ${plan ? fmtPrice(plan.price_mad) : ""}`, `أدِّ ${plan ? fmtPrice(plan.price_mad) : ""}`, `Pay ${plan ? fmtPrice(plan.price_mad) : ""}`)}</p>
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">2. {L(`Payez ${plan ? fmtPrice(toPay) : ""}`, `أدِّ ${plan ? fmtPrice(toPay) : ""}`, `Pay ${plan ? fmtPrice(toPay) : ""}`)}</p>
             <div className="grid gap-3 md:grid-cols-2">
               {hasBank && (
                 <div className="rounded-lg border p-3">

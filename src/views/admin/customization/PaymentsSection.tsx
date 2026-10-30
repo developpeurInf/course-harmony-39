@@ -1,7 +1,8 @@
-import { Landmark, Store, Wallet } from "lucide-react";
+import { FileText, Gift, Landmark, Store, Wallet } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useT } from "../adminShared";
-import { Card, Field, I18nField, SwitchRow, type SectionProps } from "./shared";
+import { Card, Field, I18nField, NumberField, SwitchRow, type SectionProps } from "./shared";
 
 /** Coordonnées affichées aux profs sur « Mon abonnement » pour payer leur offre */
 export default function PaymentsSection({ draft, update }: SectionProps) {
@@ -60,6 +61,22 @@ export default function PaymentsSection({ draft, update }: SectionProps) {
             <Input id="cz-pay-phone" dir="ltr" type="tel" value={p.agencyPhone} maxLength={30} onChange={e => update("payments", { agencyPhone: e.target.value })} />
           </Field>
         </div>
+      </Card>
+      <Card icon={<Gift className="h-4 w-4" />} title={L("Codes promo et parrainage", "رموز التخفيض والإحالة", "Promo codes & referrals")} description={L("Les codes se créent dans « Codes promo ». Le parrainage donne un code à chaque prof.", "تُنشأ الرموز في «رموز التخفيض». تمنح الإحالة رمزا لكل أستاذ.", "Codes are created in “Promo codes”. Referrals give each teacher a code.")}>
+        <SwitchRow id="cz-pay-promo" label={L("Champ « code promo » à l'envoi du reçu", "خانة «رمز التخفيض» عند إرسال الوصل", "“Promo code” field when sending a receipt")} checked={p.promoCodes} onChange={v => update("payments", { promoCodes: v })} />
+        <SwitchRow id="cz-pay-ref" label={L("Parrainage entre professeurs", "الإحالة بين الأساتذة", "Teacher referrals")} description={L("Chaque prof partage son code : le filleul a une remise, le parrain des jours offerts.", "يشارك كل أستاذ رمزه: يحصل المحال على تخفيض والمحيل على أيام مجانية.", "Each teacher shares a code: the new teacher gets a discount, the referrer free days.")} checked={p.referralEnabled} onChange={v => update("payments", { referralEnabled: v })} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="cz-pay-ref-pct" label={L("Remise du filleul", "تخفيض المحال", "Referral discount")}>
+            <NumberField id="cz-pay-ref-pct" value={p.referralDiscountPct} min={1} max={100} suffix="%" onChange={v => update("payments", { referralDiscountPct: v })} />
+          </Field>
+          <Field id="cz-pay-ref-days" label={L("Jours offerts au parrain", "أيام مجانية للمحيل", "Free days for the referrer")}>
+            <NumberField id="cz-pay-ref-days" value={p.referralBonusDays} min={0} max={365} onChange={v => update("payments", { referralBonusDays: v })} />
+          </Field>
+        </div>
+        <p className="text-xs text-muted-foreground">{L("Nouveaux codes seulement : les codes déjà créés gardent leurs valeurs.", "الرموز الجديدة فقط: تحتفظ الرموز الموجودة بقيمها.", "New codes only: existing codes keep their values.")}</p>
+      </Card>
+      <Card icon={<FileText className="h-4 w-4" />} title={L("Factures", "الفواتير", "Invoices")} description={L("Mentions imprimées en bas de chaque facture PDF (ICE, IF, RC, adresse…).", "بيانات تطبع أسفل كل فاتورة PDF (ICE، IF، RC، العنوان…).", "Legal details printed at the bottom of each PDF invoice (ICE, IF, RC, address…).")}>
+        <Textarea id="cz-pay-legal" rows={3} value={p.invoiceLegal} maxLength={500} onChange={e => update("payments", { invoiceLegal: e.target.value })} placeholder="ICE 00000000000000 · IF 0000000 · RC 00000 · Adresse" />
       </Card>
     </div>
   );

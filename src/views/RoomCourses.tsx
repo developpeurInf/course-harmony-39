@@ -36,6 +36,8 @@ import { saveCourseMaterials, deleteCourseMaterial } from "@/lib/courseMedia";
 import type { VideoLinkDraft } from "@/components/MultiPdfUpload";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ViewToggle from "@/components/ViewToggle";
+import { PublishToLibraryButton } from "@/components/library/LibraryShared";
+import { CourseOrderDialog, PublishAtField, savePublishAt, toLocalInput } from "@/components/courses/CourseScheduling";
 
 interface CourseMaterial {
   id: string;
@@ -64,6 +66,8 @@ const RoomCourses = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isVisible, setIsVisible] = useState(true);
+  const [publishAt, setPublishAt] = useState("");
+  const [orderOpen, setOrderOpen] = useState(false);
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -178,6 +182,7 @@ const RoomCourses = () => {
         is_visible: isVisible
       });
 
+      if (newCourse && !isVisible && publishAt) await savePublishAt("courses", newCourse.id, publishAt);
       if (newCourse && (selectedFiles.length > 0 || videoLinks.length > 0)) {
         await uploadFiles(newCourse.id);
       }
@@ -215,6 +220,7 @@ const RoomCourses = () => {
     setTitle("");
     setDescription("");
     setIsVisible(true);
+    setPublishAt("");
     setSelectedFiles([]);
     setVideoLinks([]);
     setUploadProgress(null);
@@ -242,6 +248,10 @@ const RoomCourses = () => {
         is_visible: isVisible
       });
 
+      if (success && (currentCourse.publish_at || publishAt)) {
+        await savePublishAt("courses", currentCourse.id, isVisible ? "" : publishAt);
+        refreshData(roomId, { force: true });
+      }
       // Upload new files if any
       if (success && (selectedFiles.length > 0 || videoLinks.length > 0)) {
         await uploadFiles(currentCourse.id);
@@ -281,6 +291,7 @@ const RoomCourses = () => {
     setTitle(course.title);
     setDescription(course.description || "");
     setIsVisible(course.is_visible);
+    setPublishAt(toLocalInput(course.publish_at));
     
     // Load existing materials for this course
     const materials = await loadCourseSpecificMaterials(course.id);
@@ -330,6 +341,12 @@ const RoomCourses = () => {
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
           {/* View Toggle */}
           <ViewToggle view={viewMode === 'grid' ? 'grid' : 'table'} onViewChange={(v) => setViewMode(v === 'grid' ? 'grid' : 'list')} />
+          {isProfessor && roomCourses.length > 1 && (
+            <>
+              <Button variant="outline" className="text-xs sm:text-sm" onClick={() => setOrderOpen(true)}>{tr("Réordonner", "إعادة الترتيب", "Reorder")}</Button>
+              <CourseOrderDialog open={orderOpen} onOpenChange={setOrderOpen} roomId={roomId!} courses={roomCourses} tr={tr} onSaved={() => refreshData(roomId, { force: true })} />
+            </>
+          )}
           
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -385,6 +402,7 @@ const RoomCourses = () => {
                     />
                     <Label htmlFor="visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : language === "fr" ? "Rendre le cours visible pour les élèves" : "Make course visible to students"}</Label>
                   </div>
+                  {!isVisible && <PublishAtField id="publish-at" value={publishAt} onChange={setPublishAt} tr={tr} />}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={resetForm}>
@@ -427,7 +445,7 @@ const RoomCourses = () => {
                       )}
                     </div>
                     <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">
-                      {course.is_visible ? tr("Visible", "مرئي", "Visible") : tr("Masqué", "مخفي", "Hidden")}
+                      {course.is_visible ? tr("Visible", "مرئي", "Visible") : course.publish_at ? tr(`Le ${new Date(course.publish_at).toLocaleDateString(dateLocale)}`, `في ${new Date(course.publish_at).toLocaleDateString(dateLocale)}`, `On ${new Date(course.publish_at).toLocaleDateString(dateLocale)}`) : tr("Masqué", "مخفي", "Hidden")}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -490,6 +508,7 @@ const RoomCourses = () => {
                     >
                       <Trash className="h-4 w-4" />
                     </Button>
+                    <PublishToLibraryButton kind="course" sourceId={course.id} tr={tr} variant="outline" iconOnly />
                   </CardFooter>
                 )}
               </Card>
@@ -517,7 +536,7 @@ const RoomCourses = () => {
                             </p>
                           </div>
                           <Badge variant={course.is_visible ? "default" : "secondary"} className="shrink-0">
-                            {course.is_visible ? tr("Visible", "مرئي", "Visible") : tr("Masqué", "مخفي", "Hidden")}
+                            {course.is_visible ? tr("Visible", "مرئي", "Visible") : course.publish_at ? tr(`Le ${new Date(course.publish_at).toLocaleDateString(dateLocale)}`, `في ${new Date(course.publish_at).toLocaleDateString(dateLocale)}`, `On ${new Date(course.publish_at).toLocaleDateString(dateLocale)}`) : tr("Masqué", "مخفي", "Hidden")}
                           </Badge>
                         </div>
                         
@@ -581,6 +600,7 @@ const RoomCourses = () => {
                       >
                         <Trash className="h-4 w-4" />
                       </Button>
+                      <PublishToLibraryButton kind="course" sourceId={course.id} tr={tr} variant="outline" iconOnly />
                     </div>
                   )}
                 </div>
@@ -668,6 +688,7 @@ const RoomCourses = () => {
               />
               <Label htmlFor="edit-visible">{language === "ar" ? "جعل الدرس مرئياً للتلاميذ" : language === "fr" ? "Rendre le cours visible pour les élèves" : "Make course visible to students"}</Label>
             </div>
+            {!isVisible && <PublishAtField id="edit-publish-at" value={publishAt} onChange={setPublishAt} tr={tr} />}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetForm}>

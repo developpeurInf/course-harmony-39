@@ -36,6 +36,16 @@ export default function FeaturesSection({ draft, update }: SectionProps) {
       ],
     },
     {
+      title: L("Espaces complémentaires", "فضاءات إضافية", "Extra spaces"),
+      items: [
+        { k: "parents", label: L("Portail parents", "فضاء الآباء", "Parent portal"), desc: L("Lien de suivi en lecture seule pour les parents : notes, absences, devoirs, messages.", "رابط تتبع للآباء: النقط والغياب والواجبات والرسائل.", "Read-only link for parents: marks, absences, homework, messages.") },
+        { k: "library", label: L("Bibliothèque partagée", "المكتبة المشتركة", "Shared library"), desc: L("Cours, quiz et fiches partagés entre professeurs, validés par l'administration.", "دروس واختبارات وجذاذات مشتركة بين الأساتذة بعد مصادقة الإدارة.", "Courses, quizzes and plans shared between teachers, approved by admins.") },
+        { k: "support", label: L("Aide et support", "المساعدة والدعم", "Help & support"), desc: L("Centre d'aide et demandes de support envoyées à l'administration.", "مركز المساعدة وطلبات الدعم للإدارة.", "Help center and support requests to the administration.") },
+        { k: "progress", label: L("Ma progression (élève)", "تقدمي (التلميذ)", "My progress (student)"), desc: L("Moyenne, derniers résultats et compétences de l'élève, avec exercices de remédiation.", "معدل التلميذ ونتائجه الأخيرة وكفاياته مع تمارين الدعم.", "Student average, recent results and skills, with remediation exercises.") },
+        { k: "gamification", label: L("Badges et séries", "الشارات والسلاسل", "Badges & streaks"), desc: L("Badges et jours d'affilée pour motiver les élèves.", "شارات وأيام متتالية لتحفيز التلاميذ.", "Badges and day streaks to motivate students.") },
+      ],
+    },
+    {
       title: L("Interface", "الواجهة", "Interface"),
       items: [
         { k: "notifications", label: L("Notifications", "الإشعارات", "Notifications"), desc: L("Cloche de notifications et messages aux élèves.", "جرس الإشعارات والرسائل للتلاميذ.", "Notification bell and messages to students.") },

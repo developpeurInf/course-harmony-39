@@ -33,6 +33,9 @@ export default function QuestionBankPicker({
   const [q, setQ] = useState("");
   const [chapter, setChapter] = useState("all");
   const [picked, setPicked] = useState<Record<string, number>>({});
+  const [level, setLevel] = useState("all");
+  const [tag, setTag] = useState("all");
+  const [drawN, setDrawN] = useState(5);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -46,11 +49,23 @@ export default function QuestionBankPicker({
   }, [open]);
 
   const chapters = useMemo(() => [...new Set(items.map((i) => i.chapter).filter(Boolean) as string[])].sort(), [items]);
+  const levels = useMemo(() => [...new Set(items.map((i) => i.level).filter(Boolean) as string[])].sort(), [items]);
+  const tags = useMemo(() => [...new Set(items.flatMap((i) => i.tags))].sort(), [items]);
   const shown = items.filter((i) =>
     (chapter === "all" || i.chapter === chapter) &&
+    (level === "all" || i.level === level) &&
+    (tag === "all" || i.tags.includes(tag)) &&
     (!q.trim() || `${plainText(i.question)} ${i.tags.join(" ")} ${i.chapter || ""}`.toLowerCase().includes(q.trim().toLowerCase()))
   );
   const total = Object.values(picked).reduce((s, n) => s + n, 0);
+
+  /** Tirage au hasard parmi les questions affichées (filtres chapitre / niveau / compétence), jamais utilisées d'abord */
+  const draw = () => {
+    const pool = [...shown].sort(() => Math.random() - 0.5).sort((a, b) => Number(!!a.times_used) - Number(!!b.times_used));
+    const next: Record<string, number> = {};
+    pool.slice(0, Math.max(1, drawN)).forEach((it) => (next[it.id] = 1));
+    setPicked(next);
+  };
 
   const add = async () => {
     if (!total || busy) return;
@@ -98,6 +113,30 @@ export default function QuestionBankPicker({
             <Search className="pointer-events-none absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} className="ps-8" placeholder={L("Rechercher…", "بحث…", "Search…")} />
           </div>
+          {levels.length > 0 && (
+            <Select value={level} onValueChange={setLevel}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{L("Tous niveaux", "كل المستويات", "All levels")}</SelectItem>
+                {levels.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {tags.length > 0 && (
+            <Select value={tag} onValueChange={setTag}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{L("Toutes compétences", "كل الكفايات", "All skills")}</SelectItem>
+                {tags.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {shown.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <Input type="number" min={1} max={shown.length} value={drawN} onChange={(e) => setDrawN(Math.max(1, Number(e.target.value) || 1))} className="w-16" aria-label={L("Nombre de questions à tirer", "عدد الأسئلة", "Number of questions to draw")} />
+              <Button type="button" variant="outline" onClick={draw}>{L("Tirer au hasard", "سحب عشوائي", "Random draw")}</Button>
+            </div>
+          )}
           {chapters.length > 0 && (
             <Select value={chapter} onValueChange={setChapter}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>

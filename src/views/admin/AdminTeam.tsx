@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { ADMIN_PERMISSION_KEYS } from "@/lib/permissions";
 import { adminInvoke, copyWithToast, db, fmtDate, PageTitle, permLabel, useT } from "./adminShared";
+import { MfaSetupCard } from "./AdminMfa";
 import { useConfirm, type ConfirmOptions } from "./ConfirmDialog";
 
 const DELEGABLE = ADMIN_PERMISSION_KEYS.filter(k => k !== "admin.roles.manage");
@@ -56,6 +57,7 @@ export default function AdminTeam() {
         subtitle={L("Le super administrateur a tous les droits ; un administrateur n'a que les droits cochés.", "المسؤول الأعلى له كل الصلاحيات؛ المسؤول له فقط الصلاحيات المحددة.", "The super admin has every right; an admin only has the checked rights.")}
         actions={canManage && <Button className="gap-1.5" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{L("Ajouter", "إضافة", "Add")}</Button>}
       />
+      <MfaSetupCard />
       {loading ? (
         <div className="h-32 animate-pulse rounded-xl bg-muted" />
       ) : (

@@ -36,13 +36,22 @@ interface Entry {
   content: string | null;
   homework: string | null;
   homework_due: string | null;
+  exercise_id?: string | null;
+  lesson_plan_id?: string | null;
 }
-const EMPTY = { lesson_date: localDay(), slot: 1, course_id: "none", title: "", content: "", homework: "", homework_due: "" };
+const EMPTY = { lesson_date: localDay(), slot: 1, course_id: "none", exercise_id: "none", lesson_plan_id: "none", title: "", content: "", homework: "", homework_due: "" };
+
+/** Lundi de la semaine de la date donnée (AAAA-MM-JJ) */
+const mondayOf = (day: string) => {
+  const d = new Date(`${day}T12:00:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+};
 
 const LessonLog = () => {
   const { roomId: paramRoom } = useParams();
   const { user } = useAuth();
-  const { rooms, courses, enrollments } = useCourses();
+  const { rooms, courses, exercises, enrollments } = useCourses();
   const { language } = useLanguage();
   const { can } = useAccess();
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en), [language]);
@@ -70,6 +79,13 @@ const LessonLog = () => {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toDelete, setToDelete] = useState<Entry | null>(null);
+  const [plans, setPlans] = useState<{ id: string; title: string }[]>([]);
+  useEffect(() => {
+    if (!isProfessor) return;
+    (supabase as any).from("lesson_plans").select("id, title").order("created_at", { ascending: false }).limit(300)
+      .then(({ data }: any) => setPlans(data || []));
+  }, [isProfessor]);
+  const roomExercises = exercises.filter((x) => roomCourses.some((c) => c.id === x.course_id));
 
   const load = useCallback(async () => {
     if (!roomId) {
@@ -99,6 +115,8 @@ const LessonLog = () => {
       lesson_date: form.lesson_date || localDay(),
       slot: form.slot || 1,
       course_id: form.course_id === "none" ? null : form.course_id,
+      exercise_id: form.exercise_id === "none" ? null : form.exercise_id,
+      lesson_plan_id: form.lesson_plan_id === "none" ? null : form.lesson_plan_id,
       title: form.title.trim(),
       content: form.content.trim() || null,
       homework: form.homework.trim() || null,
@@ -134,14 +152,24 @@ const LessonLog = () => {
   const today = localDay();
   const upcomingHomework = entries.filter((e) => e.homework && e.homework_due && e.homework_due >= today).sort((a, b) => (a.homework_due || "").localeCompare(b.homework_due || ""));
 
-  const print = () => {
+  const exerciseTitle = (id?: string | null) => (id ? exercises.find((x) => x.id === id)?.title : undefined);
+  const planTitle = (id?: string | null) => (id ? plans.find((x) => x.id === id)?.title : undefined);
+
+  const print = (weekOf?: string) => {
     const lang = language === "ar" ? "ar" : "fr";
     const b = getReportBranding(lang);
     const head = reportHeaderLines(b).map((l) => `<div>${escapeHtml(l)}</div>`).join("");
     const L = lang === "ar"
       ? { t: "دفتر النصوص", d: "التاريخ", s: "الحصة", l: "الدرس", c: "المضمون", h: "الواجب", due: "لـ" }
       : { t: "Cahier de textes", d: "Date", s: "Séance", l: "Leçon", c: "Contenu", h: "Travail à faire", due: "pour le" };
-    const rows = [...entries].reverse().map((e) => `<tr><td>${escapeHtml(new Date(`${e.lesson_date}T12:00:00`).toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR"))}</td><td class="c">${e.slot}</td>
+    const monday = weekOf ? mondayOf(weekOf) : null;
+    const sunday = monday ? new Date(new Date(`${monday}T12:00:00`).getTime() + 6 * 86400000).toISOString().slice(0, 10) : null;
+    const list = monday && sunday ? entries.filter((e) => e.lesson_date >= monday && e.lesson_date <= sunday) : entries;
+    if (!list.length) {
+      toast.info(tr("Aucune séance cette semaine.", "لا توجد حصص هذا الأسبوع.", "No lesson this week."));
+      return;
+    }
+    const rows = [...list].reverse().map((e) => `<tr><td>${escapeHtml(new Date(`${e.lesson_date}T12:00:00`).toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR"))}</td><td class="c">${e.slot}</td>
       <td><b>${escapeHtml(e.title)}</b>${courseTitle(e.course_id) ? `<br><small>${escapeHtml(courseTitle(e.course_id) || "")}</small>` : ""}</td>
       <td>${escapeHtml(e.content || "").replace(/\n/g, "<br>")}</td>
       <td>${escapeHtml(e.homework || "").replace(/\n/g, "<br>")}${e.homework_due ? `<br><small>${L.due} ${escapeHtml(new Date(`${e.homework_due}T12:00:00`).toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR"))}</small>` : ""}</td></tr>`).join("");
@@ -149,7 +177,7 @@ const LessonLog = () => {
 <style>@page{size:A4 landscape;margin:12mm}body{font-family:${lang === "ar" ? "'Noto Naskh Arabic',Tahoma," : ""}'Segoe UI',Arial,sans-serif;font-size:12px;color:#111}
 .head{font-weight:600;line-height:1.5;border-bottom:2px solid #222;padding-bottom:6px}h1{text-align:center;font-size:18px;margin:10px 0}
 table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5px 7px;vertical-align:top;text-align:start}th{background:#f1f1f1}.c{text-align:center}tr{page-break-inside:avoid}</style></head>
-<body><div class="head">${head}</div><h1>${L.t} · ${escapeHtml(room?.name || "")}</h1>
+<body><div class="head">${head}</div><h1>${L.t} · ${escapeHtml(room?.name || "")}${monday ? ` · ${escapeHtml(new Date(`${monday}T12:00:00`).toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR"))} – ${escapeHtml(new Date(`${sunday}T12:00:00`).toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR"))}` : ""}</h1>
 <table><thead><tr><th style="width:11%">${L.d}</th><th style="width:5%">${L.s}</th><th style="width:22%">${L.l}</th><th>${L.c}</th><th style="width:24%">${L.h}</th></tr></thead><tbody>${rows}</tbody></table>
 <script>window.addEventListener('load',function(){setTimeout(function(){window.print();},300);});</script></body></html>`);
   };
@@ -174,7 +202,8 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5p
               <SelectContent>{studentRooms.map((id) => <SelectItem key={id} value={id}>{rooms.find((r) => r.id === id)?.name || id}</SelectItem>)}</SelectContent>
             </Select>
           )}
-          {isProfessor && <Button variant="outline" className="gap-1.5" onClick={print} disabled={!entries.length}><Printer className="h-4 w-4" />{tr("Imprimer", "طباعة", "Print")}</Button>}
+          {isProfessor && <Button variant="outline" className="gap-1.5" onClick={() => print(today)} disabled={!entries.length}><Printer className="h-4 w-4" />{tr("Imprimer la semaine", "طباعة الأسبوع", "Print this week")}</Button>}
+          {isProfessor && <Button variant="outline" className="gap-1.5" onClick={() => print()} disabled={!entries.length}><Printer className="h-4 w-4" />{tr("Tout imprimer", "طباعة الكل", "Print all")}</Button>}
           {isProfessor && (
             <Button className="gap-1.5" disabled={!editable || missing} onClick={() => { setForm({ ...EMPTY, lesson_date: localDay() }); setOpen(true); }}>
               <Plus className="h-4 w-4" />{tr("Nouvelle séance", "حصة جديدة", "New lesson")}
@@ -216,9 +245,11 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5p
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="text-xs font-semibold capitalize text-muted-foreground">{dateLabel(e.lesson_date)} · {tr("séance", "الحصة", "lesson")} {e.slot}</span>
                 {courseTitle(e.course_id) && <span className="text-xs text-muted-foreground">{courseTitle(e.course_id)}</span>}
+                {exerciseTitle(e.exercise_id) && <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground">{tr("Exercice", "تمرين", "Exercise")} : {exerciseTitle(e.exercise_id)}</span>}
+                {planTitle(e.lesson_plan_id) && <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground">{tr("Fiche", "جذاذة", "Plan")} : {planTitle(e.lesson_plan_id)}</span>}
                 {editable && (
                   <span className="ms-auto flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm({ id: e.id, lesson_date: e.lesson_date, slot: e.slot, course_id: e.course_id || "none", title: e.title, content: e.content || "", homework: e.homework || "", homework_due: e.homework_due || "" }); setOpen(true); }} aria-label={tr("Modifier", "تعديل", "Edit")}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setForm({ id: e.id, lesson_date: e.lesson_date, slot: e.slot, course_id: e.course_id || "none", exercise_id: e.exercise_id || "none", lesson_plan_id: e.lesson_plan_id || "none", title: e.title, content: e.content || "", homework: e.homework || "", homework_due: e.homework_due || "" }); setOpen(true); }} aria-label={tr("Modifier", "تعديل", "Edit")}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => setToDelete(e)} aria-label={tr("Supprimer", "حذف", "Delete")}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </span>
                 )}
@@ -253,6 +284,34 @@ table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5p
                     {roomCourses.map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {(roomExercises.length > 0 || plans.length > 0) && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {roomExercises.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>{tr("Exercice lié", "التمرين المرتبط", "Linked exercise")}</Label>
+                    <Select value={form.exercise_id} onValueChange={(v) => setForm((f) => ({ ...f, exercise_id: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {roomExercises.map((x) => <SelectItem key={x.id} value={x.id}>{x.title}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {plans.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>{tr("Fiche pédagogique liée", "الجذاذة المرتبطة", "Linked lesson plan")}</Label>
+                    <Select value={form.lesson_plan_id} onValueChange={(v) => setForm((f) => ({ ...f, lesson_plan_id: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {plans.map((x) => <SelectItem key={x.id} value={x.id}>{x.title}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
             <div className="space-y-1.5"><Label>{tr("Leçon / titre", "الدرس / العنوان", "Lesson / title")} *</Label><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></div>

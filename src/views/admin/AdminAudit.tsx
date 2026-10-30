@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Download } from "lucide-react";
+import { downloadBlob } from "@/lib/download";
 import { db, fmtDate, PageTitle, permLabel, useT } from "./adminShared";
 
 /** Libellé lisible d'une ligne du journal */
@@ -48,6 +50,16 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
   const [names, setNames] = useState<Record<string, string>>({});
   const [q, setQ] = useState("");
   const [max, setMax] = useState(limit);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [table, setTable] = useState("");
+  const [actor, setActor] = useState("");
+  const [team, setTeam] = useState<{ user_id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (teacherId) return;
+    db.rpc("admin_team").then(({ data }: any) => setTeam(data || []));
+  }, [teacherId]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const arrow = lang === "ar" ? "←" : "→";
@@ -58,6 +70,12 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
       setLoading(true);
       let query = db.from("audit_log").select("*").order("created_at", { ascending: false }).limit(max);
       if (teacherId) query = query.eq("teacher_id", teacherId);
+      // filtres appliqués par la base : toute la période est cherchée, pas seulement les lignes chargées
+      if (from) query = query.gte("created_at", new Date(`${from}T00:00:00`).toISOString());
+      if (to) query = query.lte("created_at", new Date(`${to}T23:59:59`).toISOString());
+      if (table) query = query.eq("table_name", table);
+      if (actor === "system") query = query.is("actor_id", null);
+      else if (actor) query = query.eq("actor_id", actor);
       const { data, error: err } = await query;
       if (!alive) return;
       setLoading(false);
@@ -77,7 +95,14 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacherId, max]);
+  }, [teacherId, max, from, to, table, actor]);
+
+  const exportCsv = () => {
+    const head = [L("Date", "التاريخ", "Date"), L("Action", "العملية", "Action"), L("Auteur", "المنفذ", "Author"), L("Professeur", "الأستاذ", "Teacher")];
+    const lines = filtered.map(r => [new Date(r.created_at).toISOString(), describe(r, L, lang), r.actor_id ? names[r.actor_id] || "" : "system", names[r.teacher_id] || ""]);
+    const csv = "\uFEFF" + [head, ...lines].map(l => l.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `journal_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -87,7 +112,32 @@ export function AuditList({ teacherId, limit = 200 }: { teacherId?: string; limi
 
   return (
     <div className="space-y-3">
-      <Input value={q} onChange={e => setQ(e.target.value)} aria-label={L("Filtrer le journal", "تصفية السجل", "Filter the log")} placeholder={L("Filtrer…", "تصفية…", "Filter…")} />
+      <div className="flex flex-wrap items-end gap-2">
+        <Input className="min-w-[180px] flex-1" value={q} onChange={e => setQ(e.target.value)} aria-label={L("Filtrer le journal", "تصفية السجل", "Filter the log")} placeholder={L("Filtrer…", "تصفية…", "Filter…")} />
+        <Input type="date" className="w-auto" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} aria-label={L("Du", "من", "From")} />
+        <Input type="date" className="w-auto" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} aria-label={L("Au", "إلى", "To")} />
+        <select className="h-10 rounded-md border bg-background px-2 text-sm" value={table} onChange={e => setTable(e.target.value)} aria-label={L("Type", "النوع", "Type")}>
+          <option value="">{L("Tous les types", "كل الأنواع", "All types")}</option>
+          <option value="subscriptions">{L("Abonnements", "الاشتراكات", "Subscriptions")}</option>
+          <option value="payments">{L("Paiements", "الأداءات", "Payments")}</option>
+          <option value="subscription_requests">{L("Demandes", "الطلبات", "Requests")}</option>
+          <option value="plans">{L("Offres", "العروض", "Plans")}</option>
+          <option value="plan_permissions">{L("Habilitations des offres", "صلاحيات العروض", "Plan permissions")}</option>
+          <option value="teacher_permission_overrides">{L("Exceptions", "الاستثناءات", "Overrides")}</option>
+          <option value="teacher_accounts">{L("Comptes", "الحسابات", "Accounts")}</option>
+          <option value="user_roles">{L("Équipe", "الفريق", "Team")}</option>
+          <option value="promo_codes">{L("Codes promo", "رموز التخفيض", "Promo codes")}</option>
+          <option value="announcements">{L("Annonces", "الإعلانات", "Announcements")}</option>
+        </select>
+        {!teacherId && (
+          <select className="h-10 rounded-md border bg-background px-2 text-sm" value={actor} onChange={e => setActor(e.target.value)} aria-label={L("Auteur", "المنفذ", "Author")}>
+            <option value="">{L("Tous les auteurs", "كل المنفذين", "All authors")}</option>
+            {team.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+            <option value="system">{L("Système", "النظام", "System")}</option>
+          </select>
+        )}
+        <Button variant="outline" size="sm" className="h-10 gap-1.5" onClick={exportCsv} disabled={!filtered.length}><Download className="h-4 w-4" />CSV</Button>
+      </div>
       {q.trim() && !loading && (
         <p className="text-xs text-muted-foreground">
           {L(

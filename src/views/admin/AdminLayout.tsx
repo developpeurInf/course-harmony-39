@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef } from "react";
 import { NavLink, useLocation, useNavigate } from "@/lib/router";
-import { LayoutDashboard, Users, Layers, CalendarClock, Wallet, ScrollText, ShieldCheck, LogOut, Palette } from "lucide-react";
+import { LayoutDashboard, Users, Layers, CalendarClock, Wallet, ScrollText, ShieldCheck, LogOut, Palette, Megaphone, Gift, LifeBuoy, LibraryBig } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/AppBrand";
 import { useT } from "./adminShared";
 import { useConfirm } from "./ConfirmDialog";
+import { AdminMfaGate } from "./AdminMfa";
 
 /** Espace d'administration : menu propre, réservé aux comptes de l'équipe admin */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -78,6 +79,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { to: "/admin/plans", icon: Layers, label: L("Offres", "العروض", "Plans"), show: true },
     { to: "/admin/subscriptions", icon: CalendarClock, label: L("Abonnements", "الاشتراكات", "Subscriptions"), show: true },
     { to: "/admin/payments", icon: Wallet, label: L("Paiements", "الأداءات", "Payments"), show: true },
+    { to: "/admin/promos", icon: Gift, label: L("Codes promo", "رموز التخفيض", "Promo codes"), show: adminCan("admin.plans.manage") },
+    { to: "/admin/announcements", icon: Megaphone, label: L("Annonces", "الإعلانات", "Announcements"), show: adminCan("admin.settings.manage") },
+    { to: "/admin/support", icon: LifeBuoy, label: L("Support", "الدعم", "Support"), show: adminCan("admin.support.manage") },
+    { to: "/admin/library", icon: LibraryBig, label: L("Bibliothèque", "المكتبة", "Library"), show: adminCan("admin.library.manage") },
     { to: "/admin/audit", icon: ScrollText, label: L("Journal", "السجل", "Audit log"), show: adminCan("admin.audit.view") },
     { to: "/admin/team", icon: ShieldCheck, label: L("Équipe admin", "فريق الإدارة", "Admin team"), show: true },
     {
@@ -187,7 +192,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
               }
             >
-              {children}
+              <AdminMfaGate>{children}</AdminMfaGate>
             </Suspense>
           </div>
         </main>

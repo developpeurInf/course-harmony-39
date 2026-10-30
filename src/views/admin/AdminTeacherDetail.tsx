@@ -1,5 +1,3 @@
-import { getAppSettingsSnapshot } from "@/contexts/AppSettingsContext";
-import { pickText } from "@/lib/appSettings";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "@/lib/router";
 import { ArrowLeft, KeyRound, Ban, PlayCircle, Pencil, CalendarPlus, RefreshCw, Repeat, XCircle, Plus, Printer, Copy, Check, Trash2, Loader2 } from "lucide-react";
@@ -17,11 +15,13 @@ import {
 } from "./adminShared";
 import type { PlanRow } from "./AdminTeachers";
 import { AuditList } from "./AdminAudit";
+import { printInvoice } from "@/lib/invoicePrint";
+import { ActivityTab, NotesTab, whatsappLink } from "./AdminTeacherExtras";
 import { DeleteTeacherDialog, EditTeacherDialog, suspensionConfirm } from "./TeacherDialogs";
 import { useConfirm } from "./ConfirmDialog";
 
 const selectCls = "h-10 w-full rounded-md border bg-background px-3 text-sm";
-type Tab = "subscription" | "payments" | "permissions" | "journal";
+type Tab = "subscription" | "activity" | "payments" | "permissions" | "notes" | "journal";
 
 export default function AdminTeacherDetail() {
   const { id = "" } = useParams();
@@ -124,8 +124,10 @@ export default function AdminTeacherDetail() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "subscription", label: L("Abonnement", "الاشتراك", "Subscription") },
+    { id: "activity", label: L("Activité", "النشاط", "Activity") },
     { id: "payments", label: L("Paiements", "الأداءات", "Payments") },
     { id: "permissions", label: L("Habilitations & quotas", "الصلاحيات والحصص", "Permissions & quotas") },
+    ...(adminCan("admin.teachers.manage") ? [{ id: "notes" as Tab, label: L("Notes internes", "ملاحظات داخلية", "Internal notes") }] : []),
     { id: "journal", label: L("Journal", "السجل", "Log") },
   ];
 
@@ -145,6 +147,12 @@ export default function AdminTeacherDetail() {
               <StatusBadge status={suspended ? "suspended" : teacher.sub_status} />
             </div>
             <p className="text-sm text-muted-foreground" dir="ltr">{teacher.email}</p>
+            {whatsappLink(teacher.phone, "") && (
+              <a href={whatsappLink(teacher.phone, L(`Bonjour ${teacher.name},`, `مرحبا ${teacher.name}،`, `Hello ${teacher.name},`)) || "#"} target="_blank" rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
+                WhatsApp
+              </a>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               {[teacher.subject, teacher.school, teacher.city, teacher.phone].filter(Boolean).join(" · ") || "—"}
             </p>
@@ -261,9 +269,13 @@ export default function AdminTeacherDetail() {
           </div>
         )}
 
+        {tab === "activity" && <ActivityTab teacherId={id} />}
+
         {tab === "payments" && (
-          <PaymentsTab teacher={teacher} payments={payments} subs={subs} onAdd={() => setPayOpen(true)} canAdd={adminCan("admin.payments.manage")} />
+          <PaymentsTab teacher={teacher} payments={payments} subs={subs} onAdd={() => setPayOpen(true)} canAdd={adminCan("admin.payments.manage")} ask={ask} onChanged={load} />
         )}
+
+        {tab === "notes" && <NotesTab teacherId={id} ask={ask} />}
 
         {tab === "permissions" && <PermissionsTab teacherId={id} canEdit={adminCan("admin.overrides.manage")} />}
 
@@ -489,9 +501,25 @@ function ExtendDialog({ open, onOpenChange, current, onSaved }: any) {
 
 // ---------------------------------------------------------------------------
 
-function PaymentsTab({ teacher, payments, subs, onAdd, canAdd }: any) {
+function PaymentsTab({ teacher, payments, subs, onAdd, canAdd, ask, onChanged }: any) {
   const { L, lang } = useT();
-  const total = payments.reduce((s: number, p: any) => s + Number(p.amount_mad || 0), 0);
+  const total = payments.filter((p: any) => !p.refunded_at).reduce((s: number, p: any) => s + Number(p.amount_mad || 0), 0);
+  const refund = (p: any) => ask({
+    title: L(`Rembourser ${fmtMoney(p.amount_mad, lang)} ?`, `استرجاع ${fmtMoney(p.amount_mad, lang)}؟`, `Refund ${fmtMoney(p.amount_mad, lang)}?`),
+    description: L("Le paiement reste dans l'historique, marqué « remboursé », et sort des revenus. L'abonnement n'est pas modifié : arrêtez-le si besoin.", "يبقى الأداء في السجل بعلامة «مسترجع» ويخرج من المداخيل. لا يتغير الاشتراك: أوقفه عند الحاجة.", "The payment stays in the history, marked “refunded”, and leaves revenue. The subscription is not changed: stop it if needed."),
+    input: { label: L("Motif", "السبب", "Reason"), required: true },
+    destructive: true,
+    confirmLabel: L("Rembourser", "استرجاع", "Refund"),
+    onConfirm: async (reason: string) => {
+      const { error } = await db.from("payments").update({ refunded_at: new Date().toISOString(), refund_reason: reason.trim() }).eq("id", p.id);
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+      toast.success(L("Paiement marqué remboursé", "تم تحديد الأداء كمسترجع", "Payment marked as refunded"));
+      onChanged();
+    },
+  });
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
@@ -510,14 +538,20 @@ function PaymentsTab({ teacher, payments, subs, onAdd, canAdd }: any) {
             return (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                 <div className="min-w-0">
-                  <p className="font-semibold">{fmtMoney(p.amount_mad, lang)} <span className="text-xs font-normal text-muted-foreground">· {method ? L(method.fr, method.ar, method.en) : p.method}</span></p>
+                  <p className={`font-semibold ${p.refunded_at ? "line-through opacity-60" : ""}`}>{fmtMoney(p.amount_mad, lang)} <span className="text-xs font-normal text-muted-foreground">· {method ? L(method.fr, method.ar, method.en) : p.method}</span></p>
+                  {p.refunded_at && <p className="text-xs font-semibold text-red-600">{L("Remboursé le", "مسترجع في", "Refunded on")} {fmtDate(p.refunded_at, lang)}{p.refund_reason ? ` · ${p.refund_reason}` : ""}</p>}
                   <p className="text-xs text-muted-foreground">
                     {fmtDate(p.paid_at, lang)}{sub ? ` · ${sub.plans?.name}` : ""}{p.reference ? ` · ${L("réf.", "مرجع", "ref.")} ${p.reference}` : ""}{p.receipt_number ? ` · ${L("reçu", "وصل", "receipt")} ${p.receipt_number}` : ""}
                   </p>
                 </div>
-                <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => printReceipt(p, teacher, sub, lang, L)}>
-                  <Printer className="h-3.5 w-3.5" />{L("Reçu", "وصل", "Receipt")}
-                </Button>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => printInvoice(p, teacher, sub, lang)}>
+                    <Printer className="h-3.5 w-3.5" />{L("Facture", "فاتورة", "Invoice")}
+                  </Button>
+                  {canAdd && !p.refunded_at && (
+                    <Button size="sm" variant="ghost" className="text-red-600" onClick={() => refund(p)}>{L("Rembourser", "استرجاع", "Refund")}</Button>
+                  )}
+                </div>
               </li>
             );
           })}
@@ -525,48 +559,6 @@ function PaymentsTab({ teacher, payments, subs, onAdd, canAdd }: any) {
       )}
     </div>
   );
-}
-
-function printReceipt(p: any, teacher: any, sub: any, lang: Lang, L: (fr: string, ar: string, en: string) => string) {
-  const w = window.open("", "_blank", "width=720,height=900");
-  if (!w) {
-    toast.error(L(
-      "Fenêtre bloquée : autorisez les fenêtres pop-up pour imprimer le reçu.",
-      "تم حظر النافذة: اسمح بالنوافذ المنبثقة لطباعة الوصل.",
-      "Pop-up blocked: allow pop-ups to print the receipt."
-    ));
-    return;
-  }
-  const method = PAYMENT_METHODS.find(m => m.id === p.method);
-  const esc = (s: any) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
-  const locale = lang === "ar" ? "ar-MA" : lang === "en" ? "en-GB" : "fr-FR";
-  const dir = lang === "ar" ? "rtl" : "ltr";
-  const arrow = lang === "ar" ? "←" : "→";
-  const number = p.receipt_number || String(p.id).slice(0, 8).toUpperCase();
-  const period = sub ? ` (${esc(fmtDate(sub.starts_at, lang))} ${arrow} ${esc(sub.ends_at ? fmtDate(sub.ends_at, lang) : L("sans fin", "بدون نهاية", "no end"))})` : "";
-  // Personnalisation centrale : nom, établissement, logo et mentions du reçu
-  const brand = getAppSettingsSnapshot();
-  const appName = brand.identity.appName || "Math infini";
-  const school = brand.reports.schoolName || "";
-  const logo = brand.reports.showLogo ? (brand.reports.logoUrl || brand.identity.logoUrl) : null;
-  const receiptFooter = pickText(brand.reports.receiptFooter, lang);
-  const row = (k: string, v: string, cls = "") => `<tr><td class="k">${esc(k)}</td><td${cls ? ` class="${cls}"` : ""}>${v}</td></tr>`;
-  w.document.write(`<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${esc(L("Reçu", "وصل", "Receipt"))} ${esc(number)}</title>
-  <style>body{font-family:Arial,Tahoma,sans-serif;max-width:640px;margin:32px auto;padding:0 16px;color:#111;direction:${dir};text-align:${lang === "ar" ? "right" : "left"}}h1{font-size:22px;margin:0}
-  .muted{color:#666;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:8px;border-bottom:1px solid #ddd;vertical-align:top}
-  td.k{color:#555;width:40%}.total{font-size:20px;font-weight:bold}.ltr{direction:ltr;unicode-bidi:embed}</style></head><body>
-  ${logo ? `<img src="${esc(logo)}" alt="" style="max-height:56px;max-width:200px;margin-bottom:8px">` : ""}
-  <h1>${esc(L("Reçu de paiement", "وصل الأداء", "Payment receipt"))}</h1><p class="muted">${esc(appName)}${school ? ` · ${esc(school)}` : ""} · ${esc(new Date().toLocaleDateString(locale))}</p>
-  <table>
-  ${row(L("N° de reçu", "رقم الوصل", "Receipt no."), `<span class="ltr">${esc(number)}</span>`)}
-  ${row(L("Professeur", "الأستاذ", "Teacher"), `${esc(teacher.name)} (<span class="ltr">${esc(teacher.email)}</span>)`)}
-  ${row(L("Date du paiement", "تاريخ الأداء", "Payment date"), esc(fmtDate(p.paid_at, lang)))}
-  ${row(L("Offre", "العرض", "Plan"), `${esc(sub?.plans?.name || "—")}${period}`)}
-  ${row(L("Moyen de paiement", "وسيلة الأداء", "Payment method"), `${esc(method ? L(method.fr, method.ar, method.en) : p.method)}${p.reference ? ` · ${esc(L("réf.", "مرجع", "ref."))} <span class="ltr">${esc(p.reference)}</span>` : ""}`)}
-  ${row(L("Montant", "المبلغ", "Amount"), esc(fmtMoney(p.amount_mad, lang)), "total")}
-  </table>${receiptFooter ? `<p class="muted" style="margin-top:24px;white-space:pre-line">${esc(receiptFooter)}</p>` : ""}<script>window.onload=function(){window.print()}</script></body></html>`);
-  w.document.close();
 }
 
 function PaymentDialog({ open, onOpenChange, teacherId, subs, onSaved }: any) {

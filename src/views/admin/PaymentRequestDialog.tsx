@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Check, FileText, Loader2, X } from "lucide-react";
+import { AlertTriangle, Check, FileText, Loader2, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { openReceipt } from "@/lib/paymentReceipts";
+import { openReceipt, receiptUrl } from "@/lib/paymentReceipts";
 import { db, fmtDate, fmtMoney, PAYMENT_METHODS, useT } from "./adminShared";
 
 /** Vérification d'un paiement envoyé par un prof : ouvrir le reçu, valider (abonnement + paiement) ou refuser */
@@ -23,6 +23,10 @@ export default function PaymentRequestDialog({ request, teacherName, onClose, on
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [rotate, setRotate] = useState(0);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
 
   useEffect(() => {
     if (!request) return;
@@ -31,7 +35,29 @@ export default function PaymentRequestDialog({ request, teacherName, onClose, on
     setNotes("");
     setRejecting(false);
     setReason("");
+    setPreview(null);
+    setZoom(1);
+    setRotate(0);
+    setDuplicates([]);
+    // aperçu de la photo du reçu directement dans la fenêtre
+    if (request.receipt_path && !/\.pdf$/i.test(request.receipt_path)) {
+      receiptUrl(request.receipt_path).then(setPreview);
+    }
+    // même référence de transaction déjà envoyée (par ce prof ou un autre)
+    const ref = String(request.pay_reference || "").trim();
+    if (ref.length >= 4) {
+      db.from("subscription_requests").select("id, teacher_id, status, created_at").eq("pay_reference", ref).neq("id", request.id)
+        .in("status", ["pending", "done"]).then(({ data }: any) => setDuplicates(data || []));
+    }
   }, [request]);
+
+  const REASONS = [
+    L("Montant incomplet", "المبلغ ناقص", "Amount incomplete"),
+    L("Reçu illisible : renvoyez une photo nette", "الوصل غير واضح: أرسل صورة واضحة", "Unreadable receipt: send a clear photo"),
+    L("Paiement non reçu sur notre compte", "لم نتوصل بالأداء في حسابنا", "Payment not received on our account"),
+    L("Reçu déjà utilisé", "الوصل مستعمل من قبل", "Receipt already used"),
+    L("Mauvais bénéficiaire", "مستفيد خاطئ", "Wrong beneficiary"),
+  ];
 
   if (!request) return null;
   const method = PAYMENT_METHODS.find(m => m.id === request.pay_method);
@@ -92,6 +118,34 @@ export default function PaymentRequestDialog({ request, teacherName, onClose, on
           {row(L("Envoyé le", "أُرسل في", "Sent on"), fmtDate(request.created_at, lang))}
         </dl>
         {request.message && <p className="rounded-md bg-muted p-2 text-sm">« {request.message} »</p>}
+        {request.promo_code && (
+          <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+            {L("Code promo", "رمز التخفيض", "Promo code")} : <span className="font-mono font-semibold">{request.promo_code}</span>
+            {request.discount_mad ? ` · -${fmtMoney(request.discount_mad, lang)}` : ""}
+          </p>
+        )}
+        {duplicates.length > 0 && (
+          <p role="alert" className="flex gap-2 rounded-md bg-red-50 p-2 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            {L(
+              `Attention : cette référence a déjà été envoyée ${duplicates.length} fois (${duplicates.map(d => fmtDate(d.created_at, lang)).join(", ")}).`,
+              `تنبيه: أُرسل هذا المرجع ${duplicates.length} مرة من قبل (${duplicates.map(d => fmtDate(d.created_at, lang)).join("، ")}).`,
+              `Warning: this reference was already sent ${duplicates.length} time(s) (${duplicates.map(d => fmtDate(d.created_at, lang)).join(", ")}).`
+            )}
+          </p>
+        )}
+        {preview && (
+          <div className="space-y-2">
+            <div className="flex h-72 items-center justify-center overflow-auto rounded-lg border bg-muted/40">
+              <img src={preview} alt={L("Reçu", "الوصل", "Receipt")} className="max-h-full max-w-full transition-transform" style={{ transform: `scale(${zoom}) rotate(${rotate}deg)` }} />
+            </div>
+            <div className="flex justify-center gap-1">
+              <Button type="button" size="icon" variant="outline" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}><ZoomOut className="h-4 w-4" /></Button>
+              <Button type="button" size="icon" variant="outline" onClick={() => setZoom(z => Math.min(4, z + 0.25))}><ZoomIn className="h-4 w-4" /></Button>
+              <Button type="button" size="icon" variant="outline" onClick={() => setRotate(r => (r + 90) % 360)} aria-label={L("Pivoter", "تدوير", "Rotate")}><RotateCw className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        )}
         {request.receipt_path ? (
           <Button type="button" variant="outline" className="w-full gap-1.5" onClick={showReceipt}>
             <FileText className="h-4 w-4" />{L("Ouvrir le reçu", "فتح الوصل", "Open the receipt")}
@@ -103,6 +157,11 @@ export default function PaymentRequestDialog({ request, teacherName, onClose, on
         {rejecting ? (
           <div className="space-y-2">
             <Label htmlFor="pay-reject-reason">{L("Motif du refus (visible par le prof)", "سبب الرفض (يراه الأستاذ)", "Reason (shown to the teacher)")}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {REASONS.map(r => (
+                <button key={r} type="button" onClick={() => setReason(r)} className={`rounded-full border px-2.5 py-1 text-xs ${reason === r ? "border-foreground bg-foreground text-background" : "hover:bg-muted"}`}>{r}</button>
+              ))}
+            </div>
             <Textarea id="pay-reject-reason" rows={2} value={reason} maxLength={300} onChange={e => setReason(e.target.value)} placeholder={L("Ex. montant incomplet, reçu illisible", "مثال: مبلغ ناقص، وصل غير واضح", "E.g. amount missing, unreadable receipt")} />
             <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => setRejecting(false)} disabled={busy}>{L("Retour", "رجوع", "Back")}</Button>

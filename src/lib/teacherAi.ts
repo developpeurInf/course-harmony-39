@@ -40,6 +40,8 @@ export function aiErrorMessage(code: string, tr: Tr) {
     case "TOO_LONG": return tr("La réponse de l'IA était trop longue. Réessayez (ou réduisez le document).", "رد الذكاء الاصطناعي طويل جداً. أعد المحاولة.", "The AI answer was too long. Try again.");
     case "EXAM_NOT_FOUND": return tr("Test introuvable.", "الاختبار غير موجود.", "Test not found.");
     case "AI_TIMEOUT": return tr("L'IA a mis trop de temps à répondre (serveur saturé). Réessayez dans quelques minutes.", "استغرق الذكاء الاصطناعي وقتاً طويلاً (الخادم مشغول). أعد المحاولة بعد دقائق.", "The AI took too long (server busy). Try again in a few minutes.");
+    case "NOTHING_TO_REMEDIATE": return tr("Aucune erreur dans ce quiz : bravo !", "لا توجد أخطاء في هذا الاختبار: أحسنت!", "No mistakes in this quiz: well done!");
+    case "STUDENTS_ONLY": return tr("Réservé aux élèves.", "خاص بالتلاميذ.", "Students only.");
     case "AI_BUSY": return tr("L'IA est très sollicitée, réessayez dans une minute.", "الذكاء الاصطناعي مشغول، أعد المحاولة بعد دقيقة.", "The AI is busy, retry in a minute.");
     default: return tr("La génération a échoué. Réessayez.", "فشل التوليد. أعد المحاولة.", "Generation failed. Try again.");
   }

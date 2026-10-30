@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { hasMath, loadKatex, renderLatexToString, renderMathInElement } from "@/lib/mathRender";
 import { looksMathy, simpleToLatex } from "@/lib/simpleMath";
+import { sanitizeHtml } from "@/lib/sanitizeHtml";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 /**
@@ -13,10 +14,11 @@ const escapeHtml = (s: string) =>
 
 export function MathHtml({ html, className, style }: { html: string; className?: string; style?: CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null);
+  const safe = useMemo(() => sanitizeHtml(html), [html]);
   useEffect(() => {
-    if (hasMath(html)) renderMathInElement(ref.current);
-  }, [html]);
-  return <div ref={ref} className={className} style={style} dangerouslySetInnerHTML={{ __html: html || "" }} />;
+    if (hasMath(safe)) renderMathInElement(ref.current);
+  }, [safe]);
+  return <div ref={ref} className={className} style={style} dangerouslySetInnerHTML={{ __html: safe }} />;
 }
 
 export function MathText({ text, className, as = "span" }: { text: string; className?: string; as?: "span" | "div" | "p" }) {

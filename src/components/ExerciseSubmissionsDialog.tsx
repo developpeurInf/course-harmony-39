@@ -3,7 +3,7 @@
  * de chaque élève, note, commentaire et copie corrigée, puis « Rendre la copie ».
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, Clock, Loader2, Paperclip, RotateCcw, Send, Trash2, UserX } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, Loader2, Paperclip, PenLine, RotateCcw, Send, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,6 +28,7 @@ import {
   type SubmissionFile,
 } from "@/lib/exerciseSubmissions";
 import { SubmissionFileList } from "@/components/ExerciseSubmissionPanel";
+import { AnnotateImageDialog, RubricPicker } from "@/components/grading/AnnotateCopy";
 
 type Tr = (fr: string, ar: string, en: string) => string;
 
@@ -73,6 +74,8 @@ function ReviewForm({
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState<"return" | "reopen" | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [annotating, setAnnotating] = useState<SubmissionFile | null>(null);
+  const images = sub.files.filter((f) => (f.mime || "").startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(f.name));
 
   const save = async (returnIt: boolean) => {
     if (saving) return;
@@ -136,6 +139,12 @@ function ReviewForm({
             <Input value={maxGrade} onChange={(e) => setMaxGrade(e.target.value)} inputMode="decimal" className="h-9 w-16 text-center" aria-label={tr("Barème", "سلم التنقيط", "Scale")} />
           </span>
         </label>
+        <RubricPicker tr={tr} onApply={(g, max, lines) => {
+          const fmt = (n: number) => String(Math.round(n * 100) / 100).replace(".", language === "en" ? "." : ",");
+          setGrade(fmt(g));
+          setMaxGrade(fmt(max));
+          setFeedback((f) => [f.trim(), lines.join("\n")].filter(Boolean).join("\n\n"));
+        }} />
       </div>
       <Textarea
         value={feedback}
@@ -172,10 +181,26 @@ function ReviewForm({
             e.target.value = "";
           }}
         />
-        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => fileRef.current?.click()}>
-          <Paperclip className="h-3.5 w-3.5" />
-          {tr("Joindre la copie annotée", "إرفاق الورقة المصححة", "Attach the annotated work")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {images.map((f) => (
+            <Button key={f.path} type="button" variant="outline" size="sm" className="gap-1.5" disabled={!urls[f.path]} onClick={() => setAnnotating(f)}>
+              <PenLine className="h-3.5 w-3.5" />
+              {images.length > 1 ? tr(`Annoter « ${f.name} »`, `التصحيح على « ${f.name} »`, `Annotate “${f.name}”`) : tr("Annoter la copie", "التصحيح على الورقة", "Annotate the work")}
+            </Button>
+          ))}
+          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+            <Paperclip className="h-3.5 w-3.5" />
+            {tr("Joindre la copie annotée", "إرفاق الورقة المصححة", "Attach the annotated work")}
+          </Button>
+        </div>
+        <AnnotateImageDialog
+          open={!!annotating}
+          onOpenChange={(v) => !v && setAnnotating(null)}
+          src={annotating ? urls[annotating.path] : null}
+          name={annotating?.name || "copie"}
+          tr={tr}
+          onSave={(file) => setNewFiles((p) => [...p, file].slice(0, Math.max(0, MAX_SUBMISSION_FILES - kept.length)))}
+        />
       </div>
       <div className="flex flex-wrap gap-2 pt-1">
         <Button type="button" className="gap-2" onClick={() => save(true)} disabled={!!saving}>

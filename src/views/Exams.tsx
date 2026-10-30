@@ -1,4 +1,5 @@
 import { accessStore } from "@/contexts/AccessContext";
+import { PublishToLibraryButton } from "@/components/library/LibraryShared";
 import { RequirePermission } from "@/components/access/AccessUi";
 
 import { useState, useEffect, useRef, useMemo, useDeferredValue, Suspense } from "react";
@@ -1182,6 +1183,7 @@ const Exams = () => {
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
+                            <PublishToLibraryButton kind="quiz" sourceId={exam.id} tr={tr} iconOnly />
                             <Button 
                               variant="ghost" 
                               size="icon"
@@ -1399,6 +1401,7 @@ const Exams = () => {
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </Button>
+                            <PublishToLibraryButton kind="quiz" sourceId={exam.id} tr={tr} iconOnly />
                             <Button
                               variant="ghost"
                               size="icon"

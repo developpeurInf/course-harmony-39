@@ -2,6 +2,20 @@ import { useState } from "react";
 import { Loader2, RotateCcw, RotateCw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** « 2, 5-7 » → index 0-based [1, 4, 5, 6] ; null si la saisie est invalide */
+export function parsePageRanges(text: string, pageCount: number): number[] | null {
+  const out = new Set<number>();
+  for (const part of text.split(/[,;\s]+/).filter(Boolean)) {
+    const m = /^(\d+)(?:-(\d+))?$/.exec(part);
+    if (!m) return null;
+    let a = Number(m[1]), b = Number(m[2] || m[1]);
+    if (a > b) [a, b] = [b, a];
+    if (a < 1 || b > pageCount) return null;
+    for (let p = a; p <= b; p++) out.add(p - 1);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+
 type Tr = (fr: string, ar: string, en: string) => string;
 
 interface Props {
@@ -22,6 +36,14 @@ export default function PageOrganizer({ thumbnails, loading, selected, onSelecti
   const [anchor, setAnchor] = useState<number | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
+  const [ranges, setRanges] = useState("");
+  const parsed = ranges.trim() ? parsePageRanges(ranges, thumbnails.length) : null;
+  const removeRanges = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parsed || !parsed.length || parsed.length >= thumbnails.length) return;
+    onDelete(parsed);
+    setRanges("");
+  };
 
   const click = (i: number, e: React.MouseEvent) => {
     const next = new Set(e.metaKey || e.ctrlKey ? selected : []);
@@ -60,12 +82,29 @@ export default function PageOrganizer({ thumbnails, loading, selected, onSelecti
 
   return (
     <div className="h-full overflow-y-auto bg-muted" onClick={(e) => e.target === e.currentTarget && onSelectionChange(new Set())}>
-      <div className="flex items-center justify-between px-5 pt-4 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4 text-xs text-muted-foreground">
         <span>
           {selected.size
             ? t(`${selected.size} page(s) sélectionnée(s)`, `${selected.size} صفحة محددة`, `${selected.size} page(s) selected`)
             : t("Cliquez pour sélectionner, Maj ou Ctrl pour plusieurs. Glissez pour déplacer.", "انقر للتحديد، Shift أو Ctrl لعدة صفحات. اسحب للنقل.", "Click to select, Shift or Ctrl for several. Drag to move.")}
         </span>
+        {thumbnails.length > 1 && (
+          <form onSubmit={removeRanges} className="flex items-center gap-1.5">
+            <label htmlFor="pdf-remove-ranges" className="hidden sm:inline">{t("Pages à retirer", "صفحات للحذف", "Pages to remove")}</label>
+            <input
+              id="pdf-remove-ranges"
+              value={ranges}
+              onChange={(e) => setRanges(e.target.value)}
+              placeholder={t("ex. 2, 5-7", "مثال 2، 5-7", "e.g. 2, 5-7")}
+              dir="ltr"
+              className={cn("h-7 w-28 rounded-md border bg-background px-2 text-xs text-foreground", ranges.trim() && !parsed && "border-destructive")}
+              aria-invalid={!!ranges.trim() && !parsed}
+            />
+            <button type="submit" disabled={busy || !parsed?.length || parsed.length >= thumbnails.length} className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 text-foreground hover:bg-accent disabled:opacity-50">
+              <Trash2 className="h-3.5 w-3.5" />{t("Retirer", "حذف", "Remove")}
+            </button>
+          </form>
+        )}
         {thumbnails.length > 0 && (
           <button type="button" className="hover:text-foreground" onClick={() => onSelectionChange(new Set(thumbnails.map((_, i) => i)))}>
             {t("Tout sélectionner", "تحديد الكل", "Select all")}

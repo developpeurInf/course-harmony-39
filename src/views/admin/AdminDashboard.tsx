@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { daysLeftLabel, db, fmtDate, fmtMoney, PageTitle, StatusBadge, useT } from "./adminShared";
 import { useConfirm } from "./ConfirmDialog";
 import PaymentRequestDialog from "./PaymentRequestDialog";
+import AdminStats from "./AdminStats";
 
 interface Dash {
   teachers: number;
@@ -178,6 +179,8 @@ export default function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      <AdminStats />
 
       <div className="mt-5 grid items-start gap-4 lg:grid-cols-3">
         <section className="min-w-0 rounded-xl border bg-card lg:col-span-2">

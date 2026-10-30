@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadBlob } from "@/lib/download";
+import { fetchRoomPasswords } from "@/lib/studentPasswords";
 
 /** xlsx chargé seulement quand on en a besoin (allège le chargement de la page). */
 const loadXlsx = async (): Promise<any> => {
@@ -485,9 +486,10 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     try {
       const { data: students, error } = await supabase
         .from('profiles')
-        .select('name, username, email, temporary_password')
+        .select('id, name, username, email')
         .eq('role', 'student')
         .eq('room_id', roomId);
+      const passwords = await fetchRoomPasswords(roomId);
 
       if (error) {
         console.error('Error fetching students:', error);
@@ -504,7 +506,7 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
             nom,
             codeMassar: student.username || '',
             username: student.username || '',
-            temporaryPassword: student.temporary_password || ''
+            temporaryPassword: passwords.get(student.id) || ''
           };
         });
 
@@ -535,9 +537,10 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
     if (studentList.length === 0 && roomId) {
       const { data: dbStudents } = await supabase
         .from('profiles')
-        .select('name, username, email, temporary_password')
+        .select('id, name, username, email')
         .eq('role', 'student')
         .eq('room_id', roomId);
+      const passwords = await fetchRoomPasswords(roomId);
 
       if (dbStudents && dbStudents.length > 0) {
         studentList = dbStudents.map(student => {
@@ -547,11 +550,17 @@ export const StudentExcelManager: React.FC<StudentExcelManagerProps> = ({
             nom: parts.slice(1).join(' ') || student.name || '',
             codeMassar: student.username || '',
             username: student.username || '',
-            temporaryPassword: student.temporary_password || ''
+            temporaryPassword: passwords.get(student.id) || ''
           };
         });
         setAllStudentsForDownload(studentList);
       }
+    }
+
+    // mots de passe provisoires manquants (liste fournie par la page parente)
+    if (roomId && studentList.some((s) => !s.temporaryPassword)) {
+      const passwords = await fetchRoomPasswords(roomId);
+      studentList = studentList.map((s) => ({ ...s, temporaryPassword: s.temporaryPassword || passwords.get(`u:${s.username}`) || '' }));
     }
 
     if (studentList.length === 0) {

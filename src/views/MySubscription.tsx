@@ -11,6 +11,7 @@ import { MODULE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
 import { Label } from "@/components/ui/label";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import PayPlanSection from "@/components/subscription/PayPlanSection";
+import { MyPayments, ReferralCard } from "@/components/subscription/BillingExtras";
 
 const db = supabase as any;
 
@@ -271,6 +272,9 @@ export default function MySubscription() {
         )}
       </section>
       )}
+
+      {user && <MyPayments user={{ id: user.id, name: user.name, email: user.email }} L={L} lang={lang} fmt={fmt} fmtPrice={fmtPrice} />}
+      {user && <ReferralCard L={L} fmt={fmt} />}
     </div>
   );
 }

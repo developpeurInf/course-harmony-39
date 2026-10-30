@@ -9,6 +9,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
+import { StudentExtras } from "@/components/student/StudentExtras";
 
 interface Student {
   id: string;
@@ -144,7 +145,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
             <Avatar 
@@ -223,6 +224,13 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
             );
           })}
         </div>
+
+        <StudentExtras
+          studentId={student.id}
+          studentName={student.name}
+          tr={(fr, ar, en) => (language === "ar" ? ar : language === "fr" ? fr : en)}
+          locale={language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB"}
+        />
 
         <div className="flex justify-end mt-6">
           <Button variant="outline" onClick={onClose}>

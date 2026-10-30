@@ -3,6 +3,7 @@
  * supprimer, créer des modèles à paramètres aléatoires. Les questions s'ajoutent
  * aux quiz depuis l'éditeur de quiz (bouton « Banque »).
  */
+import { useCourses } from "@/contexts/CourseContext";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Dices, Library, Loader2, Pencil, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +33,8 @@ const QuestionBank = () => {
   const [q, setQ] = useState("");
   const [chapter, setChapter] = useState("all");
   const [kind, setKind] = useState("all");
+  const [usage, setUsage] = useState("all");
+  const { courses } = useCourses();
   const [genOpen, setGenOpen] = useState(false);
   const [genInitial, setGenInitial] = useState<GeneratorInitial | null>(null);
   const [editing, setEditing] = useState<BankQuestion | null>(null);
@@ -58,6 +61,7 @@ const QuestionBank = () => {
   const shown = items.filter((i) =>
     (chapter === "all" || i.chapter === chapter) &&
     (kind === "all" || (kind === "template" ? !!i.template : !i.template && i.question_type === kind)) &&
+    (usage === "all" || (usage === "unused" ? !i.times_used : !!i.times_used)) &&
     (!q.trim() || `${plainText(i.question)} ${i.tags.join(" ")} ${i.chapter || ""} ${i.level || ""}`.toLowerCase().includes(q.trim().toLowerCase()))
   );
 
@@ -138,6 +142,14 @@ const QuestionBank = () => {
             <SelectItem value="template">{tr("Modèles à paramètres", "نماذج بمعاملات", "Templates")}</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={usage} onValueChange={setUsage}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{tr("Utilisées ou non", "مستعملة أو لا", "Used or not")}</SelectItem>
+            <SelectItem value="unused">{tr("Jamais utilisées", "غير مستعملة", "Never used")}</SelectItem>
+            <SelectItem value="used">{tr("Déjà utilisées", "سبق استعمالها", "Already used")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {loading ? (
@@ -161,7 +173,14 @@ const QuestionBank = () => {
                 {it.chapter && <span>{it.chapter}</span>}
                 {it.level && <span>· {it.level}</span>}
                 {it.tags.map((t) => <span key={t} className="rounded-full border px-1.5">{t}</span>)}
-                <span className="ms-auto">{it.points} pt{it.times_used ? ` · ${tr(`×${it.times_used}`, `×${it.times_used}`, `×${it.times_used}`)}` : ""}</span>
+                {it.source === "ai" && (
+                  <span className="rounded bg-violet-100 px-1.5 py-0.5 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300" title={tr("Générée par l'IA", "مولدة بالذكاء الاصطناعي", "AI-generated")}>
+                    IA{it.source_course_id && courses.find((c) => c.id === it.source_course_id) ? ` · ${courses.find((c) => c.id === it.source_course_id)!.title}` : ""}
+                  </span>
+                )}
+                <span className="ms-auto">{it.points} pt{it.times_used
+                  ? ` · ${tr(`utilisée ${it.times_used} fois`, `استعملت ${it.times_used} مرة`, `used ${it.times_used}×`)}${it.last_used_at ? ` (${new Date(it.last_used_at).toLocaleDateString(language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB")})` : ""}`
+                  : ` · ${tr("jamais utilisée", "غير مستعملة", "never used")}`}</span>
               </div>
               <MathHtml html={it.question} className="text-sm [&_p]:m-0 [&_img]:max-h-24" />
               {it.template ? (
