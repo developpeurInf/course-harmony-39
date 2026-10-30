@@ -39,6 +39,7 @@ export type FeatureKey =
   | "library"
   | "support"
   | "progress"
+  | "lab3d"
   | "gamification";
 
 export interface AppSettings {
@@ -208,6 +209,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     library: true,
     support: true,
     progress: true,
+    lab3d: true,
     gamification: true,
   },
   payments: {

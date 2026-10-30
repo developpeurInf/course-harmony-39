@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCourses, type Exercise } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useParams, Link } from "@/lib/router";
+import { CourseScenes } from "@/components/lab3d/CourseScenes";
 import { cn } from "@/lib/utils";
 import { useNow } from "@/hooks/useNow";
 import { supabase } from "@/integrations/supabase/client";
@@ -213,6 +214,8 @@ const StudentCourse = () => {
           </div>
         )}
       </Section>
+
+      {courseId && <CourseScenes courseId={courseId} />}
 
       <Section
         id="exercices"

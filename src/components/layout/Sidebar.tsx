@@ -5,8 +5,10 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCourses } from "@/contexts/CourseContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { useStudentFeatures } from "@/lib/studentFeatures";
+import { useLab3dFeatures } from "@/lib/lab3d/features";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import {
+  Boxes,
   LayoutGrid,
   BookOpen,
   FileText,
@@ -125,6 +127,7 @@ const Sidebar = () => {
   const show = (m: Parameters<typeof feature>[0]) => feature(m) && hasModule(m);
   // Élève : fonctions accordées par l'offre de son professeur
   const studentFeatures = useStudentFeatures(isProfessor ? undefined : user?.id);
+  const lab3d = useLab3dFeatures();
 
   const t = (fr: string, ar: string, en: string = fr) =>
     language === "ar" ? ar : language === "fr" ? fr : en;
@@ -314,6 +317,7 @@ const Sidebar = () => {
               {show("lessonLog") && <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />}
               {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
               {show("progress") && studentFeatures?.progress && <NavItem to="/progress" icon={TrendingUp} label={t("Ma progression", "تقدمي", "My progress")} />}
+              {show("lab3d") && lab3d?.use && <NavItem to="/lab3d" icon={Boxes} label={t("Labo 3D · AR / VR", "المختبر ثلاثي الأبعاد", "3D Lab · AR / VR")} />}
             </>
           )}
         </div>
@@ -335,6 +339,7 @@ const Sidebar = () => {
                 locked={!can("diagnostic.use")}
               />
             )}
+            {show("lab3d") && <NavItem to="/lab3d" icon={Boxes} label={t("Labo 3D · AR / VR", "المختبر ثلاثي الأبعاد", "3D Lab · AR / VR")} locked={!can("lab3d.use")} />}
             {show("pdfEditor") && (
               <NavItem to="/pdf-editor" icon={FilePen} label={t("Éditeur PDF", "محرر PDF", "PDF editor")} locked={!can("pdf.use")} />
             )}

@@ -24,6 +24,10 @@ export type PermissionKey =
   | "student.badges"
   | "student.remediation_ai"
   | "student.reminders"
+  | "lab3d.use"
+  | "lab3d.ar"
+  | "lab3d.vr"
+  | "lab3d.measure"
   | "class.calendar"
   | "student.view"
   | "student.create"
@@ -130,6 +134,7 @@ export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string 
   "library": { fr: "Bibliothèque partagée", ar: "المكتبة المشتركة", en: "Shared library" },
   "support": { fr: "Aide et support", ar: "المساعدة والدعم", en: "Help & support" },
   "progress": { fr: "Espace élève : progression, badges, remédiation", ar: "فضاء التلميذ: التقدم والشارات والدعم", en: "Student space: progress, badges, remediation" },
+  "lab3d": { fr: "Labo 3D · réalité augmentée et virtuelle", ar: "المختبر ثلاثي الأبعاد · الواقع المعزز والافتراضي", en: "3D Lab · augmented and virtual reality" },
   "notifications": { fr: "Notifications", ar: "الإشعارات", en: "Notifications" },
   "account": { fr: "Compte", ar: "الحساب", en: "Account" },
   "quota": { fr: "Quotas", ar: "الحصص", en: "Quotas" },
@@ -157,6 +162,10 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "student.badges": { module: "progress", fr: "Badges et séries pour mes élèves", ar: "الشارات والسلاسل لتلاميذي", en: "Badges and streaks for my students" },
   "student.remediation_ai": { module: "progress", fr: "Exercices de remédiation IA pour mes élèves", ar: "تمارين الدعم بالذكاء الاصطناعي لتلاميذي", en: "AI remediation exercises for my students" },
   "student.reminders": { module: "progress", fr: "Rappels automatiques de devoirs à mes élèves", ar: "تذكيرات تلقائية بالواجبات لتلاميذي", en: "Automatic homework reminders to my students" },
+  "lab3d.use": { module: "lab3d", fr: "Créer et partager des scènes 3D", ar: "إنشاء ومشاركة مشاهد ثلاثية الأبعاد", en: "Create and share 3D scenes" },
+  "lab3d.ar": { module: "lab3d", fr: "Réalité augmentée (poser les figures sur la table)", ar: "الواقع المعزز (وضع المجسمات على الطاولة)", en: "Augmented reality (place figures on the desk)" },
+  "lab3d.vr": { module: "lab3d", fr: "Réalité virtuelle (casque ou carton)", ar: "الواقع الافتراضي (خوذة أو كرتون)", en: "Virtual reality (headset or cardboard)" },
+  "lab3d.measure": { module: "lab3d", fr: "Outils de mesure (mètre AR, clinomètre, Thalès)", ar: "أدوات القياس (متر، مقياس الميل، طاليس)", en: "Measuring tools (AR ruler, clinometer, Thales)" },
   "parents.links": { module: "parents", fr: "Liens parents (bulletin en lecture seule)", ar: "روابط الآباء (كشف للاطلاع فقط)", en: "Parent links (read-only report)" },
   "library.import": { module: "library", fr: "Importer depuis la bibliothèque partagée", ar: "الاستيراد من المكتبة المشتركة", en: "Import from the shared library" },
   "library.publish": { module: "library", fr: "Publier dans la bibliothèque partagée", ar: "النشر في المكتبة المشتركة", en: "Publish to the shared library" },
