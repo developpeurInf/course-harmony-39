@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
+import { RemediationButton } from "@/components/progress/Remediation";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, User, Clock, Target } from "lucide-react";
+import { Trophy, User, Clock, Target, ShieldAlert } from "lucide-react";
 import { useCourses } from "@/contexts/CourseContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
 
 interface QuizSubmission {
   id: string;
@@ -20,7 +22,22 @@ interface QuizSubmission {
   submitted_at: string;
   is_completed: boolean;
   student_name?: string;
+  attempts?: number;
+  anti_cheat_events?: number | null;
+  anti_cheat_log?: { type: string; at: string; detail?: string }[] | null;
 }
+
+const CHEAT_LABELS: Record<string, [string, string, string]> = {
+  copy: ["copie", "نسخ", "copy"],
+  cut: ["couper", "قص", "cut"],
+  paste: ["collage", "لصق", "paste"],
+  drop: ["glisser-déposer", "سحب وإفلات", "drag & drop"],
+  context_menu: ["clic droit", "نقر أيمن", "right-click"],
+  shortcut: ["raccourci clavier", "اختصار لوحة المفاتيح", "keyboard shortcut"],
+  screenshot_key: ["capture d'écran", "لقطة شاشة", "screenshot"],
+  print: ["impression", "طباعة", "print"],
+  left_quiz: ["sortie du quiz", "مغادرة الاختبار", "left the quiz"],
+};
 
 interface QuizResultsProps {
   examId: string;
@@ -35,7 +52,18 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
   const [loading, setLoading] = useState(true);
 
   const exam = exams.find(e => e.id === examId);
+  const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const { prefs } = usePreferences();
+  const dateLocale = language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB";
+  const fmtSubmitted = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return iso;
+    }
+  };
   const isProfessor = user?.role === "professor";
+  const { feature } = useAppSettings();
 
   useEffect(() => {
     loadSubmissions();
@@ -56,8 +84,34 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
         if (submissionsError) throw submissionsError;
 
         if (submissions && submissions.length > 0) {
+          // Plusieurs tentatives autorisées : on garde la DERNIÈRE tentative de chaque élève
+          // (avant : un élève apparaissait plusieurs fois et faussait les statistiques)
+          const byStudent = new Map<string, any>();
+          const attemptsByStudent = new Map<string, number>();
+          for (const sub of submissions) {
+            attemptsByStudent.set(sub.student_id, (attemptsByStudent.get(sub.student_id) || 0) + 1);
+            const prev = byStudent.get(sub.student_id);
+            if (!prev || new Date(sub.submitted_at) > new Date(prev.submitted_at)) {
+              byStudent.set(sub.student_id, sub);
+            }
+          }
+          let latestSubs = Array.from(byStudent.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+
+          // Élèves partis dans une autre classe (transfer_student) : ne comptent plus dans ce quiz
+          const { data: ex } = await supabase.from('exams').select('course_id').eq('id', examId).maybeSingle();
+          const { data: course } = ex?.course_id ? await supabase.from('courses').select('room_id').eq('id', ex.course_id).maybeSingle() : { data: null };
+          if (course?.room_id) {
+            const { data: moved } = await (supabase as any).from('student_transfers').select('student_id').eq('from_room_id', course.room_id);
+            const movedIds = new Set(((moved || []) as { student_id: string }[]).map(m => m.student_id));
+            if (movedIds.size) {
+              const { data: now } = await supabase.from('profiles').select('id, room_id').in('id', [...movedIds]);
+              const gone = new Set((now || []).filter(p => p.room_id !== course.room_id).map(p => p.id));
+              latestSubs = latestSubs.filter(sub => !gone.has(sub.student_id));
+            }
+          }
+
           // Get student names separately
-          const studentIds = submissions.map(sub => sub.student_id);
+          const studentIds = latestSubs.map(sub => sub.student_id);
           const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('id, name')
@@ -65,11 +119,12 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
 
           if (profilesError) throw profilesError;
 
-          const submissionsWithNames = submissions.map(sub => {
+          const submissionsWithNames = latestSubs.map(sub => {
             const profile = profiles?.find(p => p.id === sub.student_id);
             return {
               ...sub,
-              student_name: profile?.name || 'Unknown Student'
+              attempts: attemptsByStudent.get(sub.student_id) || 1,
+              student_name: profile?.name || (language === "fr" ? "Élève inconnu" : language === "ar" ? "تلميذ غير معروف" : "Unknown Student")
             };
           });
 
@@ -83,6 +138,8 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
           .eq('exam_id', examId)
           .eq('student_id', user?.id)
           .eq('is_completed', true)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (error) throw error;
@@ -102,14 +159,17 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
   };
 
   const getScorePercentage = (score: number, total: number) => {
-    return Math.round((score / total) * 100);
+    if (!total) return 0;
+    return Math.round(((score || 0) / total) * 100);
   };
 
+  // Couleurs selon les seuils de l'enseignant (sur 20 → %)
   const getGradeColor = (percentage: number) => {
-    if (percentage >= 90) return "text-green-600";
-    if (percentage >= 80) return "text-blue-600";
-    if (percentage >= 70) return "text-yellow-600";
-    if (percentage >= 60) return "text-orange-600";
+    const n20 = percentage / 5;
+    if (n20 >= (prefs.levelExcellent || 14)) return "text-green-600";
+    if (n20 >= (prefs.levelGood || 12)) return "text-blue-600";
+    if (n20 >= (prefs.passThreshold || 10)) return "text-yellow-600";
+    if (n20 >= (prefs.levelStruggling || 8)) return "text-orange-600";
     return "text-red-600";
   };
 
@@ -117,14 +177,14 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
     if (submissions.length === 0) return 0;
     const totalScore = submissions.reduce((sum, sub) => sum + sub.score, 0);
     const totalPossible = submissions.reduce((sum, sub) => sum + sub.total_points, 0);
-    return Math.round((totalScore / totalPossible) * 100);
+    return totalPossible > 0 ? Math.round((totalScore / totalPossible) * 100) : 0;
   };
 
   if (loading) {
     return (
       <Card>
         <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground">Loading results...</p>
+          <p className="text-muted-foreground">{tr("Chargement des résultats…", "جارٍ تحميل النتائج…", "Loading results...")}</p>
         </CardContent>
       </Card>
     );
@@ -135,13 +195,13 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
       <Card>
         <CardContent className="py-8 text-center">
           <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No Results Yet</h3>
+          <h3 className="text-lg font-semibold mb-2">{tr("Aucun résultat pour l'instant", "لا توجد نتائج بعد", "No Results Yet")}</h3>
           <p className="text-muted-foreground mb-4">
-            {isProfessor 
-              ? "No students have completed this quiz yet." 
-              : "You haven't completed this quiz yet."}
+            {isProfessor
+              ? tr("Aucun élève n'a encore terminé ce quiz.", "لم يُنهِ أي تلميذ هذا الاختبار بعد.", "No students have completed this quiz yet.")
+              : tr("Vous n'avez pas encore terminé ce quiz.", "لم تُنهِ هذا الاختبار بعد.", "You haven't completed this quiz yet.")}
           </p>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose}>{tr("Fermer", "إغلاق", "Close")}</Button>
         </CardContent>
       </Card>
     );
@@ -151,10 +211,10 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Quiz Results</h2>
+          <h2 className="text-2xl font-semibold">{tr("Résultats du quiz", "نتائج الاختبار", "Quiz Results")}</h2>
           <p className="text-muted-foreground">{exam?.title}</p>
         </div>
-        <Button onClick={onClose} variant="outline">Close</Button>
+        <Button onClick={onClose} variant="outline">{tr("Fermer", "إغلاق", "Close")}</Button>
       </div>
 
       {/* Statistics for professors */}
@@ -163,30 +223,30 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Target className="h-5 w-5" />
-              Class Statistics
+              {tr("Statistiques de la classe", "إحصائيات القسم", "Class Statistics")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold">{submissions.length}</div>
-                <div className="text-sm text-muted-foreground">Students Completed</div>
+                <div className="text-2xl font-semibold">{submissions.length}</div>
+                <div className="text-sm text-muted-foreground">{tr("Élèves ayant terminé", "تلاميذ أنهوا", "Students Completed")}</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{getAverageScore()}%</div>
-                <div className="text-sm text-muted-foreground">Class Average</div>
+                <div className="text-2xl font-semibold">{getAverageScore()}%</div>
+                <div className="text-sm text-muted-foreground">{tr("Moyenne de la classe", "معدل القسم", "Class Average")}</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   {Math.max(...submissions.map(s => getScorePercentage(s.score, s.total_points)))}%
                 </div>
-                <div className="text-sm text-muted-foreground">Highest Score</div>
+                <div className="text-sm text-muted-foreground">{tr("Meilleur score", "أعلى نقطة", "Highest Score")}</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">
-                  {Math.round(submissions.reduce((sum, s) => sum + s.time_taken_minutes, 0) / submissions.length)}min
+                <div className="text-2xl font-semibold">
+                  {Math.round(submissions.reduce((sum, s) => sum + (s.time_taken_minutes || 0), 0) / submissions.length)} min
                 </div>
-                <div className="text-sm text-muted-foreground">Avg. Time</div>
+                <div className="text-sm text-muted-foreground">{tr("Temps moyen", "متوسط الوقت", "Avg. Time")}</div>
               </div>
             </div>
           </CardContent>
@@ -212,7 +272,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                     {isProfessor && (
                       <>
                         <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-muted-foreground">
+                          <span className="text-2xl font-semibold text-muted-foreground">
                             #{index + 1}
                           </span>
                           <Avatar className="h-8 w-8">
@@ -222,9 +282,16 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                           </Avatar>
                         </div>
                         <div>
-                          <div className="font-medium">{submission.student_name}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {submission.student_name}
+                            {(submission.attempts || 1) > 1 && (
+                              <Badge variant="outline" className="text-[10px] font-semibold">
+                                {tr(`${submission.attempts} tentatives`, `${submission.attempts} محاولات`, `${submission.attempts} attempts`)}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            {language === "ar" ? `تم التسليم: ${format(new Date(submission.submitted_at), "d MMM yyyy")}` : language === "fr" ? `Soumis le ${format(new Date(submission.submitted_at), "d MMM yyyy")}` : `Submitted ${format(new Date(submission.submitted_at), "MMM d, yyyy 'at' h:mm a")}`}
+                            {tr(`Soumis le ${fmtSubmitted(submission.submitted_at)}`, `تم التسليم: ${fmtSubmitted(submission.submitted_at)}`, `Submitted ${fmtSubmitted(submission.submitted_at)}`)}
                           </div>
                         </div>
                       </>
@@ -239,8 +306,8 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                     )}
                   </div>
                   
-                  <div className="text-right">
-                    <div className={`text-2xl font-bold ${getGradeColor(percentage)}`}>
+                  <div className="text-end">
+                    <div className={`text-2xl font-semibold ${getGradeColor(percentage)}`}>
                       {submission.score}/{submission.total_points}
                     </div>
                     <div className="text-sm text-muted-foreground">{percentage}%</div>
@@ -249,9 +316,12 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                 
                 <div className="space-y-3">
                   <Progress value={percentage} className="h-2" />
+                  {!isProfessor && feature("progress") && submission.total_points > 0 && submission.score < submission.total_points && (
+                    <RemediationButton submissionId={submission.id} language={language} tr={tr} />
+                  )}
                   
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
                         <span>
@@ -262,6 +332,30 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                             : `Time: ${submission.time_taken_minutes} minutes`}
                         </span>
                       </div>
+                      {isProfessor && (submission.anti_cheat_events || 0) > 0 && (() => {
+                        const counts: Record<string, number> = {};
+                        (submission.anti_cheat_log || []).forEach(ev => { counts[ev.type] = (counts[ev.type] || 0) + 1; });
+                        const idx = language === "ar" ? 1 : language === "fr" ? 0 : 2;
+                        const details = Object.entries(counts)
+                          .map(([k, n]) => `${(CHEAT_LABELS[k] || [k, k, k])[idx]} ×${n}`)
+                          .join(", ");
+                        return (
+                          <div
+                            className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-0.5 font-semibold text-rose-600 dark:text-rose-400"
+                            title={details}
+                          >
+                            <ShieldAlert className="h-4 w-4" />
+                            <span>
+                              {language === "ar"
+                                ? `${submission.anti_cheat_events} مخالفة`
+                                : language === "fr"
+                                ? `${submission.anti_cheat_events} incident(s)`
+                                : `${submission.anti_cheat_events} incident(s)`}
+                              {details ? ` — ${details}` : ""}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center gap-1">
                         <Target className="h-4 w-4" />
                         <span>

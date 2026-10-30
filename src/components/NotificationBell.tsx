@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -22,11 +22,23 @@ import {
   Sparkles,
   Inbox
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { usePopupMenu } from "@/components/ui/use-popup-menu";
 import { useNotifications, Notification, NotificationType } from "@/contexts/NotificationContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 
-export const NotificationBell = () => {
+const NotificationBellInner = () => {
   const {
     notifications,
     unreadCount,
@@ -39,27 +51,10 @@ export const NotificationBell = () => {
   const { language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const navigate = useNavigate();
-
-  // Close notification popover when clicking / touching outside (compatible with iOS 12 Safari)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    document.addEventListener("touchstart", handleOutsideClick, { passive: true });
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-      document.removeEventListener("touchstart", handleOutsideClick);
-    };
-  }, [isOpen]);
+  // Fermeture au clic extérieur / Échap, focus initial, aria-expanded / aria-controls
+  const { containerRef, triggerRef, menuRef, menuId, triggerProps } = usePopupMenu(isOpen, setIsOpen);
 
   const isRtl = language === "ar";
 
@@ -97,7 +92,7 @@ export const NotificationBell = () => {
     if (diffDays === 1) return t("Hier", "أمس", "Yesterday");
     if (diffDays < 7) return t(`Il y a ${diffDays} j`, `منذ ${diffDays} أيام`, `${diffDays}d ago`);
 
-    return date.toLocaleDateString(language === "ar" ? "ar-MA" : "fr-FR", {
+    return date.toLocaleDateString(language === "ar" ? "ar-MA" : language === "en" ? "en-GB" : "fr-FR", {
       month: "short",
       day: "numeric",
     });
@@ -119,7 +114,7 @@ export const NotificationBell = () => {
 
     if (type === 'course_added') {
       return {
-        title: t("📚 Nouveau cours disponible", "📚 درس جديد متوفر", "📚 New course available"),
+        title: t("Nouveau cours disponible", "درس جديد متوفر", "New course available"),
         prefix: t("Le cours ", "تم نشر الدرس ", "The course "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été publié pour votre classe.", " لقسمك.", " has been published for your class."),
@@ -129,7 +124,7 @@ export const NotificationBell = () => {
 
     if (type === 'course_updated') {
       return {
-        title: t("🔄 Cours mis à jour", "🔄 تم تحديث الدرس", "🔄 Course updated"),
+        title: t("Cours mis à jour", "تم تحديث الدرس", "Course updated"),
         prefix: t("Le contenu du cours ", "تم تعديل محتوى الدرس ", "The content of course "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(". Veuillez le consulter.", ". يرجى الاطلاع عليه.", ". Please check it out."),
@@ -139,7 +134,7 @@ export const NotificationBell = () => {
 
     if (type === 'course_deleted') {
       return {
-        title: t("🗑️ Cours retiré", "🗑️ تم حذف الدرس", "🗑️ Course removed"),
+        title: t("Cours retiré", "تم حذف الدرس", "Course removed"),
         prefix: t("Le cours ", "تم حذف الدرس ", "The course "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été retiré par votre professeur.", " من قبل أستاذك.", " was removed by your professor."),
@@ -149,7 +144,7 @@ export const NotificationBell = () => {
 
     if (type === 'exercise_added') {
       return {
-        title: t("📝 Nouvel exercice disponible", "📝 تمرين جديد متوفر", "📝 New exercise available"),
+        title: t("Nouvel exercice disponible", "تمرين جديد متوفر", "New exercise available"),
         prefix: t("L'exercice ", "تمت إضافة التمرين ", "The exercise "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été ajouté à votre classe.", " لقسمك.", " has been added to your class."),
@@ -159,7 +154,7 @@ export const NotificationBell = () => {
 
     if (type === 'exercise_updated') {
       return {
-        title: t("🔄 Exercice mis à jour", "🔄 تم تحديث التمرين", "🔄 Exercise updated"),
+        title: t("Exercice mis à jour", "تم تحديث التمرين", "Exercise updated"),
         prefix: t("L'exercice ", "تم تعديل التمرين ", "The exercise "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(". Veuillez le consulter.", ". يرجى الاطلاع عليه.", ". Please check it out."),
@@ -169,7 +164,7 @@ export const NotificationBell = () => {
 
     if (type === 'exercise_deleted') {
       return {
-        title: t("🗑️ Exercice retiré", "🗑️ تم حذف التمرين", "🗑️ Exercise removed"),
+        title: t("Exercice retiré", "تم حذف التمرين", "Exercise removed"),
         prefix: t("L'exercice ", "تم حذف التمرين ", "The exercise "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été supprimé.", ".", " was removed."),
@@ -179,7 +174,7 @@ export const NotificationBell = () => {
 
     if (type === 'exam_added') {
       return {
-        title: t("🎓 Nouvelle évaluation programmée", "🎓 تقييم جديد مبرمج", "🎓 New assessment scheduled"),
+        title: t("Nouvelle évaluation programmée", "تقييم جديد مبرمج", "New assessment scheduled"),
         prefix: t("L'évaluation ", "تمت برمجة التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été programmée pour votre classe.", " لقسمك.", " has been scheduled for your class."),
@@ -189,7 +184,7 @@ export const NotificationBell = () => {
 
     if (type === 'exam_updated') {
       return {
-        title: t("🔄 Évaluation mise à jour", "🔄 تم تحديث التقييم", "🔄 Assessment updated"),
+        title: t("Évaluation mise à jour", "تم تحديث التقييم", "Assessment updated"),
         prefix: t("L'évaluation ", "تم تعديل التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(". Veuillez vérifier les détails.", ". يرجى التحقق من التفاصيل.", ". Please check the details."),
@@ -199,7 +194,7 @@ export const NotificationBell = () => {
 
     if (type === 'exam_deleted') {
       return {
-        title: t("🗑️ Évaluation annulée", "🗑️ تم إلغاء التقييم", "🗑️ Assessment cancelled"),
+        title: t("Évaluation annulée", "تم إلغاء التقييم", "Assessment cancelled"),
         prefix: t("L'évaluation ", "تم إلغاء التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" a été annulée.", ".", " was cancelled."),
@@ -209,7 +204,7 @@ export const NotificationBell = () => {
 
     if (type === 'exam_reminder') {
       return {
-        title: t("⏰ Rappel : Évaluation dans moins de 24h !", "⏰ تذكير: تقييم خلال أقل من 24 ساعة!", "⏰ Reminder: Assessment in less than 24h!"),
+        title: t("Rappel : évaluation dans moins de 24 h", "تذكير: تقييم خلال أقل من 24 ساعة", "Reminder: assessment in less than 24 h"),
         prefix: t("L'évaluation ", "التقييم ", "The assessment "),
         itemTitle: itemTitle ? `"${itemTitle}"` : "",
         suffix: t(" aura lieu très prochainement. Préparez-vous !", " سيُجرى قريباً جداً. استعد جيداً!", " will take place very soon. Get ready!"),
@@ -218,7 +213,8 @@ export const NotificationBell = () => {
     }
 
     return {
-      title: notification.title,
+      // anciennes notifications enregistrées avec un emoji en tête
+      title: notification.title.replace(/^[\u2190-\u2BFF\uD83C-\uDBFF\uDC00-\uDFFF\uFE0F\s]+/, ""),
       prefix: "",
       itemTitle: "",
       suffix: "",
@@ -231,13 +227,13 @@ export const NotificationBell = () => {
       case 'course_added':
         return {
           icon: BookOpen,
-          bg: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Nouveau cours", "درس جديد", "New Course")
         };
       case 'course_updated':
         return {
           icon: BookOpen,
-          bg: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Cours mis à jour", "تحديث درس", "Course Updated")
         };
       case 'course_deleted':
@@ -255,7 +251,7 @@ export const NotificationBell = () => {
       case 'exercise_updated':
         return {
           icon: FileText,
-          bg: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Exercice mis à jour", "تحديث تمرين", "Exercise Updated")
         };
       case 'exercise_deleted':
@@ -267,13 +263,13 @@ export const NotificationBell = () => {
       case 'exam_added':
         return {
           icon: GraduationCap,
-          bg: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Nouvelle évaluation", "تقييم جديد", "New Exam")
         };
       case 'exam_updated':
         return {
           icon: GraduationCap,
-          bg: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30",
+          bg: "bg-primary/10 text-primary  border-primary/30",
           badge: t("Évaluation mise à jour", "تحديث تقييم", "Exam Updated")
         };
       case 'exam_deleted':
@@ -286,7 +282,7 @@ export const NotificationBell = () => {
         return {
           icon: Clock,
           bg: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 animate-pulse",
-          badge: t("⏰ Rappel < 24h", "⏰ تذكير < 24س", "⏰ Reminder < 24h")
+          badge: t("Rappel < 24h", "تذكير < 24س", "Reminder < 24h")
         };
       case 'warning':
         return {
@@ -309,9 +305,17 @@ export const NotificationBell = () => {
     return true;
   });
 
+  const bellLabel =
+    unreadCount > 0
+      ? t(`Notifications (${unreadCount} non lue(s))`, `الإشعارات (${unreadCount} غير مقروءة)`, `Notifications (${unreadCount} unread)`)
+      : t("Notifications", "الإشعارات", "Notifications");
+
+  const actionBtn = "h-9 w-9 text-muted-foreground rounded-lg";
+
   return (
-    <div ref={containerRef} className="relative inline-block text-left">
+    <div ref={containerRef} className="relative inline-block">
       <Button
+        ref={triggerRef}
         type="button"
         variant="ghost"
         size="icon"
@@ -321,15 +325,19 @@ export const NotificationBell = () => {
           setIsOpen((prev) => !prev);
         }}
         className={cn(
-          "relative h-9 w-9 rounded-full transition-colors cursor-pointer select-none",
+          "relative h-10 w-10 rounded-full transition-colors cursor-pointer select-none",
           isOpen ? "bg-muted text-primary" : "hover:bg-muted"
         )}
-        aria-label="Notifications"
-        aria-expanded={isOpen}
+        aria-label={bellLabel}
+        title={bellLabel}
+        {...triggerProps}
       >
         <Bell className={cn("h-5 w-5 transition-transform pointer-events-none", unreadCount > 0 && "text-primary animate-wiggle")} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground shadow-md ring-2 ring-background animate-scale-in pointer-events-none">
+          <span
+            aria-hidden="true"
+            className="absolute -top-0.5 -right-0.5 rtl:right-auto rtl:-left-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold text-destructive-foreground shadow-md ring-2 ring-background animate-scale-in pointer-events-none"
+          >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -337,20 +345,28 @@ export const NotificationBell = () => {
 
       {isOpen && (
         <div
+          ref={menuRef}
+          id={menuId}
+          role="dialog"
+          aria-label={t("Notifications", "الإشعارات", "Notifications")}
           dir={isRtl ? "rtl" : "ltr"}
-          className="absolute top-full right-0 rtl:right-auto rtl:left-0 mt-1.5 w-[92vw] sm:w-[420px] max-w-[95vw] p-0 shadow-2xl border border-border bg-card text-card-foreground rounded-2xl overflow-hidden z-50 animate-in fade-in-50 zoom-in-95"
+          className={cn(
+            // Téléphone : panneau pleine largeur sous la barre du haut ; à partir de sm : menu ancré au bouton
+            "notif-panel fixed left-2 right-2 top-[4.25rem] sm:absolute sm:top-full sm:left-auto sm:right-0 sm:rtl:right-auto sm:rtl:left-0 sm:mt-1.5 sm:w-[420px] sm:max-w-[95vw]",
+            "p-0 shadow-2xl border border-border bg-card text-card-foreground rounded-xl overflow-hidden z-50 animate-in fade-in-50 zoom-in-95"
+          )}
         >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b bg-muted/40">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
               <Bell className="h-4 w-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold leading-none">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold leading-none">
                 {t("Notifications", "الإشعارات", "Notifications")}
               </h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-1">
                 {unreadCount > 0
                   ? t(`${unreadCount} non lue(s)`, `${unreadCount} غير مقروءة`, `${unreadCount} unread`)
                   : t("Toutes les notifications sont lues", "جميع الإشعارات مقروءة", "All caught up")}
@@ -358,16 +374,18 @@ export const NotificationBell = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <TooltipProvider>
               {unreadCount > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => markAllAsRead()}
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      className={cn(actionBtn, "hover:text-primary")}
+                      aria-label={t("Tout marquer comme lu", "تحديد الكل كمقروء", "Mark all as read")}
                     >
                       <CheckCheck className="h-4 w-4" />
                     </Button>
@@ -384,10 +402,12 @@ export const NotificationBell = () => {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={() => clearAllNotifications()}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => setConfirmClear(true)}
+                      className={cn(actionBtn, "hover:text-destructive")}
+                      aria-label={t("Tout effacer", "حذف الكل", "Clear all")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -405,11 +425,13 @@ export const NotificationBell = () => {
 
         {/* Filter Tabs */}
         {notifications.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/50 text-xs">
+          <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/50 text-xs" role="group">
             <button
+              type="button"
               onClick={() => setFilter("all")}
+              aria-pressed={filter === "all"}
               className={cn(
-                "px-2.5 py-1 rounded-md font-medium transition-all",
+                "min-h-[36px] px-3 py-1.5 rounded-md font-medium transition-all",
                 filter === "all"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -418,9 +440,11 @@ export const NotificationBell = () => {
               {t("Toutes", "الكل", "All")} ({notifications.length})
             </button>
             <button
+              type="button"
               onClick={() => setFilter("unread")}
+              aria-pressed={filter === "unread"}
               className={cn(
-                "px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1.5",
+                "min-h-[36px] px-3 py-1.5 rounded-md font-medium transition-all flex items-center gap-1.5",
                 filter === "unread"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -429,7 +453,7 @@ export const NotificationBell = () => {
               {t("Non lues", "غير مقروءة", "Unread")}
               {unreadCount > 0 && (
                 <span className={cn(
-                  "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                  "px-1.5 rounded-full text-[10px] font-semibold",
                   filter === "unread" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
                 )}>
                   {unreadCount}
@@ -458,103 +482,150 @@ export const NotificationBell = () => {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-border/50">
+            <ul className="divide-y divide-border/50">
               {filteredNotifications.map((notification) => {
                 const iconConfig = getNotificationIcon(notification.type);
                 const IconComponent = iconConfig.icon;
                 const localized = getLocalizedContent(notification);
 
                 return (
-                  <div
+                  <li
                     key={notification.id}
                     dir={isRtl ? "rtl" : "ltr"}
                     className={cn(
-                      "group relative flex items-start gap-3 p-3.5 transition-all cursor-pointer hover:bg-muted/60 text-start",
+                      "group relative flex items-stretch transition-colors hover:bg-muted/60",
                       !notification.read && "bg-primary/[0.04] dark:bg-primary/[0.07]"
                     )}
-                    onClick={() => handleNotificationClick(notification)}
                   >
-                    {/* Icon with colored badge container */}
-                    <div
-                      className={cn(
-                        "mt-0.5 p-2 rounded-xl border flex-shrink-0 transition-transform group-hover:scale-105",
-                        iconConfig.bg
-                      )}
+                    {/* Zone principale : un vrai bouton (focus clavier, Entrée / Espace) */}
+                    <button
+                      type="button"
+                      onClick={() => handleNotificationClick(notification)}
+                      className="flex flex-1 min-w-0 items-start gap-3 p-3.5 text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     >
-                      <IconComponent className="h-4 w-4" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-bold text-foreground leading-snug line-clamp-1">
-                          {localized.title}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0 font-medium">
-                          {formatRelativeTime(notification.created_at)}
-                        </span>
-                      </div>
-
-                      {/* BiDi-safe message rendering */}
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2" dir={isRtl ? "rtl" : "ltr"}>
-                        {localized.prefix}
-                        {localized.itemTitle && (
-                          <bdi className="font-semibold text-foreground mx-0.5">
-                            {localized.itemTitle}
-                          </bdi>
+                      {/* Icon with colored badge container */}
+                      <span
+                        className={cn(
+                          "mt-0.5 p-2 rounded-xl border flex-shrink-0 transition-transform",
+                          iconConfig.bg
                         )}
-                        {localized.suffix || localized.fallbackMessage}
-                      </p>
+                        aria-hidden="true"
+                      >
+                        <IconComponent className="h-4 w-4" />
+                      </span>
 
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
-                          {iconConfig.badge}
+                      {/* Content */}
+                      <span className="flex flex-1 min-w-0 flex-col gap-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {!notification.read && (
+                              <span className="h-2 w-2 flex-shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                            )}
+                            <span className="text-xs font-semibold text-foreground leading-snug line-clamp-1">
+                              {localized.title}
+                            </span>
+                            {!notification.read && (
+                              <span className="sr-only">{t("(non lue)", "(غير مقروءة)", "(unread)")}</span>
+                            )}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground flex-shrink-0 font-medium">
+                            {formatRelativeTime(notification.created_at)}
+                          </span>
                         </span>
 
-                        {/* Quick hover actions */}
-                        <div
-                          className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
-                            title={notification.read ? t("Marquer comme non lu", "تحديد كغير مقروء", "Mark as unread") : t("Marquer comme lu", "تحديد كمقروء", "Mark as read")}
-                            onClick={() => markAsRead(notification.id)}
-                          >
-                            <Check className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-                            title={t("Supprimer", "حذف", "Delete")}
-                            onClick={() => deleteNotification(notification.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+                        {/* BiDi-safe message rendering */}
+                        <span className="block text-xs text-muted-foreground leading-relaxed line-clamp-2" dir={isRtl ? "rtl" : "ltr"}>
+                          {localized.prefix}
+                          {localized.itemTitle && (
+                            <bdi className="font-semibold text-foreground mx-0.5">
+                              {localized.itemTitle}
+                            </bdi>
+                          )}
+                          {localized.suffix || localized.fallbackMessage}
+                        </span>
 
-                    {/* Unread indicator dot */}
-                    {!notification.read && (
-                      <span className={cn(
-                        "absolute top-4 h-2 w-2 rounded-full bg-primary ring-2 ring-background",
-                        isRtl ? "left-3" : "right-3"
-                      )} />
-                    )}
-                  </div>
+                        <span className="pt-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                            {iconConfig.badge}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+
+                    {/* Actions rapides (visibles au survol, au focus clavier et toujours sur écran tactile) */}
+                    <div className="flex flex-col items-center justify-center gap-1 py-2 pr-2 rtl:pr-0 rtl:pl-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+                      {!notification.read && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className={cn(actionBtn, "hover:text-primary hover:bg-primary/10")}
+                          title={t("Marquer comme lu", "تحديد كمقروء", "Mark as read")}
+                          aria-label={t("Marquer comme lu", "تحديد كمقروء", "Mark as read")}
+                          onClick={() => markAsRead(notification.id)}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(actionBtn, "hover:text-destructive hover:bg-destructive/10")}
+                        title={t("Supprimer la notification", "حذف الإشعار", "Delete notification")}
+                        aria-label={t("Supprimer la notification", "حذف الإشعار", "Delete notification")}
+                        onClick={() => deleteNotification(notification.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </ScrollArea>
         </div>
       )}
+
+      {/* Confirmation avant de tout effacer (hors du panneau : survit à sa fermeture) */}
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("Effacer toutes les notifications ?", "حذف جميع الإشعارات؟", "Clear all notifications?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "Toutes vos notifications seront supprimées définitivement. Cette action est irréversible.",
+                "سيتم حذف جميع إشعاراتك نهائياً. لا يمكن التراجع عن هذا الإجراء.",
+                "All your notifications will be permanently deleted. This cannot be undone."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Annuler", "إلغاء", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                clearAllNotifications();
+                setConfirmClear(false);
+              }}
+            >
+              {t("Tout effacer", "حذف الكل", "Clear all")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+};
+
+/** Cloche des notifications : masquée quand l'administration désactive le module « notifications ». */
+export const NotificationBell = () => {
+  const { feature } = useAppSettings();
+  if (!feature("notifications")) return null;
+  return <NotificationBellInner />;
 };
 
 export default NotificationBell;

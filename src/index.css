@@ -4,98 +4,114 @@
 @tailwind utilities;
 
 @layer base {
+  /* ─────────────── Design tokens ───────────────
+     Palette neutre (gris légèrement froid) + une seule couleur d'accent.
+     La couleur principale, l'arrondi et la police peuvent être remplacés par
+     l'administration (Personnalisation) : voir src/lib/appSettings.ts. */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 215 25% 27%;
+    --background: 240 9% 98%;
+    --foreground: 240 10% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
+    --card-foreground: 240 10% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --popover-foreground: 240 10% 10%;
 
-    --primary: 217 91% 60%;
+    --primary: 228 65% 48%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 217 85% 75%;
+    --primary-glow: 228 70% 62%;
 
-    --secondary: 217 32% 96%;
-    --secondary-foreground: 215 25% 27%;
+    --secondary: 240 6% 95%;
+    --secondary-foreground: 240 10% 12%;
 
-    --muted: 215 20% 95%;
-    --muted-foreground: 215 15% 50%;
+    --muted: 240 6% 95.5%;
+    --muted-foreground: 240 4% 40%;
 
-    --accent: 217 50% 90%;
-    --accent-foreground: 215 25% 27%;
+    --accent: 228 50% 95%;
+    --accent-foreground: 228 55% 30%;
 
-    --success: 142 76% 36%;
+    --success: 152 62% 33%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --warning: 36 92% 44%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 68% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 88%;
-    --input: 215 20% 88%;
-    --ring: 217 91% 60%;
+    --border: 240 6% 90%;
+    --input: 240 6% 86%;
+    --ring: 228 65% 48%;
 
-    --sidebar-background: 217 35% 88%;
-    --sidebar-foreground: 215 25% 20%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 6% 25%;
+    --sidebar-primary: 228 65% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 40% 82%;
-    --sidebar-accent-foreground: 215 25% 20%;
-    --sidebar-border: 215 25% 78%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 240 6% 95%;
+    --sidebar-accent-foreground: 240 10% 10%;
+    --sidebar-border: 240 6% 91%;
+    --sidebar-ring: 228 65% 48%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 85% 75%));
-    --gradient-accent: linear-gradient(135deg, hsl(217 50% 90%), hsl(217 40% 95%));
+    /* Conservés pour la compatibilité : aplats, plus de dégradés */
+    --gradient-primary: hsl(var(--primary));
+    --gradient-accent: hsl(var(--accent));
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
+
+    --shadow-sm: 0 1px 2px 0 rgb(16 16 20 / 0.04);
+    --shadow-md: 0 1px 2px 0 rgb(16 16 20 / 0.04), 0 4px 12px -2px rgb(16 16 20 / 0.06);
+    --shadow-lg: 0 2px 4px -1px rgb(16 16 20 / 0.06), 0 12px 32px -6px rgb(16 16 20 / 0.12);
   }
 
   .dark {
-    --background: 215 30% 8%;
-    --foreground: 217 60% 95%;
+    --background: 240 6% 6%;
+    --foreground: 240 5% 95%;
 
-    --card: 215 30% 10%;
-    --card-foreground: 217 60% 95%;
+    --card: 240 5% 9%;
+    --card-foreground: 240 5% 95%;
 
-    --popover: 215 30% 10%;
-    --popover-foreground: 217 60% 95%;
+    --popover: 240 5% 10%;
+    --popover-foreground: 240 5% 95%;
 
-    --primary: 217 85% 75%;
-    --primary-foreground: 215 30% 8%;
-    --primary-glow: 217 80% 85%;
+    --primary: 228 85% 70%;
+    --primary-foreground: 240 10% 8%;
+    --primary-glow: 228 80% 78%;
 
-    --secondary: 215 30% 15%;
-    --secondary-foreground: 217 60% 95%;
+    --secondary: 240 4% 14%;
+    --secondary-foreground: 240 5% 95%;
 
-    --muted: 215 30% 15%;
-    --muted-foreground: 217 15% 65%;
+    --muted: 240 4% 13%;
+    --muted-foreground: 240 5% 63%;
 
-    --accent: 217 50% 25%;
-    --accent-foreground: 217 60% 95%;
+    --accent: 228 30% 17%;
+    --accent-foreground: 228 80% 85%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    --success: 152 50% 45%;
+    --success-foreground: 240 10% 8%;
 
-    --destructive: 0 62% 50%;
+    --warning: 38 90% 55%;
+    --warning-foreground: 240 10% 8%;
+
+    --destructive: 0 65% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 30% 18%;
-    --input: 215 30% 18%;
-    --ring: 217 85% 75%;
+    --border: 240 4% 16%;
+    --input: 240 4% 20%;
+    --ring: 228 85% 70%;
 
-    --sidebar-background: 215 30% 10%;
-    --sidebar-foreground: 217 60% 95%;
-    --sidebar-primary: 217 85% 75%;
-    --sidebar-primary-foreground: 215 30% 8%;
-    --sidebar-accent: 215 30% 15%;
-    --sidebar-accent-foreground: 217 60% 95%;
-    --sidebar-border: 215 30% 18%;
-    --sidebar-ring: 217 85% 75%;
+    --sidebar-background: 240 6% 7.5%;
+    --sidebar-foreground: 240 5% 72%;
+    --sidebar-primary: 228 85% 70%;
+    --sidebar-primary-foreground: 240 10% 8%;
+    --sidebar-accent: 240 4% 13%;
+    --sidebar-accent-foreground: 240 5% 96%;
+    --sidebar-border: 240 4% 14%;
+    --sidebar-ring: 228 85% 70%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(217 85% 75%), hsl(217 80% 85%));
-    --gradient-accent: linear-gradient(135deg, hsl(217 50% 25%), hsl(217 40% 30%));
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 4px 12px -2px rgb(0 0 0 / 0.35);
+    --shadow-lg: 0 2px 4px -1px rgb(0 0 0 / 0.35), 0 12px 32px -6px rgb(0 0 0 / 0.5);
   }
 }
 
@@ -103,67 +119,100 @@
   * {
     @apply border-border;
   }
-  html, body, #root {
+  html, body {
     height: 100%;
     min-height: 100%;
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    -webkit-overflow-scrolling: touch;
+    font-feature-settings: "ss01", "cv05";
+    text-rendering: optimizeLegibility;
   }
-  
+  [dir="rtl"], :lang(ar) {
+    font-family: var(--font-arabic), var(--font-latin), system-ui, sans-serif;
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.011em;
+  }
+  [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4 {
+    letter-spacing: 0;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+  }
+
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
   }
 
-  /* Smooth momentum touch scrolling for iOS iPad/iPhone */
-  main, .overflow-y-auto, .overflow-x-auto, .overflow-auto {
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  /* Visible and easy-to-use scrollbars for iPad and desktop */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: hsl(var(--muted) / 0.5);
-    border-radius: 4px;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.4);
-    border-radius: 4px;
+    background: hsl(var(--muted-foreground) / 0.25);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.7);
+    background: hsl(var(--muted-foreground) / 0.45);
+    border: 3px solid transparent;
+    background-clip: content-box;
   }
 }
 
-/* Professional UI Enhancement Classes */
 @layer components {
+  /* Carte cliquable (grilles de cours, exercices, examens, classes…) :
+     seule la bordure et l'ombre changent au survol, sans déplacement. */
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-elegant hover:-translate-y-1 hover:scale-[1.02];
+    position: relative;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  
+  .card-hover:hover {
+    border-color: hsl(var(--foreground) / 0.18);
+    box-shadow: var(--shadow-md);
+  }
+
   .gradient-primary {
-    background: var(--gradient-primary);
+    background: hsl(var(--primary));
   }
-  
+
   .gradient-accent {
-    background: var(--gradient-accent);
+    background: hsl(var(--accent));
   }
-  
+
   .text-gradient {
-    @apply bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent;
+    color: hsl(var(--foreground));
   }
-  
+
   .btn-primary {
-    @apply bg-primary hover:bg-primary/90 text-primary-foreground shadow-elegant hover:shadow-glow transition-all duration-300;
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground transition-colors;
   }
-  
+
   .btn-accent {
-    @apply bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-300;
+    @apply bg-accent hover:bg-accent/80 text-accent-foreground transition-colors;
+  }
+
+  /* En-tête de page standard : titre + description + actions */
+  .page-header {
+    @apply mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+  }
+  .page-title {
+    @apply text-xl font-semibold tracking-tight text-foreground sm:text-2xl;
+  }
+  .page-description {
+    @apply mt-1 text-sm text-muted-foreground;
+  }
+  .eyebrow {
+    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+  }
+  [dir="rtl"] .eyebrow {
+    @apply normal-case tracking-normal;
   }
 }
 
@@ -191,38 +240,18 @@
   background: hsl(var(--muted-foreground) / 0.45);
 }
 
-/* Sidebar Styles */
-.bg-sidebar {
-  @apply bg-background;
-}
-
-.nav-link {
-  @apply flex items-center space-x-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors;
-}
-
-.nav-link.active {
-  @apply bg-secondary text-foreground font-medium;
-}
-
-/* RTL Support */
+/* RTL Support
+   Note : dir="rtl" inverse déjà l'ordre des lignes flex ; ne JAMAIS ajouter de
+   `.rtl .flex-row { flex-direction: row-reverse }` (double inversion). */
 .rtl {
   direction: rtl;
   text-align: right;
 }
 
-.rtl .nav-link {
-  @apply space-x-0 space-x-reverse;
-}
-
-.rtl .flex-row {
-  @apply flex-row-reverse;
-}
-
-.rtl .space-x-1,
-.rtl .space-x-2,
-.rtl .space-x-3,
-.rtl .space-x-4 {
-  @apply space-x-reverse;
+/* space-x-* (Tailwind 3 utilise margin-left/right physiques) : en arabe on inverse
+   le côté de la marge, pour toutes les tailles et variantes (sm:, md:, -space-x…). */
+[dir="rtl"] [class*="space-x-"] > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
 }
 
 .rtl .ml-auto {
@@ -235,19 +264,330 @@
   margin-left: auto;
 }
 
-.rtl .mr-1,
-.rtl .mr-2,
-.rtl .mr-3,
-.rtl .mr-4 {
-  margin-right: 0 !important;
-  margin-left: 0.25rem;
+/* Marges d'icônes (mr-2 avant un libellé…) : même valeur, côté opposé */
+.rtl .mr-1 { margin-right: 0 !important; margin-left: 0.25rem; }
+.rtl .mr-1\.5 { margin-right: 0 !important; margin-left: 0.375rem; }
+.rtl .mr-2 { margin-right: 0 !important; margin-left: 0.5rem; }
+.rtl .mr-2\.5 { margin-right: 0 !important; margin-left: 0.625rem; }
+.rtl .mr-3 { margin-right: 0 !important; margin-left: 0.75rem; }
+.rtl .mr-4 { margin-right: 0 !important; margin-left: 1rem; }
+
+.rtl .ml-1 { margin-left: 0 !important; margin-right: 0.25rem; }
+.rtl .ml-1\.5 { margin-left: 0 !important; margin-right: 0.375rem; }
+.rtl .ml-2 { margin-left: 0 !important; margin-right: 0.5rem; }
+.rtl .ml-2\.5 { margin-left: 0 !important; margin-right: 0.625rem; }
+.rtl .ml-3 { margin-left: 0 !important; margin-right: 0.75rem; }
+.rtl .ml-4 { margin-left: 0 !important; margin-right: 1rem; }
+
+
+/* ───── Contenu HTML des questions de quiz (texte enrichi de l'éditeur) ───── */
+.quiz-question-html p { margin: 0 0 0.5em; }
+.quiz-question-html p:last-child { margin-bottom: 0; }
+.quiz-question-html strong, .quiz-question-html b { font-weight: 800; }
+.quiz-question-html u { text-underline-offset: 3px; }
+.quiz-question-html ul { list-style: disc; -webkit-padding-start: 1.5em; padding-inline-start: 1.5em; margin: 0.5em 0; }
+.quiz-question-html ol { list-style: decimal; -webkit-padding-start: 1.5em; padding-inline-start: 1.5em; margin: 0.5em 0; }
+.quiz-question-html a { color: hsl(var(--primary)); text-decoration: underline; }
+.quiz-question-html img {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+  margin: 0.75rem auto;
+  border-radius: var(--radius);
 }
 
-.rtl .ml-1,
-.rtl .ml-2,
-.rtl .ml-3,
-.rtl .ml-4 {
-  margin-left: 0 !important;
-  margin-right: 0.25rem;
+
+/* ═════════════════════════ TABLEAUX PROFESSIONNELS ═════════════════════════
+   Appliqué à tous les tableaux (composant ui/table + tableaux HTML des pages
+   via les classes .app-table-wrap / .app-table). */
+.app-table-wrap {
+  position: relative;
+  width: 100%;
+  overflow: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) + 2px);
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-sm);
+}
+.app-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.app-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: auto;
+  padding: 0.625rem 1rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.6);
+  border-bottom: 1px solid hsl(var(--border));
+}
+.app-table thead th:first-child { border-top-left-radius: inherit; }
+.app-table thead th:last-child { border-top-right-radius: inherit; }
+[dir="rtl"] .app-table thead th:first-child { border-top-left-radius: 0; border-top-right-radius: inherit; }
+[dir="rtl"] .app-table thead th:last-child { border-top-right-radius: 0; border-top-left-radius: inherit; }
+/* Alignement logique (gauche en FR/EN, droite en AR) ; une classe text-* explicite reste prioritaire */
+:where(.app-table th, .app-table td) { text-align: start; }
+/* L'arabe ne supporte pas les majuscules ni l'espacement des lettres */
+[dir="rtl"] .app-table thead th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8rem;
+}
+.app-table tbody td {
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid hsl(var(--border) / 0.7);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.app-table tbody tr:last-child td { border-bottom: 0; }
+/* Survol discret (spécificité nulle : les couleurs propres à une ligne restent prioritaires) */
+:where(.app-table tbody tr) { transition: background-color 0.12s ease; }
+:where(.app-table tbody tr:hover) { background-color: hsl(var(--muted) / 0.5); }
+/* Tableau dans une carte : pas de double cadre */
+.app-table-wrap.app-table-flat {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  /* défilement horizontal du tableau sur téléphone (et non coupé) */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.app-table-flat .app-table thead th { border-radius: 0; }
+
+@keyframes app-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes app-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  html { scroll-behavior: auto !important; }
+}
+@media print {
+  .app-table-wrap { box-shadow: none; }
+  .app-table thead th { position: static; }
 }
 
+/* ═════════ Préférences d'affichage (Paramètres → Affichage) ═════════ */
+html.pref-font-large { font-size: 106.25%; }
+html.pref-font-xlarge { font-size: 112.5%; }
+html.pref-reduce-motion *,
+html.pref-reduce-motion *::before,
+html.pref-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html.pref-density-compact .app-table thead th { padding: 0.5rem 0.75rem; }
+html.pref-density-compact .app-table tbody td { padding: 0.45rem 0.75rem; }
+
+/* ═════════ Tablettes / mobiles ═════════ */
+
+/* Hauteur réelle de l'écran : 100vh inclut la barre d'adresse sur iOS/Android,
+   ce qui cachait le bas de l'application. --app-vh est mis à jour par src/app/boot-script.ts. */
+.app-viewport {
+  height: 100vh;
+  height: var(--app-vh, 100vh);
+}
+@supports (height: 100dvh) {
+  .app-viewport { height: 100dvh; }
+}
+
+/* Les boutons/cartes cliquables n'affichent plus le rectangle gris au toucher */
+a, button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], label, summary {
+  -webkit-tap-highlight-color: transparent;
+}
+/* Supprime le délai de 300 ms au toucher sur les anciens navigateurs */
+html { touch-action: manipulation; }
+
+/* ═════════ Quiz protégé (anti-triche) ═════════ */
+.quiz-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none; /* iPad / iPhone : pas de menu Copier / Enregistrer l'image */
+}
+/* La zone de réponse doit rester utilisable (sinon iOS empêche la saisie) */
+.quiz-protected textarea,
+.quiz-protected input {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+.quiz-protected img {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.quiz-watermark {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+  display: -webkit-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: space-around;
+  justify-content: space-around;
+  opacity: 0.09;
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.quiz-watermark span {
+  display: block;
+  margin: 28px 18px;
+  -webkit-transform: rotate(-24deg);
+  transform: rotate(-24deg);
+}
+@media print {
+  .quiz-protected { visibility: hidden !important; }
+}
+
+
+/* ═════════ Tous appareils : PC, Android, iPhone X → 18, iPad ═════════ */
+
+/* Pas d'agrandissement automatique du texte en paysage (iPhone / iPad) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* Fenêtres (dialogues, confirmations, panneaux) : jamais plus hautes que l'écran visible,
+   même avec la barre d'adresse iOS / Android affichée */
+.fixed[role="dialog"],
+.fixed[role="alertdialog"] {
+  max-height: 90vh;
+  max-height: calc(var(--app-vh, 100vh) - 1.5rem);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+@supports (height: 100dvh) {
+  .fixed[role="dialog"],
+  .fixed[role="alertdialog"] { max-height: calc(100dvh - 1.5rem); }
+}
+/* Panneaux latéraux (menu mobile) : pleine hauteur visible */
+.fixed[role="dialog"].h-full { max-height: none; height: var(--app-vh, 100vh); }
+@supports (height: 100dvh) {
+  .fixed[role="dialog"].h-full { height: 100dvh; }
+}
+/* Les longs mots / liens / identifiants ne débordent plus de l'écran */
+.break-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+/* Médias et graphiques toujours contenus dans leur carte */
+img, video, iframe, canvas { max-width: 100%; }
+.recharts-responsive-container, .recharts-wrapper { max-width: 100%; }
+
+/* Rapport diagnostique : l'aperçu réduit à l'écran est imprimé en taille réelle */
+@media print {
+  .report-scaler { height: auto !important; overflow: visible !important; border: 0 !important; }
+  .report-scaler-inner { -webkit-transform: none !important; transform: none !important; width: auto !important; min-width: 0 !important; }
+}
+
+/* Les colonnes de grille ne s'élargissent plus au-delà de l'écran à cause d'un contenu
+   trop large (tableau, menu défilant, texte long) — cause n°1 de débordement sur téléphone.
+   Dans @layer base : une classe min-w-* explicite reste prioritaire. */
+@layer base {
+  .grid > * { min-width: 0; }
+}
+
+/* ═════════ Formules mathématiques (KaTeX, chargé à la demande) ═════════ */
+.math-inline, .math-display {
+  direction: ltr;
+  unicode-bidi: embed;
+  unicode-bidi: isolate;
+}
+.math-display {
+  display: block;
+  text-align: center;
+  margin: 0.45em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.math-inline .katex, .math-display .katex { font-size: 1.08em; }
+.truncate .math-inline .katex { font-size: 1em; }
+
+/* Texte mixte arabe / français dans les champs de saisie : le sens suit la première lettre
+   (les paragraphes affichés sont gérés par src/lib/bidiAuto.ts). */
+@layer base {
+  input[type="text"]:not(:placeholder-shown),
+  input[type="search"]:not(:placeholder-shown),
+  input:not([type]):not(:placeholder-shown),
+  textarea:not(:placeholder-shown),
+  [contenteditable="true"] p,
+  [contenteditable="true"] li,
+  [contenteditable="true"] h1,
+  [contenteditable="true"] h2,
+  [contenteditable="true"] h3 {
+    unicode-bidi: -webkit-plaintext;
+    unicode-bidi: plaintext;
+  }
+}
+
+/* ═════════ iOS : pas de zoom automatique sur les champs (taille ≥ 16px) ═════════ */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ═════════ Zones sûres (iPhone à encoche, PWA plein écran) ═════════ */
+.app-topnav {
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(3.5rem + env(safe-area-inset-top, 0px));
+}
+.safe-bottom-offset {
+  bottom: 1.5rem;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+.app-bottomnav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (max-width: 1023.98px) {
+  /* Espace réservé sous le contenu pour la barre de navigation du bas (< lg) */
+  .pb-bottomnav {
+    padding-bottom: 84px;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Les boutons flottants remontent au-dessus de la barre du bas */
+  .with-bottomnav .safe-bottom-offset {
+    bottom: 76px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Dialogues plein écran sur téléphone (h-full) : la fenêtre est ancrée en haut (top-3)
+   par défaut sous sm ; on la recolle au bord pour ne pas couper son pied. */
+@media (max-width: 639.98px) {
+  .fixed[role="dialog"].h-full.translate-y-0 { top: 0; }
+}
+
+/* Panneau des notifications sur téléphone : sous la barre du haut (+ encoche) */
+@media (max-width: 639.98px) {
+  .notif-panel { top: calc(3.75rem + env(safe-area-inset-top, 0px)); }
+}
