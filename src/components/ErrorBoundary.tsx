@@ -46,13 +46,14 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  message?: string;
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown): State {
+    return { hasError: true, message: error instanceof Error ? error.message : String(error) };
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
@@ -61,7 +62,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidUpdate(prevProps: Props) {
     if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
-      this.setState({ hasError: false });
+      this.setState({ hasError: false, message: undefined });
     }
   }
 
@@ -79,6 +80,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-sm">
           <h1 className="mb-2 text-lg font-semibold text-foreground">{t.title}</h1>
           <p className="mb-5 text-sm text-muted-foreground">{t.body}</p>
+          {this.state.message && (
+            <details className="mb-4 text-start text-xs text-muted-foreground">
+              <summary className="cursor-pointer">{lang === "ar" ? "تفاصيل تقنية" : lang === "en" ? "Technical details" : "Détails techniques"}</summary>
+              <p className="mt-2 break-words rounded-md bg-muted p-2 font-mono" dir="ltr">{this.state.message}</p>
+            </details>
+          )}
           <div className="flex flex-col items-center justify-center sm:flex-row">
             <button
               type="button"

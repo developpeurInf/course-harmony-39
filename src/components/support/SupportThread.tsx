@@ -39,13 +39,22 @@ export function SupportThread({ ticket, staff, tr, locale, onChanged }: { ticket
     .then(({ data }: any) => setMsgs(data || []));
   useEffect(() => {
     load();
-    const ch = supabase.channel(`support-${ticket.id}`)
-      .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "support_messages", filter: `ticket_id=eq.${ticket.id}` }, () => load())
-      .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    // Nom unique à chaque ouverture : supabase.channel() renvoie un canal déjà abonné
+    // si le nom existe encore (fermeture asynchrone), et .on() lève alors une erreur.
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase.channel(`support-${ticket.id}-${Math.random().toString(36).slice(2, 8)}`)
+        .on("postgres_changes" as any, { event: "INSERT", schema: "public", table: "support_messages", filter: `ticket_id=eq.${ticket.id}` }, () => load())
+        .subscribe();
+    } catch (e) {
+      console.error("support realtime", e);
+    }
+    return () => { if (ch) void supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket.id]);
-  useEffect(() => endRef.current?.scrollIntoView({ block: "nearest" }), [msgs]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "nearest" });
+  }, [msgs]);
 
   const send = async () => {
     if (!text.trim()) return;
