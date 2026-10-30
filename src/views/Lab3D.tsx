@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Boxes, Copy, Eye, EyeOff, Loader2, Pencil, Plus, Ruler, Save, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Boxes, Copy, Eye, EyeOff, Library, Loader2, Pencil, Plus, Ruler, Save, Share2, Sparkles, Target, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { NotInPlan } from "@/components/access/AccessUi";
 import { Viewer3D } from "@/components/lab3d/Viewer3D";
 import { ParamsForm } from "@/components/lab3d/ParamsForm";
+import { LabLibrary } from "@/components/lab3d/LabLibrary";
+import { LEVELS, SUBJECTS, type LabEntry, type LabLesson } from "@/lib/lab3d/catalog";
 import { GROUP_LABELS, TEMPLATES, defaultParams, normalizeParams, templateById, type Params, type TemplateDef, type Tri } from "@/lib/lab3d/templates";
 import { useLab3dFeatures } from "@/lib/lab3d/features";
 import { accessStore } from "@/contexts/AccessContext";
@@ -28,7 +30,11 @@ const db = supabase as any;
 export interface Lab3dScene {
   id: string; professor_id: string; title: string; description: string | null; template: string; params: Params;
   room_id: string | null; course_id: string | null; is_visible: boolean; views: number; created_at: string; updated_at: string;
+  lab_id?: string | null;
 }
+
+type Tab = "library" | "scenes" | "templates";
+const TAB_KEY = "lab3d.tab";
 
 export default function Lab3D() {
   const { user } = useAuth();
@@ -45,6 +51,9 @@ export default function Lab3D() {
   const [sandbox, setSandbox] = useState<string | null>(null);
   const [roomFilter, setRoomFilter] = useState("all");
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [tab, setTabState] = useState<Tab>(() => { try { const v = localStorage.getItem(TAB_KEY); return v === "scenes" || v === "templates" ? v : "library"; } catch { return "library"; } });
+  const setTab = (t: Tab) => { setTabState(t); try { localStorage.setItem(TAB_KEY, t); } catch { /* stockage indisponible */ } };
+  const [openLab, setOpenLab] = useState<{ lab: LabEntry; lesson: LabLesson } | null>(null);
 
   const load = async () => {
     if (!user) return;
@@ -81,10 +90,17 @@ export default function Lab3D() {
       title, description: editing.description?.trim() || null, template: editing.template!,
       params: normalizeParams(editing.template!, editing.params as Params), room_id: editing.room_id || null,
       course_id: editing.course_id || null, is_visible: !!editing.is_visible && !!editing.room_id, updated_at: new Date().toISOString(),
+      lab_id: editing.lab_id || null,
     };
-    const res = editing.id
-      ? await db.from("lab3d_scenes").update(row).eq("id", editing.id)
-      : await db.from("lab3d_scenes").insert(row);
+    const write = (r: Record<string, unknown>) => editing.id
+      ? db.from("lab3d_scenes").update(r).eq("id", editing.id)
+      : db.from("lab3d_scenes").insert(r);
+    let res = await write(row);
+    // base pas encore migrée (colonne lab_id absente) : on enregistre sans le lien vers la bibliothèque
+    if (res.error && /lab_id/.test(res.error.message || "")) {
+      const { lab_id: _omit, ...rest } = row;
+      res = await write(rest);
+    }
     if (res.error) { toast.error(res.error.message); return; }
     toast.success(tr("Scène enregistrée", "تم حفظ المشهد", "Scene saved"));
     setEditing(null);
@@ -101,6 +117,11 @@ export default function Lab3D() {
     if (error) toast.error(error.message); else { setConfirmDel(null); load(); }
   };
   const newScene = (tpl: TemplateDef) => setEditing({ template: tpl.id, params: defaultParams(tpl.id), title: L(tpl.label), description: "", room_id: rooms[0]?.id || null, course_id: null, is_visible: false });
+  const shareLab = (lab: LabEntry, params: Params) => setEditing({
+    template: lab.template, params, title: L(lab.title), lab_id: lab.id,
+    description: `${L(lab.goal)}\n\n${lab.steps.map((s, i) => `${i + 1}. ${L(s)}`).join("\n")}`,
+    room_id: rooms[0]?.id || null, course_id: null, is_visible: false,
+  });
 
   // ----------------------------------------------------------------- éditeur
   if (editing) {
@@ -164,8 +185,18 @@ export default function Lab3D() {
     return <Sandbox key={sandbox} tpl={tpl} ar={f.ar} vr={f.vr} onClose={() => setSandbox(null)} onSave={isStudent ? undefined : (p) => setEditing({ template: tpl.id, params: p, title: L(tpl.label), description: "", room_id: rooms[0]?.id || null, course_id: null, is_visible: false })} />;
   }
 
+  // ----------------------------------------------------------------- fiche d'un labo de la bibliothèque
+  if (openLab) {
+    return <LabSheet key={openLab.lab.id} lab={openLab.lab} lesson={openLab.lesson} ar={f.ar} vr={f.vr} onClose={() => setOpenLab(null)} onShare={isStudent ? undefined : (p) => shareLab(openLab.lab, p)} />;
+  }
+
   // ----------------------------------------------------------------- accueil
-  const groups = (["solids", "space", "analysis", "proba"] as const).map((g) => ({ g, items: TEMPLATES.filter((t) => t.group === g) }));
+  const groups = (["solids", "space", "analysis", "proba", "physics", "chemistry", "svt"] as const).map((g) => ({ g, items: TEMPLATES.filter((t) => t.group === g) })).filter((x) => x.items.length);
+  const tabs: { id: Tab; icon: typeof Library; label: string }[] = [
+    { id: "library", icon: Library, label: tr("Bibliothèque des labos", "مكتبة المختبرات", "Lab library") },
+    { id: "scenes", icon: BookOpen, label: isStudent ? tr("Scènes de ma classe", "مشاهد قسمي", "My class's scenes") : tr("Mes scènes", "مشاهدي", "My scenes") },
+    { id: "templates", icon: Sparkles, label: isStudent ? tr("Explorer librement", "استكشاف حر", "Explore freely") : tr("Modèles", "النماذج", "Templates") },
+  ];
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -173,14 +204,25 @@ export default function Lab3D() {
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight"><Boxes className="h-6 w-6 text-muted-foreground" />{tr("Labo 3D · AR / VR", "المختبر ثلاثي الأبعاد", "3D Lab · AR / VR")}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {isStudent
-              ? tr("Manipulez les figures de l'espace, posez-les sur votre table en réalité augmentée ou entrez dedans en réalité virtuelle.", "تحكم في مجسمات الفضاء، ضعها على طاولتك بالواقع المعزز أو ادخلها بالواقع الافتراضي.", "Handle 3D figures, place them on your desk in augmented reality or step inside in virtual reality.")
-              : tr("Créez des scènes 3D à partir de modèles, partagez-les à vos classes : vos élèves les ouvrent en 3D, en réalité augmentée (sur la table) ou en réalité virtuelle.", "أنشئ مشاهد ثلاثية الأبعاد وشاركها مع أقسامك: يفتحها التلاميذ بالواقع المعزز أو الافتراضي.", "Create 3D scenes from templates and share them with your classes: students open them in 3D, AR (on the desk) or VR.")}
+              ? tr("Des labos de maths, physique, chimie et SVT à manipuler en 3D, à poser sur votre table en réalité augmentée ou à visiter en réalité virtuelle.", "مختبرات في الرياضيات والفيزياء والكيمياء وعلوم الحياة والأرض للتجريب ثلاثي الأبعاد أو بالواقع المعزز أو الافتراضي.", "Math, physics, chemistry and biology labs to handle in 3D, place on your desk in AR or explore in VR.")
+              : tr("Une bibliothèque de labos de maths, physique, chimie et SVT rangés par leçon du programme marocain (TC, 1re et 2e Bac). Choisissez un labo, adaptez-le et partagez-le à vos classes.", "مكتبة مختبرات في الرياضيات والفيزياء والكيمياء وعلوم الحياة والأرض مرتبة حسب دروس البرنامج المغربي. اختر مختبرا وكيفه وشاركه مع أقسامك.", "A library of math, physics, chemistry and biology labs organised by lesson of the Moroccan curriculum. Pick a lab, adapt it and share it with your classes.")}
           </p>
         </div>
         {f.measure && <Button asChild variant="outline"><Link to="/lab3d/measure"><Ruler className="me-1.5 h-4 w-4" />{tr("Mesurer le réel", "القياس في الواقع", "Measure the real world")}</Link></Button>}
       </div>
 
-      <section className="space-y-3">
+      <div className="flex gap-1 overflow-x-auto border-b">
+        {tabs.map((t) => (
+          <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            className={cn("-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm", tab === t.id ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            <t.icon className="h-4 w-4" />{t.label}{t.id === "scenes" && scenes && scenes.length > 0 && <span className="rounded-full bg-muted px-1.5 text-[11px]">{scenes.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      {tab === "library" && <LabLibrary onOpen={(lab, lesson) => setOpenLab({ lab, lesson })} />}
+
+      {tab === "scenes" && <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">{isStudent ? tr("Scènes de ma classe", "مشاهد قسمي", "My class's scenes") : tr("Mes scènes", "مشاهدي", "My scenes")}</h2>
           {!isStudent && rooms.length > 0 && (
@@ -193,8 +235,8 @@ export default function Lab3D() {
         </div>
         {scenes === null ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : visibleScenes.length === 0 ? (
           <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            {isStudent ? tr("Votre professeur n'a pas encore partagé de scène. Explorez les modèles ci-dessous !", "لم يشارك أستاذك أي مشهد بعد. استكشف النماذج أدناه!", "Your teacher hasn't shared a scene yet. Explore the templates below!")
-              : tr("Aucune scène. Choisissez un modèle ci-dessous pour commencer.", "لا توجد مشاهد. اختر نموذجا أدناه للبدء.", "No scene yet. Pick a template below to start.")}
+            {isStudent ? tr("Votre professeur n'a pas encore partagé de scène. Explorez la bibliothèque des labos !", "لم يشارك أستاذك أي مشهد بعد. استكشف مكتبة المختبرات!", "Your teacher hasn't shared a scene yet. Explore the lab library!")
+              : tr("Aucune scène. Ouvrez un labo de la bibliothèque et partagez-le à une classe.", "لا توجد مشاهد. افتح مختبرا من المكتبة وشاركه مع قسم.", "No scene yet. Open a lab from the library and share it with a class.")}
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -229,10 +271,10 @@ export default function Lab3D() {
             })}
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="space-y-4">
-        <h2 className="flex items-center gap-2 text-base font-semibold"><Sparkles className="h-4 w-4 text-amber-500" />{isStudent ? tr("Explorer librement", "استكشاف حر", "Explore freely") : tr("Modèles", "النماذج", "Templates")}</h2>
+      {tab === "templates" && <section className="space-y-4">
+        <p className="text-sm text-muted-foreground">{tr("Chaque modèle est un simulateur complet : ouvrez-le pour l'explorer ou créez une scène sur mesure.", "كل نموذج محاكي كامل: افتحه للاستكشاف أو أنشئ مشهدا خاصا.", "Each template is a full simulator: open it to explore or build a custom scene.")}</p>
         {groups.map(({ g, items }) => (
           <div key={g} className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{L(GROUP_LABELS[g])}</p>
@@ -254,7 +296,56 @@ export default function Lab3D() {
             </div>
           </div>
         ))}
-      </section>
+      </section>}
+    </div>
+  );
+}
+
+function LabSheet({ lab, lesson, ar, vr, onClose, onShare }: { lab: LabEntry; lesson: LabLesson; ar: boolean; vr: boolean; onClose: () => void; onShare?: (p: Params) => void }) {
+  const { language } = useLanguage();
+  const tr = (fr: string, a: string, en: string) => (language === "ar" ? a : language === "en" ? en : fr);
+  const L = (t: Tri) => (language === "ar" ? t.ar : language === "en" ? t.en : t.fr);
+  const tpl = templateById(lab.template);
+  const start = () => normalizeParams(lab.template, { ...defaultParams(lab.template), ...(lab.params || {}) });
+  const [p, setP] = useState<Params>(start);
+  const [done, setDone] = useState<number[]>([]);
+  const subject = SUBJECTS.find((s) => s.id === lesson.subject)!;
+  const level = LEVELS.find((l) => l.id === lesson.level)!;
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <button type="button" onClick={onClose} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"><ArrowLeft className="h-3.5 w-3.5 rtl:rotate-180" />{tr("Bibliothèque", "المكتبة", "Library")}</button>
+          <p className="mt-1 text-xs text-muted-foreground">{subject.icon} {L(subject.label)} · {L(level.label)} · {L(lesson.title)}</p>
+          <h1 className="flex items-center gap-2 text-xl font-semibold"><span className="text-2xl">{tpl.icon}</span>{L(lab.title)}</h1>
+        </div>
+        {onShare && <Button onClick={() => onShare(p)}><Share2 className="me-1.5 h-4 w-4" />{tr("Partager à une classe", "مشاركة مع قسم", "Share with a class")}</Button>}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <Viewer3D template={lab.template} params={p} ar={ar} vr={vr} height="min(64vh, 600px)" />
+        <div className="space-y-4">
+          <section className="space-y-3 rounded-xl border bg-card p-4">
+            <p className="flex items-start gap-2 text-sm"><Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><span><span className="font-medium">{tr("Objectif", "الهدف", "Goal")} : </span>{L(lab.goal)}</span></p>
+            <ol className="space-y-2">
+              {lab.steps.map((s, i) => (
+                <li key={i}>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input type="checkbox" className="mt-1" checked={done.includes(i)} onChange={() => setDone((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i]))} />
+                    <span className={cn(done.includes(i) && "text-muted-foreground line-through")}><span className="font-medium">{i + 1}.</span> {L(s)}</span>
+                  </label>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section className="space-y-3 rounded-xl border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{tr("Réglages", "الإعدادات", "Settings")}</h2>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setP(start())}>{tr("Réinitialiser", "إعادة الضبط", "Reset")}</Button>
+            </div>
+            <ParamsForm template={lab.template} params={p} onChange={setP} />
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

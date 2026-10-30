@@ -12,19 +12,21 @@ export type ParamDef =
   | { key: string; type: "select"; label: Tri; def: string; options: { v: string; label: Tri }[]; student?: boolean }
   | { key: string; type: "text"; label: Tri; def: string; multiline?: boolean; placeholder?: string; student?: boolean };
 
-export type TemplateId =
-  | "cube" | "cuboid" | "pyramid" | "tetrahedron" | "prism" | "cylinder" | "cone" | "sphere"
-  | "space" | "surface" | "dice";
+export type TemplateId = string;
 
 export interface TemplateDef {
   id: TemplateId;
-  group: "solids" | "space" | "analysis" | "proba";
+  group: "solids" | "space" | "analysis" | "proba" | "physics" | "chemistry" | "svt";
   icon: string;
   label: Tri;
   desc: Tri;
   level: string;
   params: ParamDef[];
+  /** scène animée (horloge, lecture / pause) */
+  animated?: boolean;
 }
+
+import { SCIENCE_TEMPLATES } from "./templatesScience";
 
 const T = (fr: string, ar: string, en: string): Tri => ({ fr, ar, en });
 
@@ -181,6 +183,8 @@ export const TEMPLATES: TemplateDef[] = [
   },
 ];
 
+TEMPLATES.push(...SCIENCE_TEMPLATES);
+
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id) || TEMPLATES[0];
 
 export function defaultParams(id: string): Params {
@@ -209,4 +213,7 @@ export const GROUP_LABELS: Record<TemplateDef["group"], Tri> = {
   space: T("Géométrie dans l'espace", "الهندسة الفضائية", "Space geometry"),
   analysis: T("Analyse", "التحليل", "Analysis"),
   proba: T("Probabilités", "الاحتمالات", "Probability"),
+  physics: T("Physique", "الفيزياء", "Physics"),
+  chemistry: T("Chimie", "الكيمياء", "Chemistry"),
+  svt: T("SVT", "علوم الحياة والأرض", "Life & Earth sciences"),
 };

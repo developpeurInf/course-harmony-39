@@ -12,6 +12,7 @@ import { ParamsForm } from "@/components/lab3d/ParamsForm";
 import { normalizeParams, templateById, type Params, type Tri } from "@/lib/lab3d/templates";
 import { useLab3dFeatures } from "@/lib/lab3d/features";
 import type { Lab3dScene as Scene } from "@/views/Lab3D";
+import { labLessonLabel } from "@/lib/lab3d/catalog";
 
 const db = supabase as any;
 
@@ -53,7 +54,7 @@ export default function Lab3DScene() {
         <div className="min-w-0">
           <Link to="/lab3d" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"><ArrowLeft className="h-3.5 w-3.5" />{tr("Labo 3D", "المختبر ثلاثي الأبعاد", "3D Lab")}</Link>
           <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold"><span className="text-2xl">{tpl.icon}</span>{scene.title}</h1>
-          <p className="text-xs text-muted-foreground">{L(tpl.label)} · {tpl.level}</p>
+          <p className="text-xs text-muted-foreground">{labLessonLabel(scene.lab_id, L) || `${L(tpl.label)} · ${tpl.level}`}</p>
         </div>
       </div>
       {scene.description && <p className="whitespace-pre-wrap rounded-xl border-s-4 border-primary bg-primary/5 px-4 py-3 text-sm">{scene.description}</p>}

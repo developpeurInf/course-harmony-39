@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { StereoEffect } from "three/examples/jsm/effects/StereoEffect.js";
-import { Box, Glasses, Loader2, Maximize2, Minimize2, Minus, Plus, RotateCcw, RotateCw, Smartphone, X } from "lucide-react";
+import { Box, Glasses, Loader2, Maximize2, Minimize2, Minus, Pause, Play, Plus, RotateCcw, RotateCw, SkipBack, Smartphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { buildScene, type BuiltScene } from "@/lib/lab3d/buildScene";
@@ -51,7 +51,10 @@ export function Viewer3D({ template, params, ar = true, vr = true, height = 440,
     renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls;
     holder: THREE.Group; reticle: THREE.Mesh; stereo: StereoEffect | null; built: BuiltScene | null;
     size: THREE.Vector3; hitSource: any; placed: boolean; mode: Mode; orient: { a: number; b: number; g: number; a0: number | null };
+    sim: { t: number; last: number; playing: boolean; speed: number };
   } | null>(null);
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState(1);
 
   const [mode, setMode] = useState<Mode>("3d");
   const [fullscreen, setFullscreen] = useState(false);
@@ -98,6 +101,7 @@ export function Viewer3D({ template, params, ar = true, vr = true, height = 440,
       renderer, scene, camera, controls, holder, reticle, stereo: null, built: null,
       size: new THREE.Vector3(4, 4, 4), hitSource: null, placed: false, mode: "3d" as Mode,
       orient: { a: 0, b: 90, g: 0, a0: null as number | null },
+      sim: { t: 0, last: performance.now(), playing: true, speed: 1 },
     };
 
     const resize = () => {
@@ -116,6 +120,13 @@ export function Viewer3D({ template, params, ar = true, vr = true, height = 440,
 
     const tmpQ = new THREE.Quaternion();
     renderer.setAnimationLoop((_t: number, frame: any) => {
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - c.sim.last) / 1000);
+      c.sim.last = now;
+      if (c.built?.update) {
+        if (c.sim.playing) c.sim.t += dt * c.sim.speed;
+        c.built.update(c.sim.t);
+      }
       if (c.mode === "ar" && frame && c.hitSource && !c.placed) {
         const ref = renderer.xr.getReferenceSpace();
         const hits = frame.getHitTestResults(c.hitSource);
@@ -174,6 +185,7 @@ export function Viewer3D({ template, params, ar = true, vr = true, height = 440,
       c.size = box.getSize(new THREE.Vector3());
     }
     c.holder.add(b.root);
+    c.sim.t = 0;
     c.built = b;
     setBuilt(b);
     onInfo?.(b);
@@ -399,6 +411,15 @@ export function Viewer3D({ template, params, ar = true, vr = true, height = 440,
           <div className="absolute end-2 top-2 flex gap-1">
             <Button size="icon" variant="secondary" className="h-8 w-8 opacity-90" title={tr("Recentrer", "إعادة التوسيط", "Recenter")} onClick={fit}><RotateCcw className="h-4 w-4" /></Button>
             <Button size="icon" variant="secondary" className="h-8 w-8 opacity-90" title={tr("Plein écran", "ملء الشاشة", "Fullscreen")} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
+          </div>
+        )}
+        {built?.update && mode !== "cardboard" && (
+          <div className="absolute bottom-2 end-2 flex items-center gap-1 rounded-lg bg-background/80 p-1">
+            <Button size="icon" variant="ghost" className="h-7 w-7" title={playing ? tr("Pause", "إيقاف مؤقت", "Pause") : tr("Lecture", "تشغيل", "Play")} onClick={() => { const c = ctx.current; if (!c) return; c.sim.playing = !c.sim.playing; setPlaying(c.sim.playing); }}>{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" title={tr("Recommencer", "إعادة", "Restart")} onClick={() => { const c = ctx.current; if (c) c.sim.t = 0; }}><SkipBack className="h-4 w-4" /></Button>
+            {[0.25, 0.5, 1, 2].map((s) => (
+              <button key={s} className={cn("rounded px-1.5 py-0.5 text-[11px] tabular-nums", speed === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")} onClick={() => { const c = ctx.current; if (c) c.sim.speed = s; setSpeed(s); }}>×{String(s).replace(".", ",")}</button>
+            ))}
           </div>
         )}
         {mode === "3d" && (

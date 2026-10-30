@@ -5,6 +5,7 @@
  */
 import * as THREE from "three";
 import { compileExpr } from "./mathExpr";
+import { SCIENCE_BUILDERS } from "./buildSciences";
 import type { Params, Tri } from "./templates";
 
 export interface InfoLine { label: Tri; value: string }
@@ -12,6 +13,8 @@ export interface BuiltScene {
   root: THREE.Group;
   info: InfoLine[];
   error?: string;
+  /** animation : t = temps simulé en secondes */
+  update?: (t: number) => void;
   dispose: () => void;
 }
 
@@ -25,12 +28,14 @@ export const palette = (dark: boolean): Palette => dark
   ? { face: 0x6d8cff, edge: 0xe8ecff, accent: 0xffb547, section: 0xff5c8a, text: "#ffffff", textBg: "rgba(20,24,40,0.75)", dashed: 0xb7c0e0 }
   : { face: 0x3b5bdb, edge: 0x1c2240, accent: 0xe8590c, section: 0xd6336c, text: "#111827", textBg: "rgba(255,255,255,0.85)", dashed: 0x5c677d };
 
-class Builder {
+export class Builder {
   root = new THREE.Group();
   m = new THREE.Group(); // repère maths
   info: InfoLine[] = [];
   private disposables: { dispose: () => void }[] = [];
   labelSize = 0.35;
+  updaters: ((t: number) => void)[] = [];
+  onFrame(f: (t: number) => void) { this.updaters.push(f); }
   constructor(public pal: Palette) {
     this.m.rotation.x = -Math.PI / 2;
     this.root.add(this.m);
@@ -666,11 +671,18 @@ export function buildScene(template: string, prm: Params, dark: boolean): BuiltS
       case "space": error = space(B, prm); break;
       case "surface": error = surface(B, prm); break;
       case "dice": dice(B, prm); break;
-      default: error = "Modèle inconnu";
+      default: {
+        const sb = SCIENCE_BUILDERS[template];
+        if (sb) error = sb(B, prm) || undefined;
+        else error = "Modèle inconnu";
+      }
     }
     if (prm.axes && !["space", "surface", "dice"].includes(template)) B.axes(size * 1.2);
   } catch (e: any) {
     error = String(e?.message || e);
   }
-  return { root: B.root, info: B.info, error, dispose: () => B.dispose() };
+  const ups = B.updaters;
+  const update = ups.length ? (t: number) => { for (const u of ups) u(t); } : undefined;
+  if (update) { try { update(0); } catch { /* */ } }
+  return { root: B.root, info: B.info, error, update, dispose: () => B.dispose() };
 }
