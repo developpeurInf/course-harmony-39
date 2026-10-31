@@ -41,6 +41,7 @@ export type FeatureKey =
   | "progress"
   | "lab3d"
   | "chat"
+  | "meet"
   | "gamification";
 
 export interface AppSettings {
@@ -212,6 +213,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     progress: true,
     lab3d: true,
     chat: true,
+    meet: true,
     gamification: true,
   },
   payments: {

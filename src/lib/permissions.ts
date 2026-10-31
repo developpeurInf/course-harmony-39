@@ -26,6 +26,7 @@ export type PermissionKey =
   | "student.reminders"
   | "chat.students"
   | "chat.calls"
+  | "meet.host"
   | "lab3d.use"
   | "lab3d.ar"
   | "lab3d.vr"
@@ -137,6 +138,7 @@ export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string 
   "support": { fr: "Aide et support", ar: "المساعدة والدعم", en: "Help & support" },
   "progress": { fr: "Espace élève : progression, badges, remédiation", ar: "فضاء التلميذ: التقدم والشارات والدعم", en: "Student space: progress, badges, remediation" },
   "chat": { fr: "Messagerie élèves ↔ professeurs", ar: "المراسلة بين التلاميذ والأساتذة", en: "Student ↔ teacher messaging" },
+  "meet": { fr: "Réunions vidéo de classe", ar: "اجتماعات الفيديو للقسم", en: "Class video meetings" },
   "lab3d": { fr: "Labo 3D · réalité augmentée et virtuelle", ar: "المختبر ثلاثي الأبعاد · الواقع المعزز والافتراضي", en: "3D Lab · augmented and virtual reality" },
   "notifications": { fr: "Notifications", ar: "الإشعارات", en: "Notifications" },
   "account": { fr: "Compte", ar: "الحساب", en: "Account" },
@@ -167,6 +169,7 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "student.reminders": { module: "progress", fr: "Rappels automatiques de devoirs à mes élèves", ar: "تذكيرات تلقائية بالواجبات لتلاميذي", en: "Automatic homework reminders to my students" },
   "chat.students": { module: "chat", fr: "Messagerie avec mes élèves (texte, photos, vidéos, documents, vocal)", ar: "المراسلة مع تلاميذي (نص، صور، فيديو، وثائق، صوت)", en: "Messaging with my students (text, photos, videos, documents, voice)" },
   "chat.calls": { module: "chat", fr: "Appels vocaux avec mes élèves", ar: "المكالمات الصوتية مع تلاميذي", en: "Voice calls with my students" },
+  "meet.host": { module: "meet", fr: "Réunions vidéo dans mes classes (visio, partage d'écran, chat)", ar: "اجتماعات الفيديو في أقسامي (فيديو، مشاركة الشاشة، دردشة)", en: "Video meetings in my classes (video, screen sharing, chat)" },
   "lab3d.use": { module: "lab3d", fr: "Créer et partager des scènes 3D", ar: "إنشاء ومشاركة مشاهد ثلاثية الأبعاد", en: "Create and share 3D scenes" },
   "lab3d.ar": { module: "lab3d", fr: "Réalité augmentée (poser les figures sur la table)", ar: "الواقع المعزز (وضع المجسمات على الطاولة)", en: "Augmented reality (place figures on the desk)" },
   "lab3d.vr": { module: "lab3d", fr: "Réalité virtuelle (casque ou carton)", ar: "الواقع الافتراضي (خوذة أو كرتون)", en: "Virtual reality (headset or cardboard)" },

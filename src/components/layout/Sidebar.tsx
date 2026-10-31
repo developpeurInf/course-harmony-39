@@ -41,6 +41,7 @@ import {
   Table2,
   Sparkles,
   type LucideIcon,
+  Video,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -283,6 +284,15 @@ const Sidebar = () => {
                           trailing={<RoomUnread n={(chat.contacts || []).filter((c) => contactInRoom(c, room.id, room.name)).reduce((n, c) => n + (c.unread || 0), 0)} />}
                         />
                       )}
+                      {show("meet") && (
+                        <NavItem
+                          nested
+                          to={`/rooms/${room.id}/meet`}
+                          icon={Video}
+                          label={t("Réunions", "الاجتماعات", "Meetings")}
+                          locked={!can("meet.host")}
+                        />
+                      )}
                       {show("students") && (
                         <NavItem nested to={`/rooms/${room.id}/students`} icon={Users} label={t("Élèves", "التلاميذ", "Students")} />
                       )}
@@ -344,6 +354,7 @@ const Sidebar = () => {
             )
           ) : (
             <>
+              {show("meet") && <NavItem to="/meetings" icon={Video} label={t("Réunions en direct", "الاجتماعات المباشرة", "Live meetings")} />}
               {show("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
               {show("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
               {show("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
@@ -359,6 +370,7 @@ const Sidebar = () => {
           <div className="space-y-0.5">
             <SectionLabel>{t("Outils", "الأدوات", "Tools")}</SectionLabel>
             {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
+            {show("meet") && <NavItem to="/meetings" icon={Video} label={t("Réunions vidéo", "اجتماعات الفيديو", "Video meetings")} locked={!can("meet.host")} />}
             {show("questionBank") && <NavItem to="/question-bank" icon={Library} label={t("Banque de questions", "بنك الأسئلة", "Question bank")} locked={!can("quiz.bank")} />}
             {show("lessonPlans") && <NavItem to="/lesson-plans" icon={Sparkles} label={t("Fiches pédagogiques", "الجذاذات", "Lesson plans")} locked={!can("ai.lesson_plan")} />}
             {show("reports") && (

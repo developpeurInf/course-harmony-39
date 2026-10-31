@@ -1,0 +1,60 @@
+/* Réunions vidéo de classe (importé par les composants de src/components/meet et src/views/Meet*) */
+.meet-shell { font-feature-settings: "tnum" 0; color-scheme: dark; }
+.meet-aurora {
+  background:
+    radial-gradient(60% 50% at 15% 0%, hsl(var(--primary) / 0.28), transparent 70%),
+    radial-gradient(50% 45% at 100% 100%, rgba(244, 63, 94, 0.16), transparent 70%),
+    radial-gradient(40% 40% at 85% 10%, rgba(56, 189, 248, 0.12), transparent 70%);
+}
+.meet-hero {
+  background:
+    radial-gradient(55% 90% at 100% 0%, hsl(var(--primary) / 0.14), transparent 70%),
+    radial-gradient(40% 80% at 0% 100%, rgba(244, 63, 94, 0.08), transparent 70%);
+}
+.meet-live-card {
+  background: linear-gradient(120deg, #e11d48 0%, #be123c 45%, #7c3aed 130%);
+}
+.meet-live-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 120% at 100% 0%, rgba(255, 255, 255, 0.18), transparent 60%);
+  pointer-events: none;
+}
+.dock-btn {
+  height: 2.75rem;
+  width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transition: background-color 0.15s, transform 0.1s;
+}
+.dock-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.dock-btn:active { transform: scale(0.95); }
+.dock-btn:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+@media (min-width: 640px) {
+  .dock-btn { height: 3rem; width: 3rem; }
+}
+.meet-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+.meet-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.meet-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 9999px; }
+.meet-panel { animation: meet-panel-in 0.18s ease-out; }
+@keyframes meet-panel-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.meet-float { animation: meet-float 4.2s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+@keyframes meet-float {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  10% { transform: translateY(-20px) scale(1.15); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(-62vh) scale(1); opacity: 0; }
+}
+.meet-wave svg { transform-origin: 70% 90%; animation: meet-wave 1.6s ease-in-out infinite; }
+@keyframes meet-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  10%, 30% { transform: rotate(14deg); }
+  20%, 40% { transform: rotate(-8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .meet-float, .meet-wave svg, .meet-panel { animation: none; }
+}

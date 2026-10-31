@@ -11,6 +11,7 @@ import type { Lang } from "@/lib/appSettings";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LiveQuizBanner } from "@/components/LiveQuizBanner";
+import { MeetLiveBanner } from "@/components/meet/MeetLiveBanner";
 import { BroadcastBanner } from "@/components/BroadcastBanner";
 import { pickText } from "@/lib/appSettings";
 import { installIOSFocusScrollFix } from "@/components/ui/ui-i18n";
@@ -257,6 +258,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
             <BroadcastBanner userId={user.id} language={language} />
             <SubscriptionBanner />
             {user.role === "student" && <LiveQuizBanner language={language} />}
+            {user.role === "student" && feature("meet") && <MeetLiveBanner language={language} />}
             <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
           </Suspense>
           {footerText && !isWorkspace && (

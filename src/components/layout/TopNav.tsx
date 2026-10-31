@@ -78,6 +78,7 @@ const TopNav = () => {
       [path.startsWith("/create-room"), tr("Nouvelle classe", "قسم جديد", "New class")],
       [path.startsWith("/settings"), tr("Paramètres", "الإعدادات", "Settings")],
       [path.startsWith("/messages") || /^\/rooms\/[^/]+\/messages/.test(path), tr("Messages", "الرسائل", "Messages")],
+      [path.startsWith("/meetings") || /^\/rooms\/[^/]+\/meet/.test(path), tr("Réunions", "الاجتماعات", "Meetings")],
     ];
     const match = routes.find(([ok]) => ok);
     if (match) return { title: match[1] };
