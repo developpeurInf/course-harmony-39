@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toast } from "sonner";
 import {
   AlertCircle, ArrowDown, BellOff, Bell, Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Copy, Download, Loader2, Lock,
-  LockOpen, MoreVertical, Pencil, Phone, Reply, ShieldCheck, Smile, Trash2, X,
+  LockOpen, MoreVertical, Pencil, Phone, Reply, ShieldCheck, Smile, Trash2, Video, X,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -415,6 +415,18 @@ export function ChatThread({ contact, me, isTeacher, tr, locale, onBack }: {
             <Phone className="h-5 w-5" />
           </button>
         )}
+        {contact.can_call && canWrite && (
+          <button
+            type="button"
+            onClick={() => void startCall(contact, true)}
+            disabled={inCall}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-primary hover:bg-muted disabled:opacity-40"
+            aria-label={tr("Appel vidéo", "مكالمة فيديو", "Video call")}
+            title={tr("Appel vidéo", "مكالمة فيديو", "Video call")}
+          >
+            <Video className="h-5 w-5" />
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-muted" aria-label={tr("Options", "خيارات", "Options")}>
@@ -479,7 +491,7 @@ export function ChatThread({ contact, me, isTeacher, tr, locale, onBack }: {
                     )}
                     {m.kind === "call" ? (
                       <CallLine m={m} me={me} tr={tr} time={timeOf(m.created_at)}
-                        onCallBack={m.sender_id !== me && m.meta?.status !== "ended" && contact.can_call && canWrite && !inCall ? () => void startCall(contact) : undefined} />
+                        onCallBack={m.sender_id !== me && m.meta?.status !== "ended" && contact.can_call && canWrite && !inCall ? () => void startCall(contact, !!m.meta?.video) : undefined} />
                     ) : (
                       <Bubble
                         m={m}

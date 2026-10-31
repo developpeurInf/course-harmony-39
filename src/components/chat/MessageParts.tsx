@@ -228,10 +228,12 @@ export function CallLine({ m, me, tr, time, onCallBack }: { m: ChatMessage; me: 
   const missed = status === "missed" || status === "cancelled" || status === "declined" || status === "failed";
   const Icon = missed && !outgoing ? PhoneMissed : outgoing ? PhoneOutgoing : PhoneIncoming;
   const label = status === "ended"
-    ? (outgoing ? tr("Appel vocal sortant", "مكالمة صادرة", "Outgoing call") : tr("Appel vocal entrant", "مكالمة واردة", "Incoming call"))
+    ? (m.meta?.video
+      ? (outgoing ? tr("Appel vidéo sortant", "مكالمة فيديو صادرة", "Outgoing video call") : tr("Appel vidéo entrant", "مكالمة فيديو واردة", "Incoming video call"))
+      : (outgoing ? tr("Appel vocal sortant", "مكالمة صادرة", "Outgoing call") : tr("Appel vocal entrant", "مكالمة واردة", "Incoming call")))
     : status === "declined" ? (outgoing ? tr("Appel refusé", "مكالمة مرفوضة", "Call declined") : tr("Appel refusé", "رفضت المكالمة", "You declined"))
     : status === "failed" ? tr("Appel interrompu", "مكالمة منقطعة", "Call dropped")
-    : outgoing ? tr("Pas de réponse", "لا يوجد رد", "No answer") : tr("Appel manqué", "مكالمة فائتة", "Missed call");
+    : outgoing ? tr("Pas de réponse", "لا يوجد رد", "No answer") : m.meta?.video ? tr("Appel vidéo manqué", "مكالمة فيديو فائتة", "Missed video call") : tr("Appel manqué", "مكالمة فائتة", "Missed call");
   return (
     <div className="flex justify-center py-1">
       <div className={cn("inline-flex items-center gap-2 rounded-full border bg-background/90 px-3 py-1.5 text-xs shadow-sm", missed && !outgoing && "border-rose-200 text-rose-700 dark:border-rose-900 dark:text-rose-300")}>

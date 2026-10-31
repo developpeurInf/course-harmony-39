@@ -30,6 +30,12 @@ export interface CallState {
   endedReason?: string;
   minimized: boolean;
   quality?: "good" | "poor";
+  /** Appel vidéo demandé à l'appel */
+  video: boolean;
+  /** Ma caméra allumée / celle de l'autre */
+  camOn: boolean;
+  remoteCam: boolean;
+  facing: "user" | "environment";
 }
 
 interface ChatContextType {
@@ -38,8 +44,12 @@ interface ChatContextType {
   unread: number;
   refresh: () => Promise<void>;
   call: CallState | null;
-  startCall: (contact: ChatContact) => Promise<void>;
-  acceptCall: () => Promise<void>;
+  startCall: (contact: ChatContact, video?: boolean) => Promise<void>;
+  acceptCall: (withVideo?: boolean) => Promise<void>;
+  toggleCamera: () => Promise<void>;
+  switchCamera: () => Promise<void>;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
   declineCall: () => Promise<void>;
   hangUp: () => Promise<void>;
   toggleMute: () => void;
@@ -171,6 +181,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const remoteAudio = useRef<HTMLAudioElement | null>(null);
   const signal = useRef<{ channel: any; close: () => void } | null>(null);
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
+  const videoSender = useRef<RTCRtpSender | null>(null);
+  const wakeLock = useRef<any>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const tone = useRef(new Tone());
   const ringTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -190,6 +204,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     pc.current = null;
     local.current?.getTracks().forEach(t => t.stop());
     local.current = null;
+    videoSender.current = null;
+    setLocalStream(null);
+    setRemoteStream(null);
+    try { void wakeLock.current?.release(); } catch { /* ignore */ }
+    wakeLock.current = null;
     if (remoteAudio.current) { remoteAudio.current.srcObject = null; }
     signal.current?.close();
     signal.current = null;
@@ -207,20 +226,54 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try { void signal.current?.channel.send({ type: "broadcast", event, payload: { ...payload, from: uid } }); } catch { /* ignore */ }
   };
 
-  const getMic = async () => {
+  /** Micro (+ caméra HD si appel vidéo). Sans caméra disponible : l'appel continue en vocal. */
+  const camConstraints = (facing: "user" | "environment"): MediaTrackConstraints => ({
+    facingMode: facing,
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
+  });
+  const getMedia = async (video: boolean, facing: "user" | "environment" = "user") => {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("nomic");
-    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } as any, video: false });
+    const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true } as MediaTrackConstraints;
+    if (video) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ audio, video: camConstraints(facing) });
+      } catch {
+        toast.error(tr("Caméra indisponible : l'appel passe en vocal.", "الكاميرا غير متاحة: المكالمة صوتية.", "Camera unavailable: voice only."));
+      }
+    }
+    return navigator.mediaDevices.getUserMedia({ audio, video: false });
+  };
+
+  /** Haute qualité : jusqu'à 2,5 Mb/s et 30 i/s ; le navigateur baisse seul si le réseau faiblit */
+  const tuneVideo = async (sender: RTCRtpSender | null, facing: "user" | "environment") => {
+    if (!sender?.track) return;
+    try { (sender.track as any).contentHint = facing === "environment" ? "detail" : "motion"; } catch { /* ignore */ }
+    try {
+      const params: any = sender.getParameters();
+      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = 2_500_000;
+      params.encodings[0].maxFramerate = 30;
+      params.degradationPreference = facing === "environment" ? "maintain-resolution" : "balanced";
+      await sender.setParameters(params);
+    } catch { /* navigateur ancien : réglages par défaut */ }
   };
 
   const makePeer = () => {
-    const p = new RTCPeerConnection({ iceServers: iceServers() });
+    const p = new RTCPeerConnection({ iceServers: iceServers(), bundlePolicy: "max-bundle" } as RTCConfiguration);
     pc.current = p;
-    local.current?.getTracks().forEach(t => p.addTrack(t, local.current!));
     p.onicecandidate = e => { if (e.candidate) send("ice", { candidate: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
+    // Un seul flux distant (son + image), quel que soit l'ordre d'arrivée des pistes
+    const ms = new MediaStream();
     p.ontrack = e => {
-      const stream = e.streams?.[0] || new MediaStream([e.track]);
+      if (!ms.getTracks().includes(e.track)) ms.addTrack(e.track);
+      setRemoteStream(new MediaStream(ms.getTracks()));
+      if (e.track.kind === "video") {
+        e.track.onunmute = () => { setRemoteStream(new MediaStream(ms.getTracks())); };
+      }
       if (!remoteAudio.current) return;
-      remoteAudio.current.srcObject = stream;
+      if (remoteAudio.current.srcObject !== ms) remoteAudio.current.srcObject = ms;
       void remoteAudio.current.play().catch(() => { /* lecture relancée au prochain geste */ });
     };
     const onState = () => {
@@ -228,6 +281,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (s === "connected" || s === "completed") {
         if (lostTimer.current) { clearTimeout(lostTimer.current); lostTimer.current = null; }
         tone.current.stop();
+        const cur = callRef.current;
+        if (cur && cur.phase !== "active") {
+          send("media", { call: cur.call.id, video: cur.camOn });
+          void tuneVideo(videoSender.current, cur.facing);
+          if (cur.video) { try { void (navigator as any).wakeLock?.request("screen").then((l: any) => { wakeLock.current = l; }); } catch { /* ignore */ } }
+        }
         setCall(c => (c && c.phase !== "ended" ? { ...c, phase: "active", connectedAt: c.connectedAt ?? Date.now(), quality: "good" } : c));
       } else if (s === "disconnected") {
         patch({ quality: "poor" });
@@ -239,6 +298,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     p.oniceconnectionstatechange = onState;
     (p as any).onconnectionstatechange = onState;
     return p;
+  };
+
+  /** Appelant : micro + une voie vidéo toujours prévue (la caméra peut s'allumer en cours d'appel) */
+  const attachCaller = (p: RTCPeerConnection) => {
+    const st = local.current;
+    st?.getAudioTracks().forEach(t => p.addTrack(t, st));
+    const v = st?.getVideoTracks()[0];
+    if (typeof p.addTransceiver === "function") {
+      const tx = p.addTransceiver(v || "video", { direction: "sendrecv", streams: st ? [st] : [] } as RTCRtpTransceiverInit);
+      videoSender.current = tx.sender;
+    } else if (v && st) {
+      videoSender.current = p.addTrack(v, st);
+    }
+  };
+  /** Appelé : après l'offre, on réutilise les voies proposées */
+  const attachCallee = (p: RTCPeerConnection) => {
+    const st = local.current;
+    st?.getAudioTracks().forEach(t => p.addTrack(t, st));
+    const v = st?.getVideoTracks()[0] || null;
+    const tx = p.getTransceivers?.().find(t => t.receiver.track?.kind === "video");
+    if (tx) {
+      tx.direction = "sendrecv";
+      try { if (st) (tx.sender as any).setStreams?.(st); } catch { /* ignore */ }
+      if (v) void tx.sender.replaceTrack(v);
+      videoSender.current = tx.sender;
+    } else if (v && st) {
+      videoSender.current = p.addTrack(v, st);
+    }
   };
 
   const flushIce = async () => {
@@ -256,7 +343,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         tone.current.stop();
         patch({ phase: "connecting" });
         const p = makePeer();
-        const offer = await p.createOffer({ offerToReceiveAudio: true } as any);
+        attachCaller(p);
+        const offer = await p.createOffer();
         await p.setLocalDescription(offer);
         send("offer", { call: callId, sdp: p.localDescription });
       });
@@ -265,6 +353,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (readyTimer.current) { clearInterval(readyTimer.current); readyTimer.current = null; }
         const p = makePeer();
         await p.setRemoteDescription(payload.sdp);
+        attachCallee(p);
         await flushIce();
         const answer = await p.createAnswer();
         await p.setLocalDescription(answer);
@@ -279,6 +368,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (!payload?.candidate) return;
         if (pc.current?.remoteDescription) { try { await pc.current.addIceCandidate(payload.candidate); } catch { /* ignore */ } }
         else pendingIce.current.push(payload.candidate);
+      });
+      ch.on("broadcast", { event: "media" }, ({ payload }: any) => {
+        if (payload.call === callId) patch({ remoteCam: !!payload.video });
       });
       ch.on("broadcast", { event: "hangup" }, ({ payload }: any) => {
         if (payload.call === callId && callRef.current?.call.id === callId) finish(callRef.current.phase === "active" ? "ended" : "cancelled");
@@ -296,7 +388,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finish, refresh]);
 
-  const startCall = useCallback(async (contact: ChatContact) => {
+  const startCall = useCallback(async (contact: ChatContact, video = false) => {
     if (callRef.current) { toast.error(tr("Un appel est déjà en cours.", "مكالمة جارية بالفعل.", "A call is already in progress.")); return; }
     if (typeof RTCPeerConnection === "undefined") {
       toast.error(tr("Ce navigateur ne permet pas les appels.", "هذا المتصفح لا يدعم المكالمات.", "This browser can't make calls."));
@@ -308,12 +400,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       contact = { ...contact, conversation_id: data };
     }
     try {
-      local.current = await getMic();
+      local.current = await getMedia(video);
+      setLocalStream(local.current);
     } catch {
       toast.error(tr("Micro indisponible : autorisez le micro dans le navigateur.", "الميكروفون غير متاح: اسمح به في المتصفح.", "Microphone unavailable: allow it in your browser."));
       return;
     }
-    const { data, error } = await db.rpc("chat_call_start", { p_conv: contact.conversation_id });
+    const camOn = !!local.current.getVideoTracks().length;
+    let res = await db.rpc("chat_call_start", { p_conv: contact.conversation_id, p_video: video });
+    // Base pas encore à jour (sans appel vidéo) : ancienne fonction
+    if (res.error && /p_video|function/i.test(res.error.message || "")) res = await db.rpc("chat_call_start", { p_conv: contact.conversation_id });
+    const { data, error } = res;
     if (error || !data) {
       cleanup();
       toast.error(error?.message || tr("Appel impossible", "تعذر الاتصال", "Call failed"));
@@ -322,7 +419,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const row = data as ChatCall;
     setCall({
       call: row, peer: { id: contact.user_id, name: contact.name, avatar_url: contact.avatar_url },
-      phase: "outgoing", outgoing: true, muted: false, speaker: false, connectedAt: null, minimized: false,
+      phase: "outgoing", outgoing: true, muted: false, speaker: video, connectedAt: null, minimized: false,
+      video, camOn, remoteCam: false, facing: "user",
     });
     await openSignal(row.conversation_id, row.id, true);
     tone.current.start("back");
@@ -332,13 +430,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tr, cleanup, endWith]);
 
-  const acceptCall = useCallback(async () => {
+  const acceptCall = useCallback(async (withVideo?: boolean) => {
     const c = callRef.current;
     if (!c || c.phase !== "incoming") return;
     tone.current.stop();
     if (ringTimer.current) clearTimeout(ringTimer.current);
     try {
-      local.current = await getMic();
+      local.current = await getMedia(withVideo ?? c.video);
+      setLocalStream(local.current);
+      patch({ camOn: !!local.current.getVideoTracks().length, speaker: !!(withVideo ?? c.video) });
     } catch {
       toast.error(tr("Micro indisponible : autorisez le micro dans le navigateur.", "الميكروفون غير متاح: اسمح به في المتصفح.", "Microphone unavailable: allow it in your browser."));
       void endWith("decline");
@@ -379,6 +479,63 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     patch({ muted });
   }, []);
 
+  /** Allumer / couper ma caméra pendant l'appel (sans renégocier : la voie vidéo existe déjà) */
+  const toggleCamera = useCallback(async () => {
+    const c = callRef.current;
+    const st = local.current;
+    if (!c || !st) return;
+    if (c.camOn) {
+      st.getVideoTracks().forEach(t => { t.stop(); st.removeTrack(t); });
+      try { await videoSender.current?.replaceTrack(null); } catch { /* ignore */ }
+      patch({ camOn: false });
+      setLocalStream(new MediaStream(st.getTracks()));
+      send("media", { call: c.call.id, video: false });
+      return;
+    }
+    if (!videoSender.current && c.phase === "active") {
+      toast.error(tr("Ce navigateur ne peut pas ajouter la vidéo en cours d'appel.", "هذا المتصفح لا يدعم إضافة الفيديو أثناء المكالمة.", "This browser can't add video during a call."));
+      return;
+    }
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({ video: camConstraints(c.facing) });
+      const track = cam.getVideoTracks()[0];
+      st.addTrack(track);
+      if (videoSender.current) {
+        await videoSender.current.replaceTrack(track);
+        void tuneVideo(videoSender.current, c.facing);
+      }
+      patch({ camOn: true, video: true, speaker: true });
+      setLocalStream(new MediaStream(st.getTracks()));
+      send("media", { call: c.call.id, video: true });
+    } catch {
+      toast.error(tr("Caméra indisponible : autorisez la caméra dans le navigateur.", "الكاميرا غير متاحة: اسمح بها في المتصفح.", "Camera unavailable: allow it in your browser."));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tr]);
+
+  /** Caméra avant / arrière (montrer une feuille d'exercice, le tableau…) */
+  const switchCamera = useCallback(async () => {
+    const c = callRef.current;
+    const st = local.current;
+    if (!c || !st || !c.camOn) return;
+    const facing = c.facing === "user" ? "environment" : "user";
+    try {
+      const old = st.getVideoTracks()[0];
+      old?.stop();
+      const cam = await navigator.mediaDevices.getUserMedia({ video: camConstraints(facing) });
+      const track = cam.getVideoTracks()[0];
+      if (old) st.removeTrack(old);
+      st.addTrack(track);
+      await videoSender.current?.replaceTrack(track);
+      void tuneVideo(videoSender.current, facing);
+      patch({ facing });
+      setLocalStream(new MediaStream(st.getTracks()));
+    } catch {
+      toast.error(tr("Impossible de changer de caméra.", "تعذر تبديل الكاميرا.", "Couldn't switch camera."));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tr]);
+
   const toggleSpeaker = useCallback(() => {
     const c = callRef.current;
     if (!c) return;
@@ -413,6 +570,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setCall({
           call: row, peer: { id: row.caller_id, name: peer?.name || tr("Appel entrant", "مكالمة واردة", "Incoming call"), avatar_url: peer?.avatar_url || null },
           phase: "incoming", outgoing: false, muted: false, speaker: false, connectedAt: null, minimized: false,
+          video: !!(row as any).video, camOn: false, remoteCam: false, facing: "user",
         });
         tone.current.start("ring");
         try {
@@ -482,10 +640,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ChatContextType>(() => ({
     enabled: enabled && (contacts === null || contacts.length > 0),
     contacts, unread, refresh, call, startCall, acceptCall, declineCall, hangUp, toggleMute, toggleSpeaker,
+    toggleCamera, switchCamera, localStream, remoteStream,
     setMinimized: (v: boolean) => patch({ minimized: v }),
     setActiveConversation: (id: string | null) => { activeConv.current = id; },
     allowCalls, setAllowCalls,
-  }), [enabled, contacts, unread, refresh, call, startCall, acceptCall, declineCall, hangUp, toggleMute, toggleSpeaker, allowCalls, setAllowCalls]);
+  }), [enabled, contacts, unread, refresh, call, startCall, acceptCall, declineCall, hangUp, toggleMute, toggleSpeaker, toggleCamera, switchCamera, localStream, remoteStream, allowCalls, setAllowCalls]);
 
   return (
     <Ctx.Provider value={value}>

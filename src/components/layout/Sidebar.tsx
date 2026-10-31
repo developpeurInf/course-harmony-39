@@ -8,6 +8,7 @@ import { useStudentFeatures } from "@/lib/studentFeatures";
 import { useLab3dFeatures } from "@/lib/lab3d/features";
 import { useChatOptional } from "@/contexts/ChatContext";
 import { ChatUnreadBadge } from "@/components/chat/ChatNavButton";
+import { contactInRoom } from "@/lib/chat";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import {
   Boxes,
@@ -100,6 +101,15 @@ function NavItem({
         </>
       )}
     </NavLink>
+  );
+}
+
+function RoomUnread({ n }: { n: number }) {
+  if (!n) return null;
+  return (
+    <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
+      {n > 99 ? "99+" : n}
+    </span>
   );
 }
 
@@ -263,6 +273,16 @@ const Sidebar = () => {
                       />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="ms-[17px] space-y-0.5 border-s ps-2 pt-0.5">
+                      {show("chat") && chat?.enabled && (
+                        <NavItem
+                          nested
+                          to={`/rooms/${room.id}/messages`}
+                          icon={MessageCircle}
+                          label={t("Messages", "الرسائل", "Messages")}
+                          locked={!can("chat.students")}
+                          trailing={<RoomUnread n={(chat.contacts || []).filter((c) => contactInRoom(c, room.id, room.name)).reduce((n, c) => n + (c.unread || 0), 0)} />}
+                        />
+                      )}
                       {show("students") && (
                         <NavItem nested to={`/rooms/${room.id}/students`} icon={Users} label={t("Élèves", "التلاميذ", "Students")} />
                       )}

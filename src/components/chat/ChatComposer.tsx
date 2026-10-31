@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 import {
-  Camera, FileText, Image as ImageIcon, MapPin, Mic, Paperclip, Pencil, Reply, Send, Smile, Trash2, UserRound, X,
+  Camera, FileText, Loader2, Image as ImageIcon, MapPin, Mic, Paperclip, Pencil, Reply, Send, Smile, Trash2, UserRound, X,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { currentLocation } from "@/lib/supportAttachments";
-import { CHAT_DOC_ACCEPT, EMOJIS, attachmentKind, fmtDuration, formatBytes, pickAudioMime, type ChatContactCard, type ChatLocation, type ChatMessage } from "@/lib/chat";
+import { CHAT_DOC_ACCEPT, CHAT_MAX_BYTES, prepareFile, EMOJIS, attachmentKind, fmtDuration, formatBytes, pickAudioMime, type ChatContactCard, type ChatLocation, type ChatMessage } from "@/lib/chat";
 
 type Tr = (fr: string, ar: string, en: string) => string;
 export type Activity = "typing" | "recording" | "uploading" | "idle";
@@ -102,11 +102,31 @@ export function ChatComposer({
     if (!v) { typingSent.current = 0; onActivity("idle"); }
   };
 
-  const addFiles = (list: FileList | File[] | null) => {
+  const [preparing, setPreparing] = useState(0);
+  const addFiles = async (list: FileList | File[] | null) => {
     if (!list) return;
-    const arr = Array.from(list);
+    const arr = Array.from(list).slice(0, 10);
     if (!arr.length) return;
-    setFiles(prev => [...prev, ...arr].slice(0, 10));
+    setPreparing(n => n + arr.length);
+    const ready: File[] = [];
+    const failed: string[] = [];
+    for (const f of arr) {
+      try {
+        if (f.size > CHAT_MAX_BYTES * 3) throw new Error("big");
+        ready.push(await prepareFile(f));
+      } catch {
+        failed.push(f.name || tr("fichier", "ملف", "file"));
+      }
+      setPreparing(n => Math.max(0, n - 1));
+    }
+    if (failed.length) toast.error(tr(`Impossible de lire : ${failed.join(", ")}. Réessayez depuis la galerie ou l'appareil photo.`, `تعذرت قراءة: ${failed.join(", ")}`, `Couldn't read: ${failed.join(", ")}`));
+    if (ready.length) setFiles(prev => [...prev, ...ready].slice(0, 10));
+  };
+  /** Fichiers choisis : copiés avant de vider le champ (sinon Android perd l'accès à la photo) */
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const arr = Array.from(input.files || []);
+    void addFiles(arr).finally(() => { input.value = ""; });
   };
 
   const pickLocation = async () => {
@@ -117,7 +137,7 @@ export function ChatComposer({
     }
   };
 
-  const canSend = !disabled && (text.trim().length > 0 || files.length > 0 || !!location);
+  const canSend = !disabled && preparing === 0 && (text.trim().length > 0 || files.length > 0 || !!location);
 
   const submit = () => {
     if (!canSend) return;
@@ -230,6 +250,9 @@ export function ChatComposer({
       )}
 
       {/* Pièces jointes en attente */}
+      {preparing > 0 && (
+        <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{tr("Préparation de la photo…", "جارٍ تجهيز الصورة…", "Preparing photo…")}</p>
+      )}
       {(files.length > 0 || location) && (
         <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
           {files.map((f, i) => (
@@ -279,9 +302,9 @@ export function ChatComposer({
         </div>
       ) : (
         <div className="flex items-end gap-1">
-          <input ref={mediaInput} type="file" accept="image/*,video/*" multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ""; onActivity("idle"); }} />
-          <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={e => { addFiles(e.target.files); e.target.value = ""; }} />
-          <input ref={docInput} type="file" accept={CHAT_DOC_ACCEPT} multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ""; }} />
+          <input ref={mediaInput} type="file" accept="image/*,video/*" multiple hidden onChange={onPick} />
+          <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={onPick} />
+          <input ref={docInput} type="file" accept={CHAT_DOC_ACCEPT} multiple hidden onChange={onPick} />
 
           <Popover open={attachOpen} onOpenChange={setAttachOpen}>
             <PopoverTrigger asChild>

@@ -29,7 +29,7 @@ export interface ChatMessage {
   attachments: Attachment[];
   location: ChatLocation | null;
   contact: ChatContactCard | null;
-  meta: { call_id?: string; status?: string; duration?: number } | null;
+  meta: { call_id?: string; status?: string; duration?: number; video?: boolean } | null;
   reply_to: string | null;
   client_id: string | null;
   created_at: string;
@@ -60,6 +60,8 @@ export interface ChatContact {
   can_chat: boolean;
   can_call: boolean;
   last_seen_at: string | null;
+  /** Classes communes (professeur : classes de l'élève) */
+  room_ids?: string[] | null;
 }
 
 export interface ChatCall {
@@ -68,6 +70,7 @@ export interface ChatCall {
   caller_id: string;
   callee_id: string;
   status: "ringing" | "accepted" | "declined" | "missed" | "cancelled" | "ended" | "failed";
+  video?: boolean;
   created_at: string;
   answered_at: string | null;
   ended_at: string | null;
@@ -150,7 +153,7 @@ export async function uploadChatFiles(conversationId: string, files: File[], ext
     const path = `${conversationId}/${uuid()}-${safeName(f.name)}`;
     const type = f.type || "application/octet-stream";
     const [meta, up] = await Promise.all([probe(f), supabase.storage.from(CHAT_BUCKET).upload(path, f, { contentType: type })]);
-    if (up.error) failed.push(f.name);
+    if (up.error) failed.push(`${f.name} (${up.error.message})`);
     else done.push({ path, name: f.name, type, size: f.size, ...meta, ...extra });
   }
   return { done, failed };
@@ -201,3 +204,58 @@ export const vcard = (c: ChatContactCard) =>
   ["BEGIN:VCARD", "VERSION:3.0", `FN:${c.name}`, c.phone ? `TEL;TYPE=CELL:${c.phone}` : "", c.email ? `EMAIL:${c.email}` : "", "END:VCARD"]
     .filter(Boolean)
     .join("\r\n");
+
+/**
+ * Lit le fichier tout de suite après le choix (Android : le lien vers la photo de la galerie
+ * peut expirer, et l'envoi échouait sans même partir). Les photos sont réduites à 1920 px
+ * (JPEG 85 %) : envoi rapide en 4G, qualité nette à l'écran. GIF, SVG, HEIC non décodables : copie brute.
+ */
+const MAX_SIDE = 1920;
+export async function prepareFile(f: File): Promise<File> {
+  const type = f.type || "";
+  const name = f.name || `fichier-${Date.now()}`;
+  const raw = async () => new File([await f.arrayBuffer()], name, { type: type || guessType(name), lastModified: Date.now() });
+  if (!/^image\/(jpeg|jpg|png|webp|bmp)$/i.test(type) || f.size < 300 * 1024) return raw();
+  try {
+    const url = URL.createObjectURL(f);
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    if (scale === 1 && /jpe?g/i.test(type) && f.size < 1.5 * 1024 * 1024) return raw();
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return raw();
+    ctx.fillStyle = "#fff"; // PNG transparent → fond blanc en JPEG
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, "image/jpeg", 0.85));
+    if (!blob || blob.size >= f.size) return raw();
+    return new File([blob], name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg", lastModified: Date.now() });
+  } catch {
+    return raw();
+  }
+}
+
+function guessType(name: string) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  const map: Record<string, string> = {
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic", heif: "image/heif",
+    mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", "3gp": "video/3gpp", m4a: "audio/mp4", mp3: "audio/mpeg", ogg: "audio/ogg",
+    pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  };
+  return map[ext] || "application/octet-stream";
+}
+
+/** Le contact fait-il partie de cette classe ? (room_ids, sinon nom de la classe si la base n'est pas à jour) */
+export function contactInRoom(c: ChatContact, roomId: string, roomName?: string | null) {
+  if (Array.isArray(c.room_ids)) return c.room_ids.includes(roomId);
+  if (!roomName || !c.room_names) return false;
+  return c.room_names.split(" · ").includes(roomName);
+}

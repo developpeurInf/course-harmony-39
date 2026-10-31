@@ -77,7 +77,7 @@ const TopNav = () => {
       [path.startsWith("/subscription"), tr("Abonnement", "الاشتراك", "Subscription")],
       [path.startsWith("/create-room"), tr("Nouvelle classe", "قسم جديد", "New class")],
       [path.startsWith("/settings"), tr("Paramètres", "الإعدادات", "Settings")],
-      [path.startsWith("/messages"), tr("Messages", "الرسائل", "Messages")],
+      [path.startsWith("/messages") || /^\/rooms\/[^/]+\/messages/.test(path), tr("Messages", "الرسائل", "Messages")],
     ];
     const match = routes.find(([ok]) => ok);
     if (match) return { title: match[1] };
