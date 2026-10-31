@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Sidebar, { initialsOf } from "./Sidebar";
 import NotificationBell from "@/components/NotificationBell";
+import ChatNavButton from "@/components/chat/ChatNavButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
@@ -76,6 +77,7 @@ const TopNav = () => {
       [path.startsWith("/subscription"), tr("Abonnement", "الاشتراك", "Subscription")],
       [path.startsWith("/create-room"), tr("Nouvelle classe", "قسم جديد", "New class")],
       [path.startsWith("/settings"), tr("Paramètres", "الإعدادات", "Settings")],
+      [path.startsWith("/messages"), tr("Messages", "الرسائل", "Messages")],
     ];
     const match = routes.find(([ok]) => ok);
     if (match) return { title: match[1] };
@@ -147,6 +149,7 @@ const TopNav = () => {
           <LanguageSelector />
           <ThemeToggle />
         </div>
+        <ChatNavButton />
         {feature("notifications") && <NotificationBell />}
 
         <div className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true" />

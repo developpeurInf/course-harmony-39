@@ -104,7 +104,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const { settings: appSettings, text: settingText, feature } = useAppSettings();
   const showBottomNav = feature("bottomNav");
   // Pages « plein écran » (outil de travail) : pas de marge, pas de largeur max, pas de pied de page
-  const isWorkspace = location.pathname.startsWith("/pdf-editor");
+  const isWorkspace = location.pathname.startsWith("/pdf-editor") || location.pathname.startsWith("/messages");
   const footerText = settingText(appSettings.texts?.footer, (language === "ar" || language === "en" ? language : "fr") as Lang);
 
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);

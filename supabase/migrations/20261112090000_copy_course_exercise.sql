@@ -29,7 +29,7 @@ begin
   select (jsonb_populate_record(null::public.exercises, to_jsonb(v_ex) || jsonb_build_object(
     'id', v_new, 'course_id', p_target_course_id,
     'title', coalesce(nullif(btrim(p_title), ''), v_ex.title),
-    'is_visible', false, 'due_date', null, 'publish_at', null,
+    'is_visible', false, 'publish_at', null,
     'created_at', now(), 'updated_at', now()))).*;
 
   if to_regclass('public.exercise_materials') is not null then

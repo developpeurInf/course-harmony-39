@@ -1,5 +1,7 @@
 import { NavLink, useLocation } from "@/lib/router";
-import { Home, BookOpen, FileText, Calendar, User, FolderOpen, BarChart3, FileSpreadsheet, type LucideIcon } from "lucide-react";
+import { Home, BookOpen, FileText, Calendar, User, FolderOpen, BarChart3, FileSpreadsheet, MessageCircle, type LucideIcon } from "lucide-react";
+import { useChatOptional } from "@/contexts/ChatContext";
+import { ChatUnreadBadge } from "@/components/chat/ChatNavButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
@@ -51,6 +53,7 @@ const BottomNav = ({ className }: BottomNavProps) => {
   const { hasModule } = useAccess();
   // module affiché : allumé dans Personnalisation ET inclus dans l'offre
   const feature = (m: Parameters<typeof enabled>[0]) => enabled(m) && (m === "bottomNav" || hasModule(m));
+  const chat = useChatOptional();
 
   if (!user || !feature("bottomNav")) return null;
 
@@ -67,6 +70,10 @@ const BottomNav = ({ className }: BottomNavProps) => {
         return feature("diagnostic")
           ? { ...item, to: "/diagnostic", icon: FileSpreadsheet, label: ["Diagnostic", "التشخيص", "Diagnostic"] }
           : null;
+      }
+      // Élève : l'onglet Profil devient Messages (le profil reste dans le menu du haut)
+      if (user.role !== "professor" && item.to === "/profile" && chat?.enabled) {
+        return { to: "/messages", icon: MessageCircle, label: ["Messages", "الرسائل", "Messages"], match: /^\/messages/ };
       }
       return item;
     })
@@ -100,6 +107,7 @@ const BottomNav = ({ className }: BottomNavProps) => {
                 <span className="flex h-7 items-center justify-center" aria-hidden="true">
                   <Icon className={cn("h-5 w-5", active && "text-primary")} strokeWidth={active ? 2 : 1.75} />
                 </span>
+                {item.to === "/messages" && <ChatUnreadBadge className="absolute top-1.5 start-1/2 ms-1.5" />}
                 <span className="max-w-full truncate">{pick(item.label)}</span>
               </NavLink>
             </li>

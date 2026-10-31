@@ -6,6 +6,8 @@ import { useCourses } from "@/contexts/CourseContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { useStudentFeatures } from "@/lib/studentFeatures";
 import { useLab3dFeatures } from "@/lib/lab3d/features";
+import { useChatOptional } from "@/contexts/ChatContext";
+import { ChatUnreadBadge } from "@/components/chat/ChatNavButton";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import {
   Boxes,
@@ -32,6 +34,7 @@ import {
   Library,
   LibraryBig,
   LifeBuoy,
+  MessageCircle,
   TrendingUp,
   BookOpenCheck,
   Table2,
@@ -128,6 +131,7 @@ const Sidebar = () => {
   // Élève : fonctions accordées par l'offre de son professeur
   const studentFeatures = useStudentFeatures(isProfessor ? undefined : user?.id);
   const lab3d = useLab3dFeatures();
+  const chat = useChatOptional();
 
   const t = (fr: string, ar: string, en: string = fr) =>
     language === "ar" ? ar : language === "fr" ? fr : en;
@@ -194,6 +198,15 @@ const Sidebar = () => {
       >
         <div className="space-y-0.5">
           <NavItem to="/dashboard" icon={LayoutGrid} label={t("Tableau de bord", "لوحة القيادة", "Dashboard")} />
+          {show("chat") && chat?.enabled && (
+            <NavItem
+              to="/messages"
+              icon={MessageCircle}
+              label={t("Messages", "الرسائل", "Messages")}
+              locked={isProfessor && !can("chat.students")}
+              trailing={<ChatUnreadBadge />}
+            />
+          )}
         </div>
 
         <div className="space-y-0.5">
