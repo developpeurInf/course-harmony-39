@@ -24,6 +24,7 @@ import {
   Users,
   Video,
   XCircle,
+  PhoneOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,7 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { cancelMeeting, clock, deleteMeeting, formatDuration, listMeetings, type Meeting } from "@/lib/meet";
+import { cancelMeeting, clock, deleteMeeting, formatDuration, listMeetings, moderate, type Meeting } from "@/lib/meet";
 import { ChatArchiveDialog, ReportDialog, ScheduleDialog } from "@/components/meet/MeetDialogs";
 import { useTr } from "@/components/meet/useTr";
 import "@/components/meet/meet.css";
@@ -219,6 +220,17 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
                   {isTeacher && (
                     <button type="button" onClick={() => copyLink(m)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25" aria-label={tr("Copier le lien", "نسخ الرابط", "Copy link")} title={tr("Copier le lien", "نسخ الرابط", "Copy link")}>
                       <Copy className="h-4 w-4" />
+                    </button>
+                  )}
+                  {m.host_id === user?.id && (
+                    <button
+                      type="button"
+                      onClick={() => void act(() => moderate(m.id, "end").then(() => undefined), tr("Réunion terminée pour tout le monde", "تم إنهاء الاجتماع للجميع", "Meeting ended for everyone"))}
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+                      aria-label={tr("Terminer pour tout le monde", "إنهاء للجميع", "End for everyone")}
+                      title={tr("Terminer pour tout le monde", "إنهاء للجميع", "End for everyone")}
+                    >
+                      <PhoneOff className="h-4 w-4" />
                     </button>
                   )}
                   <button

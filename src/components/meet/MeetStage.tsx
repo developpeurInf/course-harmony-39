@@ -421,8 +421,15 @@ export function MeetStage(props: {
     try {
       await localParticipant.setScreenShareEnabled(
         !isScreenShareEnabled,
-        { audio: true, contentHint: "detail", resolution: { width: 1920, height: 1080, frameRate: 15 }, selfBrowserSurface: "exclude", surfaceSwitching: "include" } as any,
-        { screenShareEncoding: ScreenSharePresets.h1080fps15.encoding, videoCodec: "vp9", backupCodec: { codec: "vp8" } } as any,
+        // Capture à la résolution native de l'écran (jusqu'à 1440p) : le texte reste net
+        { audio: true, contentHint: "detail", resolution: { width: 2560, height: 1440, frameRate: 15 }, selfBrowserSurface: "exclude", surfaceSwitching: "include" } as any,
+        {
+          screenShareEncoding: { maxBitrate: 5_000_000, maxFramerate: 15, priority: "high" },
+          screenShareSimulcastLayers: [ScreenSharePresets.h360fps3, ScreenSharePresets.h1080fps15],
+          degradationPreference: "maintain-resolution",
+          videoCodec: "vp9",
+          backupCodec: { codec: "vp8" },
+        } as any,
       );
     } catch (e: any) {
       if (e?.name !== "NotAllowedError") toast.error(tr("Partage d'écran impossible", "تعذرت مشاركة الشاشة", "Screen sharing failed"));

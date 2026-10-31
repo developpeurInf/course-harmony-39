@@ -209,11 +209,11 @@ export function MeetLobby(props: {
       <main className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 items-center gap-6 px-4 pb-8 sm:px-6 lg:grid-cols-[1.35fr_1fr] lg:gap-10">
         {/* Aperçu */}
         <div className="space-y-3">
-          <div className="relative aspect-video w-full overflow-hidden rounded-3xl bg-[#151a24] shadow-2xl ring-1 ring-white/10">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl sm:aspect-video bg-[#151a24] shadow-2xl ring-1 ring-white/10">
             {video && choices.video ? (
               <video ref={videoEl} muted playsInline autoPlay className="h-full w-full -scale-x-100 object-cover" />
             ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 pb-16">
                 <span
                   className="flex h-24 w-24 items-center justify-center rounded-full text-3xl font-semibold shadow-lg sm:h-28 sm:w-28"
                   style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 55%), hsl(${hue + 40} 70% 42%))` }}
@@ -221,31 +221,35 @@ export function MeetLobby(props: {
                   {initials(props.userName)}
                 </span>
                 <p className="text-sm text-white/60">
-                  {camError ? errText(camError, "cam") : tr("Caméra désactivée", "الكاميرا مطفأة", "Camera is off")}
+                  {camError ? tr("Caméra indisponible", "الكاميرا غير متاحة", "Camera unavailable") : tr("Caméra désactivée", "الكاميرا مطفأة", "Camera is off")}
                 </p>
               </div>
             )}
-            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent p-3 sm:p-4">
-              <span className="truncate rounded-full bg-black/40 px-3 py-1 text-xs font-medium backdrop-blur">{props.userName}</span>
-              {choices.audio && audio && <MicMeter track={audio} className="rounded-full bg-black/40 px-2.5 py-1 backdrop-blur" />}
-            </div>
-            <div className="absolute inset-x-0 bottom-14 flex justify-center gap-3 sm:bottom-16">
-              <RoundToggle
-                on={choices.audio && !micError}
-                onClick={() => update({ audio: !choices.audio })}
-                IconOn={Mic}
-                IconOff={MicOff}
-                label={choices.audio ? tr("Couper le micro", "كتم الميكروفون", "Mute") : tr("Activer le micro", "تشغيل الميكروفون", "Unmute")}
-              />
-              <RoundToggle
-                on={choices.video && !camError}
-                onClick={() => update({ video: !choices.video })}
-                IconOn={Camera}
-                IconOff={CameraOff}
-                label={choices.video ? tr("Couper la caméra", "إيقاف الكاميرا", "Stop camera") : tr("Activer la caméra", "تشغيل الكاميرا", "Start camera")}
-              />
+            <span className="absolute start-3 top-3 max-w-[70%] truncate rounded-full bg-black/45 px-3 py-1 text-xs font-medium backdrop-blur sm:start-4 sm:top-4">{props.userName}</span>
+            <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-end gap-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent px-3 pb-3 pt-10 sm:px-4 sm:pb-4">
+              <span />
+              <div className="flex gap-3">
+                <RoundToggle
+                  on={choices.audio && !micError}
+                  onClick={() => update({ audio: !choices.audio })}
+                  IconOn={Mic}
+                  IconOff={MicOff}
+                  label={choices.audio ? tr("Couper le micro", "كتم الميكروفون", "Mute") : tr("Activer le micro", "تشغيل الميكروفون", "Unmute")}
+                />
+                <RoundToggle
+                  on={choices.video && !camError}
+                  onClick={() => update({ video: !choices.video })}
+                  IconOn={Camera}
+                  IconOff={CameraOff}
+                  label={choices.video ? tr("Couper la caméra", "إيقاف الكاميرا", "Stop camera") : tr("Activer la caméra", "تشغيل الكاميرا", "Start camera")}
+                />
+              </div>
+              <div className="justify-self-end">
+                {choices.audio && audio && <MicMeter track={audio} className="rounded-full bg-black/40 px-2.5 py-1 backdrop-blur" />}
+              </div>
             </div>
           </div>
+          {camError && <p className="text-xs text-amber-300">{errText(camError, "cam")}</p>}
           {micError && <p className="text-xs text-amber-300">{errText(micError, "mic")}</p>}
 
           <div className="grid gap-2 sm:grid-cols-2">

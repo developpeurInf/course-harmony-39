@@ -27,7 +27,8 @@ type Stage =
   | { k: "error"; code: string; message: string };
 
 const ROOM_OPTIONS: RoomOptions = {
-  adaptiveStream: true,
+  // "screen" : tient compte de la densité de l'écran (Retina, téléphones) pour choisir la meilleure qualité
+  adaptiveStream: { pixelDensity: "screen" },
   dynacast: true,
   videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
   audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },

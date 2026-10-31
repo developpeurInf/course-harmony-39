@@ -30,7 +30,9 @@ export async function POST(req: Request) {
   const meetingId = String(body.meetingId || "");
   if (!/^[0-9a-f-]{36}$/i.test(meetingId)) return json({ error: "bad_request" }, 400);
 
-  const { data: auth } = await db.auth.getUser();
+  // Sans session côté serveur, getUser() doit recevoir le jeton explicitement
+  const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const { data: auth } = await db.auth.getUser(jwt);
   const me = auth?.user?.id;
   const { data: meeting } = await db.from("meetings" as never).select("id, host_id, status, settings").eq("id", meetingId).maybeSingle();
   const m = meeting as { id: string; host_id: string; status: string; settings: MeetSettings } | null;
