@@ -4,7 +4,6 @@
  * Export Excel (code Massar, nom, notes /20) et copie d'une colonne pour la coller dans Massar.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { ClipboardCopy, Download, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Navigate, useParams } from "@/lib/router";
@@ -212,6 +211,7 @@ const RoomGradebook = () => {
   };
 
   const exportXlsx = async () => {
+    const XLSX: any = await import("xlsx").then((m: any) => (m.default && m.default.utils ? m.default : m));
     const head = [tr("Code Massar", "رمز مسار", "Massar code"), tr("Nom et prénom", "الاسم الكامل", "Full name"),
       ...termCols.map((c) => `${c.title} (/20)`), ...(includeQuiz ? [tr("Moyenne des quiz", "معدل الاختبارات", "Quiz average")] : []), tr("Moyenne", "المعدل", "Average")];
     const rows = students.map((s) => [

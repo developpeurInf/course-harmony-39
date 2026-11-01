@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { COURSE_BUCKET, getFileKind, isExternalUrl, parseVideoUrl, removeUnreferencedFiles, storagePathFromPublicUrl, uploadMaterialFile } from "@/lib/courseMedia";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { readBoot, writeBoot } from "@/lib/bootCache";
 
 // Types
 export interface Room {
@@ -396,6 +397,19 @@ const byUploadedAt = (a: ExerciseMaterial, b: ExerciseMaterial) =>
 const EMPTY_EXERCISE_MATERIALS: ExerciseMaterial[] = [];
 const SUBMISSION_COLUMNS = "id, exam_id, student_id, score, total_points, submitted_at, is_completed";
 
+/** Instantané de la vue globale, gardé sur l'appareil pour un démarrage immédiat */
+interface CourseSnapshot {
+  key: string;
+  rooms: Room[];
+  courses: Course[];
+  exercises: Exercise[];
+  exams: Exam[];
+  enrollments: Enrollment[];
+  quizQuestions: QuizQuestion[];
+  quizSubmissions: QuizSubmission[];
+  exerciseMaterials: ExerciseMaterial[];
+}
+
 export function CourseProvider({ children }: { children: React.ReactNode }) {
   // Créations identiques en cours (double-clic, double envoi…) : on renvoie la même promesse
   // au lieu d'insérer plusieurs fois le même cours / exercice / examen.
@@ -435,6 +449,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
   const lastFetchRef = useRef<{ key: string; at: number; href: string } | null>(null);
   const inFlightRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   const fetchSeqRef = useRef(0);
+  const refreshDataRef = useRef<((roomId?: string, opts?: { force?: boolean }) => Promise<void>) | null>(null);
   const publishCheckedRef = useRef(false);
   /** room_id du périmètre affiché ('' = vue globale) */
   const scopeRoomRef = useRef<string>("");
@@ -492,10 +507,19 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     const run = async () => {
       if (!hasDataRef.current) setLoading(true);
       try {
-        // Contenus programmés arrivés à échéance (sans effet si la migration n'est pas appliquée)
+        // Contenus programmés arrivés à échéance (sans effet si la migration n'est pas appliquée) :
+        // lancé EN PARALLÈLE des lectures ; s'il a publié quelque chose, on relit juste après.
         if (!publishCheckedRef.current) {
           publishCheckedRef.current = true;
-          await (supabase as any).rpc('publish_scheduled_content').then(() => undefined, () => undefined);
+          void (supabase as any).rpc('publish_scheduled_content').then(
+            ({ data }: { data: number | null }) => {
+              if (typeof data === 'number' && data > 0) {
+                const p = inFlightRef.current ? inFlightRef.current.promise : Promise.resolve();
+                void p.then(() => refreshDataRef.current?.(roomId, { force: true }));
+              }
+            },
+            () => undefined,
+          );
         }
         // Fetch rooms first - always get all rooms for the professor
         let roomsQuery = supabase.from('rooms').select('*').order('created_at', { ascending: false });
@@ -654,9 +678,24 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     return promise;
   }, [userId, userRole, userRoomId, fetchExerciseMaterials]);
 
+  refreshDataRef.current = refreshData;
+
   // Chargement initial (et à chaque changement de compte / rôle / classe)
   useEffect(() => {
     if (userId) {
+      // Dernières données connues sur cet appareil : affichage immédiat, relecture en arrière-plan
+      const snap = readBoot<CourseSnapshot>('courses', userId);
+      if (snap && snap.key === `${userId}|${userRole || ""}|${userRoomId || ""}|` && !hasDataRef.current) {
+        hasDataRef.current = true;
+        setRooms(snap.rooms || []);
+        setCourses(snap.courses || []);
+        setExercises(snap.exercises || []);
+        setExams(snap.exams || []);
+        setEnrollments(snap.enrollments || []);
+        setQuizQuestions(snap.quizQuestions || []);
+        setQuizSubmissions(snap.quizSubmissions || []);
+        setExerciseMaterials(snap.exerciseMaterials || []);
+      }
       void refreshData(undefined, { __auto: true } as any);
     } else {
       // Déconnexion : on vide les données (iPad partagé entre plusieurs élèves)
@@ -674,6 +713,16 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, [userId, userRole, userRoomId, refreshData]);
+
+  // Instantané de la vue globale (après lecture ou modification) pour le prochain démarrage
+  useEffect(() => {
+    if (!userId || scopeRoomRef.current || !lastFetchRef.current) return;
+    const key = `${userId}|${userRole || ""}|${userRoomId || ""}|`;
+    if (lastFetchRef.current.key !== key) return;
+    writeBoot<CourseSnapshot>('courses', userId, {
+      key, rooms, courses, exercises, exams, enrollments, quizQuestions, quizSubmissions, exerciseMaterials,
+    }, 1500);
+  }, [userId, userRole, userRoomId, rooms, courses, exercises, exams, enrollments, quizQuestions, quizSubmissions, exerciseMaterials]);
 
   /** Faut-il ajouter un élément de cette classe aux listes affichées ? */
   const inScope = (roomId?: string | null) => !scopeRoomRef.current || scopeRoomRef.current === (roomId || "");

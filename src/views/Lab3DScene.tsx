@@ -7,7 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Link, useParams } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { NotInPlan } from "@/components/access/AccessUi";
-import { Viewer3D } from "@/components/lab3d/Viewer3D";
+import { Viewer3D } from "@/components/lab3d/LazyViewer3D";
 import { ParamsForm } from "@/components/lab3d/ParamsForm";
 import { normalizeParams, templateById, type Params, type Tri } from "@/lib/lab3d/templates";
 import { useLab3dFeatures } from "@/lib/lab3d/features";

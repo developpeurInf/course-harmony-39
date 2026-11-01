@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { NotInPlan } from "@/components/access/AccessUi";
-import { Viewer3D } from "@/components/lab3d/Viewer3D";
+import { Viewer3D } from "@/components/lab3d/LazyViewer3D";
 import { ParamsForm } from "@/components/lab3d/ParamsForm";
 import { LabLibrary } from "@/components/lab3d/LabLibrary";
 import { LEVELS, SUBJECTS, type LabEntry, type LabLesson } from "@/lib/lab3d/catalog";

@@ -53,7 +53,7 @@ import {
   X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import QuizTaker, { type QuizPhase } from "@/components/QuizTaker";
+import type { QuizPhase } from "@/components/QuizTaker";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { useNow } from "@/hooks/useNow";
 import { toLocalDateInput, toLocalTimeInput, formatDecimal } from "@/lib/formatDate";
@@ -68,6 +68,8 @@ import { matchesText } from "@/lib/search";
 
 // Outils enseignant chargés à la demande : les élèves ne les téléchargent jamais
 const QuizBuilder = lazyWithRetry(() => import("@/components/QuizBuilder"));
+// Passage d'un quiz : chargé seulement quand l'élève l'ouvre (≈ 2 400 lignes)
+const QuizTaker = lazyWithRetry(() => import("@/components/QuizTaker"));
 const QuizResults = lazyWithRetry(() => import("@/components/QuizResults"));
 const QuizDetails = lazyWithRetry(() => import("@/components/QuizDetails"));
 
@@ -852,7 +854,9 @@ const Exams = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-              <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} onPhaseChange={setQuizPhase} />
+              <Suspense fallback={<LazyFallback />}>
+                <QuizTaker exam={showQuizTaker} onClose={() => setShowQuizTaker(null)} onPhaseChange={setQuizPhase} />
+              </Suspense>
             </div>
           </DialogContent>
         </Dialog>

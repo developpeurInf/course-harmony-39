@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
+import { readBoot, writeBoot, clearBoot } from "@/lib/bootCache";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 
@@ -77,6 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (sameProfile(userRef.current, next)) return;
     userRef.current = next;
     setUserState(next);
+    // dernier profil connu : affichage immédiat au prochain chargement de la page
+    if (next) writeBoot('profile', next.id, next, 0);
   }, []);
 
   // Chargement du profil : une seule requête à la fois par compte
@@ -160,6 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!mounted) return;
         setSession(session);
+        // Profil déjà connu sur cet appareil : affichage immédiat, relecture en arrière-plan
+        const cached = session?.user ? readBoot<UserProfile>('profile', session.user.id) : null;
+        if (cached && cached.id === session!.user.id) {
+          setUser(cached);
+          setIsLoggedIn(true);
+          setLoading(false);
+          void applySession(session);
+          return;
+        }
+        if (!session) clearBoot();
         await applySession(session);
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -183,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!nextSession?.user || event === 'SIGNED_OUT') {
+          clearBoot();
           setUser(null);
           setIsLoggedIn(false);
           return;
@@ -515,6 +529,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // connexion ne renvoie plus vers le tableau de bord), puis on termine en arrière-plan
     // (clôture des sessions élève + déconnexion Supabase).
     const leavingUser = userRef.current;
+    clearBoot();
     setUser(null);
     setSession(null);
     setIsLoggedIn(false);
@@ -697,14 +712,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Stable (utilisée dans les dépendances d'effets des pages) ; seulement les colonnes utiles
   const getStudents = useCallback(async (roomId?: string): Promise<UserProfile[]> => {
     try {
-      let query = supabase
+      let query: any = supabase
         .from('profiles')
-        .select('id, name, email, role, avatar_url')
+        .select('id, name, email, role, avatar_url, room_id')
         .eq('role', 'student');
 
       // If roomId is provided, filter by room_id
       if (roomId) {
         query = query.eq('room_id', roomId);
+      } else if (userRef.current?.role === 'professor') {
+        // Professeur : seulement les élèves de SES classes (et non tous ceux de la plateforme)
+        query = supabase
+          .from('profiles')
+          .select('id, name, email, role, avatar_url, room_id, rooms!profiles_room_id_fkey!inner(professor_id)')
+          .eq('role', 'student')
+          .eq('rooms.professor_id', userRef.current.id);
       }
 
       const { data, error } = await query;
@@ -714,12 +736,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return [];
       }
 
-      return (data || []).map(profile => ({
+      return ((data || []) as any[]).map(profile => ({
         id: profile.id,
         name: profile.name,
         email: profile.email || '',
         role: profile.role as UserRole,
-        avatar_url: profile.avatar_url || undefined
+        avatar_url: profile.avatar_url || undefined,
+        room_id: profile.room_id || undefined,
       }));
     } catch (error) {
       console.error('Failed to fetch students:', error);

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/lib/router";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Activity, Bot, Repeat, UserX } from "lucide-react";
 import { db, fmtMoney, PAYMENT_METHODS, useT, type Lang } from "./adminShared";
+import { LazyChart } from "@/components/charts/LazyChart";
 
 interface Stats {
   revenue_months: { month: string; amount: number; count: number }[];
@@ -91,16 +91,18 @@ export default function AdminStats() {
             <span className="text-xs text-muted-foreground">{L("12 mois : ", "12 شهرا: ", "12 months: ")}{fmtMoney(total12, lang)}</span>
           </div>
           <div className="h-56" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenue} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
-                <YAxis tick={axis} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
+            <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={revenue} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <R.XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
+                <R.YAxis tick={axis} tickLine={false} axisLine={false} />
+                <R.Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
                   formatter={(v: any) => [fmtMoney(v, lang), L("Encaissé", "المحصل", "Collected")]} />
-                <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={36} />
-              </BarChart>
-            </ResponsiveContainer>
+                <R.Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={36} />
+              </R.BarChart>
+            </R.ResponsiveContainer>
+)}</LazyChart>
           </div>
         </section>
 
@@ -128,31 +130,35 @@ export default function AdminStats() {
         <section className="min-w-0 rounded-xl border bg-card p-4">
           <h2 className="mb-2 text-sm font-semibold">{L("Nouveaux professeurs par mois", "أساتذة جدد شهريا", "New teachers per month")}</h2>
           <div className="h-44" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={growth} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} formatter={(v: any) => [v, L("Professeurs", "الأساتذة", "Teachers")]} />
-                <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+              <R.LineChart data={growth} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <R.XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
+                <R.YAxis allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
+                <R.Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} formatter={(v: any) => [v, L("Professeurs", "الأساتذة", "Teachers")]} />
+                <R.Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} />
+              </R.LineChart>
+            </R.ResponsiveContainer>
+)}</LazyChart>
           </div>
         </section>
 
         <section className="min-w-0 rounded-xl border bg-card p-4">
           <h2 className="mb-2 text-sm font-semibold">{L("Appels IA par mois", "طلبات الذكاء الاصطناعي شهريا", "AI calls per month")}</h2>
           <div className="h-44" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ai} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
+            <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+              <R.BarChart data={ai} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <R.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <R.XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
+                <R.YAxis allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
+                <R.Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
                   formatter={(v: any, _k: any, p: any) => [`${v} · ${Number(p?.payload?.tokens || 0).toLocaleString()} tokens`, L("Appels", "طلبات", "Calls")]} />
-                <Bar dataKey="calls" fill="hsl(var(--primary) / 0.7)" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              </BarChart>
-            </ResponsiveContainer>
+                <R.Bar dataKey="calls" fill="hsl(var(--primary) / 0.7)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+              </R.BarChart>
+            </R.ResponsiveContainer>
+)}</LazyChart>
           </div>
           {stats.ai_kinds.length > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">

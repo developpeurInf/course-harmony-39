@@ -44,19 +44,6 @@ import {
   Loader2
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from "recharts";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
@@ -126,9 +113,9 @@ import {
 import { exportDiagnosticReportToPdf } from "@/lib/diagnosticPdfExporter";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { getReportBranding } from "@/lib/reportBranding";
-import * as XLSX from "xlsx";
 import { downloadExcelFile } from "@/lib/download";
 import { supabase } from "@/integrations/supabase/client";
+import { LazyChart } from "@/components/charts/LazyChart";
 
 /** Saisie d'une note : vide, « ABS », ou nombre de 0 à 20 (virgule ou point, 2 décimales max). */
 const NOTE_INPUT_RE = /^\d{1,2}([.,]\d{1,2})?$/;
@@ -758,12 +745,13 @@ export const DiagnosticEvaluation: React.FC = () => {
   };
 
   // --- ACTIONS EXCEL ---
-  const handleDownloadExcelForClass = (targetClass: DiagnosticClass) => {
+  const handleDownloadExcelForClass = async (targetClass: DiagnosticClass) => {
     if (!targetClass || targetClass.students.length === 0) {
       downloadSampleDiagnosticExcel(targetClass?.nom || "Classe");
       return;
     }
 
+    const XLSX: any = await import("xlsx").then((m: any) => (m.default && m.default.utils ? m.default : m));
     const wb = XLSX.utils.book_new();
     const data: (string | number)[][] = [
       [t.numCol, t.massarCol, t.studentNameCol, t.noteCol]
@@ -2052,19 +2040,21 @@ export const DiagnosticEvaluation: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey={t.tranche1Name} fill="#ef4444" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey={t.tranche2Name} fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey={t.tranche3Name} fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey={t.tranche4Name} fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+                    <R.BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <R.CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <R.XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <R.YAxis allowDecimals={false} />
+                      <R.Tooltip />
+                      <R.Legend />
+                      <R.Bar dataKey={t.tranche1Name} fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      <R.Bar dataKey={t.tranche2Name} fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <R.Bar dataKey={t.tranche3Name} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      <R.Bar dataKey={t.tranche4Name} fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </R.BarChart>
+                  </R.ResponsiveContainer>
+)}</LazyChart>
                 </div>
               </CardContent>
             </Card>
@@ -2078,9 +2068,10 @@ export const DiagnosticEvaluation: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-72 w-full flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
+                  <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+                    <R.PieChart>
+                      <R.Pie
                         data={pieData}
                         dataKey="value"
                         nameKey="name"
@@ -2091,13 +2082,14 @@ export const DiagnosticEvaluation: React.FC = () => {
                         label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                       >
                         {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <R.Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                      </R.Pie>
+                      <R.Tooltip />
+                      <R.Legend wrapperStyle={{ fontSize: "11px" }} />
+                    </R.PieChart>
+                  </R.ResponsiveContainer>
+)}</LazyChart>
                 </div>
               </CardContent>
             </Card>

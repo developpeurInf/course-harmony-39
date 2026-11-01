@@ -16,6 +16,7 @@ import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { db, fetchContacts, type ChatCall, type ChatContact } from "@/lib/chat";
 import { openChannel } from "@/lib/chatRealtime";
 import { CallOverlay } from "@/components/chat/CallOverlay";
+import { readBoot, writeBoot } from "@/lib/bootCache";
 
 export type CallPhase = "outgoing" | "incoming" | "connecting" | "active" | "ended";
 
@@ -148,21 +149,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     if (!enabled) return;
     try {
-      setContacts(await fetchContacts());
+      const list = await fetchContacts();
+      setContacts(list);
+      writeBoot("chat", uid, list);
     } catch (e) {
       // Migration pas encore passée : la messagerie reste invisible
       console.warn("chat_contacts", e);
       setContacts(prev => prev ?? []);
     }
-  }, [enabled]);
+  }, [enabled, uid]);
 
   useEffect(() => {
     if (!enabled) { setContacts(null); return; }
+    // dernière liste connue : badge et page Messages affichés aussitôt, relecture juste après
+    const cached = readBoot<ChatContact[]>("chat", uid);
+    if (cached) setContacts(prev => prev ?? cached);
     void refresh();
     void db.from("chat_settings").select("allow_calls").maybeSingle().then(({ data }: any) => {
       if (data) setAllowCallsState(data.allow_calls !== false);
     });
-  }, [enabled, refresh]);
+  }, [enabled, refresh, uid]);
 
   // Présence : toutes les 60 s quand la page est visible
   useEffect(() => {

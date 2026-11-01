@@ -94,7 +94,7 @@ const Students = () => {
     const fetchStudents = async () => {
       if (students.length === 0) setLoading(true);
       try {
-        const studentsList = await getStudents();
+        const studentsList = await getStudents(roomId);
         setStudents(studentsList);
       } catch (error) {
         console.error("Failed to fetch students:", error);
@@ -104,11 +104,12 @@ const Students = () => {
       }
     };
 
-    if (user?.role === "professor") {
+    // sans classe, la page redirige vers le tableau de bord : rien à lire
+    if (user?.role === "professor" && roomId) {
       fetchStudents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, getStudents]);
+  }, [user, getStudents, roomId]);
 
   // Redirect to dashboard if not a professor or no roomId (après les hooks)
   if (!user || user.role !== "professor" || !roomId) {
@@ -225,7 +226,7 @@ const Students = () => {
         setIsAddStudentDialogOpen(false);
         setNewStudentData({ name: "", email: "", password: "" });
         // Refresh students list
-        const updatedStudents = await getStudents();
+        const updatedStudents = await getStudents(roomId);
         setStudents(updatedStudents);
       }
     } finally {
@@ -274,7 +275,7 @@ const Students = () => {
       <StudentExcelManager 
         roomId={roomId} 
         onStudentsImported={async () => {
-          const updatedStudents = await getStudents();
+          const updatedStudents = await getStudents(roomId);
           setStudents(updatedStudents);
           // Also refresh enrollments data to show newly imported students
           await refreshData(roomId);

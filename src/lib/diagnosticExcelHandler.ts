@@ -1,4 +1,5 @@
-import * as XLSX from "xlsx";
+/** SheetJS chargé seulement au moment d'un import / export (≈ 400 Ko) */
+const loadXlsx = async (): Promise<any> => { const m: any = await import("xlsx"); return m.default && m.default.utils ? m.default : m; };
 import { downloadExcelFile } from "@/lib/download";
 import { DiagnosticStudent } from "./diagnosticStatsEngine";
 
@@ -21,6 +22,7 @@ const SAMPLE_NOTES = [
  * Génère et télécharge un fichier Excel type conforme au format Massar marocain.
  */
 export async function downloadSampleDiagnosticExcel(className = "2Bac-Classe"): Promise<void> {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
 
   const data: (string | number)[][] = [
@@ -58,6 +60,7 @@ export async function downloadSampleDiagnosticExcel(className = "2Bac-Classe"): 
  * Analyse un fichier Excel (Massar officiel ou tableau personnalisé) et extrait les élèves.
  */
 export async function parseExcelStudentsFile(file: File): Promise<DiagnosticStudent[]> {
+  const XLSX = await loadXlsx();
   const buffer = await file.arrayBuffer();
   const wb = XLSX.read(buffer, { type: "array" });
   

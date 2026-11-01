@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { supabase } from "@/integrations/supabase/client";
+import { readBoot, writeBoot } from "@/lib/bootCache";
 import { useCourses } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { usePreferences, AttemptPolicy } from "@/contexts/PreferencesContext";
@@ -77,6 +78,15 @@ const initials = (name: string) => {
   return words.map(n => n[0]).join("").toUpperCase().slice(0, 2);
 };
 
+interface DashMetrics {
+  totalStudents: number;
+  recentSubmissions: RecentSubmission[];
+  avgPct: number | null;
+  passRate: number | null;
+  submissionsCount: number;
+  week: DayPoint[];
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const { t, language } = useLanguage();
@@ -105,14 +115,17 @@ const Dashboard = () => {
   const isProfessor = user?.role === "professor";
   const [selectedRoomId, setSelectedRoomId] = useState<string>("all");
   const [loading, setLoading] = useState<boolean>(false);
-  const [totalStudents, setTotalStudents] = useState<number>(0);
-  const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
-  const [avgPct, setAvgPct] = useState<number | null>(null);
-  const [passRate, setPassRate] = useState<number | null>(null);
-  const [submissionsCount, setSubmissionsCount] = useState<number>(0);
-  const [week, setWeek] = useState<DayPoint[]>([]);
+  // Derniers indicateurs connus (cet appareil) : le tableau de bord s'affiche aussitôt,
+  // puis se met à jour en arrière-plan
+  const [cachedMetrics] = useState(() => readBoot<DashMetrics>("dash", user?.id));
+  const [totalStudents, setTotalStudents] = useState<number>(cachedMetrics?.totalStudents ?? 0);
+  const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>(cachedMetrics?.recentSubmissions ?? []);
+  const [avgPct, setAvgPct] = useState<number | null>(cachedMetrics?.avgPct ?? null);
+  const [passRate, setPassRate] = useState<number | null>(cachedMetrics?.passRate ?? null);
+  const [submissionsCount, setSubmissionsCount] = useState<number>(cachedMetrics?.submissionsCount ?? 0);
+  const [week, setWeek] = useState<DayPoint[]>(cachedMetrics?.week ?? []);
   const [metricsError, setMetricsError] = useState(false);
-  const [metricsLoaded, setMetricsLoaded] = useState(false);
+  const [metricsLoaded, setMetricsLoaded] = useState(!!cachedMetrics);
 
   /* ───────────── listes filtrées ───────────── */
 
@@ -200,31 +213,36 @@ const Dashboard = () => {
       if (isProfessor) {
         const roomIds = selectedRoomId === "all" ? professorRooms.map(r => r.id) : [selectedRoomId];
 
-        // 1. Élèves (profil rattaché à la classe OU inscription)
+        // 1. Élèves (profil rattaché à la classe OU inscription) et 2. toutes les copies de quiz :
+        //    lus EN PARALLÈLE (un seul aller-retour au lieu de deux)
         const studentSet = new Set<string>();
-        if (roomIds.length > 0) {
-          const [{ data: s1 }, { data: s2 }] = await Promise.all([
-            supabase.from("profiles").select("id").eq("role", "student").in("room_id", roomIds),
-            supabase.from("enrollments").select("student_id").in("room_id", roomIds),
-          ]);
-          s1?.forEach(s => studentSet.add(s.id));
-          s2?.forEach(e => studentSet.add(e.student_id));
-        }
-        setTotalStudents(studentSet.size);
-
-        // 2. Toutes les copies de quiz (pas seulement les 20 dernières)
         const examIds = displayExams.map(e => e.id);
         let subs: { id: string; exam_id: string; student_id: string; score: number | null; total_points: number | null; submitted_at: string }[] = [];
-        if (examIds.length > 0) {
-          const { data, error } = await supabase
-            .from("quiz_submissions")
-            .select("id, exam_id, student_id, score, total_points, submitted_at")
-            .in("exam_id", examIds)
-            .eq("is_completed", true)
-            .order("submitted_at", { ascending: false });
-          if (error) throw error;
-          subs = data || [];
+        const [studentRows, subsRes] = await Promise.all([
+          roomIds.length > 0
+            ? Promise.all([
+                supabase.from("profiles").select("id").eq("role", "student").in("room_id", roomIds),
+                supabase.from("enrollments").select("student_id").in("room_id", roomIds),
+              ])
+            : Promise.resolve(null),
+          examIds.length > 0
+            ? supabase
+                .from("quiz_submissions")
+                .select("id, exam_id, student_id, score, total_points, submitted_at")
+                .in("exam_id", examIds)
+                .eq("is_completed", true)
+                .order("submitted_at", { ascending: false })
+            : Promise.resolve(null),
+        ]);
+        if (studentRows) {
+          studentRows[0].data?.forEach(s => studentSet.add(s.id));
+          studentRows[1].data?.forEach(e => studentSet.add(e.student_id));
         }
+        if (subsRes) {
+          if (subsRes.error) throw subsRes.error;
+          subs = (subsRes.data || []) as typeof subs;
+        }
+        setTotalStudents(studentSet.size);
         setSubmissionsCount(subs.length);
 
         // Moyenne = moyenne des POURCENTAGES (score / total), une note retenue par élève et par quiz
@@ -232,12 +250,24 @@ const Dashboard = () => {
         setAvgPct(pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null);
         setPassRate(pcts.length ? (pcts.filter(p => p >= passPct).length / pcts.length) * 100 : null);
 
-        // 3. Dernières copies avec noms
+        // 3. Dernières copies avec noms et 4. activité des 7 jours : en parallèle
         const recent = subs.slice(0, 6);
         const ids = Array.from(new Set(recent.map(s => s.student_id)));
-        const { data: profiles } = ids.length
-          ? await supabase.from("profiles").select("id, name, avatar_url").in("id", ids)
-          : { data: [] as any[] };
+        const weekStart = new Date();
+        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setDate(weekStart.getDate() - 6);
+        const [{ data: profiles }, { data: acts }] = await Promise.all([
+          ids.length
+            ? supabase.from("profiles").select("id, name, avatar_url").in("id", ids)
+            : Promise.resolve({ data: [] as any[] }),
+          studentSet.size > 0
+            ? supabase
+                .from("student_activities")
+                .select("student_id, created_at")
+                .in("student_id", Array.from(studentSet))
+                .gte("created_at", weekStart.toISOString())
+            : Promise.resolve({ data: [] as { student_id: string; created_at: string }[] }),
+        ]);
         const pmap = new Map((profiles || []).map((p: any) => [p.id, p]));
         setRecentSubmissions(recent.map(s => {
           const p: any = pmap.get(s.student_id);
@@ -268,14 +298,7 @@ const Dashboard = () => {
           index.set(dayKey(d), { students: new Set(), subs: 0 });
           days.push({ label: d.toLocaleDateString(locale, { weekday: "short" }), isToday: i === 6, activeStudents: 0, submissions: 0 });
         }
-        if (studentSet.size > 0) {
-          const { data: acts } = await supabase
-            .from("student_activities")
-            .select("student_id, created_at")
-            .in("student_id", Array.from(studentSet))
-            .gte("created_at", start.toISOString());
-          acts?.forEach(a => index.get(dayKey(new Date(a.created_at)))?.students.add(a.student_id));
-        }
+        acts?.forEach(a => index.get(dayKey(new Date(a.created_at)))?.students.add(a.student_id));
         subs.forEach(s => {
           const d = new Date(s.submitted_at);
           if (d >= start) {
@@ -329,6 +352,12 @@ const Dashboard = () => {
   useEffect(() => {
     loadDynamicMetrics();
   }, [loadDynamicMetrics]);
+
+  // Mémorise la vue « toutes les classes » pour le prochain affichage
+  useEffect(() => {
+    if (!user?.id || !metricsLoaded || loading || metricsError || selectedRoomId !== "all") return;
+    writeBoot<DashMetrics>("dash", user.id, { totalStudents, recentSubmissions, avgPct, passRate, submissionsCount, week });
+  }, [user?.id, metricsLoaded, loading, metricsError, selectedRoomId, totalStudents, recentSubmissions, avgPct, passRate, submissionsCount, week]);
 
   const handleRefresh = () => {
     refreshData(undefined, { force: true });

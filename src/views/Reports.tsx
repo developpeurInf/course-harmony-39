@@ -3,18 +3,6 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { accessStore } from "@/contexts/AccessContext";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@/lib/router";
-import * as XLSX from "xlsx";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import {
   Activity,
   AlertTriangle,
@@ -72,6 +60,8 @@ import {
   type Level,
   type StudentAnalytics,
 } from "@/lib/classAnalytics";
+import { LazyChart } from "@/components/charts/LazyChart";
+import { memGet, memSet } from "@/lib/bootCache";
 
 /* ═══════════════════════════════ Types ═══════════════════════════════ */
 
@@ -144,8 +134,10 @@ const Reports = () => {
     inactivityDays: prefs.inactivityDays,
   }), [prefs.passThreshold, prefs.levelStruggling, prefs.levelGood, prefs.levelExcellent, prefs.attemptPolicy, prefs.inactivityDays]);
 
-  const [data, setData] = useState<RawData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const memKey = `reports:${user?.id || ""}`;
+  const [data, setDataState] = useState<RawData | null>(() => memGet<RawData>(memKey) ?? null);
+  const setData = useCallback((d: RawData) => { memSet(memKey, d); setDataState(d); }, [memKey]);
+  const [loading, setLoading] = useState(() => !memGet(memKey));
   const [refreshing, setRefreshing] = useState(false);
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [period, setPeriod] = useState<Period>("90");
@@ -217,11 +209,13 @@ const Reports = () => {
       console.error("Reports load error:", e);
       toast.error(tr("Impossible de charger les statistiques.", "تعذر تحميل الإحصائيات.", "Unable to load statistics."));
     }
-  }, [user?.id, tr]);
+  }, [user?.id, tr, setData]);
 
   useEffect(() => {
-    setLoading(true);
+    // déjà vue pendant cette visite : affichage immédiat, relecture en arrière-plan
+    if (!memGet(memKey)) setLoading(true);
     load().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   const refresh = async () => {
@@ -500,6 +494,7 @@ const Reports = () => {
   const exportExcel = async () => {
     if (!accessStore.guard("reports.export")) return;
     try {
+      const XLSX: any = await import("xlsx").then((m: any) => (m.default && m.default.utils ? m.default : m));
       const wb = XLSX.utils.book_new();
       const classes = roomReports.map((r) => ({
         [tr("Classe", "القسم", "Class")]: r.room.name,
@@ -718,17 +713,19 @@ const Reports = () => {
                     <p className="py-10 text-center text-sm text-muted-foreground">{tr("Pas assez de copies sur la période.", "لا توجد أوراق كافية في هذه الفترة.", "Not enough submissions in this period.")}</p>
                   ) : (
                     <div className="h-64" dir="ltr">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={weekly} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                          <YAxis yAxisId="note" domain={[0, 20]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                          <YAxis yAxisId="count" hide />
-                          <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} formatter={(v: any, k: any) => [k === "moyenne" ? `${num(v)}/20` : v, k === "moyenne" ? tr("Moyenne", "المعدل", "Average") : tr("Copies", "الأوراق", "Submissions")]} />
-                          <Bar yAxisId="count" dataKey="copies" fill="hsl(var(--muted-foreground) / 0.25)" radius={[4, 4, 0, 0]} barSize={18} />
-                          <Line yAxisId="note" type="monotone" dataKey="moyenne" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 5 }} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
+                      <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+                        <R.ComposedChart data={weekly} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                          <R.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <R.XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                          <R.YAxis yAxisId="note" domain={[0, 20]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                          <R.YAxis yAxisId="count" hide />
+                          <R.Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} formatter={(v: any, k: any) => [k === "moyenne" ? `${num(v)}/20` : v, k === "moyenne" ? tr("Moyenne", "المعدل", "Average") : tr("Copies", "الأوراق", "Submissions")]} />
+                          <R.Bar yAxisId="count" dataKey="copies" fill="hsl(var(--muted-foreground) / 0.25)" radius={[4, 4, 0, 0]} barSize={18} />
+                          <R.Line yAxisId="note" type="monotone" dataKey="moyenne" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 5 }} />
+                        </R.ComposedChart>
+                      </R.ResponsiveContainer>
+)}</LazyChart>
                     </div>
                   )}
                 </CardContent>
@@ -818,15 +815,17 @@ const Reports = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="h-56" dir="ltr">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={roomReports.map((r) => ({ name: r.room.name, moyenne: r.analytics.classNote20 === null ? 0 : Math.round(r.analytics.classNote20 * 10) / 10 }))} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={0} />
-                          <YAxis domain={[0, 20]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                          <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} formatter={(v: any) => [`${num(v)}/20`, tr("Moyenne", "المعدل", "Average")]} cursor={{ fill: "hsl(var(--muted) / 0.5)" }} />
-                          <Bar dataKey="moyenne" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={48} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+                        <R.BarChart data={roomReports.map((r) => ({ name: r.room.name, moyenne: r.analytics.classNote20 === null ? 0 : Math.round(r.analytics.classNote20 * 10) / 10 }))} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                          <R.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <R.XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval={0} />
+                          <R.YAxis domain={[0, 20]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                          <R.Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} formatter={(v: any) => [`${num(v)}/20`, tr("Moyenne", "المعدل", "Average")]} cursor={{ fill: "hsl(var(--muted) / 0.5)" }} />
+                          <R.Bar dataKey="moyenne" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                        </R.BarChart>
+                      </R.ResponsiveContainer>
+)}</LazyChart>
                     </div>
                   </CardContent>
                 </Card>

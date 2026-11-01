@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { readBoot, writeBoot } from "@/lib/bootCache";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
@@ -108,6 +109,11 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await (supabase as any).rpc("my_access");
     if (error) {
       // fonction absente (migration non appliquée) : on ne bloque rien
+      // (erreur réseau passagère : on garde les habilitations déjà connues)
+      if (lastJson.current !== "" && !/function|schema cache|does not exist/i.test(error.message || "")) {
+        setLoading(false);
+        return;
+      }
       setEnforced(false);
       if (lastJson.current !== "") {
         lastJson.current = "";
@@ -121,14 +127,28 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
         lastJson.current = json;
         setAccess(data as AccessInfo);
       }
+      writeBoot("access", userId, data || null);
     }
     setLoading(false);
   }, [userId, tracked]);
 
-  useEffect(() => {
-    setLoading(true);
+  // Habilitations déjà connues sur cet appareil : la page s'affiche tout de suite,
+  // la relecture (my_access) se fait en arrière-plan.
+  useLayoutEffect(() => {
+    const cached = tracked ? readBoot<AccessInfo | null>("access", userId) : undefined;
+    if (cached) {
+      const json = JSON.stringify(cached);
+      if (json !== lastJson.current) {
+        lastJson.current = json;
+        setAccess(cached);
+      }
+      setEnforced(true);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     void load();
-  }, [load]);
+  }, [load, tracked, userId]);
 
   const planId = access?.subscription?.plan_id || null;
 

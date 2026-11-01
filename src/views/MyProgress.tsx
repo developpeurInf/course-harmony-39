@@ -1,7 +1,6 @@
 /** « Ma progression » (élève) : moyenne, évolution, points forts / à revoir, série de jours, badges */
 import { useEffect, useMemo, useState } from "react";
 import { Flame, Loader2, TrendingUp } from "lucide-react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { RemediationButton } from "@/components/progress/Remediation";
@@ -10,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { useStudentFeatures } from "@/lib/studentFeatures";
 import { cn } from "@/lib/utils";
+import { LazyChart } from "@/components/charts/LazyChart";
 
 const db = supabase as any;
 
@@ -72,15 +72,17 @@ export default function MyProgress() {
         <section className="rounded-xl border bg-card p-4">
           <h2 className="mb-2 text-sm font-semibold">{tr("Évolution de mes notes", "تطور نقطي", "My grades over time")}</h2>
           <div className="h-56" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.chart} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="d" tick={{ fontSize: 11 }} />
-                <YAxis domain={[0, 20]} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: any) => [`${fmt(v)} / 20`, ""]} labelFormatter={(_, pl: any) => pl?.[0]?.payload?.t || ""} />
-                <Line type="monotone" dataKey="note" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            <LazyChart>{(R) => (
+<R.ResponsiveContainer width="100%" height="100%">
+              <R.LineChart data={stats.chart} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+                <R.CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <R.XAxis dataKey="d" tick={{ fontSize: 11 }} />
+                <R.YAxis domain={[0, 20]} tick={{ fontSize: 11 }} />
+                <R.Tooltip formatter={(v: any) => [`${fmt(v)} / 20`, ""]} labelFormatter={(_, pl: any) => pl?.[0]?.payload?.t || ""} />
+                <R.Line type="monotone" dataKey="note" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+              </R.LineChart>
+            </R.ResponsiveContainer>
+)}</LazyChart>
           </div>
         </section>
       )}
