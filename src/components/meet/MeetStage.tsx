@@ -4,7 +4,7 @@
  * Salle de réunion (à l'intérieur de <LiveKitRoom>) : scène vidéo, barre d'outils, panneaux.
  * Mises en page : grille automatique, orateur, présentation (écran partagé en grand + bande).
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   RoomAudioRenderer,
   VideoTrack,
@@ -53,6 +53,7 @@ import {
   X,
   Presentation,
   UserSquare2,
+  PenLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -75,6 +76,8 @@ import {
 import { MeetChat } from "./MeetChat";
 import { Avatar, MeetPeople, handOf, roleOf } from "./MeetPeople";
 import { useTr } from "./useTr";
+import { useWhiteboard } from "./whiteboard/useWhiteboard";
+import { ScreenAnnotator, WhiteboardBoard, captureTrack } from "./whiteboard/Whiteboard";
 import "./meet.css";
 
 type Panel = "chat" | "people" | null;
@@ -187,6 +190,25 @@ export function MeetStage(props: {
   panelRef.current = panel;
   const activeSpeaker = useRef<string | null>(null);
   const myHand = handOf(localParticipant) > 0;
+
+  // Tableau blanc partagé (+ annotations de l'écran partagé)
+  const wb = useWhiteboard(room, { me: props.me, myName: localParticipant.name || "", isHost: props.isHost, meetingId: props.meetingId });
+  useSyncExternalStore(wb.subscribeState, wb.getStateVersion, wb.getStateVersion);
+  const boardOpen = wb.state.open;
+  const [boardHidden, setBoardHidden] = useState(false);
+  const wasOpen = useRef(boardOpen);
+  useEffect(() => {
+    if (boardOpen && !wasOpen.current) {
+      setBoardHidden(false);
+      if (!props.isHost) toast(tr("Le professeur a ouvert le tableau blanc", "فتح الأستاذ السبورة البيضاء", "The teacher opened the whiteboard"));
+    }
+    wasOpen.current = boardOpen;
+  }, [boardOpen, props.isHost, tr]);
+  const showBoard = boardOpen && !boardHidden;
+  const toggleBoard = () => {
+    if (props.isHost) wb.setState({ open: !boardOpen });
+    else if (boardOpen) setBoardHidden(h => !h);
+  };
 
   // Présence (toutes les 45 s), fin de réunion détectée par la base
   useEffect(() => {
@@ -490,6 +512,7 @@ export function MeetStage(props: {
       else if (k === "h") void toggleHand();
       else if (k === "c") setPanel(p => (p === "chat" ? null : "chat"));
       else if (k === "p") setPanel(p => (p === "people" ? null : "people"));
+      else if (k === "b" && (props.isHost || boardOpen)) toggleBoard();
       else return;
       e.preventDefault();
     };
@@ -516,12 +539,38 @@ export function MeetStage(props: {
   }, [participants, pinned]);
 
   const screen = screenRefs[screenRefs.length - 1] || null;
+  const shareKey = screen ? `${screen.participant.identity}:${screen.publication.trackSid}` : "";
+  // nouveau partage ou fin du partage : les annotations de l'écran précédent disparaissent
+  const lastShare = useRef(shareKey);
+  useEffect(() => {
+    if (lastShare.current && lastShare.current !== shareKey && props.isHost) wb.clear("screen");
+    lastShare.current = shareKey;
+  }, [shareKey, props.isHost, wb]);
+  const screenTrackRef = useRef<MediaStreamTrack | undefined>(undefined);
+  screenTrackRef.current = screen?.publication.track?.mediaStreamTrack;
+  const captureScreen = useCallback(() => captureTrack(screenTrackRef.current, wb), [wb]);
+  const copyScreenToBoard = useCallback(async () => {
+    const img = await captureTrack(screenTrackRef.current, wb);
+    if (!img) return;
+    if (!wb.state.open) wb.setState({ open: true });
+    setBoardHidden(false);
+    // placé au centre de la vue courante du tableau (ou à l'origine)
+    const v = wb.hostView;
+    const k = Math.min(1, 900 / img.w);
+    const w = img.w * k,
+      h = img.h * k;
+    const cx = v ? v.cx : 400,
+      cy = v ? v.cy : 260;
+    wb.add("board", [{ id: Math.random().toString(36).slice(2, 10), by: props.me, k: "image", x: cx - w / 2, y: cy - h / 2, w, h, color: "fg", size: 1, src: img.src }]);
+    toast.success(tr("Écran copié sur le tableau blanc", "تم نسخ الشاشة إلى السبورة", "Screen copied to the whiteboard"));
+  }, [wb, props.me, tr]);
   const mode: "grid" | "focus" =
     layout === "grid" && !pinned ? "grid" : screen || pinnedRef || (layout === "speaker" && sortedCams.length > 1) ? "focus" : "grid";
   const speakerRef =
     sortedCams.find(t => t.participant.identity === activeSpeaker.current) || sortedCams.find(t => !t.participant.isLocal) || sortedCams[0];
   const focusRef: TrackReferenceOrPlaceholder | null = pinnedRef || screen || (mode === "focus" ? speakerRef : null);
   const strip = mode === "focus" ? sortedCams.filter(t => t !== focusRef) : [];
+  const hostCam = sortedCams.find(t => roleOf(t.participant) === "host" && !t.participant.isLocal) || null;
 
   // Grille paginée
   const pageSize = isMobile ? 6 : 16;
@@ -718,7 +767,18 @@ export function MeetStage(props: {
       {/* Scène + panneau */}
       <div className="flex min-h-0 flex-1 gap-3 px-2 pb-2 sm:px-4">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          {mode === "grid" ? (
+          {showBoard ? (
+            <div className="relative min-h-0 flex-1">
+              <WhiteboardBoard
+                store={wb}
+                tr={tr}
+                title={props.title}
+                onClose={toggleBoard}
+                captureScreen={screen && wb.canWrite ? captureScreen : null}
+              />
+              {!props.isHost && hostCam && <BoardCam trackRef={hostCam} isHostView={props.isHost} onPin={togglePin} onModerate={doModerate} tr={tr} />}
+            </div>
+          ) : mode === "grid" ? (
             <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
               <div
                 className="grid content-center justify-center"
@@ -744,7 +804,7 @@ export function MeetStage(props: {
             <div className={cn("flex min-h-0 flex-1 gap-2 sm:gap-3", isMobile ? "flex-col" : "flex-row")}>
               <div className={cn("relative min-h-0 min-w-0 flex-1", isMobile && focusRef?.source === Track.Source.ScreenShare && "flex items-center")}>
                 {focusRef && (
-                  <div className={cn("h-full w-full", isMobile && focusRef.source === Track.Source.ScreenShare && "h-auto aspect-video")}>
+                  <div className={cn("relative h-full w-full", isMobile && focusRef.source === Track.Source.ScreenShare && "h-auto aspect-video")}>
                   <Tile
                     trackRef={focusRef}
                     isHostView={props.isHost}
@@ -753,6 +813,9 @@ export function MeetStage(props: {
                     onPin={togglePin}
                     onModerate={doModerate}
                   />
+                  {focusRef.source === Track.Source.ScreenShare && (
+                    <ScreenAnnotator store={wb} tr={tr} shareKey={shareKey} onCopyToBoard={props.isHost ? () => void copyScreenToBoard() : undefined} />
+                  )}
                   </div>
                 )}
               </div>
@@ -824,6 +887,24 @@ export function MeetStage(props: {
           <DockButton active={myHand} tone={myHand ? "amber" : "default"} onClick={() => void toggleHand()} label={myHand ? tr("Baisser la main (H)", "إنزال اليد (H)", "Lower hand (H)") : tr("Lever la main (H)", "رفع اليد (H)", "Raise hand (H)")}>
             <Hand className="h-5 w-5" />
           </DockButton>
+          {(props.isHost || boardOpen) && (
+            <DockButton
+              active={showBoard}
+              tone={showBoard ? "primary" : "default"}
+              onClick={toggleBoard}
+              label={
+                props.isHost
+                  ? boardOpen
+                    ? tr("Fermer le tableau blanc (B)", "إغلاق السبورة البيضاء (B)", "Close whiteboard (B)")
+                    : tr("Ouvrir le tableau blanc (B)", "فتح السبورة البيضاء (B)", "Open whiteboard (B)")
+                  : showBoard
+                    ? tr("Revenir à la vidéo (B)", "العودة إلى الفيديو (B)", "Back to video (B)")
+                    : tr("Voir le tableau blanc (B)", "عرض السبورة البيضاء (B)", "Show whiteboard (B)")
+              }
+            >
+              <PenLine className="h-5 w-5" />
+            </DockButton>
+          )}
           <Popover>
             <PopoverTrigger asChild>
               <button type="button" className="dock-btn hidden sm:flex" aria-label={tr("Réactions", "تفاعلات", "Reactions")} title={tr("Réactions", "تفاعلات", "Reactions")}>
@@ -942,7 +1023,7 @@ export function MeetStage(props: {
               <Switch checked={saveData} onCheckedChange={setSaveData} />
             </label>
             <p className="text-xs text-muted-foreground">
-              {tr("Raccourcis : M micro · V caméra · H main · C chat · P participants", "اختصارات: M ميكروفون · V كاميرا · H يد · C دردشة · P مشاركون", "Shortcuts: M mic · V camera · H hand · C chat · P people")}
+              {tr("Raccourcis : M micro · V caméra · H main · C chat · P participants · B tableau blanc", "اختصارات: M ميكروفون · V كاميرا · H يد · C دردشة · P مشاركون · B السبورة", "Shortcuts: M mic · V camera · H hand · C chat · P people · B whiteboard")}
             </p>
           </div>
         </DialogContent>
@@ -1072,6 +1153,41 @@ const Tile = memo(function Tile({
     </div>
   );
 });
+
+/** Petite vidéo du professeur posée sur le tableau blanc (élèves) */
+function BoardCam(props: {
+  trackRef: TrackReferenceOrPlaceholder;
+  isHostView: boolean;
+  onPin: (identity: string) => void;
+  onModerate: (action: "mute" | "remove", identity?: string, source?: "microphone" | "camera" | "screen_share") => void;
+  tr: (fr: string, ar: string, en?: string) => string;
+}) {
+  const [hidden, setHidden] = useState(false);
+  if (hidden)
+    return (
+      <button
+        type="button"
+        onClick={() => setHidden(false)}
+        className="absolute bottom-3 end-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#151b27]/90 text-white shadow-xl ring-1 ring-white/15 max-md:bottom-[76px]"
+        aria-label={props.tr("Afficher la vidéo du professeur", "عرض فيديو الأستاذ", "Show the teacher's video")}
+      >
+        <Camera className="h-4 w-4" />
+      </button>
+    );
+  return (
+    <div className="group/cam absolute bottom-3 end-3 z-10 aspect-video w-[150px] shadow-2xl max-md:bottom-[76px] sm:w-[220px]">
+      <Tile trackRef={props.trackRef} isHostView={props.isHostView} small onPin={props.onPin} onModerate={props.onModerate} />
+      <button
+        type="button"
+        onClick={() => setHidden(true)}
+        className="absolute -top-2 start-[-8px] flex h-6 w-6 items-center justify-center rounded-full bg-[#151b27] text-white opacity-0 shadow ring-1 ring-white/20 transition group-hover/cam:opacity-100 max-md:opacity-100"
+        aria-label={props.tr("Masquer", "إخفاء", "Hide")}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
 
 function TileAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
