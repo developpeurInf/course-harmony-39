@@ -275,6 +275,9 @@ const Sidebar = () => {
                       />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="ms-[17px] space-y-0.5 border-s ps-2 pt-0.5">
+                      {show("students") && (
+                        <NavItem nested to={`/rooms/${room.id}/students`} icon={Users} label={t("Élèves", "التلاميذ", "Students")} />
+                      )}
                       {show("chat") && chat?.enabled && (
                         <NavItem
                           nested
@@ -284,6 +287,15 @@ const Sidebar = () => {
                           locked={!can("chat.students")}
                           trailing={<RoomUnread n={(chat.contacts || []).filter((c) => contactInRoom(c, room.id, room.name)).reduce((n, c) => n + (c.unread || 0), 0)} />}
                         />
+                      )}
+                      {show("courses") && (
+                        <NavItem nested to={`/rooms/${room.id}/courses`} icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />
+                      )}
+                      {show("exercises") && (
+                        <NavItem nested to={`/rooms/${room.id}/exercises`} icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />
+                      )}
+                      {show("exams") && (
+                        <NavItem nested to={`/rooms/${room.id}/exams`} icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />
                       )}
                       {show("meet") && (
                         <NavItem
@@ -295,9 +307,6 @@ const Sidebar = () => {
                         />
                       )}
                       <NavItem nested to={`/rooms/${room.id}/whiteboard`} icon={PenLine} label={t("Tableau blanc", "السبورة البيضاء", "Whiteboard")} />
-                      {show("students") && (
-                        <NavItem nested to={`/rooms/${room.id}/students`} icon={Users} label={t("Élèves", "التلاميذ", "Students")} />
-                      )}
                       {show("studentActivities") && (
                         <NavItem
                           nested
@@ -339,15 +348,6 @@ const Sidebar = () => {
                       )}
                       {show("calendar") && (
                         <NavItem nested to={`/rooms/${room.id}/calendar`} icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />
-                      )}
-                      {show("courses") && (
-                        <NavItem nested to={`/rooms/${room.id}/courses`} icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />
-                      )}
-                      {show("exercises") && (
-                        <NavItem nested to={`/rooms/${room.id}/exercises`} icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />
-                      )}
-                      {show("exams") && (
-                        <NavItem nested to={`/rooms/${room.id}/exams`} icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />
                       )}
                     </CollapsibleContent>
                   </Collapsible>
