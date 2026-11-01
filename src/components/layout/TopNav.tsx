@@ -79,6 +79,7 @@ const TopNav = () => {
       [path.startsWith("/settings"), tr("Paramètres", "الإعدادات", "Settings")],
       [path.startsWith("/messages") || /^\/rooms\/[^/]+\/messages/.test(path), tr("Messages", "الرسائل", "Messages")],
       [path.startsWith("/meetings") || /^\/rooms\/[^/]+\/meet/.test(path), tr("Réunions", "الاجتماعات", "Meetings")],
+      [path.startsWith("/whiteboards") || /^\/rooms\/[^/]+\/whiteboard/.test(path), tr("Tableau blanc", "السبورة البيضاء", "Whiteboard")],
     ];
     const match = routes.find(([ok]) => ok);
     if (match) return { title: match[1] };

@@ -118,8 +118,14 @@ export const WhiteboardBoard = memo(function WhiteboardBoard(props: {
   onClose: () => void;
   /** capture de l'écran partagé (avec ses annotations) */
   captureScreen?: (() => Promise<{ src: string; w: number; h: number } | null>) | null;
+  /** tableau de classe (hors réunion) : titre, renommer, bouton retour, éléments en plus */
+  heading?: string;
+  onRename?: (title: string) => void;
+  backLabel?: string;
+  headerExtra?: React.ReactNode;
 }) {
   const { store, tr } = props;
+  const [renaming, setRenaming] = useState(false);
   const st = useStoreState(store);
   useSyncExternalStore(store.subscribe, store.getVersion, store.getVersion);
   const narrow = useIsNarrow();
@@ -132,8 +138,10 @@ export const WhiteboardBoard = memo(function WhiteboardBoard(props: {
   const host = store.isHost;
 
   // l'élève qui obtient le droit d'écrire arrête de suivre la vue (il navigue lui-même)
+  const prevAllow = useRef(st.allow);
   useEffect(() => {
-    if (!host && st.allow) toast(tr("Le professeur vous permet d'écrire au tableau", "سمح لك الأستاذ بالكتابة على اللوحة", "The teacher lets you write on the board"));
+    if (!host && st.allow && !prevAllow.current) toast(tr("Le professeur vous permet d'écrire au tableau", "سمح لك الأستاذ بالكتابة على اللوحة", "The teacher lets you write on the board"));
+    prevAllow.current = st.allow;
   }, [st.allow, host, tr]);
 
   const insertBlob = useCallback(
@@ -268,7 +276,31 @@ export const WhiteboardBoard = memo(function WhiteboardBoard(props: {
             <PenLine className="h-4 w-4" />
           </span>
           <div className="min-w-0 pe-1">
-            <p className="truncate text-xs font-semibold leading-tight">{tr("Tableau blanc", "السبورة البيضاء", "Whiteboard")}</p>
+            {renaming && props.onRename ? (
+              <input
+                autoFocus
+                defaultValue={props.heading}
+                maxLength={120}
+                className="w-40 rounded bg-transparent text-xs font-semibold leading-tight outline-none ring-1 ring-primary/60 sm:w-56"
+                onBlur={e => {
+                  setRenaming(false);
+                  const v = e.currentTarget.value.trim();
+                  if (v && v !== props.heading) props.onRename?.(v);
+                }}
+                onKeyDown={e => {
+                  e.stopPropagation();
+                  if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+                }}
+              />
+            ) : (
+              <p
+                className={cn("truncate text-xs font-semibold leading-tight", props.onRename && "cursor-text")}
+                onDoubleClick={() => props.onRename && setRenaming(true)}
+                title={props.onRename ? tr("Double-cliquez pour renommer", "انقر مرتين لإعادة التسمية", "Double-click to rename") : undefined}
+              >
+                {props.heading || tr("Tableau blanc", "السبورة البيضاء", "Whiteboard")}
+              </p>
+            )}
             <p className="truncate text-[10px] leading-tight opacity-60">
               {host
                 ? st.allow
@@ -410,15 +442,19 @@ export const WhiteboardBoard = memo(function WhiteboardBoard(props: {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          {props.headerExtra}
           <span className="mx-0.5 h-5 w-px bg-current opacity-15" />
           <button
             type="button"
             onClick={props.onClose}
             className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition hover:bg-current/10"
-            title={host ? tr("Fermer le tableau pour tous (B)", "إغلاق اللوحة للجميع (B)", "Close the board for everyone (B)") : tr("Revenir à la vidéo", "العودة إلى الفيديو", "Back to video")}
+            title={
+              props.backLabel ||
+              (host ? tr("Fermer le tableau pour tous (B)", "إغلاق اللوحة للجميع (B)", "Close the board for everyone (B)") : tr("Revenir à la vidéo", "العودة إلى الفيديو", "Back to video"))
+            }
           >
-            {host ? <X className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-            <span className="hidden sm:inline">{host ? tr("Fermer", "إغلاق", "Close") : tr("Vidéo", "الفيديو", "Video")}</span>
+            {props.backLabel ? <X className="h-4 w-4" /> : host ? <X className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+            <span className="hidden sm:inline">{props.backLabel || (host ? tr("Fermer", "إغلاق", "Close") : tr("Vidéo", "الفيديو", "Video"))}</span>
           </button>
         </div>
       </div>
