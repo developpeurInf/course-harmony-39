@@ -8,6 +8,15 @@ import { json, livekitConfig, mintToken, userClient } from "@/lib/server/meet";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Préchauffage : réveille la fonction serveur et donne l'adresse LiveKit (publique, sans secret) */
+export async function GET() {
+  const cfg = livekitConfig();
+  return new Response(JSON.stringify({ url: cfg?.url || null }), {
+    status: 200,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(req: Request) {
   if (!livekitConfig()) {
     return json({ error: "not_configured", message: "Le serveur vidéo n'est pas encore configuré (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)." }, 503);

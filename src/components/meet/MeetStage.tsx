@@ -4,15 +4,17 @@
  * Salle de réunion (à l'intérieur de <LiveKitRoom>) : scène vidéo, barre d'outils, panneaux.
  * Mises en page : grille automatique, orateur, présentation (écran partagé en grand + bande).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RoomAudioRenderer,
   VideoTrack,
   isTrackReference,
   useConnectionQualityIndicator,
   useDataChannel,
+  useIsMuted,
   useIsSpeaking,
   useLocalParticipant,
+  useParticipantAttributes,
   useLocalParticipantPermissions,
   useMediaDeviceSelect,
   useParticipants,
@@ -176,7 +178,6 @@ export function MeetStage(props: {
   const [unread, setUnread] = useState(0);
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   const [absent, setAbsent] = useState<ReportRow[] | null>(null);
-  const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveData, setSaveData] = useState(false);
@@ -187,11 +188,7 @@ export function MeetStage(props: {
   const activeSpeaker = useRef<string | null>(null);
   const myHand = handOf(localParticipant) > 0;
 
-  // Horloge, présence (toutes les 45 s), fin de réunion détectée par la base
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  // Présence (toutes les 45 s), fin de réunion détectée par la base
   useEffect(() => {
     const beat = async () => {
       const s = await heartbeat(props.meetingId);
@@ -444,7 +441,7 @@ export function MeetStage(props: {
     }
   };
 
-  const doModerate = async (
+  const doModerateImpl = async (
     action: "mute" | "lower_hand" | "remove" | "mute_all" | "lower_all",
     identity?: string,
     source?: "microphone" | "camera" | "screen_share",
@@ -460,6 +457,14 @@ export function MeetStage(props: {
       setBusy(null);
     }
   };
+  // Fonctions stables : les tuiles vidéo ne se redessinent pas pour rien
+  const moderateRef = useRef(doModerateImpl);
+  moderateRef.current = doModerateImpl;
+  const doModerate = useCallback(
+    (action: Parameters<typeof doModerateImpl>[0], identity?: string, source?: "microphone" | "camera" | "screen_share") => moderateRef.current(action, identity, source),
+    [],
+  );
+  const togglePin = useCallback((id: string) => setPinned(p => (p === id ? null : id)), []);
   const doSetting = async (patch: Partial<MeetSettings>) => {
     const next = { ...settings, ...patch };
     setSettings(next);
@@ -530,7 +535,6 @@ export function MeetStage(props: {
   const g = bestGrid(gridItems.length, stage.w, stage.h, isMobile ? 8 : 12);
 
   const hands = participants.filter(p => handOf(p) > 0).length;
-  const elapsed = props.startedAt ? now - new Date(props.startedAt).getTime() : 0;
   const { canPlayAudio, mergedProps: startAudioProps } = useStartAudio({ room, props: {} });
   const presenter = screen && !screen.participant.isLocal ? screen.participant.name : null;
   const reconnecting = room.state === ConnectionState.Reconnecting;
@@ -637,7 +641,7 @@ export function MeetStage(props: {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold leading-tight">{props.title}</p>
           <p className="truncate text-[11px] text-white/50">
-            {props.roomName} · <span className="tabular-nums">{clock(elapsed)}</span>
+            {props.roomName} · <Elapsed startedAt={props.startedAt} />
           </p>
         </div>
         {myQuality === ConnectionQuality.Poor || myQuality === ConnectionQuality.Lost ? (
@@ -722,7 +726,7 @@ export function MeetStage(props: {
               >
                 {gridItems.map(t => (
                   <div key={`${t.participant.identity}-${t.source}`} style={{ width: g.tileW, height: g.tileH }}>
-                    <Tile trackRef={t} isHostView={props.isHost} pinned={pinned === t.participant.identity} onPin={id => setPinned(p => (p === id ? null : id))} onModerate={doModerate} />
+                    <Tile trackRef={t} isHostView={props.isHost} pinned={pinned === t.participant.identity} onPin={togglePin} onModerate={doModerate} />
                   </div>
                 ))}
               </div>
@@ -746,7 +750,7 @@ export function MeetStage(props: {
                     isHostView={props.isHost}
                     large
                     pinned={!!pinnedRef && focusRef === pinnedRef}
-                    onPin={id => setPinned(p => (p === id ? null : id))}
+                    onPin={togglePin}
                     onModerate={doModerate}
                   />
                   </div>
@@ -761,7 +765,7 @@ export function MeetStage(props: {
                 >
                   {strip.map(t => (
                     <div key={`${t.participant.identity}-${t.source}`} className={cn("shrink-0", isMobile ? "h-full w-[150px]" : "aspect-video w-full")}>
-                      <Tile trackRef={t} isHostView={props.isHost} small pinned={pinned === t.participant.identity} onPin={id => setPinned(p => (p === id ? null : id))} onModerate={doModerate} />
+                      <Tile trackRef={t} isHostView={props.isHost} small pinned={pinned === t.participant.identity} onPin={togglePin} onModerate={doModerate} />
                     </div>
                   ))}
                 </div>
@@ -948,7 +952,7 @@ export function MeetStage(props: {
 }
 
 // ---------------------------------------------------------------------- tuiles
-function Tile({
+const Tile = memo(function Tile({
   trackRef,
   isHostView,
   large,
@@ -971,9 +975,12 @@ function Tile({
   const speaking = useIsSpeaking(p);
   const { quality } = useConnectionQualityIndicator({ participant: p });
   const pub = trackRef.publication;
-  const hasVideo = isTrackReference(trackRef) && !!pub && !pub.isMuted && (p.isLocal || (pub as RemoteTrackPublication).isSubscribed);
-  const mic = p.getTrackPublication(Track.Source.Microphone);
-  const micOn = !!mic && !mic.isMuted;
+  // Hooks abonnés : la tuile se met à jour seule (micro, main levée) sans redessiner toute la salle
+  const micMuted = useIsMuted({ participant: p, source: Track.Source.Microphone } as TrackReferenceOrPlaceholder);
+  const camMuted = useIsMuted(trackRef);
+  useParticipantAttributes({ participant: p });
+  const micOn = !micMuted;
+  const hasVideo = isTrackReference(trackRef) && !!pub && !camMuted && (p.isLocal || (pub as RemoteTrackPublication).isSubscribed);
   const hand = handOf(p) > 0;
   const host = roleOf(p) === "host";
   const name = p.name || tr("Participant", "مشارك", "Participant");
@@ -1064,7 +1071,7 @@ function Tile({
       </div>
     </div>
   );
-}
+});
 
 function TileAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -1250,4 +1257,14 @@ function LeaveButton({ isHost, tr, onLeave }: { isHost: boolean; tr: (fr: string
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** Durée de la réunion : seule cette petite étiquette se redessine chaque seconde */
+function Elapsed({ startedAt }: { startedAt?: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <span className="tabular-nums">{clock(startedAt ? now - new Date(startedAt).getTime() : 0)}</span>;
 }

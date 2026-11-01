@@ -86,10 +86,110 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function listMeetings(roomId?: string | null): Promise<Meeting[]> {
-  const { data, error } = await mdb.rpc("meet_list", { p_room: roomId || null });
-  if (error) throw error;
-  return ((data || []) as Meeting[]).map(m => ({ ...m, settings: { ...DEFAULT_SETTINGS, ...(m.settings || {}) } }));
+// ---------------------------------------------------------------------------
+// Cache mémoire des listes : affichage instantané en revenant sur une page,
+// et un seul appel réseau quand plusieurs composants demandent la même liste.
+// ---------------------------------------------------------------------------
+const listCache = new Map<string, { at: number; data: Meeting[] }>();
+const inflight = new Map<string, Promise<Meeting[]>>();
+const listeners = new Set<() => void>();
+const keyOf = (roomId?: string | null) => roomId || "*";
+
+/** Dernière liste connue (ou null) : sert à afficher tout de suite, avant le réseau */
+export function cachedMeetings(roomId?: string | null): Meeting[] | null {
+  return listCache.get(keyOf(roomId))?.data ?? null;
+}
+
+/** Une réunion déjà connue d'une liste (pour ouvrir sa page sans attendre) */
+export function cachedMeeting(id: string): Meeting | null {
+  for (const { data } of listCache.values()) {
+    const m = data.find(x => x.id === id);
+    if (m) return m;
+  }
+  return null;
+}
+
+/** Modifie localement toutes les listes en cache (mise à jour optimiste) puis prévient les pages */
+export function patchCachedMeetings(fn: (list: Meeting[]) => Meeting[]) {
+  for (const [k, v] of listCache) listCache.set(k, { at: v.at, data: fn(v.data) });
+  listeners.forEach(l => l());
+}
+
+export function onMeetingsCacheChange(fn: () => void) {
+  listeners.add(fn);
+  return () => void listeners.delete(fn);
+}
+
+/** maxAge : réutilise une liste plus récente que ce délai (ms) au lieu d'appeler la base */
+export async function listMeetings(roomId?: string | null, maxAge = 0): Promise<Meeting[]> {
+  const key = keyOf(roomId);
+  const hit = listCache.get(key);
+  if (hit && maxAge > 0 && Date.now() - hit.at < maxAge) return hit.data;
+  const running = inflight.get(key);
+  if (running) return running;
+  const p = (async () => {
+    const { data, error } = await mdb.rpc("meet_list", { p_room: roomId || null });
+    if (error) throw error;
+    const list = ((data || []) as Meeting[]).map(m => ({ ...m, settings: { ...DEFAULT_SETTINGS, ...(m.settings || {}) } }));
+    listCache.set(key, { at: Date.now(), data: list });
+    return list;
+  })();
+  inflight.set(key, p);
+  try {
+    return await p;
+  } finally {
+    inflight.delete(key);
+  }
+}
+
+/** Regroupe les rafales (temps réel) en un seul appel */
+export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number) {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  const run = (...a: Parameters<T>) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      t = null;
+      fn(...a);
+    }, ms);
+  };
+  run.cancel = () => t && clearTimeout(t);
+  return run;
+}
+
+// ---------------------------------------------------------------------------
+// Préchargement : code de la visio + serveur (fonction Netlify réveillée, connexion
+// LiveKit préparée) pour que « Rejoindre » soit immédiat.
+// ---------------------------------------------------------------------------
+let roomCode: Promise<unknown> | null = null;
+export function preloadMeetingRoom() {
+  if (typeof window === "undefined") return;
+  roomCode ??= import("@/views/MeetingRoom").catch(() => (roomCode = null));
+}
+
+let warm: Promise<string | null> | null = null;
+/** Réveille la route du jeton et renvoie l'adresse LiveKit (pour préparer la connexion) */
+export function warmMeetServer(): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  warm ??= fetch("/api/meet/token", { method: "GET", cache: "no-store" })
+    .then(r => (r.ok ? r.json() : null))
+    .then(b => (b?.url as string) || null)
+    .catch(() => {
+      warm = null;
+      return null;
+    });
+  return warm;
+}
+
+/** Lance les préchargements quand le navigateur est libre */
+export function preloadWhenIdle() {
+  if (typeof window === "undefined") return;
+  const go = () => {
+    preloadMeetingRoom();
+    void warmMeetServer();
+  };
+  const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => number);
+  if (ric) ric(go, { timeout: 2500 });
+  else setTimeout(go, 1200);
 }
 
 export async function createMeeting(input: {

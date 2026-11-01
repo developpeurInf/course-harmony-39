@@ -5,13 +5,13 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { LiveKitRoom } from "@livekit/components-react";
-import { DisconnectReason, VideoPresets, type RoomOptions } from "livekit-client";
+import { DisconnectReason, Room, VideoPresets, type RoomOptions } from "livekit-client";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, Loader2, RotateCcw, ServerCog, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation, useNavigate, useParams } from "@/lib/router";
 import { supabase } from "@/integrations/supabase/client";
-import { clock, fetchJoin, leaveMeeting, listMeetings, moderate, webrtcSupported, type JoinInfo, type Meeting, type MeetSettings, DEFAULT_SETTINGS } from "@/lib/meet";
+import { cachedMeeting, clock, debounce, fetchJoin, leaveMeeting, listMeetings, moderate, warmMeetServer, webrtcSupported, type JoinInfo, type Meeting, type MeetSettings, DEFAULT_SETTINGS } from "@/lib/meet";
 import { MeetLobby, type LobbyChoices } from "@/components/meet/MeetLobby";
 import { MeetStage } from "@/components/meet/MeetStage";
 import { useTr } from "@/components/meet/useTr";
@@ -49,8 +49,21 @@ export default function MeetingRoom() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tr, dir } = useTr();
-  const [meeting, setMeeting] = useState<Meeting | null>(null);
-  const [stage, setStage] = useState<Stage>({ k: "loading" });
+  // Réunion déjà connue (liste, bandeau) : l'écran d'accueil s'affiche sans attendre le réseau
+  const [meeting, setMeeting] = useState<Meeting | null>(() => (meetingId ? cachedMeeting(meetingId) : null));
+  const [stage, setStage] = useState<Stage>(() => (meetingId && cachedMeeting(meetingId) ? { k: "lobby" } : { k: "loading" }));
+  const inRoom = stage.k === "room";
+
+  // Pendant l'accueil : réveiller le serveur et ouvrir la connexion LiveKit à l'avance
+  useEffect(() => {
+    let alive = true;
+    void warmMeetServer().then(url => {
+      if (alive && url) void new Room().prepareConnection(url).catch(() => undefined);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [joining, setJoining] = useState(false);
 
   useEffect(() => {
@@ -70,18 +83,21 @@ export default function MeetingRoom() {
   }, [meetingId]);
 
   useEffect(() => {
-    if (!user) return;
+    // Dans la salle, la présence est suivie par la salle elle-même : pas d'appels inutiles
+    if (!user || inRoom) return;
     void refresh();
-    const t = setInterval(() => void refresh(), 15_000);
+    const soon = debounce(() => void refresh(), 300);
+    const t = setInterval(() => !document.hidden && void refresh(), 20_000);
     const ch = supabase
       .channel(`meet-page-${meetingId}`)
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "meetings", filter: `id=eq.${meetingId}` }, () => void refresh())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "meetings", filter: `id=eq.${meetingId}` }, () => soon())
       .subscribe();
     return () => {
       clearInterval(t);
+      soon.cancel();
       void supabase.removeChannel(ch);
     };
-  }, [user, meetingId, refresh]);
+  }, [user, meetingId, refresh, inRoom]);
 
   const backTo = meeting ? (user?.role === "professor" ? `/rooms/${meeting.room_id}/meet` : "/meetings") : "/dashboard";
 

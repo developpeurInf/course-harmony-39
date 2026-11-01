@@ -35,7 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { cancelMeeting, clock, deleteMeeting, formatDuration, listMeetings, moderate, type Meeting } from "@/lib/meet";
+import { cachedMeetings, cancelMeeting, clock, debounce, deleteMeeting, formatDuration, listMeetings, moderate, onMeetingsCacheChange, patchCachedMeetings, preloadMeetingRoom, preloadWhenIdle, type Meeting } from "@/lib/meet";
 import { ChatArchiveDialog, ReportDialog, ScheduleDialog } from "@/components/meet/MeetDialogs";
 import { useTr } from "@/components/meet/useTr";
 import "@/components/meet/meet.css";
@@ -49,7 +49,8 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
   const { tr, dir, locale, lang } = useTr();
   const isTeacher = user?.role === "professor";
   const allowed = !isTeacher || can("meet.host" as any);
-  const [items, setItems] = useState<Meeting[] | null>(null);
+  // Affichage immédiat avec la dernière liste connue, puis mise à jour en arrière-plan
+  const [items, setItems] = useState<Meeting[] | null>(() => cachedMeetings(roomId || null));
   const [dialog, setDialog] = useState<null | { mode: "now" | "schedule"; edit?: Meeting | null }>(null);
   const [report, setReport] = useState<Meeting | null>(null);
   const [archive, setArchive] = useState<Meeting | null>(null);
@@ -70,22 +71,36 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
     try {
       setItems(await listMeetings(roomId || null));
     } catch (e: any) {
-      setItems([]);
+      setItems(cur => cur ?? []);
       if (!/meet_list/.test(e?.message || "")) toast.error(e?.message || "");
     }
   }, [roomId]);
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 30_000);
-    const c = setInterval(() => setNow(Date.now()), 15_000);
+    preloadWhenIdle();
+    const soon = debounce(() => void load(), 350);
+    // Pas d'appels quand l'onglet est caché ; rattrapage dès qu'il redevient visible
+    const t = setInterval(() => !document.hidden && void load(), 30_000);
+    const c = setInterval(() => !document.hidden && setNow(Date.now()), 15_000);
+    const onVis = () => {
+      if (!document.hidden) {
+        setNow(Date.now());
+        soon();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    const off = onMeetingsCacheChange(() => setItems(cachedMeetings(roomId || null)));
     const ch = supabase
       .channel(`meetings-${roomId || "all"}`)
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "meetings", ...(roomId ? { filter: `room_id=eq.${roomId}` } : {}) }, () => void load())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "meetings", ...(roomId ? { filter: `room_id=eq.${roomId}` } : {}) }, () => soon())
       .subscribe();
     return () => {
       clearInterval(t);
       clearInterval(c);
+      soon.cancel();
+      off();
+      document.removeEventListener("visibilitychange", onVis);
       void supabase.removeChannel(ch);
     };
   }, [load, roomId]);
@@ -111,15 +126,27 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
       () => toast(url),
     );
   };
-  const act = async (fn: () => Promise<void>, ok: string) => {
+  /** Action avec mise à jour immédiate de l'écran ; annulée si le serveur refuse */
+  const act = async (fn: () => Promise<void>, ok: string, optimistic?: (list: Meeting[]) => Meeting[]) => {
+    const before = items;
+    if (optimistic) {
+      setItems(cur => (cur ? optimistic(cur) : cur));
+      patchCachedMeetings(optimistic);
+    }
     try {
       await fn();
       toast.success(ok);
       void load();
     } catch (e: any) {
+      if (optimistic) setItems(before);
       toast.error(e?.message || "");
+      void load();
     }
   };
+  const setStatus = (id: string, status: Meeting["status"]) => (list: Meeting[]) =>
+    list.map(x => (x.id === id ? { ...x, status, ended_at: status === "ended" ? new Date().toISOString() : x.ended_at } : x));
+  const removeOne = (id: string) => (list: Meeting[]) => list.filter(x => x.id !== id);
+  const open = (id: string) => navigate(`/meet/${id}`);
 
   return (
     <div dir={dir} className="mx-auto w-full max-w-5xl space-y-6">
@@ -225,7 +252,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
                   {m.host_id === user?.id && (
                     <button
                       type="button"
-                      onClick={() => void act(() => moderate(m.id, "end").then(() => undefined), tr("Réunion terminée pour tout le monde", "تم إنهاء الاجتماع للجميع", "Meeting ended for everyone"))}
+                      onClick={() => void act(() => moderate(m.id, "end").then(() => undefined), tr("Réunion terminée pour tout le monde", "تم إنهاء الاجتماع للجميع", "Meeting ended for everyone"), setStatus(m.id, "ended"))}
                       className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
                       aria-label={tr("Terminer pour tout le monde", "إنهاء للجميع", "End for everyone")}
                       title={tr("Terminer pour tout le monde", "إنهاء للجميع", "End for everyone")}
@@ -235,7 +262,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
                   )}
                   <button
                     type="button"
-                    onClick={() => navigate(`/meet/${m.id}`)}
+                    onClick={() => open(m.id)} onPointerEnter={preloadMeetingRoom} onTouchStart={preloadMeetingRoom} onFocus={preloadMeetingRoom}
                     className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-rose-700 shadow-lg transition hover:scale-[1.02]"
                   >
                     <Video className="h-4 w-4" />
@@ -287,7 +314,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => navigate(`/meet/${m.id}`)}
+                          onClick={() => open(m.id)} onPointerEnter={preloadMeetingRoom} onTouchStart={preloadMeetingRoom} onFocus={preloadMeetingRoom}
                           className={cn(
                             "inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition",
                             soon ? "bg-rose-600 text-white hover:bg-rose-700" : "border hover:bg-muted",
@@ -312,7 +339,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-rose-600 focus:text-rose-600"
-                              onClick={() => void act(() => cancelMeeting(m.id), tr("Réunion annulée, les élèves sont prévenus", "تم إلغاء الاجتماع وإشعار التلاميذ", "Meeting cancelled, students notified"))}
+                              onClick={() => void act(() => cancelMeeting(m.id), tr("Réunion annulée, les élèves sont prévenus", "تم إلغاء الاجتماع وإشعار التلاميذ", "Meeting cancelled, students notified"), setStatus(m.id, "cancelled"))}
                             >
                               <XCircle className="me-2 h-4 w-4" />
                               {tr("Annuler la réunion", "إلغاء الاجتماع", "Cancel meeting")}
@@ -321,7 +348,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
                         </DropdownMenu>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => navigate(`/meet/${m.id}`)} className="shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium hover:bg-muted">
+                      <button type="button" onClick={() => open(m.id)} onPointerEnter={preloadMeetingRoom} onTouchStart={preloadMeetingRoom} onFocus={preloadMeetingRoom} className="shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium hover:bg-muted">
                         {tr("Ouvrir", "فتح", "Open")}
                       </button>
                     )}
@@ -405,7 +432,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
           {/* Ce qui est inclus */}
           {isTeacher && (
             <div className="grid gap-3 sm:grid-cols-3">
-              <Feature icon={MonitorUp} title={tr("Présentez votre écran", "اعرض شاشتك", "Present your screen")} text={tr("Une fenêtre, un onglet (avec le son) ou tout l'écran, net jusqu'en 1080p.", "نافذة أو تبويب (مع الصوت) أو الشاشة كاملة، بجودة تصل إلى 1080p.", "A window, a tab (with sound) or the whole screen, sharp up to 1080p.")} />
+              <Feature icon={MonitorUp} title={tr("Présentez votre écran", "اعرض شاشتك", "Present your screen")} text={tr("Une fenêtre, un onglet (avec le son) ou tout l'écran, net jusqu'en 1440p.", "نافذة أو تبويب (مع الصوت) أو الشاشة كاملة، بجودة تصل إلى 1440p.", "A window, a tab (with sound) or the whole screen, sharp up to 1440p.")} />
               <Feature icon={Users} title={tr("Gardez la main", "تحكم في القسم", "Stay in control")} text={tr("Mains levées dans l'ordre, couper les micros, retirer un élève, verrouiller.", "الأيدي المرفوعة بالترتيب، كتم الميكروفونات، إخراج تلميذ، إغلاق.", "Raised hands in order, mute, remove a student, lock.")} />
               <Feature icon={ShieldCheck} title={tr("Réservé à la classe", "خاص بالقسم", "Class only")} text={tr("Personne d'autre ne peut entrer, même avec le lien. Présence notée automatiquement.", "لا يمكن لأي شخص آخر الدخول حتى مع الرابط. يُسجل الحضور تلقائيا.", "No one else can get in, even with the link. Attendance is automatic.")} />
             </div>
@@ -448,7 +475,7 @@ export default function Meetings({ roomId }: { roomId?: string } = {}) {
               onClick={() => {
                 const m = toDelete;
                 setToDelete(null);
-                if (m) void act(() => deleteMeeting(m.id), tr("Réunion supprimée", "تم حذف الاجتماع", "Meeting deleted"));
+                if (m) void act(() => deleteMeeting(m.id), tr("Réunion supprimée", "تم حذف الاجتماع", "Meeting deleted"), removeOne(m.id));
               }}
             >
               {tr("Supprimer", "حذف", "Delete")}
