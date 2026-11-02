@@ -1,0 +1,44 @@
+/* Outils Maths de Word : éditeur d'équations, corrigés, tableaux de variations */
+.eq-host math-field.eq-field {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  padding: 18px 16px;
+  font-size: 26px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #111;
+  --caret-color: #2b579a;
+  --selection-background-color: rgba(43, 87, 154, 0.22);
+  --contains-highlight-background-color: rgba(43, 87, 154, 0.06);
+  --placeholder-color: #2b579a;
+}
+.eq-host math-field.eq-field::part(virtual-keyboard-toggle),
+.eq-host math-field.eq-field::part(menu-toggle) { color: #2b579a; }
+.eq-btn-math .ML__latex { font-size: 1em; }
+.dark .eq-palette .eq-btn-math { filter: none; }
+
+/* Corrigé : texte vert sur fond léger, masquable (version élève) */
+.word-page .ProseMirror .correction {
+  color: #137333;
+  background: rgba(19, 115, 51, 0.08);
+  border-bottom: 1px dashed rgba(19, 115, 51, 0.55);
+}
+.word-page.page-dark .ProseMirror .correction { color: #6fd08c; background: rgba(111, 208, 140, 0.1); }
+.word-page.hide-corrections .ProseMirror .correction { display: none; }
+
+/* Tableaux de signes / variations */
+.word-page .ProseMirror img.vartable { display: inline-block; max-width: 100%; height: auto; cursor: pointer; vertical-align: middle; }
+.word-page .ProseMirror img.vartable.ProseMirror-selectednode { outline: 2px solid var(--office-accent, #2b579a); }
+.word-page.page-dark .ProseMirror img.vartable { filter: invert(0.9) hue-rotate(180deg); }
+
+/* Équation centrée sur sa ligne */
+.word-page .ProseMirror .math-node[data-display="1"] { display: block; text-align: center; margin: 4px 0; }
+.word-page .ProseMirror .math-node[data-display="1"] .katex-display { margin: 0.3em 0; }
+
+/* « type » est insensible à la casse en HTML : on cible data-lt (voir ListMarker) */
+.word-page .ProseMirror.ProseMirror ol[data-lt="lower-alpha"] { list-style: lower-alpha; }
+.word-page .ProseMirror.ProseMirror ol[data-lt="upper-alpha"] { list-style: upper-alpha; }
+.word-page .ProseMirror.ProseMirror ol[data-lt="lower-roman"] { list-style: lower-roman; }
+.word-page .ProseMirror.ProseMirror ol[data-lt="upper-roman"] { list-style: upper-roman; }

@@ -17,6 +17,8 @@ export interface Room {
   is_visible: boolean;
   /** classe archivée (fin d'année) : masquée des listes par défaut */
   archived_at?: string | null;
+  /** habilitations des élèves de la classe : { module: false } = module masqué (voir lib/classModules) */
+  student_modules?: Record<string, boolean> | null;
   created_at: string;
   updated_at: string;
 }

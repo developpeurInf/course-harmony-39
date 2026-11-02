@@ -42,7 +42,16 @@ import {
 } from "./extensions";
 import { DOC_THEMES, MARGIN_PRESETS, PAGE_SIZES, defaultPage, mmToPx, type PageSettings } from "./pageSettings";
 import { buildWordTemplate, wordTemplates } from "./templates";
+import { Correction, ImageGgb, ListMarker, VarTable } from "./math/mathExtensions";
+import { EQ_EVENT, VT_EVENT, type EquationEvent, type VarTableEvent } from "./math/events";
+import { EquationDialog, type EquationRequest } from "./math/EquationDialog";
+import { VarTableDialog, type VarTableRequest } from "./math/VarTableDialog";
+import { GeoGebraFigureDialog, type GgbFigureRequest } from "./math/GeoGebraFigureDialog";
+import { NumbersDialog } from "./math/NumbersDialog";
+import { applyNumbers } from "./math/numbers";
+import { MathTab } from "./math/MathTab";
 import "./word.css";
+import "./math/math.css";
 
 interface WordData { html: string; page: PageSettings }
 
@@ -72,7 +81,7 @@ const EQUATIONS: { label: string; latex: string }[] = [
   { label: "Trigonométrie", latex: "\\cos^2 x + \\sin^2 x = 1" },
 ];
 
-type TabId = "home" | "insert" | "design" | "layout" | "refs" | "review" | "view" | "table" | "image";
+type TabId = "home" | "insert" | "math" | "design" | "layout" | "refs" | "review" | "view" | "table" | "image";
 
 export default function WordEditor() {
   const { L, language, dir, isRtl, dark } = useOfficeEnv();
@@ -98,6 +107,13 @@ export default function WordEditor() {
   const painterRef = useRef<{ marks: { type: string; attrs: Record<string, unknown> }[]; para: Record<string, unknown> } | null>(null);
   const [painter, setPainter] = useState(false);
   const pageEl = useRef<HTMLDivElement>(null);
+  // Outils Maths
+  const [eqReq, setEqReq] = useState<EquationRequest | null>(null);
+  const [vtReq, setVtReq] = useState<VarTableRequest | null>(null);
+  const [ggbReq, setGgbReq] = useState<GgbFigureRequest | null>(null);
+  const [numbersOpen, setNumbersOpen] = useState(false);
+  const [hideCorrections, setHideCorrections] = useState(false);
+  const [autoDollar, setAutoDollarState] = useState(() => { try { return localStorage.getItem("word:autoDollar") !== "0"; } catch { return true; } });
 
   const editorRef = useRef<Editor | null>(null);
   const file = useOfficeFile<WordData>("word", () => {
@@ -124,6 +140,7 @@ export default function WordEditor() {
       CharacterCount,
       Placeholder.configure({ placeholder: L("Commencez à écrire…", "ابدأ الكتابة…", "Start typing…") }),
       ParagraphFormat, ImageAttrs, CellAttrs, PageBreak, MathInline, Footnote, Toc, Comment, SearchHighlight,
+      VarTable, Correction, ImageGgb, ListMarker,
     ],
     content: "",
     editorProps: {
@@ -167,6 +184,7 @@ export default function WordEditor() {
         words: e.storage.characterCount?.words?.() ?? 0, chars: e.storage.characterCount?.characters?.() ?? 0,
         imageAttrs: e.isActive("image") ? e.getAttributes("image") : null,
         tableStyle: e.isActive("table") ? (e.getAttributes("table").tableStyle as string) : "",
+        correction: e.isActive("correction"),
       };
     },
   });
@@ -191,6 +209,38 @@ export default function WordEditor() {
     editor?.setOptions({ editorProps: { ...editor.options.editorProps, attributes: { spellcheck: spell ? "true" : "false", lang: language === "ar" ? "ar" : language === "en" ? "en" : "fr" } } });
   }, [editor, spell, language]);
   useEffect(() => { editor?.setEditable(!readOnly); }, [editor, readOnly]);
+
+  // Outils Maths : double-clic sur une équation / un tableau / une figure GeoGebra, saisie $…$
+  useEffect(() => {
+    const onEq = (e: Event) => setEqReq({ ...(e as CustomEvent<EquationEvent>).detail });
+    const onVt = (e: Event) => setVtReq({ ...(e as CustomEvent<VarTableEvent>).detail });
+    window.addEventListener(EQ_EVENT, onEq);
+    window.addEventListener(VT_EVENT, onVt);
+    return () => { window.removeEventListener(EQ_EVENT, onEq); window.removeEventListener(VT_EVENT, onVt); };
+  }, []);
+  useEffect(() => {
+    const el = pageEl.current;
+    if (!el || !editor) return;
+    const onDbl = (e: MouseEvent) => {
+      const img = (e.target as HTMLElement | null)?.closest?.("img");
+      if (!img || img.classList.contains("vartable") || !editor.isEditable) return;
+      let pos: number;
+      try { pos = editor.view.posAtDOM(img, 0); } catch { return; }
+      for (const p of [pos, pos - 1]) {
+        const node = p >= 0 ? editor.state.doc.nodeAt(p) : null;
+        if (node?.type.name === "image" && node.attrs.ggb) { e.preventDefault(); setGgbReq({ ggb: node.attrs.ggb, app: node.attrs.ggbApp, pos: p }); return; }
+      }
+    };
+    el.addEventListener("dblclick", onDbl);
+    return () => el.removeEventListener("dblclick", onDbl);
+  }, [editor]);
+  useEffect(() => {
+    if (editor) (editor.storage as unknown as { mathInline?: { autoDollar: boolean } }).mathInline!.autoDollar = autoDollar;
+  }, [editor, autoDollar]);
+  const setAutoDollar = (v: boolean) => {
+    setAutoDollarState(v);
+    try { localStorage.setItem("word:autoDollar", v ? "1" : "0"); } catch { /* stockage bloqué */ }
+  };
 
   // Reproduire la mise en forme : appliquée à la prochaine sélection
   useEffect(() => {
@@ -288,11 +338,11 @@ export default function WordEditor() {
     const name = file.fileName || "Document";
     if (fid === "docx") {
       const { exportDocx } = await import("./docxExport");
-      await downloadBlob(await exportDocx(ed.getJSON(), pageRef.current, name), `${name}.docx`);
+      await downloadBlob(await exportDocx(ed.getJSON(), pageRef.current, name, { hideCorrections }), `${name}.docx`);
     } else if (fid === "pdf") {
       printDoc();
     } else if (fid === "html") {
-      await downloadBlob(new Blob([buildPrintHtml(ed.getHTML(), pageRef.current, name, dir, false)], { type: "text/html" }), `${name}.html`);
+      await downloadBlob(new Blob([buildPrintHtml(ed.getHTML(), pageRef.current, name, dir, false, hideCorrections)], { type: "text/html" }), `${name}.html`);
     } else {
       await downloadBlob(new Blob([ed.getText({ blockSeparator: "\n" })], { type: "text/plain;charset=utf-8" }), `${name}.txt`);
     }
@@ -303,7 +353,7 @@ export default function WordEditor() {
     if (!ed) return;
     const w = window.open("", "_blank");
     if (!w) { toast.error(L("Autorisez les fenêtres pop-up pour imprimer.", "اسمح بالنوافذ المنبثقة للطباعة.", "Allow pop-ups to print.")); return; }
-    w.document.write(buildPrintHtml(ed.getHTML(), pageRef.current, file.fileName, dir, true));
+    w.document.write(buildPrintHtml(ed.getHTML(), pageRef.current, file.fileName, dir, true, hideCorrections));
     w.document.close();
   };
 
@@ -314,6 +364,11 @@ export default function WordEditor() {
 
   // ---------- Commandes ----------
   const ed = editor;
+  const contentWidthPx = (() => {
+    const sz = PAGE_SIZES[page.size] || PAGE_SIZES.A4;
+    const w = page.orientation === "landscape" ? sz.h : sz.w;
+    return Math.max(200, mmToPx(w - page.margins.left - page.margins.right));
+  })();
   const run = (fn: (c: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) => { if (ed) fn(ed.chain().focus()).run(); };
 
   const insertImageFromFile = async () => {
@@ -461,6 +516,7 @@ export default function WordEditor() {
   const tabs: OfficeTab[] = [
     { id: "home", label: L("Accueil", "الرئيسية", "Home") },
     { id: "insert", label: L("Insertion", "إدراج", "Insert") },
+    { id: "math", label: L("Maths", "رياضيات", "Math") },
     { id: "design", label: L("Création", "تصميم", "Design") },
     { id: "layout", label: L("Mise en page", "تخطيط الصفحة", "Layout") },
     { id: "refs", label: L("Références", "مراجع", "References") },
@@ -733,7 +789,7 @@ export default function WordEditor() {
                         <MenuItem key={q.label} label={<span className="font-mono text-[11px]">{q.latex}</span>} hint={q.label} onClick={() => { run((c) => c.insertMath(q.latex)); close(); }} />
                       ))}
                       <div className="border-t pt-1">
-                        <MenuItem icon={Plus} label={L("Nouvelle équation (LaTeX)…", "معادلة جديدة (LaTeX)…", "New equation (LaTeX)…")} onClick={() => { close(); const v = window.prompt("LaTeX", "\\frac{a}{b}"); if (v) run((c) => c.insertMath(v)); }} />
+                        <MenuItem icon={Plus} label={L("Nouvelle équation… (Alt+=)", "معادلة جديدة… (Alt+=)", "New equation… (Alt+=)")} onClick={() => { close(); setEqReq({ latex: "", display: false }); }} />
                       </div>
                     </div>
                   )}
@@ -754,6 +810,23 @@ export default function WordEditor() {
                 </RMenu>
               </RGroup>
             </>
+          )}
+
+          {tab === "math" && (
+            <MathTab
+              ed={ed}
+              L={L}
+              contentWidthPx={contentWidthPx}
+              onEquation={(display) => { const { from, to } = ed.state.selection; setEqReq({ latex: ed.state.doc.textBetween(from, to, " "), display }); }}
+              onVarTable={() => setVtReq({})}
+              onGeoGebra={() => setGgbReq({})}
+              onNumbers={() => setNumbersOpen(true)}
+              hideCorrections={hideCorrections}
+              setHideCorrections={setHideCorrections}
+              autoDollar={autoDollar}
+              setAutoDollar={setAutoDollar}
+              isCorrection={st.correction}
+            />
           )}
 
           {tab === "design" && (
@@ -1027,6 +1100,11 @@ export default function WordEditor() {
                   ))}
                 </div>
               </RGroup>
+              {st.imageAttrs?.ggb && (
+                <RGroup label="GeoGebra">
+                  <BigBtn icon={Shapes} label={L("Modifier la figure", "تعديل الشكل", "Edit figure")} onClick={() => setGgbReq({ ggb: st.imageAttrs?.ggb, app: st.imageAttrs?.ggbApp, pos: ed.state.selection.from })} />
+                </RGroup>
+              )}
               <RGroup label={L("Accessibilité", "إمكانية الوصول", "Accessibility")}>
                 <BigBtn icon={Type} label={L("Texte de remplacement", "نص بديل", "Alt text")} onClick={() => { const v = window.prompt(L("Description de l'image", "وصف الصورة", "Image description"), String(st.imageAttrs?.alt || "")); if (v !== null) run((c) => c.updateAttributes("image", { alt: v })); }} />
                 <BigBtn icon={Trash2} label={L("Supprimer", "حذف", "Delete")} onClick={() => run((c) => c.deleteSelection())} />
@@ -1189,7 +1267,7 @@ export default function WordEditor() {
             <div
               ref={pageEl}
               dir={dir}
-              className={cn("word-page", viewMode === "web" && "word-web", showMarks && "show-marks", page.pageDark && "page-dark", page.pageBorder && page.pageBorder !== "none" && viewMode === "page" && `border-${page.pageBorder}`, viewMode === "read" && "mx-auto max-w-3xl")}
+              className={cn("word-page", viewMode === "web" && "word-web", showMarks && "show-marks", hideCorrections && "hide-corrections", page.pageDark && "page-dark", page.pageBorder && page.pageBorder !== "none" && viewMode === "page" && `border-${page.pageBorder}`, viewMode === "read" && "mx-auto max-w-3xl")}
               style={viewMode === "read" ? { padding: "48px 56px", fontFamily: page.defaultFont, fontSize: `${page.defaultSize + 2}pt`, lineHeight: 1.6 } : pageStyle}
               onClick={(e) => { if (e.target === e.currentTarget) ed?.commands.focus("end"); }}
             >
@@ -1235,6 +1313,74 @@ export default function WordEditor() {
         )}
       </div>
       <ChartDialog open={chartOpen} onClose={() => setChartOpen(false)} L={L} onInsert={(png) => run((c) => c.setImage({ src: png }))} />
+      <EquationDialog
+        request={eqReq}
+        L={L}
+        language={language}
+        dir={dir}
+        onClose={() => { setEqReq(null); ed?.commands.focus(); }}
+        onSubmit={(latex, display, pos) => {
+          setEqReq(null);
+          if (!ed) return;
+          if (pos != null && ed.state.doc.nodeAt(pos)?.type.name === "mathInline") {
+            ed.chain().focus().command(({ tr }) => { tr.setNodeMarkup(pos, undefined, { latex, display }); return true; }).run();
+          } else ed.chain().focus().insertMath(latex, display).run();
+        }}
+      />
+      <VarTableDialog
+        request={vtReq}
+        L={L}
+        dir={dir}
+        onClose={() => { setVtReq(null); ed?.commands.focus(); }}
+        onSubmit={(json, pos) => {
+          setVtReq(null);
+          if (!ed) return;
+          if (pos != null && ed.state.doc.nodeAt(pos)?.type.name === "varTable") {
+            ed.chain().focus().command(({ tr }) => { tr.setNodeMarkup(pos, undefined, { data: json }); return true; }).run();
+          } else ed.chain().focus().insertVarTable(json).run();
+        }}
+      />
+      <GeoGebraFigureDialog
+        request={ggbReq}
+        L={L}
+        language={language}
+        dir={dir}
+        onClose={() => { setGgbReq(null); ed?.commands.focus(); }}
+        onSubmit={(src, ggb, app, pct, pos) => {
+          setGgbReq(null);
+          if (!ed) return;
+          const width = Math.round((contentWidthPx * pct) / 100);
+          const node = pos != null ? ed.state.doc.nodeAt(pos) : null;
+          if (pos != null && node?.type.name === "image") {
+            ed.chain().focus().command(({ tr }) => { tr.setNodeMarkup(pos, undefined, { ...node.attrs, src, ggb, ggbApp: app, width, height: null }); return true; }).run();
+          } else ed.chain().focus().insertContent({ type: "image", attrs: { src, ggb, ggbApp: app, width, align: "center" } }).run();
+        }}
+      />
+      <NumbersDialog
+        open={numbersOpen}
+        editor={ed}
+        L={L}
+        dir={dir}
+        onClose={() => setNumbersOpen(false)}
+        onApply={async (repl, copy) => {
+          setNumbersOpen(false);
+          const e = editorRef.current;
+          if (!e) return;
+          const n = applyNumbers(e, repl);
+          if (copy && n) {
+            // le sujet B part d'une copie ; l'original est remis tel quel et enregistré
+            const html = e.getHTML();
+            e.commands.undo();
+            await file.saveNow();
+            file.startFile(`${file.fileName || "Document"} – ${L("sujet B", "الموضوع B", "version B")}`);
+            loadData({ html, page: pageRef.current });
+            void file.saveNow();
+          }
+          toast.success(copy
+            ? L(`Sujet B créé : ${n} nombre(s) changé(s). L'original est dans Fichier › Récents.`, `تم إنشاء الموضوع B: تغيير ${n} عدد. الأصل في ملف › الأخيرة.`, `Version B created: ${n} number(s) changed. The original is in File › Recent.`)
+            : L(`${n} nombre(s) changé(s) (Ctrl+Z pour annuler)`, `تم تغيير ${n} عدد (Ctrl+Z للتراجع)`, `${n} number(s) changed (Ctrl+Z to undo)`));
+        }}
+      />
     </OfficeShell>
   );
 }
@@ -1419,7 +1565,7 @@ function FindReplace({ editor, mode, onMode, onClose, L }: { editor: Editor; mod
 }
 
 /** Page HTML d'impression (et export .html) avec format, marges, en-tête, pied et numéros */
-function buildPrintHtml(body: string, page: PageSettings, title: string, dir: string, autoPrint: boolean) {
+function buildPrintHtml(body: string, page: PageSettings, title: string, dir: string, autoPrint: boolean, hideCorrections = false) {
   const size = PAGE_SIZES[page.size];
   const [w, h] = page.orientation === "landscape" ? [size.h, size.w] : [size.w, size.h];
   const th = DOC_THEMES[page.theme || "office"] || DOC_THEMES.office;
@@ -1453,6 +1599,9 @@ div[data-page-break]{break-after:page;height:0} .doc-comment,[data-comment]{back
 sup[data-footnote]{counter-increment:fn} sup[data-footnote]::after{content:counter(fn)} body{counter-reset:fn}
 p.drop-cap::first-letter{float:left;font-size:3.4em;line-height:.85;padding:4px 6px 0 0;font-weight:600;color:${th.h1}}
 div[data-toc]{display:none}
+span[data-correction]{color:#137333}${hideCorrections ? " span[data-correction]{display:none}" : ""}
+span[data-latex][data-display="1"]{display:block;text-align:center}
+ol[data-lt=lower-alpha]{list-style:lower-alpha} ol[data-lt=upper-alpha]{list-style:upper-alpha} ol[data-lt=lower-roman]{list-style:lower-roman} ol[data-lt=upper-roman]{list-style:upper-roman}
 ${page.watermark ? `body::before{content:${cssStr(page.watermark)};position:fixed;top:45%;left:0;right:0;text-align:center;transform:rotate(-40deg);font-size:90px;font-weight:700;color:rgba(160,160,160,.22);z-index:-1}` : ""}
 </style></head><body>${body}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>

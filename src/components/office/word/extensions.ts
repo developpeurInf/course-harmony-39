@@ -4,7 +4,8 @@
  * équations (LaTeX), notes de bas de page, table des matières, commentaires,
  * recherche / remplacement surlignés, attributs d'images et de cellules.
  */
-import { Extension, Mark, Node, mergeAttributes, type Editor } from "@tiptap/core";
+import { Extension, InputRule, Mark, Node, mergeAttributes, type Editor } from "@tiptap/core";
+import { openEquationEditor } from "./math/events";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { loadKatex, renderLatexToString } from "@/lib/mathRender";
@@ -269,16 +270,18 @@ export const MathInline = Node.create({
       dom.contentEditable = "false";
       let current = node;
       const draw = () => {
+        dom.dataset.display = current.attrs.display ? "1" : "0";
         dom.textContent = current.attrs.latex;
         loadKatex().then((k) => { dom.innerHTML = renderLatexToString(k, current.attrs.latex, current.attrs.display); }).catch(() => undefined);
       };
       draw();
-      dom.addEventListener("dblclick", () => {
-        const v = window.prompt("LaTeX", current.attrs.latex);
-        if (v === null || typeof getPos !== "function") return;
+      dom.title = "Double-clic pour modifier";
+      dom.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        if (typeof getPos !== "function" || !editor.isEditable) return;
         const pos = getPos();
         if (typeof pos !== "number") return;
-        editor.chain().focus().command(({ tr }) => { tr.setNodeMarkup(pos, undefined, { ...current.attrs, latex: v }); return true; }).run();
+        openEquationEditor({ latex: current.attrs.latex, display: !!current.attrs.display, pos });
       });
       return {
         dom,
@@ -295,6 +298,40 @@ export const MathInline = Node.create({
     return {
       insertMath: (latex, display = false) => ({ chain }) => chain().insertContent({ type: "mathInline", attrs: { latex, display } }).run(),
     };
+  },
+  addStorage() {
+    return { autoDollar: true };
+  },
+  addKeyboardShortcuts() {
+    // Alt+= comme dans Word : nouvelle équation (avec la sélection comme point de départ)
+    return {
+      "Alt-=": () => {
+        const { from, to } = this.editor.state.selection;
+        openEquationEditor({ latex: this.editor.state.doc.textBetween(from, to, " "), display: false });
+        return true;
+      },
+    };
+  },
+  addInputRules() {
+    // $…$ tapé au clavier → équation ; $$…$$ → équation centrée
+    // (pas de « lookbehind » : syntaxe refusée par Safari 12)
+    const storage = this.storage as { autoDollar: boolean };
+    return [
+      new InputRule({
+        find: /\$\$([^$\n]+)\$\$$/,
+        handler: ({ state, range, match }) => {
+          if (!storage.autoDollar) return null;
+          state.tr.replaceWith(range.from, range.to, this.type.create({ latex: match[1].trim(), display: true }, null, state.doc.resolve(range.from).marks()));
+        },
+      }),
+      new InputRule({
+        find: /(^|[^$\\\d])\$([^\s$](?:[^$\n]*[^\s$])?)\$$/,
+        handler: ({ state, range, match }) => {
+          if (!storage.autoDollar) return null;
+          state.tr.replaceWith(range.from + match[1].length, range.to, this.type.create({ latex: match[2], display: false }, null, state.doc.resolve(range.from + match[1].length).marks()));
+        },
+      }),
+    ];
   },
 });
 

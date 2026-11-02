@@ -6,6 +6,7 @@
  * notes de bas de page, commentaires, table des matières, en-tête / pied de page,
  * numéros de page, marges, format et orientation, colonnes, filigrane (texte d'en-tête).
  */
+import { parseVt, renderVarTable, svgToDataUrl } from "./math/varTable";
 import type { JSONContent } from "@tiptap/core";
 import type { PageSettings } from "./pageSettings";
 import { PAGE_SIZES } from "./pageSettings";
@@ -140,7 +141,14 @@ function latexToMath(d: D, src: string): any {
   }
 }
 
-export async function exportDocx(doc: JSONContent, page: PageSettings, title: string): Promise<Blob> {
+/** Retire le texte marqué « corrigé » (version élève) */
+function stripCorrections(n: JSONContent): JSONContent {
+  if (!n.content) return n;
+  return { ...n, content: n.content.filter((c) => !c.marks?.some((m) => m.type === "correction")).map(stripCorrections) };
+}
+
+export async function exportDocx(doc: JSONContent, page: PageSettings, title: string, opts: { hideCorrections?: boolean } = {}): Promise<Blob> {
+  if (opts.hideCorrections) doc = stripCorrections(doc);
   const d: D = await import("docx");
   const {
     Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, ImageRun,
@@ -174,6 +182,7 @@ export async function exportDocx(doc: JSONContent, page: PageSettings, title: st
         case "code": o.font = "Consolas"; o.shading = { type: ShadingType.CLEAR, fill: "EEEEEE", color: "auto" }; break;
         case "subscript": o.subScript = true; break;
         case "superscript": o.superScript = true; break;
+        case "correction": o.color = o.color || "137333"; break;
         case "highlight": o.shading = { type: ShadingType.CLEAR, fill: toHex(a.color) || "FFFF00", color: "auto" }; break;
         case "textStyle":
           if (a.color) o.color = toHex(a.color);
@@ -209,6 +218,19 @@ export async function exportDocx(doc: JSONContent, page: PageSettings, title: st
           if (!h) h = Math.round((img.h * w) / img.w);
           if (w > contentWidthPx) { h = Math.round((h * contentWidthPx) / w); w = Math.round(contentWidthPx); }
           out.push(new ImageRun({ data: img.data, type: img.type, transformation: { width: w, height: h } } as any));
+        }
+      } else if (n.type === "varTable") {
+        const vt = parseVt(String(n.attrs?.data || ""));
+        if (vt) {
+          const r = renderVarTable(vt);
+          // dessiné en double résolution pour une impression nette
+          const hi = r.svg.replace(`width="${r.width}" height="${r.height}"`, `width="${r.width * 2}" height="${r.height * 2}"`);
+          const img = await imageData(svgToDataUrl(hi));
+          if (img) {
+            let w = r.width, h = r.height;
+            if (w > contentWidthPx) { h = Math.round((h * contentWidthPx) / w); w = Math.round(contentWidthPx); }
+            out.push(new ImageRun({ data: img.data, type: img.type, transformation: { width: w, height: h } } as any));
+          }
         }
       } else if (n.type === "mathInline") {
         out.push(latexToMath(d, String(n.attrs?.latex || "")));
@@ -381,7 +403,7 @@ export async function exportDocx(doc: JSONContent, page: PageSettings, title: st
     title,
     features: { updateFields: children.some((c) => c instanceof TableOfContents) },
     styles: {
-      default: { document: { run: { font: page.defaultFont || "Calibri", size: Math.round((page.defaultSize || 11) * 2) }, paragraph: { spacing: { after: 160, line: 276 } } } },
+      default: { document: { run: { font: page.defaultFont || "Calibri", size: Math.round((page.defaultSize || 11) * 2) }, paragraph: { spacing: { after: 160, line: 276, lineRule: "auto" as any } } } },
       paragraphStyles: [
         { id: "Quote", name: "Quote", basedOn: "Normal", run: { italics: true, color: "595959" } },
       ],
