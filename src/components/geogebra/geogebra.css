@@ -1,0 +1,17 @@
+/* Espace GeoGebra */
+.ggb-host .ggb-target,
+.ggb-host .ggb-target > div {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Mode sombre : GeoGebra n'a pas de thème sombre intégrable. On inverse la luminosité
+ * de toute l'application puis on rétablit les teintes (hue-rotate) : fond sombre,
+ * tracés clairs, couleurs des objets conservées. Le fichier .ggb et les exports
+ * PNG / SVG restent en clair (fond blanc), donc imprimables.
+ */
+.ggb-host.ggb-dark {
+  filter: invert(0.9) hue-rotate(180deg);
+  background: #fff;
+}

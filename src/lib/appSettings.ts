@@ -27,6 +27,7 @@ export type FeatureKey =
   | "bottomNav"
   | "pdfEditor"
   | "office"
+  | "geogebra"
   | "students"
   | "attendance"
   | "followUp"
@@ -200,6 +201,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     bottomNav: true,
     pdfEditor: true,
     office: true,
+    geogebra: true,
     students: true,
     attendance: true,
     followUp: true,

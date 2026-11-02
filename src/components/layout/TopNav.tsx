@@ -76,6 +76,7 @@ const TopNav = () => {
       [path.startsWith("/office/excel"), tr("Excel · Tableur", "Excel · جداول البيانات", "Excel")],
       [path.startsWith("/office/powerpoint"), tr("PowerPoint · Présentation", "PowerPoint · العروض", "PowerPoint")],
       [path.startsWith("/office"), tr("Outils Office", "أدوات أوفيس", "Office tools")],
+      [path.startsWith("/geogebra"), "GeoGebra"],
       [path.startsWith("/class-management"), tr("Gestion des classes", "إدارة الأقسام", "Class management")],
       [path.startsWith("/profile"), tr("Mon profil", "الملف الشخصي", "My profile")],
       [path.startsWith("/subscription"), tr("Abonnement", "الاشتراك", "Subscription")],
