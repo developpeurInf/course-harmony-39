@@ -7,6 +7,7 @@
  *   • appels vocaux WebRTC : sonnerie entrante sur toutes les pages, appel sortant,
  *     signalisation par Supabase Realtime (canal privé « call:<discussion> »)
  */
+import { useClassModule } from "@/lib/classModules";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -135,7 +136,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { language } = useLanguage();
   const { feature } = useAppSettings();
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr), [language]);
-  const enabled = !!user && (user.role === "student" || user.role === "professor") && feature("chat");
+  // Élève : messagerie fermée si son professeur l'a masquée à sa classe (Habilitations)
+  const classModule = useClassModule();
+  const enabled = !!user && (user.role === "student" || user.role === "professor") && feature("chat") && classModule("chat");
   const uid = user?.id;
 
   const [contacts, setContacts] = useState<ChatContact[] | null>(null);

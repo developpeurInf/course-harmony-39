@@ -265,7 +265,8 @@ interface CourseContextType {
   
   // Room operations
   addRoom: (room: Omit<Room, "id" | "created_at" | "updated_at" | "professor_id">) => Promise<boolean>;
-  updateRoom: (roomId: string, updates: Partial<Room>) => Promise<boolean>;
+  /** silent : pas de message de réussite (les erreurs restent affichées) */
+  updateRoom: (roomId: string, updates: Partial<Room>, opts?: { silent?: boolean }) => Promise<boolean>;
   deleteRoom: (roomId: string) => Promise<boolean>;
   toggleRoomVisibility: (roomId: string) => Promise<boolean>;
   
@@ -762,7 +763,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateRoom = async (roomId: string, updates: Partial<Room>): Promise<boolean> => {
+  const updateRoom = async (roomId: string, updates: Partial<Room>, opts?: { silent?: boolean }): Promise<boolean> => {
     if (!accessStore.guard("class.edit")) return false;
     try {
       const { data, error } = await (supabase as any)
@@ -780,7 +781,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
       setRooms(prev => prev.map(room =>
         room.id === roomId ? (row ? { ...room, ...row } : { ...room, ...updates }) : room
       ));
-      toast.success(trc("Classe mise à jour avec succès", "تم تحديث القسم بنجاح", "Room updated successfully"));
+      if (!opts?.silent) toast.success(trc("Classe mise à jour avec succès", "تم تحديث القسم بنجاح", "Room updated successfully"));
       return true;
     } catch (error) {
       toastFail("Échec de la mise à jour de la classe", "فشل تحديث القسم", "Failed to update room");

@@ -1,4 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useClassModule } from "@/lib/classModules";
 import { Navigate, useLocation, useNavigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
@@ -104,6 +105,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const [scrollState, setScrollState] = useState({ top: false, bottom: false });
   const { settings: appSettings, text: settingText, feature } = useAppSettings();
   const showBottomNav = feature("bottomNav");
+  const classModule = useClassModule();
   // Pages « plein écran » (outil de travail) : pas de marge, pas de largeur max, pas de pied de page
   const isWorkspace = location.pathname.startsWith("/pdf-editor") || location.pathname.startsWith("/office/") || location.pathname.startsWith("/geogebra/") ||location.pathname.startsWith("/messages") || /^\/rooms\/[^/]+\/messages/.test(location.pathname);
   const footerText = settingText(appSettings.texts?.footer, (language === "ar" || language === "en" ? language : "fr") as Lang);
@@ -258,7 +260,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
             <BroadcastBanner userId={user.id} language={language} />
             <SubscriptionBanner />
             {user.role === "student" && <LiveQuizBanner language={language} />}
-            {user.role === "student" && feature("meet") && <MeetLiveBanner language={language} />}
+            {user.role === "student" && feature("meet") && classModule("meet") && <MeetLiveBanner language={language} />}
             <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
           </Suspense>
           {footerText && !isWorkspace && (

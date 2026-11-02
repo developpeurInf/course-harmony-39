@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useClassModule } from "@/lib/classModules";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccess } from "@/contexts/AccessContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,9 +105,11 @@ const Dashboard = () => {
   const { settings: appSettings, text: settingText, feature } = useAppSettings();
   const { can } = useAccess();
   const dashboardWelcome = settingText(appSettings.texts?.dashboardWelcome, (language === "ar" || language === "en" ? language : "fr") as Lang);
-  const hasCourses = feature("courses");
-  const hasExercises = feature("exercises");
-  const hasExams = feature("exams");
+  // Élève : modules ouverts par son professeur pour sa classe (Habilitations)
+  const classModule = useClassModule();
+  const hasCourses = feature("courses") && classModule("courses");
+  const hasExercises = feature("exercises") && classModule("exercises");
+  const hasExams = feature("exams") && classModule("exams");
   const passPct = prefs.passThreshold * 5;
   const passLabel = String(prefs.passThreshold).replace(".", language === "en" ? "." : ",");
   const tr = useCallback((fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en), [language]);

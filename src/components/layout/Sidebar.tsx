@@ -10,6 +10,7 @@ import { useChatOptional } from "@/contexts/ChatContext";
 import { ChatUnreadBadge } from "@/components/chat/ChatNavButton";
 import { contactInRoom } from "@/lib/chat";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { useClassModule } from "@/lib/classModules";
 import {
   Boxes,
   LayoutGrid,
@@ -48,6 +49,7 @@ import {
   Sheet,
   Presentation,
   DraftingCompass,
+  ShieldCheck,
 } from "lucide-react";
 import { GGB_APPS } from "@/components/geogebra/ggbApps";
 import { usePathname } from "next/navigation";
@@ -216,7 +218,9 @@ const Sidebar = () => {
   const brand = useBrand(language);
   const { feature } = useAppSettings();
   // module affiché : allumé dans Personnalisation ET inclus dans l'offre (sinon masqué)
-  const show = (m: Parameters<typeof feature>[0]) => feature(m) && hasModule(m);
+  // Élève : en plus, module ouvert par son professeur pour sa classe (Habilitations)
+  const classModule = useClassModule();
+  const show = (m: Parameters<typeof feature>[0]) => feature(m) && hasModule(m) && classModule(m);
   // Élève : fonctions accordées par l'offre de son professeur
   const studentFeatures = useStudentFeatures(isProfessor ? undefined : user?.id);
   const lab3d = useLab3dFeatures();
@@ -426,6 +430,13 @@ const Sidebar = () => {
                       {show("calendar") && (
                         <NavItem nested to={`/rooms/${room.id}/calendar`} icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />
                       )}
+                      <NavItem
+                        nested
+                        to={`/rooms/${room.id}/permissions`}
+                        icon={ShieldCheck}
+                        label={t("Habilitations", "صلاحيات التلاميذ", "Student access")}
+                        locked={!can("class.edit")}
+                      />
                     </CollapsibleContent>
                   </Collapsible>
                 );
@@ -434,7 +445,7 @@ const Sidebar = () => {
           ) : (
             <>
               {show("meet") && <NavItem to="/meetings" icon={Video} label={t("Réunions en direct", "الاجتماعات المباشرة", "Live meetings")} />}
-              <NavItem to="/whiteboards" icon={PenLine} label={t("Tableaux blancs", "السبورات البيضاء", "Whiteboards")} />
+              {classModule("whiteboard") && <NavItem to="/whiteboards" icon={PenLine} label={t("Tableaux blancs", "السبورات البيضاء", "Whiteboards")} />}
               {show("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
               {show("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
               {show("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}

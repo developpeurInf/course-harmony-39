@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAccess } from "@/contexts/AccessContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import type { FeatureKey } from "@/lib/appSettings";
+import { useClassModule } from "@/lib/classModules";
 
 interface BottomNavItem {
   to: string;
@@ -52,7 +53,9 @@ const BottomNav = ({ className }: BottomNavProps) => {
   const { feature: enabled } = useAppSettings();
   const { hasModule } = useAccess();
   // module affiché : allumé dans Personnalisation ET inclus dans l'offre
-  const feature = (m: Parameters<typeof enabled>[0]) => enabled(m) && (m === "bottomNav" || hasModule(m));
+  // Élève : en plus, module ouvert par son professeur pour sa classe (Habilitations)
+  const classModule = useClassModule();
+  const feature = (m: Parameters<typeof enabled>[0]) => enabled(m) && (m === "bottomNav" || (hasModule(m) && classModule(m)));
   const chat = useChatOptional();
 
   if (!user || !feature("bottomNav")) return null;
