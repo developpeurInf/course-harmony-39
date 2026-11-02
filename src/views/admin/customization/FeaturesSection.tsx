@@ -32,6 +32,7 @@ export default function FeaturesSection({ draft, update }: SectionProps) {
         { k: "reports", label: L("Rapports", "التقارير", "Reports"), desc: L("Tableaux de bord et rapports de résultats.", "لوحات القيادة وتقارير النتائج.", "Dashboards and results reports.") },
         { k: "diagnostic", label: L("Évaluation diagnostique", "التقويم التشخيصي", "Diagnostic assessment"), desc: L("Grilles diagnostiques et rapports PDF associés.", "شبكات التقويم التشخيصي وتقارير PDF المرتبطة.", "Diagnostic grids and related PDF reports.") },
         { k: "pdfEditor", label: L("Éditeur PDF", "محرر PDF", "PDF editor"), desc: L("Annoter, modifier, organiser et masquer des PDF, puis les joindre à un cours.", "تعليق وتعديل وتنظيم وإخفاء ملفات PDF ثم إرفاقها بدرس.", "Annotate, edit, organize and redact PDFs, then attach them to a course.") },
+        { k: "office", label: L("Outils Office", "أدوات أوفيس", "Office tools"), desc: L("Word, Excel et PowerPoint dans le navigateur : ouvrir et enregistrer des .docx, .xlsx et .pptx.", "Word وExcel وPowerPoint في المتصفح: فتح وحفظ ملفات ‎.docx و‎.xlsx و‎.pptx.", "Word, Excel and PowerPoint in the browser: open and save .docx, .xlsx and .pptx.") },
         { k: "classManagement", label: L("Gestion des classes", "إدارة الأقسام", "Manage classes"), desc: L("Page de gestion de toutes les classes (renommer, vider, supprimer).", "صفحة إدارة جميع الأقسام (إعادة التسمية، الإفراغ، الحذف).", "Page to manage all classes (rename, empty, delete).") },
       ],
     },

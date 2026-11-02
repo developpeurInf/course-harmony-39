@@ -1,0 +1,53 @@
+/* PowerPoint : texte des diapositives, animations et transitions */
+.ppt-text { width: 100%; word-wrap: break-word; unicode-bidi: plaintext; }
+.ppt-text p { margin: 0 0 0.25em; }
+.ppt-text ul, .ppt-text ol { margin: 0; padding-inline-start: 1.25em; }
+.ppt-text ul { list-style: disc; }
+.ppt-text ol { list-style: decimal; }
+.ppt-text li { margin: 0 0 0.35em; padding-inline-start: 0.15em; }
+.ppt-text li::marker { color: var(--ppt-accent, currentColor); }
+.ppt-text ul ul { list-style: circle; font-size: 0.85em; }
+.ppt-text b, .ppt-text strong { font-weight: 700; }
+.ppt-text a { text-decoration: underline; }
+.ppt-editing { min-height: 1em; }
+.ppt-editing:empty::before { content: "\200b"; }
+
+@keyframes ppt-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes ppt-flyBottom { from { opacity: 0; transform: translateY(120px) } to { opacity: 1; transform: none } }
+@keyframes ppt-flyLeft { from { opacity: 0; transform: translateX(-200px) } to { opacity: 1; transform: none } }
+@keyframes ppt-flyRight { from { opacity: 0; transform: translateX(200px) } to { opacity: 1; transform: none } }
+@keyframes ppt-zoom { from { opacity: 0; transform: scale(0.3) } to { opacity: 1; transform: none } }
+@keyframes ppt-bounce { 0% { opacity: 0; transform: translateY(-160px) } 55% { opacity: 1; transform: translateY(0) } 70% { transform: translateY(-28px) } 85% { transform: translateY(0) } 93% { transform: translateY(-8px) } 100% { transform: none } }
+@keyframes ppt-spin { from { opacity: 0; transform: rotate(-270deg) scale(0.4) } to { opacity: 1; transform: none } }
+@keyframes ppt-wipe { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+@keyframes ppt-pulse { 0% { transform: scale(1) } 50% { transform: scale(1.12) } 100% { transform: scale(1) } }
+.ppt-anim-appear { animation: ppt-fade 0.01s both; }
+.ppt-anim-fade { animation: ppt-fade 0.6s ease both; }
+.ppt-anim-flyBottom { animation: ppt-flyBottom 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.ppt-anim-flyLeft { animation: ppt-flyLeft 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.ppt-anim-flyRight { animation: ppt-flyRight 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.ppt-anim-zoom { animation: ppt-zoom 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.ppt-anim-bounce { animation: ppt-bounce 0.9s ease-out both; }
+.ppt-anim-spin { animation: ppt-spin 0.8s ease-out both; }
+.ppt-anim-wipe { animation: ppt-wipe 0.7s ease both; }
+.ppt-anim-pulse { animation: ppt-pulse 0.7s ease 2; }
+
+@keyframes ppt-t-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes ppt-t-push { from { transform: translateY(100%) } to { transform: none } }
+@keyframes ppt-t-wipe { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+@keyframes ppt-t-zoom { from { opacity: 0; transform: scale(0.6) } to { opacity: 1; transform: none } }
+@keyframes ppt-t-cover { from { transform: translateX(100%) } to { transform: none } }
+@keyframes ppt-t-flip { from { transform: perspective(1600px) rotateY(90deg) } to { transform: none } }
+@keyframes ppt-t-split { from { clip-path: inset(0 50% 0 50%) } to { clip-path: inset(0 0 0 0) } }
+@keyframes ppt-t-reveal { from { opacity: 0; transform: translateX(-60px) } to { opacity: 1; transform: none } }
+@keyframes ppt-t-morph { from { opacity: 0; filter: blur(12px); transform: scale(1.04) } to { opacity: 1; filter: none; transform: none } }
+.ppt-trans-fade { animation-name: ppt-t-fade; }
+.ppt-trans-push { animation-name: ppt-t-push; }
+.ppt-trans-wipe { animation-name: ppt-t-wipe; }
+.ppt-trans-zoom { animation-name: ppt-t-zoom; }
+.ppt-trans-cover { animation-name: ppt-t-cover; }
+.ppt-trans-flip { animation-name: ppt-t-flip; }
+.ppt-trans-split { animation-name: ppt-t-split; }
+.ppt-trans-reveal { animation-name: ppt-t-reveal; }
+.ppt-trans-morph { animation-name: ppt-t-morph; }
+[class*="ppt-trans-"] { animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.8,.2,1); }

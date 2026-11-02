@@ -43,7 +43,12 @@ import {
   type LucideIcon,
   Video,
   PenLine,
+  Briefcase,
+  FileType2,
+  Sheet,
+  Presentation,
 } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LanguageSelector } from "@/components/LanguageSelector";
@@ -68,6 +73,40 @@ const itemClass = (isActive: boolean, nested = false) =>
       ? "bg-sidebar-accent text-sidebar-accent-foreground"
       : "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
   );
+
+/** « Outils Office » : sous-menu Word / Excel / PowerPoint (ouvert automatiquement sur ces pages) */
+function OfficeMenu({ t, isRtl }: { t: (fr: string, ar: string, en: string) => string; isRtl: boolean }) {
+  const pathname = usePathname() || "";
+  const inOffice = pathname.startsWith("/office");
+  const [open, setOpen] = useState<boolean | null>(null);
+  const isOpen = open ?? inOffice;
+  return (
+    <Collapsible open={isOpen} onOpenChange={(v) => setOpen(v)}>
+      <CollapsibleTrigger
+        className={cn(
+          "group flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-colors",
+          inOffice ? "text-foreground" : "text-sidebar-foreground",
+          "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+        )}
+      >
+        <Briefcase className={cn("h-4 w-4 shrink-0", inOffice ? "text-sidebar-primary" : "text-muted-foreground")} strokeWidth={1.75} />
+        <span className="min-w-0 flex-1 truncate text-start">{t("Outils Office", "أدوات أوفيس", "Office tools")}</span>
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+            isRtl && "rotate-180",
+            isOpen && (isRtl ? "-rotate-90" : "rotate-90")
+          )}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="ms-[17px] space-y-0.5 border-s ps-2 pt-0.5">
+        <NavItem nested to="/office/word" icon={FileType2} label={t("Word · Traitement de texte", "Word · معالجة النصوص", "Word · Documents")} />
+        <NavItem nested to="/office/excel" icon={Sheet} label={t("Excel · Tableur", "Excel · جداول البيانات", "Excel · Spreadsheets")} />
+        <NavItem nested to="/office/powerpoint" icon={Presentation} label={t("PowerPoint · Présentation", "PowerPoint · العروض", "PowerPoint · Slides")} />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 function NavItem({
   to,
@@ -392,6 +431,7 @@ const Sidebar = () => {
             {show("pdfEditor") && (
               <NavItem to="/pdf-editor" icon={FilePen} label={t("Éditeur PDF", "محرر PDF", "PDF editor")} locked={!can("pdf.use")} />
             )}
+            {show("office") && <OfficeMenu t={t} isRtl={isRtl} />}
             {show("classManagement") && <NavItem to="/class-management" icon={FolderKanban} label={t("Gestion des classes", "إدارة الأقسام", "Manage classes")} />}
             {show("library") && <NavItem to="/library" icon={LibraryBig} label={t("Bibliothèque partagée", "المكتبة المشتركة", "Shared library")} locked={!can("library.import")} />}
             {show("support") && <NavItem to="/support" icon={LifeBuoy} label={t("Aide et support", "المساعدة والدعم", "Help & support")} locked={!can("support.tickets")} />}
