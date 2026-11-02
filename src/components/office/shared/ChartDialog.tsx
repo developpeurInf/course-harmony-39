@@ -9,8 +9,9 @@ import { CHART_PALETTES, renderChart, tableToChartData, type ChartSpec, type Cha
 import type { Tr } from "./useOfficeEnv";
 
 export function ChartDialog({
-  open, onClose, initialRows, onInsert, L,
+  open, onClose, initialRows, onInsert, L, initialType,
 }: {
+  initialType?: string;
   open: boolean;
   onClose: () => void;
   initialRows?: unknown[][] | null;
@@ -26,6 +27,7 @@ export function ChartDialog({
   ], [L]);
   const [grid, setGrid] = useState<string[][]>(sample);
   const [type, setType] = useState<ChartType>("column");
+  useEffect(() => { if (open && initialType) setType(initialType as ChartType); }, [open, initialType]);
   const [title, setTitle] = useState("");
   const [pal, setPal] = useState("office");
   const [legend, setLegend] = useState(true);

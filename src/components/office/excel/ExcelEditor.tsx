@@ -8,7 +8,7 @@
  * Import / export .xlsx et .csv.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createUniver, LocaleType, mergeLocales, type IWorkbookData } from "@univerjs/presets";
 import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
@@ -40,6 +40,7 @@ import { ChartDialog } from "../shared/ChartDialog";
 import { GridThumb } from "../shared/Thumbs";
 import { blankWorkbook, csvToUniver, univerSheetToCsv, univerToXlsx, xlsxToUniver } from "./xlsxConvert";
 import { buildExcelTemplate, excelTemplates } from "./templates";
+import { ExcelRibbon, type PageSetup } from "./ExcelRibbon";
 
 type FUniver = ReturnType<typeof createUniver>["univerAPI"];
 type LocaleKey = "fr-FR" | "ar-SA" | "en-US";
@@ -85,6 +86,8 @@ export default function ExcelEditor() {
   const [backstage, setBackstage] = useState(false);
   const [chartOpen, setChartOpen] = useState(false);
   const [chartRows, setChartRows] = useState<unknown[][] | null>(null);
+  const [chartType, setChartType] = useState<string | undefined>();
+  const [page, setPage] = useState<PageSetup>({ orientation: "portrait", size: "A4", margin: "normal", gridlines: true, headings: false });
   const suppressRef = useRef(false);
 
   const snapshot = useCallback((): IWorkbookData | null => {
@@ -129,7 +132,7 @@ export default function ExcelEditor() {
       locales: { [LOCALE_TYPE[localeKey]]: mergeLocales(...mods.map((m) => m.default)) } as never,
       darkMode: darkRef.current,
       presets: [
-        UniverSheetsCorePreset({ container, ribbonType: "classic", customFontFamily: { override: false, list: FONTS } as never, footer: {} as never }),
+        UniverSheetsCorePreset({ container, toolbar: false, formulaBar: true, customFontFamily: { override: false, list: FONTS } as never, footer: {} as never }),
         UniverSheetsConditionalFormattingPreset(),
         UniverSheetsDataValidationPreset(),
         UniverSheetsFilterPreset(),
@@ -151,24 +154,12 @@ export default function ExcelEditor() {
     });
     setTimeout(() => { suppressRef.current = false; }, 400);
 
-    // Bouton « Graphique » dans le ruban Insertion d'Univer
-    try {
-      univerAPI.registerComponent("office-chart-icon", () => <BarChart3 style={{ width: 16, height: 16 }} />);
-      univerAPI.createMenu({
-        id: "office-insert-chart",
-        icon: "office-chart-icon",
-        title: L("Graphique", "مبيان", "Chart"),
-        tooltip: L("Insérer un graphique à partir de la sélection", "إدراج مبيان انطلاقا من التحديد", "Insert a chart from the selection"),
-        action: () => openChart(),
-      }).appendTo(["ribbon.insert.media", "contextMenu.others"]);
-    } catch (e) {
-      console.warn("chart menu", e);
-    }
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localeKey]);
 
-  const openChart = () => {
+  const openChart = (kind?: string) => {
+    setChartType(kind);
     try {
       const range = apiRef.current?.getActiveWorkbook()?.getActiveRange();
       const vals = range?.getValues() as unknown[][] | undefined;
@@ -275,11 +266,25 @@ export default function ExcelEditor() {
     }
   };
 
+  const getApi = useCallback(() => apiRef.current, []);
+  const share = async () => {
+    const data = snapshot();
+    if (!data) return;
+    const name = file.fileName || "Classeur";
+    const blob = await univerToXlsx(data, apiRef.current?.getActiveWorkbook() as never);
+    const f = new File([blob], `${name}.xlsx`, { type: blob.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    try {
+      if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; }
+    } catch (e) { if ((e as Error).name === "AbortError") return; }
+    await downloadBlob(blob, `${name}.xlsx`);
+    toast.success(L("Le partage n'est pas disponible ici : le fichier a été téléchargé.", "المشاركة غير متاحة هنا: تم تنزيل الملف.", "Sharing isn't available here: the file was downloaded."));
+  };
+
   const onPrint = () => {
     const data = snapshot();
     if (!data) return;
     const sid = apiRef.current?.getActiveWorkbook()?.getActiveSheet()?.getSheetId() || data.sheetOrder[0];
-    printSheet(data, sid, file.fileName, dir);
+    printSheet(data, sid, file.fileName, dir, page);
   };
 
   return (
@@ -308,17 +313,17 @@ export default function ExcelEditor() {
       backstageOpen={backstage}
       setBackstageOpen={setBackstage}
       ribbon={
-        <div className="flex h-9 shrink-0 items-center gap-1 border-b bg-card px-2">
-          <button type="button" onClick={() => setBackstage(true)} className="h-7 rounded-md px-3 text-[13px] font-semibold text-white" style={{ background: "#217346" }}>
-            {L("Fichier", "ملف", "File")}
-          </button>
-          <button type="button" onClick={openChart} className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] hover:bg-muted">
-            <BarChart3 className="h-4 w-4 text-[#217346]" /> {L("Graphique", "مبيان", "Chart")}
-          </button>
-          <span className="ms-auto hidden truncate text-[11.5px] text-muted-foreground md:block">
-            {L("Astuce : tapez = pour une formule (SOMME, MOYENNE, SI, RECHERCHEV…)", "نصيحة: اكتب = لإدخال صيغة (SUM، AVERAGE، IF، VLOOKUP…)", "Tip: type = for a formula (SUM, AVERAGE, IF, VLOOKUP…)")}
-          </span>
-        </div>
+        <ExcelRibbon
+          api={getApi}
+          ready={ready}
+          L={L}
+          onFile={() => setBackstage(true)}
+          onChart={openChart}
+          onShare={() => void share()}
+          onPrint={onPrint}
+          page={page}
+          setPage={setPage}
+        />
       }
     >
       <div ref={hostRef} dir="ltr" className="office-univer min-h-0 flex-1" />
@@ -327,13 +332,13 @@ export default function ExcelEditor() {
           <Loader2 className="h-6 w-6 animate-spin text-[#217346]" />
         </div>
       )}
-      <ChartDialog open={chartOpen} onClose={() => setChartOpen(false)} initialRows={chartRows} onInsert={(png) => void insertChart(png)} L={L} />
+      <ChartDialog open={chartOpen} onClose={() => setChartOpen(false)} initialRows={chartRows} initialType={chartType} onInsert={(png) => void insertChart(png)} L={L} />
     </OfficeShell>
   );
 }
 
 /** Impression de la feuille active (tableau HTML avec styles de base) */
-function printSheet(data: IWorkbookData, sid: string, title: string, dir: "rtl" | "ltr") {
+function printSheet(data: IWorkbookData, sid: string, title: string, dir: "rtl" | "ltr", page?: PageSetup) {
   const sh = data.sheets[sid] as unknown as { cellData?: Record<string, Record<string, { v?: unknown; s?: unknown }>>; mergeData?: { startRow: number; endRow: number; startColumn: number; endColumn: number }[]; columnData?: Record<string, { w?: number }>; rightToLeft?: number };
   const cd = sh?.cellData || {};
   const rows = Object.keys(cd).map(Number);
@@ -351,8 +356,11 @@ function printSheet(data: IWorkbookData, sid: string, title: string, dir: "rtl" 
   const esc = (s: unknown) => String(s ?? "").replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch] as string));
   let html = "<table>";
   html += `<colgroup>${Array.from({ length: maxC + 1 }, (_, c) => `<col style="width:${sh.columnData?.[c]?.w || 88}px">`).join("")}</colgroup>`;
+  const colName = (c: number) => { let t = ""; c++; while (c) { const m = (c - 1) % 26; t = String.fromCharCode(65 + m) + t; c = Math.floor((c - 1) / 26); } return t; };
+  if (page?.headings) html += `<tr><td class="hd"></td>${Array.from({ length: maxC + 1 }, (_, c) => `<td class="hd">${colName(c)}</td>`).join("")}</tr>`;
   for (let r = 0; r <= maxR; r++) {
     html += "<tr>";
+    if (page?.headings) html += `<td class="hd">${r + 1}</td>`;
     for (let c = 0; c <= maxC; c++) {
       if (covered.has(`${r}:${c}`)) continue;
       const cell = cd[r]?.[c];
@@ -372,8 +380,9 @@ function printSheet(data: IWorkbookData, sid: string, title: string, dir: "rtl" 
   const w = window.open("", "_blank");
   if (!w) return;
   w.document.write(`<!doctype html><html dir="${sh.rightToLeft ? "rtl" : dir}"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
-    @page{margin:12mm} body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:0}
-    table{border-collapse:collapse;table-layout:fixed} td{border:1px solid #d0d0d0;padding:2px 4px;overflow:hidden;white-space:nowrap}
+    @page{size:${page?.size || "A4"} ${page?.orientation || "portrait"};margin:${page?.margin === "narrow" ? "6mm" : page?.margin === "wide" ? "25mm" : "12mm"}} body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:0}
+    table{border-collapse:collapse;table-layout:fixed} td{border:1px solid ${page?.gridlines === false ? "transparent" : "#d0d0d0"};padding:2px 4px;overflow:hidden;white-space:nowrap}
+    .hd{background:#f2f2f2;color:#555;text-align:center;font-size:9pt}
   </style></head><body>${html}<script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`);
   w.document.close();
 }
