@@ -42,13 +42,13 @@ export function RequireClassModule({ module, children }: { module: ClassModuleKe
  * ou non inclus dans l'offre du professeur (aucune de ses fonctions).
  * Pour un élève : aussi fermé si son professeur l'a masqué à sa classe (Habilitations).
  */
-export function RequireFeature({ feature, children }: { feature: FeatureKey; children: ReactNode }) {
+export function RequireFeature({ feature, classModule, children }: { feature: FeatureKey; /** habilitation de classe si elle diffère du module */ classModule?: ClassModuleKey; children: ReactNode }) {
   const { feature: enabled } = useAppSettings();
   const { hasModule, loading } = useAccess();
   const { language } = useLanguage();
   if (enabled(feature)) {
     if (loading) return null;
-    return hasModule(feature) ? <RequireClassModule module={feature as ClassModuleKey}>{children}</RequireClassModule> : <NotInPlan />;
+    return hasModule(feature) ? <RequireClassModule module={classModule ?? (feature as ClassModuleKey)}>{children}</RequireClassModule> : <NotInPlan />;
   }
   const L = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "en" ? en : fr);
   return (

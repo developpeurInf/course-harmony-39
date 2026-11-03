@@ -50,6 +50,11 @@ import {
   Presentation,
   DraftingCompass,
   ShieldCheck,
+  Timer,
+  GraduationCap,
+  House,
+  FolderOpen,
+  CalendarClock,
 } from "lucide-react";
 import { GGB_APPS } from "@/components/geogebra/ggbApps";
 import { usePathname } from "next/navigation";
@@ -142,6 +147,46 @@ function GeoGebraMenu({ t, isRtl }: { t: (fr: string, ar: string, en: string) =>
         <NavItem nested end to="/geogebra" icon={DraftingCompass} label={t("Toutes les applications", "كل التطبيقات", "All apps")} />
         {GGB_APPS.map((a) => (
           <NavItem key={a.id} nested to={`/geogebra/${a.id}`} icon={a.icon} label={a.label(L)} />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/**
+ * Sous-menu repliable (« Exams programmés », « Exams ») : ouvert automatiquement
+ * quand la page courante est l'une de ses entrées.
+ */
+type SubItem = { to: string; icon: LucideIcon; label: string; locked?: boolean };
+function SubMenu({ icon: Icon, label, items, nested, isRtl }: { icon: LucideIcon; label: string; items: SubItem[]; nested?: boolean; isRtl: boolean }) {
+  const pathname = usePathname() || "";
+  const inside = items.some((i) => pathname === i.to || pathname.startsWith(i.to + "/"));
+  const [open, setOpen] = useState<boolean | null>(null);
+  const isOpen = open ?? inside;
+  if (items.length === 0) return null;
+  return (
+    <Collapsible open={isOpen} onOpenChange={(v) => setOpen(v)}>
+      <CollapsibleTrigger
+        className={cn(
+          "group flex w-full items-center gap-2.5 rounded-md text-[13px] font-medium transition-colors",
+          nested ? "h-8 px-2" : "h-9 px-2.5",
+          inside ? "text-foreground" : "text-sidebar-foreground",
+          "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+        )}
+      >
+        <Icon className={cn("h-4 w-4 shrink-0", inside ? "text-sidebar-primary" : "text-muted-foreground")} strokeWidth={1.75} />
+        <span className="min-w-0 flex-1 truncate text-start">{label}</span>
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+            isRtl && "rotate-180",
+            isOpen && (isRtl ? "-rotate-90" : "rotate-90")
+          )}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className={cn("space-y-0.5 border-s pt-0.5", nested ? "ms-[15px] ps-1.5" : "ms-[17px] ps-2")}>
+        {items.map((i) => (
+          <NavItem key={i.to} nested to={i.to} icon={i.icon} label={i.label} locked={i.locked} />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -376,7 +421,28 @@ const Sidebar = () => {
                         <NavItem nested to={`/rooms/${room.id}/exercises`} icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />
                       )}
                       {show("exams") && (
-                        <NavItem nested to={`/rooms/${room.id}/exams`} icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />
+                        <SubMenu
+                          nested
+                          isRtl={isRtl}
+                          icon={CalendarClock}
+                          label={t("Exams programmés", "الامتحانات المبرمجة", "Scheduled exams")}
+                          items={[
+                            { to: `/rooms/${room.id}/exams`, icon: ClipboardCheck, label: t("Exams", "الامتحانات", "Exams") },
+                            { to: `/rooms/${room.id}/quizzes`, icon: Timer, label: t("Quiz programmés", "الاختبارات المبرمجة", "Scheduled quizzes") },
+                          ]}
+                        />
+                      )}
+                      {show("homework") && (
+                        <SubMenu
+                          nested
+                          isRtl={isRtl}
+                          icon={GraduationCap}
+                          label={t("Exams", "الامتحانات", "Exams")}
+                          items={[
+                            { to: `/rooms/${room.id}/homework`, icon: House, label: t("Devoirs maison", "الفروض المنزلية", "Homework"), locked: !can("homework.manage") },
+                            { to: `/rooms/${room.id}/exam-examples`, icon: FolderOpen, label: t("Exemples devoirs", "نماذج الفروض", "Sample exams"), locked: !can("homework.manage") },
+                          ]}
+                        />
                       )}
                       {show("meet") && (
                         <NavItem
@@ -448,7 +514,28 @@ const Sidebar = () => {
               {classModule("whiteboard") && <NavItem to="/whiteboards" icon={PenLine} label={t("Tableaux blancs", "السبورات البيضاء", "Whiteboards")} />}
               {show("courses") && <NavItem to="/courses" icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />}
               {show("exercises") && <NavItem to="/exercises" icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />}
-              {show("exams") && <NavItem to="/exams" icon={ClipboardCheck} label={t("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes")} />}
+              {show("exams") && (
+                <SubMenu
+                  isRtl={isRtl}
+                  icon={CalendarClock}
+                  label={t("Exams programmés", "الامتحانات المبرمجة", "Scheduled exams")}
+                  items={[
+                    { to: "/exams", icon: ClipboardCheck, label: t("Exams", "الامتحانات", "Exams") },
+                    { to: "/quizzes", icon: Timer, label: t("Quiz programmés", "الاختبارات المبرمجة", "Scheduled quizzes") },
+                  ]}
+                />
+              )}
+              {feature("homework") && hasModule("homework") && (
+                <SubMenu
+                  isRtl={isRtl}
+                  icon={GraduationCap}
+                  label={t("Exams", "الامتحانات", "Exams")}
+                  items={[
+                    ...(classModule("homework") ? [{ to: "/homework", icon: House, label: t("Devoirs maison", "الفروض المنزلية", "Homework") }] : []),
+                    ...(classModule("examples") ? [{ to: "/exam-examples", icon: FolderOpen, label: t("Exemples devoirs", "نماذج الفروض", "Sample exams") }] : []),
+                  ]}
+                />
+              )}
               {show("lessonLog") && <NavItem to="/lesson-log" icon={BookOpenCheck} label={t("Cahier de textes", "دفتر النصوص", "Lesson log")} />}
               {show("calendar") && <NavItem to="/calendar" icon={CalendarDays} label={t("Calendrier", "اليومية", "Calendar")} locked={!can("class.calendar")} />}
               {show("progress") && studentFeatures?.progress && <NavItem to="/progress" icon={TrendingUp} label={t("Ma progression", "تقدمي", "My progress")} />}

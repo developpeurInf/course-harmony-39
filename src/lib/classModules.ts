@@ -15,6 +15,8 @@ import {
   CalendarDays,
   ClipboardCheck,
   FileText,
+  FolderOpen,
+  House,
   MessageCircle,
   PenLine,
   TrendingUp,
@@ -30,6 +32,8 @@ export type ClassModuleKey =
   | "courses"
   | "exercises"
   | "exams"
+  | "homework"
+  | "examples"
   | "meet"
   | "whiteboard"
   | "lessonLog"
@@ -65,8 +69,18 @@ export const CLASS_MODULES: ClassModuleDef[] = [
   },
   {
     key: "exams", feature: "exams", icon: ClipboardCheck,
-    label: ["Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes"],
-    hint: ["Passer les examens et les quiz", "اجتياز الامتحانات والاختبارات", "Take exams and quizzes"],
+    label: ["Exams programmés", "الامتحانات المبرمجة", "Scheduled exams"],
+    hint: ["Exams et quiz programmés à passer en ligne", "الامتحانات والاختبارات المبرمجة عبر الإنترنت", "Scheduled exams and quizzes taken online"],
+  },
+  {
+    key: "homework", feature: "homework", icon: House,
+    label: ["Exams › Devoirs maison", "الامتحانات › الفروض المنزلية", "Exams › Homework"],
+    hint: ["Sujets de devoirs maison et leurs corrigés", "مواضيع الفروض المنزلية وتصحيحاتها", "Homework sheets and their corrections"],
+  },
+  {
+    key: "examples", feature: "homework", icon: FolderOpen,
+    label: ["Exams › Exemples devoirs", "الامتحانات › نماذج الفروض", "Exams › Sample exams"],
+    hint: ["Exemples d'examens et examens corrigés à télécharger", "نماذج امتحانات وامتحانات مصححة للتحميل", "Sample and corrected exams to download"],
   },
   {
     key: "meet", feature: "meet", icon: Video,

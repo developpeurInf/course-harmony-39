@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { useParams, Navigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
-import Exams from "./Exams";
+import Exams, { type ExamsKind } from "./Exams";
 
-const RoomExams = () => {
+const RoomExams = ({ kind }: { kind?: ExamsKind } = {}) => {
   const { roomId } = useParams();
   const { user } = useAuth();
   const { refreshData } = useCourses();
@@ -22,7 +22,7 @@ const RoomExams = () => {
     return <Navigate to="/dashboard" replace />;
   }
   
-  return <Exams />;
+  return <Exams kind={kind} />;
 };
 
 export default RoomExams;

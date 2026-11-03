@@ -55,6 +55,7 @@ export type PermissionKey =
   | "exercise.review"
   | "quiz.edit"
   | "exam.edit"
+  | "homework.manage"
   | "quiz.math_editor"
   | "quiz.anti_cheat"
   | "quiz.publish"
@@ -129,6 +130,7 @@ export const MODULE_LABELS: Record<string, { fr: string; ar: string; en: string 
   "lessonPlans": { fr: "Fiches pédagogiques (IA)", ar: "الجذاذات (ذكاء اصطناعي)", en: "Lesson plans (AI)" },
   "exercises": { fr: "Exercices", ar: "التمارين", en: "Exercises" },
   "exams": { fr: "Examens et quiz", ar: "الامتحانات والاختبارات", en: "Exams & quizzes" },
+  "homework": { fr: "Exams : devoirs maison et exemples", ar: "الامتحانات: الفروض المنزلية والنماذج", en: "Exams: homework and examples" },
   "questionBank": { fr: "Banque de questions", ar: "بنك الأسئلة", en: "Question bank" },
   "diagnostic": { fr: "Évaluation diagnostique", ar: "التقويم التشخيصي", en: "Diagnostic assessment" },
   "reports": { fr: "Rapports", ar: "التقارير", en: "Reports" },
@@ -212,6 +214,7 @@ export const PERMISSION_LABELS: Record<string, { module: string; fr: string; ar:
   "ai.quiz_generator": { module: "exams", fr: "Générer un quiz avec l'IA à partir d'un cours", ar: "توليد اختبار بالذكاء الاصطناعي من درس", en: "Generate a quiz from a course with AI" },
   "ai.omr": { module: "exams", fr: "Corriger des QCM papier par photo", ar: "تصحيح أوراق الاختيار من متعدد بالصور", en: "Grade paper multiple-choice sheets from photos" },
   "quiz.results_export": { module: "exams", fr: "Exporter les résultats", ar: "تصدير النتائج", en: "Export results" },
+  "homework.manage": { module: "homework", fr: "Déposer des devoirs maison et des exemples d'examens corrigés", ar: "وضع فروض منزلية ونماذج امتحانات مصححة", en: "Upload homework and corrected sample exams" },
   "diagnostic.use": { module: "diagnostic", fr: "Utiliser l'évaluation diagnostique", ar: "استعمال التقويم التشخيصي", en: "Use diagnostic assessment" },
   "diagnostic.template1": { module: "diagnostic", fr: "Modèle de rapport 1", ar: "نموذج التقرير 1", en: "Report template 1" },
   "diagnostic.template2": { module: "diagnostic", fr: "Modèle de rapport 2", ar: "نموذج التقرير 2", en: "Report template 2" },

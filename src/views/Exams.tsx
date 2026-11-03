@@ -79,7 +79,13 @@ const LazyFallback = () => (
   </div>
 );
 
-const Exams = () => {
+export type ExamsKind = "exam" | "quiz";
+
+/**
+ * Examens et quiz. `kind` : page « Exams programmés › Exams » (examens) ou « › Quiz programmés » (quiz).
+ * Sans `kind` : les deux (ancien comportement).
+ */
+const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
   const { t, language } = useLanguage();
   const { prefs } = usePreferences();
   const { user } = useAuth();
@@ -176,9 +182,9 @@ const Exams = () => {
   const [examTime, setExamTime] = useState("");
   const [availableUntilDate, setAvailableUntilDate] = useState("");
   const [availableUntilTime, setAvailableUntilTime] = useState("");
-  const [duration, setDuration] = useState(prefs.defaultExamDuration);
+  const [duration, setDuration] = useState(kind === "quiz" ? prefs.defaultQuizDuration : prefs.defaultExamDuration);
   const [isVisible, setIsVisible] = useState(true);
-  const [examType, setExamType] = useState<"exam" | "quiz">("exam");
+  const [examType, setExamType] = useState<"exam" | "quiz">(kind ?? "exam");
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>("all");
   const [showQuizBuilder, setShowQuizBuilder] = useState<string | null>(null);
@@ -207,13 +213,22 @@ const Exams = () => {
 
   
   // Update URL when filter changes
+  const basePath = `${roomId ? `/rooms/${roomId}` : ""}/${kind === "quiz" ? "quizzes" : "exams"}`;
   const updateUrlWithFilter = (courseId: string) => {
     if (courseId === "all") {
-      navigate('/exams');
+      navigate(basePath);
     } else {
-      navigate(`/exams?course=${courseId}`);
+      navigate(`${basePath}?course=${courseId}`);
     }
   };
+
+  // Lien « ?quiz=<id> » arrivé sur la page des examens : on passe à « Quiz programmés »
+  useEffect(() => {
+    if (kind !== "exam") return;
+    if (new URLSearchParams(location.search).get("quiz")) {
+      navigate(`${roomId ? `/rooms/${roomId}` : ""}/quizzes${location.search}`, { replace: true });
+    }
+  }, [kind, location.search, roomId, navigate]);
   
   const [examSearch, setExamSearch] = useState("");
   const deferredSearch = useDeferredValue(examSearch);
@@ -250,13 +265,14 @@ const Exams = () => {
     }
   }, [location.search, userExams, isProfessor]);
   const displayedExams = useMemo(() => {
+    const ofKind = kind ? userExams.filter(exam => (exam.type === "quiz" ? "quiz" : "exam") === kind) : userExams;
     const byCourse = selectedCourseFilter === "all"
-      ? userExams
-      : userExams.filter(exam => exam.course_id === selectedCourseFilter);
+      ? ofKind
+      : ofKind.filter(exam => exam.course_id === selectedCourseFilter);
     return byCourse.filter(exam =>
       matchesText(deferredSearch, exam.title, (exam.description || "").replace(/<!--[\s\S]*?-->/g, ""), (courseById.get(exam.course_id) || ({} as any)).title, exam.type === "quiz" ? "quiz" : "examen exam امتحان")
     );
-  }, [userExams, selectedCourseFilter, deferredSearch, courseById]);
+  }, [userExams, selectedCourseFilter, deferredSearch, courseById, kind]);
 
   // Filter courses based on user role for the course dropdown (both room & enrollments)
   const availableCourses = isProfessor 
@@ -291,9 +307,9 @@ const Exams = () => {
     setExamTime("01:00");
     setAvailableUntilDate(todayStr);
     setAvailableUntilTime("03:00");
-    setDuration(prefs.defaultExamDuration);
+    setDuration(kind === "quiz" ? prefs.defaultQuizDuration : prefs.defaultExamDuration);
     setIsVisible(true);
-    setExamType("exam");
+    setExamType(kind ?? "exam");
     setCurrentExam(null);
   };
 
@@ -594,7 +610,13 @@ const Exams = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {kind === "quiz"
+              ? tr("Quiz programmés", "الاختبارات المبرمجة", "Scheduled quizzes")
+              : kind === "exam"
+              ? tr("Exams", "الامتحانات", "Exams")
+              : language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}
+          </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {isProfessor 
               ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : language === "fr" ? "Gérer les examens et évaluations de vos cours" : "Manage exams and tests for your courses") 
@@ -613,7 +635,7 @@ const Exams = () => {
               <DialogTrigger asChild>
                 <Button className="text-xs sm:text-sm font-semibold">
                   <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
-                  {language === "ar" ? "إضافة امتحان" : language === "fr" ? "Ajouter un examen" : "Add Exam"}
+                  {kind === "quiz" ? tr("Ajouter un quiz", "إضافة اختبار", "Add quiz") : language === "ar" ? "إضافة امتحان" : language === "fr" ? "Ajouter un examen" : "Add Exam"}
                 </Button>
               </DialogTrigger>
               <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
@@ -907,6 +929,29 @@ const Exams = () => {
         </Dialog>
       )}
 
+      {/* Exams programmés : passer des examens aux quiz */}
+      {kind && (
+        <div role="tablist" className="inline-flex rounded-lg border bg-muted/40 p-1 text-sm">
+          {(["exam", "quiz"] as const).map((k) => {
+            const n = userExams.filter((e) => (e.type === "quiz" ? "quiz" : "exam") === k).length;
+            const active = kind === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => !active && navigate(`${roomId ? `/rooms/${roomId}` : ""}/${k === "quiz" ? "quizzes" : "exams"}${selectedCourseFilter !== "all" ? `?course=${selectedCourseFilter}` : ""}`)}
+                className={`flex min-h-[36px] items-center gap-2 rounded-md px-3 font-medium transition-colors ${active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {k === "quiz" ? tr("Quiz programmés", "الاختبارات المبرمجة", "Scheduled quizzes") : tr("Exams", "الامتحانات", "Exams")}
+                <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums">{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Recherche */}
       <SearchInput
         value={examSearch}
@@ -933,7 +978,9 @@ const Exams = () => {
           </Select>
         </div>
         <p className="text-sm text-muted-foreground">
-          {language === "ar" 
+          {kind === "quiz"
+            ? tr(`Affichage de ${displayedExams.length} quiz`, `عرض ${displayedExams.length} من الاختبارات`, `Showing ${displayedExams.length} quiz${displayedExams.length > 1 ? "zes" : ""}`) + (selectedCourseFilter !== "all" ? ` · ${getCourseName(selectedCourseFilter)}` : "")
+            : language === "ar" 
             ? `عرض ${displayedExams.length} من الامتحانات${selectedCourseFilter !== "all" ? " لـ " + getCourseName(selectedCourseFilter) : ""}`
             : language === "fr"
             ? `Affichage de ${displayedExams.length} examen${displayedExams.length > 1 ? "s" : ""}${selectedCourseFilter !== "all" ? " pour " + getCourseName(selectedCourseFilter) : ""}`

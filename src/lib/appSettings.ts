@@ -22,6 +22,7 @@ export type FeatureKey =
   | "notifications"
   | "exercises"
   | "exams"
+  | "homework"
   | "studentActivities"
   | "courses"
   | "bottomNav"
@@ -196,6 +197,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     notifications: true,
     exercises: true,
     exams: true,
+    homework: true,
     studentActivities: true,
     courses: true,
     bottomNav: true,

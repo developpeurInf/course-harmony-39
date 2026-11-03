@@ -21,7 +21,8 @@ export default function FeaturesSection({ draft, update }: SectionProps) {
         { k: "calendar", label: L("Calendrier", "اليومية", "Calendar"), desc: L("Dates limites des exercices, quiz et examens.", "آجال التمارين والاختبارات والامتحانات.", "Due dates of exercises, quizzes and exams.") },
         { k: "courses", label: L("Cours", "الدروس", "Courses"), desc: L("Supports de cours (PDF, images, vidéos) partagés avec les classes.", "مواد الدروس (PDF، صور، فيديو) المشاركة مع الأقسام.", "Course materials (PDF, images, videos) shared with classes.") },
         { k: "exercises", label: L("Exercices", "التمارين", "Exercises"), desc: L("Exercices et quiz d'entraînement des élèves.", "تمارين واختبارات تدريب التلاميذ.", "Exercises and practice quizzes for students.") },
-        { k: "exams", label: L("Examens et quiz", "الامتحانات والاختبارات", "Exams & quizzes"), desc: L("Évaluations notées et programmées.", "تقويمات منقطة ومبرمجة.", "Graded, scheduled assessments.") },
+        { k: "exams", label: L("Exams programmés (examens et quiz)", "الامتحانات المبرمجة (امتحانات واختبارات)", "Scheduled exams (exams & quizzes)"), desc: L("Évaluations notées et programmées.", "تقويمات منقطة ومبرمجة.", "Graded, scheduled assessments.") },
+        { k: "homework", label: L("Exams : devoirs maison et exemples", "الامتحانات: الفروض المنزلية والنماذج", "Exams: homework and examples"), desc: L("Devoirs maison et exemples d'examens corrigés déposés par le professeur (PDF, images, Word, tout format), à consulter et télécharger.", "فروض منزلية ونماذج امتحانات مصححة يضعها الأستاذ (PDF، صور، Word، أي صيغة) للاطلاع والتحميل.", "Homework and corrected sample exams uploaded by the teacher (PDF, images, Word, any format), to view and download.") },
       ],
     },
     {

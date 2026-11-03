@@ -24,7 +24,7 @@ const STUDENT_ITEMS: BottomNavItem[] = [
   { to: "/dashboard", icon: Home, label: ["Accueil", "الرئيسية", "Home"], match: /^\/dashboard/ },
   { to: "/courses", icon: BookOpen, label: ["Cours", "الدروس", "Courses"], match: /^\/(courses|rooms\/[^/]+\/courses)/, feature: "courses" },
   { to: "/exercises", icon: FileText, label: ["Exercices", "التمارين", "Exercises"], match: /^\/(exercises|rooms\/[^/]+\/exercises)/, feature: "exercises" },
-  { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|rooms\/[^/]+\/exams)/, feature: "exams" },
+  { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|quizzes|homework|exam-examples|rooms\/[^/]+\/(exams|quizzes|homework|exam-examples))/, feature: "exams" },
   { to: "/profile", icon: User, label: ["Profil", "حسابي", "Profile"], match: /^\/(profile|settings)/ },
 ];
 
@@ -32,7 +32,7 @@ const PROFESSOR_ITEMS: BottomNavItem[] = [
   { to: "/dashboard", icon: Home, label: ["Accueil", "الرئيسية", "Home"], match: /^\/dashboard/ },
   { to: "/class-management", icon: FolderOpen, label: ["Classes", "الأقسام", "Classes"], match: /^\/(class-management|create-room|students|rooms\/[^/]+\/students)/ },
   { to: "/courses", icon: BookOpen, label: ["Cours", "الدروس", "Courses"], match: /^\/(courses|rooms\/[^/]+\/courses)/, feature: "courses" },
-  { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|exercises|rooms\/[^/]+\/(exams|exercises))/ },
+  { to: "/exams", icon: Calendar, label: ["Examens", "الامتحانات", "Exams"], match: /^\/(exams|quizzes|homework|exam-examples|exercises|rooms\/[^/]+\/(exams|quizzes|homework|exam-examples|exercises))/ },
   { to: "/reports", icon: BarChart3, label: ["Rapports", "التقارير", "Reports"], match: /^\/(reports|diagnostic)/ },
 ];
 
