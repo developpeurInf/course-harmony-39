@@ -1068,7 +1068,7 @@ export default function PptEditor() {
             <button type="button" title={L("Normal", "عادي", "Normal")} className={cn("rounded p-0.5 hover:bg-muted", view === "normal" && "bg-muted")} onClick={() => setView("normal")}><Presentation className="h-3.5 w-3.5" /></button>
             <button type="button" title={L("Trieuse", "فارز", "Sorter")} className={cn("rounded p-0.5 hover:bg-muted", view === "sorter" && "bg-muted")} onClick={() => setView("sorter")}><LayoutGrid className="h-3.5 w-3.5" /></button>
             <button type="button" title={L("Diaporama", "عرض", "Slide show")} className="rounded p-0.5 hover:bg-muted" onClick={() => setShow({ from: cur, presenter: false })}><Play className="h-3.5 w-3.5" /></button>
-            <input type="range" min={20} max={300} value={Math.round(scale * 100)} onChange={(e) => setZoom(Number(e.target.value) / 100)} className="w-24 accent-[#C43E1C]" aria-label="Zoom" />
+            <input type="range" min={20} max={300} value={Math.round(scale * 100)} onChange={(e) => setZoom(Number(e.target.value) / 100)} className="w-16 sm:w-24 accent-[#C43E1C]" aria-label="Zoom" />
             <button type="button" className="w-10 text-end" onClick={() => setZoom(null)}>{Math.round(scale * 100)} %</button>
           </div>
         </>

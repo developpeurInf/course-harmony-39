@@ -1225,7 +1225,7 @@ export default function WordEditor() {
             <button type="button" title={L("Page", "صفحة", "Print layout")} className={cn("rounded p-0.5 hover:bg-muted", viewMode === "page" && "bg-muted")} onClick={() => setViewMode("page")}><FileText className="h-3.5 w-3.5" /></button>
             <button type="button" title="Web" className={cn("rounded p-0.5 hover:bg-muted", viewMode === "web" && "bg-muted")} onClick={() => setViewMode("web")}><MonitorSmartphone className="h-3.5 w-3.5" /></button>
             <button type="button" className="rounded p-0.5 hover:bg-muted" onClick={() => setZoom((z) => Math.max(0.3, Math.round((z - 0.1) * 10) / 10))} aria-label="-"><Minus className="h-3 w-3" /></button>
-            <input type="range" min={30} max={300} value={Math.round(zoom * 100)} onChange={(e) => setZoom(Number(e.target.value) / 100)} className="w-24 accent-[#2B579A]" aria-label="Zoom" />
+            <input type="range" min={30} max={300} value={Math.round(zoom * 100)} onChange={(e) => setZoom(Number(e.target.value) / 100)} className="w-16 sm:w-24 accent-[#2B579A]" aria-label="Zoom" />
             <button type="button" className="rounded p-0.5 hover:bg-muted" onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.1) * 10) / 10))} aria-label="+"><Plus className="h-3 w-3" /></button>
             <button type="button" className="w-10 text-end" onClick={() => setZoom(1)}>{Math.round(zoom * 100)} %</button>
           </div>

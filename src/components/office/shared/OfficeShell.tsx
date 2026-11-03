@@ -152,7 +152,7 @@ export function OfficeShell(props: OfficeShellProps) {
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
 
       {statusBar && (
-        <div className="flex h-7 shrink-0 items-center gap-3 border-t bg-card px-3 text-[11.5px] text-muted-foreground">{statusBar}</div>
+        <div className="flex h-7 shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap border-t bg-card px-3 text-[11.5px] text-muted-foreground">{statusBar}</div>
       )}
 
       {backstageOpen && <Backstage {...props} onClose={() => setBackstageOpen(false)} />}

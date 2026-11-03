@@ -244,7 +244,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
           ref={mainRef}
           className={
             isWorkspace
-              ? `flex flex-1 flex-col overflow-hidden ${showBottomNav ? "pb-bottomnav " : ""}`
+              ? `flex flex-1 flex-col overflow-hidden ${showBottomNav ? "pb-bottomnav-tight " : ""}`
               : `flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 pb-12 sm:px-6 md:py-8 ${showBottomNav ? "pb-bottomnav " : ""}touch-auto`
           }
         >

@@ -5,6 +5,7 @@ import { ArrowRight, Clock } from "lucide-react";
 import { Link } from "@/lib/router";
 import { useOfficeEnv } from "@/components/office/shared/useOfficeEnv";
 import { APP_ICON, OFFICE_ACCENT } from "@/components/office/shared/OfficeShell";
+import { warmProps } from "@/lib/warmup";
 import { listOfficeFiles, setLastOpened, type OfficeApp, type OfficeFileRecord } from "@/components/office/shared/officeStore";
 
 const ROUTE: Record<OfficeApp, string> = { word: "/office/word", excel: "/office/excel", ppt: "/office/powerpoint" };
@@ -34,7 +35,7 @@ export default function OfficeHub() {
           const Icon = APP_ICON[app];
           const m = OFFICE_ACCENT[app];
           return (
-            <Link key={app} to={ROUTE[app]} className="group flex flex-col rounded-xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <Link key={app} to={ROUTE[app]} {...warmProps(app)} className="group flex flex-col rounded-xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               <span className="flex h-12 w-12 items-center justify-center rounded-xl text-white shadow" style={{ background: m.accent }}>
                 <Icon className="h-6 w-6" strokeWidth={1.6} />
               </span>
@@ -54,7 +55,7 @@ export default function OfficeHub() {
             {recent.map((r) => {
               const Icon = APP_ICON[r.app];
               return (
-                <Link key={r.id} to={ROUTE[r.app]} onClick={() => setLastOpened(r.app, r.id)} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
+                <Link key={r.id} to={ROUTE[r.app]} {...warmProps(r.app)} onClick={() => setLastOpened(r.app, r.id)} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
                   <Icon className="h-6 w-6 shrink-0" style={{ color: OFFICE_ACCENT[r.app].accent }} strokeWidth={1.5} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{r.name}</span>

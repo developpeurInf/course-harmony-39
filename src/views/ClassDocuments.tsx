@@ -823,6 +823,15 @@ function DropZone({ role, title, tr, disabled, onFiles, children }: { role: DocF
 
 /* ------------------------------------------------------------------ */
 
+/** Le navigateur sait-il afficher un PDF dans un cadre ? (non sur Android, iPhone, iPad) */
+function inlinePdf() {
+  if (typeof navigator === "undefined") return true;
+  const ua = navigator.userAgent || "";
+  if (/Android|iPhone|iPad|iPod/i.test(ua)) return false;
+  // iPad récent : se présente comme un Mac avec écran tactile
+  return !(/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+}
+
 function FilePreview({ file, onClose, tr, dir }: { file: DocFile | null; onClose: () => void; tr: Tr; dir: "rtl" | "ltr" }) {
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState(false);
@@ -859,7 +868,21 @@ function FilePreview({ file, onClose, tr, dir }: { file: DocFile | null; onClose
             // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt={file?.file_name || ""} className="h-full w-full object-contain" />
           )}
-          {url && k === "pdf" && <iframe src={url} title={file?.file_name} className="h-full w-full border-0 bg-white" />}
+          {url && k === "pdf" && inlinePdf() && <iframe src={url} title={file?.file_name} className="h-full w-full border-0 bg-white" />}
+          {url && k === "pdf" && !inlinePdf() && (
+            // Android et iPhone/iPad n'affichent pas un PDF dans un cadre (page blanche ou 1re page seulement)
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+              <FileIcon className="h-10 w-10 text-rose-500" />
+              <p className="max-w-sm text-sm text-muted-foreground">
+                {tr("Sur téléphone et tablette, le PDF s'ouvre dans le lecteur de l'appareil.", "على الهاتف واللوحة، يفتح ملف PDF في قارئ الجهاز.", "On phones and tablets, the PDF opens in the device viewer.")}
+              </p>
+              <Button asChild className="min-h-[44px] gap-1.5">
+                <a href={url} target="_blank" rel="noopener noreferrer">
+                  {tr("Ouvrir le PDF", "فتح ملف PDF", "Open the PDF")}
+                </a>
+              </Button>
+            </div>
+          )}
           {url && k === "video" && <video src={url} controls playsInline className="h-full w-full bg-black object-contain" />}
           {url && k === "audio" && (
             <div className="flex h-full items-center justify-center p-6">

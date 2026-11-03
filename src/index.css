@@ -574,6 +574,12 @@ img, video, iframe, canvas { max-width: 100%; }
     padding-bottom: 84px;
     padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
+  /* Outils plein écran (Word, Excel, PowerPoint, GeoGebra, PDF, messages) : exactement la hauteur
+     de la barre du bas (60 px + bordure), sans bande vide entre l'outil et la barre */
+  .pb-bottomnav-tight {
+    padding-bottom: 61px;
+    padding-bottom: calc(61px + env(safe-area-inset-bottom, 0px));
+  }
   /* Les boutons flottants remontent au-dessus de la barre du bas */
   .with-bottomnav .safe-bottom-offset {
     bottom: 76px;

@@ -5,6 +5,7 @@ import { ArrowRight, Clock, Trash2 } from "lucide-react";
 import { Link } from "@/lib/router";
 import { useOfficeEnv } from "@/components/office/shared/useOfficeEnv";
 import { GGB_APPS, ggbApp } from "@/components/geogebra/ggbApps";
+import { warmProps, warmWhenIdle } from "@/lib/warmup";
 import { deleteGgbFile, listGgbFiles, type GgbFileMeta } from "@/components/geogebra/ggbStore";
 
 /** Page d'accueil GeoGebra : les applications et les constructions récentes */
@@ -15,6 +16,8 @@ export default function GeoGebraHub() {
   useEffect(() => {
     void load();
   }, []);
+  // On est sur la page GeoGebra : le script GeoGebra se télécharge pendant qu'on choisit l'application
+  useEffect(() => warmWhenIdle("geogebra"), []);
 
   return (
     <div dir={dir} className="mx-auto w-full max-w-6xl space-y-8">
@@ -36,6 +39,7 @@ export default function GeoGebraHub() {
             <Link
               key={a.id}
               to={`/geogebra/${a.id}`}
+              {...warmProps("geogebra")}
               className="group flex flex-col rounded-xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl text-white shadow" style={{ background: a.color }}>

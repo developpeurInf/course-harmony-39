@@ -618,8 +618,12 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
               : language === "ar" ? "الامتحانات" : language === "fr" ? "Examens" : "Exams"}
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            {isProfessor 
-              ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : language === "fr" ? "Gérer les examens et évaluations de vos cours" : "Manage exams and tests for your courses") 
+            {kind === "quiz"
+              ? isProfessor
+                ? tr("Programmez des quiz en ligne pour vos classes et suivez les résultats", "برمج اختبارات عبر الإنترنت لأقسامك وتتبع النتائج", "Schedule online quizzes for your classes and follow the results")
+                : tr("Vos quiz à passer en ligne, à venir et passés", "اختباراتك عبر الإنترنت، القادمة والماضية", "Your online quizzes, upcoming and past")
+              : isProfessor
+              ? (language === "ar" ? "إدارة الامتحانات والاختبارات الخاصة بدروسك" : language === "fr" ? "Gérer les examens et évaluations de vos cours" : "Manage exams and tests for your courses")
               : (language === "ar" ? "عرض امتحاناتك القادمة والماضية" : language === "fr" ? "Consulter vos examens à venir et passés" : "View your upcoming and past exams")}
           </p>
         </div>
@@ -956,7 +960,13 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
       <SearchInput
         value={examSearch}
         onChange={setExamSearch}
-        placeholder={language === "ar" ? "ابحث عن امتحان أو اختبار (العنوان، الدرس…)" : language === "fr" ? "Rechercher un examen ou un quiz (titre, cours…)" : "Search an exam or quiz (title, course…)"}
+        placeholder={
+          kind === "quiz"
+            ? tr("Rechercher un quiz (titre, cours…)", "ابحث عن اختبار (العنوان، الدرس…)", "Search a quiz (title, course…)")
+            : kind === "exam"
+            ? tr("Rechercher un examen (titre, cours…)", "ابحث عن امتحان (العنوان، الدرس…)", "Search an exam (title, course…)")
+            : language === "ar" ? "ابحث عن امتحان أو اختبار (العنوان، الدرس…)" : language === "fr" ? "Rechercher un examen ou un quiz (titre, cours…)" : "Search an exam or quiz (title, course…)"
+        }
         className="sm:max-w-xl"
       />
 

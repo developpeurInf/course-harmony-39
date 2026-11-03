@@ -57,6 +57,7 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { GGB_APPS } from "@/components/geogebra/ggbApps";
+import { warmProps, type WarmTarget } from "@/lib/warmup";
 import { usePathname } from "next/navigation";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -109,9 +110,9 @@ function OfficeMenu({ t, isRtl }: { t: (fr: string, ar: string, en: string) => s
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="ms-[17px] space-y-0.5 border-s ps-2 pt-0.5">
-        <NavItem nested to="/office/word" icon={FileType2} label={t("Word · Traitement de texte", "Word · معالجة النصوص", "Word · Documents")} />
-        <NavItem nested to="/office/excel" icon={Sheet} label={t("Excel · Tableur", "Excel · جداول البيانات", "Excel · Spreadsheets")} />
-        <NavItem nested to="/office/powerpoint" icon={Presentation} label={t("PowerPoint · Présentation", "PowerPoint · العروض", "PowerPoint · Slides")} />
+        <NavItem nested warmup="word" to="/office/word" icon={FileType2} label={t("Word · Traitement de texte", "Word · معالجة النصوص", "Word · Documents")} />
+        <NavItem nested warmup="excel" to="/office/excel" icon={Sheet} label={t("Excel · Tableur", "Excel · جداول البيانات", "Excel · Spreadsheets")} />
+        <NavItem nested warmup="ppt" to="/office/powerpoint" icon={Presentation} label={t("PowerPoint · Présentation", "PowerPoint · العروض", "PowerPoint · Slides")} />
       </CollapsibleContent>
     </Collapsible>
   );
@@ -146,7 +147,7 @@ function GeoGebraMenu({ t, isRtl }: { t: (fr: string, ar: string, en: string) =>
       <CollapsibleContent className="ms-[17px] space-y-0.5 border-s ps-2 pt-0.5">
         <NavItem nested end to="/geogebra" icon={DraftingCompass} label={t("Toutes les applications", "كل التطبيقات", "All apps")} />
         {GGB_APPS.map((a) => (
-          <NavItem key={a.id} nested to={`/geogebra/${a.id}`} icon={a.icon} label={a.label(L)} />
+          <NavItem key={a.id} nested warmup="geogebra" to={`/geogebra/${a.id}`} icon={a.icon} label={a.label(L)} />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -201,6 +202,7 @@ function NavItem({
   trailing,
   nested,
   end,
+  warmup,
 }: {
   to: string;
   icon: LucideIcon;
@@ -209,9 +211,11 @@ function NavItem({
   trailing?: React.ReactNode;
   nested?: boolean;
   end?: boolean;
+  /** outil lourd à précharger au survol du lien */
+  warmup?: WarmTarget;
 }) {
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => itemClass(isActive, nested)}>
+    <NavLink to={to} end={end} className={({ isActive }) => itemClass(isActive, nested)} {...(warmup ? warmProps(warmup) : {})}>
       {({ isActive }) => (
         <>
           <Icon
