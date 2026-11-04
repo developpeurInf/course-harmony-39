@@ -392,6 +392,13 @@ const Dashboard = () => {
   };
 
   const today = new Date().toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  // Clic sur un jour du graphique : élèves connectés ce jour-là, par classe
+  const openActivityDay = (i: number, len: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (len - 1 - i));
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    navigate(`/activity-day?date=${iso}&room=${encodeURIComponent(selectedRoomId)}`);
+  };
   const trackingLink = selectedRoomId !== "all"
     ? `/rooms/${selectedRoomId}/students-activities`
     : professorRooms[0] ? `/rooms/${professorRooms[0].id}/students-activities` : "/reports";
@@ -560,7 +567,7 @@ const Dashboard = () => {
             <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
               <div>
                 <CardTitle className="text-base">{tr("Activité des 7 derniers jours", "نشاط آخر 7 أيام", "Last 7 days activity")}</CardTitle>
-                <CardDescription className="mt-1.5">{tr("Élèves actifs et copies de quiz rendues chaque jour", "التلاميذ النشطون والأوراق المسلمة يومياً", "Active students and quiz submissions per day")}</CardDescription>
+                <CardDescription className="mt-1.5">{tr("Élèves actifs et copies de quiz rendues chaque jour. Cliquez sur un jour pour voir qui s'est connecté.", "التلاميذ النشطون والأوراق المسلمة يومياً. انقر على يوم لمعرفة من اتصل.", "Active students and quiz submissions per day. Click a day to see who was online.")}</CardDescription>
               </div>
               {feature("reports") && <Button asChild variant="ghost" size="sm" className="gap-1 text-xs"><Link to="/reports">{tr("Rapports", "التقارير", "Reports")}<ArrowRight className={`h-3.5 w-3.5 ${isRtl ? "rotate-180" : ""}`} /></Link></Button>}
             </CardHeader>
@@ -568,9 +575,16 @@ const Dashboard = () => {
               {firstLoad && week.length === 0 ? (
                 <Pulse className="h-[200px] w-full" />
               ) : (
-              <div className="flex h-[200px] items-end gap-2 sm:gap-4 border-b pb-1 pt-5" role="img" aria-label={`${tr("Activité des 7 derniers jours", "نشاط آخر 7 أيام", "Last 7 days activity")} — ${weekSummary}`}>
+              <div className="flex h-[200px] items-end gap-2 sm:gap-4 border-b pb-1 pt-5" role="group" aria-label={`${tr("Activité des 7 derniers jours", "نشاط آخر 7 أيام", "Last 7 days activity")} — ${weekSummary}`}>
                 {week.map((d, i) => (
-                  <div key={i} className="group flex h-full flex-1 flex-col justify-end" aria-hidden="true">
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => openActivityDay(i, week.length)}
+                    title={tr("Voir les élèves connectés ce jour-là", "عرض التلاميذ المتصلين في هذا اليوم", "See students online that day")}
+                    aria-label={`${d.label} : ${d.activeStudents} ${tr("élèves actifs", "تلاميذ نشطون", "active students")}`}
+                    className="group flex h-full flex-1 cursor-pointer flex-col justify-end rounded-md transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     <div className="relative flex flex-1 items-end justify-center gap-1">
                       {/* Valeurs toujours visibles (pas seulement au survol : tablettes / téléphones) */}
                       <div className="flex h-full w-1/2 max-w-[22px] flex-col items-center justify-end">
@@ -582,13 +596,13 @@ const Dashboard = () => {
                         <div className="w-full rounded-t-[3px] bg-foreground/20 motion-safe:transition-all motion-safe:duration-700" style={{ height: `${(d.submissions / maxWeek) * 85}%`, minHeight: d.submissions ? 4 : 0 }} />
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
               )}
               <div className="mt-2 flex gap-2 sm:gap-4">
                 {week.map((d, i) => (
-                  <span key={i} className={`flex-1 text-center text-[11px] capitalize ${d.isToday ? "font-medium text-foreground" : "text-muted-foreground"}`}>{d.label}</span>
+                  <button key={i} type="button" onClick={() => openActivityDay(i, week.length)} className={`flex-1 rounded text-center text-[11px] capitalize hover:text-primary hover:underline ${d.isToday ? "font-medium text-foreground" : "text-muted-foreground"}`}>{d.label}</button>
                 ))}
               </div>
               <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
