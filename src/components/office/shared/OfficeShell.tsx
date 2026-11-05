@@ -106,7 +106,7 @@ export function OfficeShell(props: OfficeShellProps) {
       style={style}
       className={cn(
         "office-app relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-muted/40 text-foreground",
-        full ? "fixed inset-0 z-[60] h-[100dvh] bg-background" : "h-full"
+        full ? "safe-inset fixed inset-0 z-[60] h-[100dvh] bg-background" : "h-full"
       )}
     >
       {/* Barre de titre */}

@@ -115,7 +115,7 @@ export default function QuestionBankPicker({
           </div>
           {levels.length > 0 && (
             <Select value={level} onValueChange={setLevel}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="min-w-[8rem] flex-1 sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{L("Tous niveaux", "كل المستويات", "All levels")}</SelectItem>
                 {levels.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -124,7 +124,7 @@ export default function QuestionBankPicker({
           )}
           {tags.length > 0 && (
             <Select value={tag} onValueChange={setTag}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="min-w-[8rem] flex-1 sm:w-40 sm:flex-none"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{L("Toutes compétences", "كل الكفايات", "All skills")}</SelectItem>
                 {tags.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -139,7 +139,7 @@ export default function QuestionBankPicker({
           )}
           {chapters.length > 0 && (
             <Select value={chapter} onValueChange={setChapter}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="min-w-[8rem] flex-1 sm:w-44 sm:flex-none"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{L("Tous les chapitres", "كل الفصول", "All chapters")}</SelectItem>
                 {chapters.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}

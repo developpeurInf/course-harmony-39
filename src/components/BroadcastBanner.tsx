@@ -76,7 +76,7 @@ export function BroadcastBanner({ userId, language }: { userId: string; language
                 )
               )}
             </div>
-            <button type="button" onClick={() => dismiss(a.id)} aria-label={closeLabel} title={closeLabel} className="-m-1 rounded p-1 opacity-70 hover:opacity-100">
+            <button type="button" onClick={() => dismiss(a.id)} aria-label={closeLabel} title={closeLabel} className="-m-2 rounded p-2 opacity-70 hover:opacity-100">
               <X className="h-4 w-4" />
             </button>
           </div>

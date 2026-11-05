@@ -766,7 +766,7 @@ function MediaViewer({ items, start, urls, tr, onClose }: { items: Attachment[];
     return () => window.removeEventListener("keydown", key);
   }, [items.length, onClose]);
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex h-full flex-col bg-black/95" dir="ltr">
+    <div role="dialog" aria-modal="true" className="safe-inset fixed inset-0 z-50 flex h-full flex-col bg-black/95" dir="ltr">
       <div className="flex items-center justify-between p-3 text-white" style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}>
         <span className="text-sm opacity-80">{items.length > 1 ? `${i + 1} / ${items.length}` : a.name}</span>
         <div className="flex gap-1">

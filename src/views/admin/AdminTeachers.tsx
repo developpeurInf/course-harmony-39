@@ -220,7 +220,7 @@ export default function AdminTeachers() {
         ) : (
           <>
             {/* Tableau (ordinateur / tablette) */}
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs text-muted-foreground">
                   <tr>
@@ -269,7 +269,7 @@ export default function AdminTeachers() {
               </table>
             </div>
             {/* Cartes (téléphone) */}
-            <ul className="divide-y md:hidden">
+            <ul className="divide-y lg:hidden">
               {filtered.map(r => (
                 <li key={r.user_id}>
                   <Link to={`/admin/teachers/${r.user_id}`} className="block px-4 py-3 active:bg-muted/50">

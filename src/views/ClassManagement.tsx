@@ -357,8 +357,8 @@ const ClassManagement = () => {
       </span>
     );
 
-  const renderActions = (room: Room) => (
-    <div className="flex gap-1 shrink-0">
+  const renderActions = (room: Room, wrap = false) => (
+    <div className={`flex gap-1 shrink-0 ${wrap ? "flex-wrap" : ""}`}>
       <Button
         variant="ghost"
         size="icon"
@@ -603,8 +603,8 @@ const ClassManagement = () => {
         {roomsWithCounts.map((room) => (
           <Card key={room.id} className="relative card-hover">
             <CardHeader>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-[12rem] flex-1">
                   <CardTitle className="flex items-center gap-2 min-w-0">
                     <Building className="h-5 w-5 text-primary shrink-0" />
                     {renderRoomName(room, true)}
@@ -613,7 +613,7 @@ const ClassManagement = () => {
                     {room.description || (language === "ar" ? "لا يوجد وصف" : language === "fr" ? "Aucune description" : "No description")}
                   </CardDescription>
                 </div>
-                {renderActions(room)}
+                {renderActions(room, true)}
               </div>
             </CardHeader>
             <CardContent>
@@ -637,7 +637,7 @@ const ClassManagement = () => {
               </div>
               <div className="mt-4 pt-4 border-t">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{t("Visibility:")}</span>
+                  <span className="text-muted-foreground">{language === "ar" ? "الظهور:" : language === "fr" ? "Visibilité :" : "Visibility:"}</span>
                   <span className={room.is_visible ? "text-green-600" : "text-orange-600"}>
                     {room.is_visible ? t("Visible") : t("Hidden")}
                   </span>

@@ -604,7 +604,7 @@ export function MeetStage(props: {
     <aside
       className={cn(
         "meet-panel flex min-h-0 flex-col overflow-hidden bg-[#121722] ring-1 ring-white/10",
-        isMobile ? "fixed inset-0 z-40" : "w-[360px] shrink-0 rounded-3xl",
+        isMobile ? "safe-inset fixed inset-0 z-40" : "w-[360px] shrink-0 rounded-3xl",
       )}
       aria-label={panel === "chat" ? tr("Chat de la réunion", "دردشة الاجتماع", "Meeting chat") : tr("Participants", "المشاركون", "Participants")}
     >

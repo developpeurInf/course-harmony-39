@@ -48,7 +48,7 @@ export const UserMenu = () => {
           <Avatar className="h-8 w-8">
             <AvatarImage src={getAvatarUrl()} key={user?.avatar_url} />
             <AvatarFallback>
-              {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || <User className="h-4 w-4" />}
+              {user?.name?.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || <User className="h-4 w-4" />}
             </AvatarFallback>
           </Avatar>
         </Button>

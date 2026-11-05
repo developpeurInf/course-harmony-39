@@ -445,7 +445,7 @@ const RoomStudents = () => {
                   <Avatar className="h-10 w-10 shrink-0">
                     <AvatarImage src={student.avatar_url || undefined} />
                     <AvatarFallback>
-                      {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      {student.name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
@@ -492,7 +492,7 @@ const RoomStudents = () => {
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarImage src={student.avatar_url || undefined} />
                           <AvatarFallback>
-                            {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            {student.name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <span className="font-medium truncate max-w-[140px]">{student.name}</span>

@@ -277,7 +277,7 @@ const QuizResults = ({ examId, onClose }: QuizResultsProps) => {
                           </span>
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {submission.student_name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              {submission.student_name?.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                         </div>

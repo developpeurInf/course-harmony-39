@@ -189,7 +189,7 @@ export function Slideshow({ deck, start, presenter, L, onExit }: { deck: Deck; s
   );
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[200] select-none bg-black" dir="ltr">
+    <div ref={rootRef} className="safe-inset fixed inset-0 z-[200] select-none bg-black" dir="ltr">
       {presenter ? (
         <div className="flex h-full flex-col bg-[#1b1b1b] p-4 text-white">
           <div className="mb-3 flex items-center gap-3 text-sm">

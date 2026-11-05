@@ -72,7 +72,8 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-start",
+      // marge pour le bouton Fermer (X) : un titre long ne passe plus dessous
+      "flex flex-col space-y-1.5 px-7 text-center sm:px-0 sm:pe-8 sm:text-start",
       className
     )}
     {...props}

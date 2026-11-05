@@ -195,7 +195,7 @@ export default function ActivityDay() {
   const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
 
   return (
-    <div className="container mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-5xl space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Button asChild variant="ghost" size="sm" className="-ms-2 mb-1 gap-1 text-xs">

@@ -58,3 +58,10 @@
 @media (prefers-reduced-motion: reduce) {
   .meet-float, .meet-wave svg, .meet-panel { animation: none; }
 }
+/* iPhone à encoche / barre d'accueil : réunion, tableau blanc et salle d'attente restent dans la zone visible */
+.meet-shell {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}

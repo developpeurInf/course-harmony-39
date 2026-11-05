@@ -597,3 +597,108 @@ img, video, iframe, canvas { max-width: 100%; }
 @media (max-width: 639.98px) {
   .notif-panel { top: calc(3.75rem + env(safe-area-inset-top, 0px)); }
 }
+
+
+/* ═════════ Audit mobile (nov. 2026) ═════════ */
+
+/* Onglets : sur un écran étroit, la rangée défile horizontalement au lieu de déborder
+   (le premier onglet reste visible : marges automatiques au lieu de justify-center). */
+.app-tabs-list {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.app-tabs-list::-webkit-scrollbar { display: none; }
+.app-tabs-list.justify-center { justify-content: flex-start; }
+.app-tabs-list.justify-center > :first-child { margin-inline-start: auto; }
+.app-tabs-list.justify-center > :last-child { margin-inline-end: auto; }
+.app-tabs-list > [role="tab"] { flex-shrink: 0; }
+/* Rangée défilante générique (barres d'outils, filtres) */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Écrans tactiles : zone de toucher d'au moins ~40 px pour les petits boutons icônes,
+   sans changer leur apparence (pseudo-élément invisible autour du bouton). */
+@media (pointer: coarse) {
+  button.h-5:not([class*="absolute"]):not([class*="fixed"]):not([class*="sticky"]):not([class*="static"]),
+  button.h-6:not([class*="absolute"]):not([class*="fixed"]):not([class*="sticky"]):not([class*="static"]),
+  button.h-7:not([class*="absolute"]):not([class*="fixed"]):not([class*="sticky"]):not([class*="static"]),
+  button.h-8:not([class*="absolute"]):not([class*="fixed"]):not([class*="sticky"]):not([class*="static"]),
+  a.h-7:not([class*="absolute"]):not([class*="fixed"]):not([class*="sticky"]):not([class*="static"]),
+  a.h-8:not([class*="absolute"]):not([class*="fixed"]):not([class*="sticky"]):not([class*="static"]),
+  button[role="checkbox"]:not([class*="absolute"]):not([class*="static"]),
+  button[role="switch"]:not([class*="absolute"]):not([class*="static"]),
+  button[role="radio"]:not([class*="absolute"]):not([class*="static"]) {
+    position: relative;
+  }
+  button.h-5:not([class*="static"])::after,
+  button.h-6:not([class*="static"])::after,
+  button.h-7:not([class*="static"])::after,
+  button.h-8:not([class*="static"])::after,
+  a.h-7:not([class*="static"])::after,
+  a.h-8:not([class*="static"])::after,
+  button[role="checkbox"]:not([class*="static"])::after,
+  button[role="switch"]:not([class*="static"])::after,
+  button[role="radio"]:not([class*="static"])::after {
+    content: "";
+    position: absolute;
+    top: -6px; right: -6px; bottom: -6px; left: -6px;
+  }
+}
+
+/* iPhone en paysage (viewport-fit=cover) : le contenu ne passe plus sous l'encoche ni sous
+   la barre d'accueil sur les côtés */
+body {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Écrans plein écran superposés (visionneuse, outils Office/GeoGebra, panneau de réunion) */
+.safe-inset {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+/* Arabe : un champ vide en dir="auto" se mettait de gauche à droite et coupait le début
+   du texte indicatif (« ابحث عن… » devenait « ث عن… »). Vide, il suit le sens de la page. */
+[dir="rtl"] input[dir="auto"]:placeholder-shown,
+[dir="rtl"] textarea[dir="auto"]:placeholder-shown {
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+/* Tableaux sur téléphone : ils défilent horizontalement dans leur cadre au lieu d'écraser
+   les colonnes (un mot par ligne). Les en-têtes restent sur une ligne. */
+@media (max-width: 767.98px) {
+  .app-table-wrap > table th,
+  .overflow-x-auto > table th,
+  .overflow-auto > table th { white-space: nowrap; }
+  .app-table-wrap > table td:not([class*="w-"]),
+  .overflow-x-auto > table td:not([class*="w-"]),
+  .overflow-auto > table td:not([class*="w-"]) { min-width: 6.5rem; }
+}
+/* Champs date / heure : sur iPhone et Android ils ont une largeur minimale native qui les
+   faisait dépasser de leur colonne (formulaires sur deux colonnes dans les fenêtres). */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+  min-width: 0;
+  max-width: 100%;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value { text-align: start; }
+/* Téléphone en paysage (hauteur ≤ 500 px) : barres du haut et du bas plus basses pour
+   laisser de la place au contenu (icône et libellé côte à côte). */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1023.98px) {
+  .app-bottomnav ul { height: 44px; }
+  .app-bottomnav a { flex-direction: row; gap: 0.375rem; }
+  .app-topnav { height: calc(3rem + env(safe-area-inset-top, 0px)); }
+  .pb-bottomnav { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .pb-bottomnav-tight { padding-bottom: calc(45px + env(safe-area-inset-bottom, 0px)); }
+  .with-bottomnav .safe-bottom-offset { bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+}

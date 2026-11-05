@@ -793,7 +793,7 @@ const Exercises = () => {
                             <FileText className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-semibold">
+                            <h3 className="text-base font-semibold break-anywhere sm:text-xl">
                               {exercise.title}
                             </h3>
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -822,7 +822,7 @@ const Exercises = () => {
                         </div>
                         
                         {exercise.description && (
-                          <p className="text-muted-foreground mt-3 leading-relaxed">
+                          <p className="mt-3 text-sm leading-relaxed text-muted-foreground break-anywhere sm:text-base">
                             {exercise.description}
                           </p>
                         )}

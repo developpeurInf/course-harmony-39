@@ -161,7 +161,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Barre du haut (téléphone / tablette) */}
-        <header className="flex-shrink-0 border-b bg-background lg:hidden">
+        <header className="pt-safe flex-shrink-0 border-b bg-background lg:hidden">
           <div className="flex items-center justify-between gap-2 px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
               <BrandMark logoUrl={appSettings.identity.logoUrl || null} alt="" size="sm" />

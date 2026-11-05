@@ -309,7 +309,7 @@ const MultiPdfUpload = ({
       {/* Video link */}
       {onVideoLinksChange && !pdfOnly && (
         <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium">
             <Youtube className="h-4 w-4 text-red-500" />
             {tr('إضافة فيديو عبر رابط', 'Ajouter une vidéo par lien', 'Add a video by link')}
             <span className="text-xs font-normal text-muted-foreground">(YouTube, Vimeo, .mp4)</span>

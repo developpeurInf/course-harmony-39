@@ -154,7 +154,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
             >
               <AvatarImage src={getAvatarUrl()} />
               <AvatarFallback>
-                {student.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                {student.name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div>

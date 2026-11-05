@@ -671,7 +671,7 @@ const PdfEditor = () => {
               </span>
             )}
             {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-            <Button size="sm" variant="ghost" className="h-8 gap-1.5 px-2.5 sm:px-3" disabled={!hasDoc} onClick={enterBoard} title={t("Mode tableau : plein écran pour le vidéoprojecteur", "وضع السبورة: ملء الشاشة لجهاز العرض", "Board mode: full screen for the projector")}>
+            <Button size="sm" variant="ghost" className="hidden h-8 gap-1.5 px-2.5 sm:inline-flex sm:px-3" disabled={!hasDoc} onClick={enterBoard} title={t("Mode tableau : plein écran pour le vidéoprojecteur", "وضع السبورة: ملء الشاشة لجهاز العرض", "Board mode: full screen for the projector")}>
               <MonitorPlay className="h-4 w-4" strokeWidth={1.75} />
               <span className="hidden sm:inline">{t("Mode tableau", "وضع السبورة", "Board mode")}</span>
             </Button>
@@ -679,7 +679,7 @@ const PdfEditor = () => {
               <X className="h-4 w-4" strokeWidth={1.75} />
               <span className="hidden sm:inline">{t("Fermer", "إغلاق", "Close")}</span>
             </Button>
-            <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 sm:px-3" disabled={!hasDoc} onClick={() => ws?.downloadActive()} title={t("Télécharger le PDF", "تحميل PDF", "Download PDF")}>
+            <Button size="sm" variant="outline" className="hidden h-8 gap-1.5 px-2.5 sm:inline-flex sm:px-3" disabled={!hasDoc} onClick={() => ws?.downloadActive()} title={t("Télécharger le PDF", "تحميل PDF", "Download PDF")}>
               <Download className="h-4 w-4" strokeWidth={1.75} />
               <span className="hidden sm:inline">{t("Télécharger", "تحميل", "Download")}</span>
             </Button>

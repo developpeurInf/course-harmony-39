@@ -40,6 +40,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       dir={dir}
       position={small ? "top-center" : dir === "rtl" ? "bottom-left" : "bottom-right"}
       closeButton
+      // iPhone à encoche (application installée) : les messages s'affichent sous la barre d'état
+      mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 12px)", left: 12, right: 12 }}
       className="toaster group"
       toastOptions={{
         classNames: {

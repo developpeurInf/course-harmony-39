@@ -126,14 +126,14 @@ const QuestionBank = () => {
           <Input value={q} onChange={(e) => setQ(e.target.value)} className="ps-8" placeholder={tr("Rechercher un énoncé, un mot-clé…", "ابحث عن نص أو كلمة مفتاحية…", "Search a statement, a tag…")} />
         </div>
         <Select value={chapter} onValueChange={setChapter}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="min-w-[9rem] flex-1 sm:w-48 sm:flex-none"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{tr("Tous les chapitres", "كل الفصول", "All chapters")}</SelectItem>
             {chapters.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={kind} onValueChange={setKind}>
-          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="min-w-[9rem] flex-1 sm:w-44 sm:flex-none"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{tr("Tous les types", "كل الأنواع", "All types")}</SelectItem>
             <SelectItem value="multiple_choice">QCM</SelectItem>
@@ -143,7 +143,7 @@ const QuestionBank = () => {
           </SelectContent>
         </Select>
         <Select value={usage} onValueChange={setUsage}>
-          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="min-w-[9rem] flex-1 sm:w-44 sm:flex-none"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{tr("Utilisées ou non", "مستعملة أو لا", "Used or not")}</SelectItem>
             <SelectItem value="unused">{tr("Jamais utilisées", "غير مستعملة", "Never used")}</SelectItem>

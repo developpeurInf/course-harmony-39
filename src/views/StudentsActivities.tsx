@@ -16,7 +16,7 @@ const StudentsActivities = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6">
+    <div className="mx-auto w-full">
       <StudentActivities roomId={roomId} />
     </div>
   );

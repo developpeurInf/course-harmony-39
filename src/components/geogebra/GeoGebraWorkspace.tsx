@@ -441,7 +441,7 @@ export default function GeoGebraWorkspace({ appId }: { appId: GgbAppId }) {
       dir={dir}
       className={cn(
         "ggb-workspace flex min-h-0 flex-1 flex-col bg-background",
-        pseudoFs && "fixed inset-0 z-[80]"
+        pseudoFs && "safe-inset fixed inset-0 z-[80]"
       )}
       style={{ ["--ggb-accent" as string]: def.color }}
     >
