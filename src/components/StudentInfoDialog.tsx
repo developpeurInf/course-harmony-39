@@ -9,6 +9,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ProfileAvatarDialog from "@/components/ProfileAvatarDialog";
+import { StudentExtras } from "@/components/student/StudentExtras";
 
 interface Student {
   id: string;
@@ -81,14 +82,14 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
           );
           setTimeout(() => setCopiedField(null), 2000);
         } catch (err) {
-          toast.error(t("Failed to copy to clipboard"));
+          toast.error(language === "ar" ? "تعذر النسخ" : language === "fr" ? "Copie impossible" : "Failed to copy to clipboard");
         } finally {
           document.body.removeChild(textArea);
         }
       }
     } catch (error) {
       console.error('Failed to copy:', error);
-      toast.error(t("Failed to copy to clipboard"));
+      toast.error(language === "ar" ? "تعذر النسخ" : language === "fr" ? "Copie impossible" : "Failed to copy to clipboard");
     }
   };
 
@@ -144,7 +145,7 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
             <Avatar 
@@ -208,7 +209,9 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => copyToClipboard(field.value, field.label)}
-                    className="ml-2"
+                    className="h-9 w-9 shrink-0 p-0"
+                    aria-label={language === "ar" ? `نسخ ${field.label}` : language === "fr" ? `Copier ${field.label}` : `Copy ${field.label}`}
+                    title={language === "ar" ? "نسخ" : language === "fr" ? "Copier" : "Copy"}
                   >
                     {isCopied ? (
                       <Check className="h-4 w-4 text-green-600" />
@@ -221,6 +224,13 @@ export const StudentInfoDialog: React.FC<StudentInfoDialogProps> = ({
             );
           })}
         </div>
+
+        <StudentExtras
+          studentId={student.id}
+          studentName={student.name}
+          tr={(fr, ar, en) => (language === "ar" ? ar : language === "fr" ? fr : en)}
+          locale={language === "ar" ? "ar-MA" : language === "fr" ? "fr-FR" : "en-GB"}
+        />
 
         <div className="flex justify-end mt-6">
           <Button variant="outline" onClick={onClose}>

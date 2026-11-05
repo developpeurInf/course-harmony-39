@@ -1,4 +1,5 @@
 import { DiagnosticClass, DiagnosticStudent } from "./diagnosticStatsEngine";
+import { DIAGNOSTIC_TRANSLATIONS, type DiagLang } from "./diagnosticTranslations";
 
 export interface DiagnosticExercise {
   titre: string;
@@ -22,6 +23,139 @@ export interface DiagnosticConfig {
   appreciation_globale: string;
   observations: string[];
   propositions: string[];
+  /** Modèle 2 (rapport multi-classes) : textes personnalisés — vides = texte automatique */
+  rapport2_intro?: string;
+  rapport2_soutien?: string;
+  rapport2_remarque?: string;
+  /** Textes du modèle 2 par langue (IA ou saisie) ; prioritaires sur les champs ci-dessus */
+  rapport2_par_langue?: Partial<Record<DiagLang, { intro?: string; remarque?: string; soutien?: string }>>;
+  /** Choisi à l'ouverture : rédaction par l'IA ou saisie manuelle */
+  mode_redaction?: "ai" | "manual";
+  /** Modèle 2 : graphiques (bibliothèque src/components/diagnostic/ReportCharts.tsx) */
+  rapport2_graphiques?: Report2ChartSettings;
+  /** Modèle 1 : choix des 2 graphiques de la page « Résultats » */
+  rapport1_graphiques?: Report1ChartSettings;
+  /**
+   * Contenu pédagogique propre à chaque langue (onglet « 4. Résultats et remédiation ») :
+   * modifier un champ en arabe met à jour le rapport arabe, en français le rapport français…
+   */
+  contenu_par_langue?: Partial<Record<DiagLang, DiagnosticLangContent>>;
+  /** Modèles 3 et 4 : analyse IA (modifiable) par langue — src/lib/diagnosticAi.ts */
+  analyse_ia?: Partial<Record<DiagLang, import("@/lib/diagnosticAi").DiagnosticAiAnalysis>>;
+  /** Taux de réussite saisis par le professeur pour chaque exercice (index → %) */
+  taux_exercices?: Record<string, number | null>;
+}
+
+export interface Report2ChartSettings {
+  /** au-dessus de chaque tableau de classe, section d'ensemble, ou les deux */
+  mode: "per_table" | "global" | "both";
+  /** graphique par défaut pour chaque classe (ClassChartType) */
+  type_par_defaut: string;
+  /** choix différent pour certaines classes (clé = nom de la classe) */
+  types_par_classe?: Record<string, string>;
+  /** graphiques de la section d'ensemble (GlobalChartType), dans l'ordre */
+  globaux: string[];
+  palette: "color" | "mono";
+  /** ligne « moyenne · médiane · écart-type · min · max » sous chaque tableau */
+  statistiques: boolean;
+  /** légendes « Figure n : … » */
+  numeroter: boolean;
+}
+
+export const DEFAULT_REPORT2_CHARTS: Report2ChartSettings = {
+  mode: "per_table",
+  type_par_defaut: "bars",
+  types_par_classe: {},
+  globaux: ["stacked100", "success", "boxplots"],
+  palette: "color",
+  statistiques: true,
+  numeroter: true,
+};
+
+export interface Report1ChartSettings {
+  /** "original" = graphique d'origine du modèle 1, sinon un type de la bibliothèque (classe ou ensemble) */
+  graphe1: string;
+  graphe2: string;
+  palette: "color" | "mono";
+}
+
+export const DEFAULT_REPORT1_CHARTS: Report1ChartSettings = {
+  graphe1: "original",
+  graphe2: "original",
+  palette: "color",
+};
+
+export interface DiagnosticLangContent {
+  observations: string[];
+  propositions: string[];
+  exercices: DiagnosticExercise[];
+  appreciation_globale: string;
+  nombre_exercices_texte: string;
+}
+
+const NUM_WORDS: Record<DiagLang, string[]> = {
+  fr: ["zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix"],
+  ar: ["صفر", "تمرين واحد", "تمرينين", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة"],
+  en: ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"],
+};
+
+/** Nombre d'exercices en lettres dans la langue demandée */
+export function numberToWords(n: number, lang: DiagLang): string {
+  return NUM_WORDS[lang]?.[n] ?? String(n);
+}
+
+const hasArabic = (txt: string) => /[\u0600-\u06FF]/.test(txt || "");
+
+/** Langue dans laquelle sont écrits les anciens champs (avant le contenu par langue) */
+function legacyContentLang(config: DiagnosticConfig): DiagLang {
+  const sample = [...(config.observations || []), ...(config.propositions || []), ...(config.exercices || []).map(e => e.description)].join(" ");
+  return hasArabic(sample) ? "ar" : "fr";
+}
+
+/** Contenu (observations, propositions, exercices, appréciation) pour une langue */
+export function getLangContent(config: DiagnosticConfig, lang: DiagLang): DiagnosticLangContent {
+  const stored = config.contenu_par_langue?.[lang];
+  if (stored) return stored;
+  if (legacyContentLang(config) === lang) {
+    return {
+      observations: config.observations || [],
+      propositions: config.propositions || [],
+      exercices: config.exercices || [],
+      appreciation_globale: config.appreciation_globale || "",
+      nombre_exercices_texte: config.nombre_exercices_texte || numberToWords((config.exercices || []).length, lang),
+    };
+  }
+  const tr = DIAGNOSTIC_TRANSLATIONS[lang] || DIAGNOSTIC_TRANSLATIONS.fr;
+  const exercices = (tr.defaultExercises || []).map(e => ({ ...e }));
+  return {
+    observations: [...(tr.defaultObservations || [])],
+    propositions: [...(tr.defaultPropositions || [])],
+    exercices,
+    appreciation_globale: "",
+    nombre_exercices_texte: numberToWords(exercices.length, lang),
+  };
+}
+
+/** Met à jour le contenu d'une langue (les anciens champs suivent la langue d'origine) */
+export function setLangContent(
+  config: DiagnosticConfig,
+  lang: DiagLang,
+  patch: Partial<DiagnosticLangContent>
+): DiagnosticConfig {
+  const next: DiagnosticLangContent = { ...getLangContent(config, lang), ...patch };
+  const out: DiagnosticConfig = {
+    ...config,
+    contenu_par_langue: { ...(config.contenu_par_langue || {}), [lang]: next },
+  };
+  // Compatibilité : les anciens champs restent synchronisés avec leur langue d'origine
+  if (legacyContentLang(config) === lang) {
+    out.observations = next.observations;
+    out.propositions = next.propositions;
+    out.exercices = next.exercices;
+    out.appreciation_globale = next.appreciation_globale;
+    out.nombre_exercices_texte = next.nombre_exercices_texte;
+  }
+  return out;
 }
 
 export interface DiagnosticAppData {
@@ -147,4 +281,66 @@ export function resetDiagnosticDataToDefaults(): DiagnosticAppData {
   const defaults = JSON.parse(JSON.stringify(DEFAULT_DIAGNOSTIC_DATA));
   saveDiagnosticData(defaults);
   return defaults;
+}
+
+/** Année scolaire marocaine en cours (rentrée en septembre) */
+export function currentSchoolYear(d = new Date()): string {
+  const y = d.getFullYear();
+  return d.getMonth() >= 8 ? `${y} / ${y + 1}` : `${y - 1} / ${y}`;
+}
+
+const MONTHS: Record<DiagLang, string[]> = {
+  fr: ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+  ar: ["يناير", "فبراير", "مارس", "أبريل", "ماي", "يونيو", "يوليوز", "غشت", "شتنبر", "أكتوبر", "نونبر", "دجنبر"],
+  en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+};
+
+/** Période de passation d'après les dates des classes, ex. « 01 au 09 octobre 2026 » */
+export function periodFromDates(dates: string[], lang: DiagLang): string {
+  const ds = dates.map((s) => new Date(s)).filter((d) => !isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime());
+  if (!ds.length) return "";
+  const a = ds[0], b = ds[ds.length - 1];
+  const dd = (d: Date) => String(d.getDate()).padStart(2, "0");
+  const m = MONTHS[lang] || MONTHS.fr;
+  const full = (d: Date) => `${dd(d)} ${m[d.getMonth()]} ${d.getFullYear()}`;
+  const same = a.toDateString() === b.toDateString();
+  const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  const start = sameMonth ? dd(a) : a.getFullYear() === b.getFullYear() ? `${dd(a)} ${m[a.getMonth()]}` : full(a);
+  if (same) return full(a);
+  if (lang === "ar") return `من ${start} إلى ${full(b)}`;
+  if (lang === "en") return `${start} to ${full(b)}`;
+  return `${start} au ${full(b)}`;
+}
+
+const listJoin = (items: string[], lang: DiagLang) => {
+  if (items.length < 2) return items.join("");
+  const and = lang === "ar" ? " و" : lang === "en" ? " and " : " et ";
+  return `${items.slice(0, -1).join(lang === "ar" ? "، " : ", ")}${and}${items[items.length - 1]}`;
+};
+
+/**
+ * Remplit les paramètres (onglet 5) depuis les données de l'appli : enseignant connecté,
+ * établissement de la personnalisation, année scolaire, classes et dates de passation.
+ * Sans `force`, seuls les champs vides ou encore à la valeur d'exemple sont remplacés.
+ */
+export function fillConfigFromData(
+  config: DiagnosticConfig,
+  classes: { nom: string; date: string }[],
+  lang: DiagLang,
+  src: { teacher?: string; school?: string },
+  force = false,
+): DiagnosticConfig {
+  const demo = DEFAULT_DIAGNOSTIC_DATA.config as unknown as Record<string, unknown>;
+  const out = { ...config } as DiagnosticConfig & Record<string, unknown>;
+  const put = (key: keyof DiagnosticConfig, value: string | undefined) => {
+    if (!value) return;
+    const cur = out[key as string];
+    if (force || !cur || cur === demo[key as string]) out[key as string] = value;
+  };
+  put("nom_enseignant", src.teacher);
+  put("lycee", src.school);
+  put("annee_scolaire", currentSchoolYear());
+  put("periode_diagnostic", periodFromDates(classes.map((c) => c.date), lang));
+  put("classes_concernees", listJoin(classes.map((c) => c.nom), lang));
+  return out;
 }

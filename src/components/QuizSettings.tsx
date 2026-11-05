@@ -1,8 +1,9 @@
+import { accessStore } from "@/contexts/AccessContext";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Settings, ShuffleIcon, Lock, Award, CheckCircle } from "lucide-react";
+import { Settings, ShuffleIcon, Lock, Award, CheckCircle, ShieldAlert } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { QuizSettings as QuizSettingsType, DEFAULT_QUIZ_SETTINGS } from "@/contexts/CourseContext";
 
@@ -38,7 +39,7 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
   return (
     <Card className="w-full border-muted/60 shadow-sm">
       <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2 text-base font-bold">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <Settings className="h-5 w-5 text-primary" />
           {language === "ar" ? "إعدادات الاختبار" : language === "fr" ? "Configuration du Quiz" : "Quiz Configuration"}
         </CardTitle>
@@ -58,7 +59,7 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
                   {language === "ar" ? "أسئلة متسلسلة إجبارياً" : language === "fr" ? "Questions séquentielles" : "Sequential Questions"}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "يجب على التلاميذ الإجابة عن الأسئلة بالترتيب" : language === "fr" ? "Les élèves doivent répondre aux questions dans l'ordre" : "Students must answer questions in order"}
+                  {language === "ar" ? "يجب على التلاميذ الإجابة عن الأسئلة بالترتيب، مع مدة لكل سؤال" : language === "fr" ? "Les élèves répondent dans l'ordre, avec une durée par question (séquentiel minuté)" : "Students answer in order, with a time limit per question (sequential timed)"}
                 </p>
               </div>
               <Switch
@@ -144,6 +145,88 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
           </div>
         </div>
 
+        {/* Anti-triche */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-primary" />
+            {language === "ar" ? "مكافحة الغش" : language === "fr" ? "Anti-triche" : "Anti-cheating"}
+          </h3>
+
+          <div className="space-y-3 bg-muted/20 p-3 rounded-lg border border-muted/40">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="anti-cheat" className="text-sm font-medium">
+                  {language === "ar" ? "حماية الاختبار" : language === "fr" ? "Protéger le quiz" : "Protect the quiz"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {language === "ar"
+                    ? "منع النسخ واللصق والتحديد، إخفاء الأسئلة عند مغادرة الصفحة، وعلامة مائية باسم التلميذ"
+                    : language === "fr"
+                    ? "Copier, coller et sélection bloqués, questions masquées si l'élève quitte la page, filigrane à son nom"
+                    : "Blocks copy, paste and selection, hides questions when the student leaves the page, name watermark"}
+                </p>
+              </div>
+              <Switch
+                id="anti-cheat"
+                checked={settings.antiCheat && accessStore.can("quiz.anti_cheat")}
+                disabled={!accessStore.can("quiz.anti_cheat")}
+                onCheckedChange={(checked) => {
+                  if (checked && !accessStore.guard("quiz.anti_cheat")) return;
+                  updateSetting('antiCheat', checked);
+                }}
+              />
+            </div>
+
+            {settings.antiCheat && (
+              <div className="pt-2 border-t border-muted/30 space-y-2">
+                <Label id="auto-submit-label" className="text-sm font-medium">
+                  {language === "ar"
+                    ? "الإرسال التلقائي بعد مغادرة الصفحة"
+                    : language === "fr"
+                    ? "Envoi automatique après sorties de la page"
+                    : "Auto-submit after leaving the page"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {language === "ar"
+                    ? "يُرسل الاختبار تلقائياً عندما يغادر التلميذ الصفحة (للبحث عن الإجابة مثلاً) هذا العدد من المرات"
+                    : language === "fr"
+                    ? "Le quiz est envoyé d'office quand l'élève quitte la page (pour chercher la réponse, par ex.) ce nombre de fois"
+                    : "The quiz is submitted automatically when the student leaves the page this many times"}
+                </p>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="auto-submit-label">
+                  {[1, 2, 3, 5, 0].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      role="radio"
+                      aria-checked={(settings.maxFocusLosses ?? 3) === n}
+                      onClick={() => updateSetting('maxFocusLosses', n)}
+                      className={`h-9 min-w-[3rem] px-3 rounded-lg border text-sm font-semibold transition-colors ${
+                        (settings.maxFocusLosses ?? 3) === n
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background hover:bg-muted border-border"
+                      }`}
+                    >
+                      {n === 0
+                        ? (language === "ar" ? "أبداً" : language === "fr" ? "Jamais" : "Never")
+                        : n === 1
+                        ? (language === "ar" ? "مرة" : language === "fr" ? "1 fois" : "1 time")
+                        : (language === "ar" ? `${n} مرات` : language === "fr" ? `${n} fois` : `${n} times`)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {language === "ar"
+                    ? "ملاحظة: لا يمكن لأي موقع منع لقطة الشاشة بأزرار الجهاز أو التصوير بهاتف آخر؛ العلامة المائية تجعل الصورة قابلة للتعرف على صاحبها."
+                    : language === "fr"
+                    ? "À savoir : aucun site ne peut empêcher une capture faite avec les boutons de l'appareil ou une photo prise avec un autre téléphone ; le filigrane rend la capture identifiable."
+                    : "Note: no website can block a screenshot taken with the device buttons or a photo taken with another phone; the watermark makes it traceable."}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Results & Review */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -179,10 +262,20 @@ const QuizSettings = ({ initialSettings, onSettingsChange }: QuizSettingsProps) 
               </div>
               <Switch
                 id="allow-review"
-                checked={settings.allowReview}
+                checked={settings.allowReview && settings.showResultsImmediately}
+                disabled={!settings.showResultsImmediately}
                 onCheckedChange={(checked) => updateSetting('allowReview', checked)}
               />
             </div>
+            {!settings.showResultsImmediately && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md px-2 py-1.5">
+                {language === "ar"
+                  ? "مراجعة التصحيح غير متاحة عندما تكون النتيجة مخفية (لأنها تكشف النقطة)."
+                  : language === "fr"
+                  ? "La relecture du corrigé est désactivée tant que la note est masquée (elle révélerait le résultat)."
+                  : "Answer review is disabled while the score is hidden (it would reveal the result)."}
+              </p>
+            )}
           </div>
         </div>
       </CardContent>
