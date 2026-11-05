@@ -785,11 +785,11 @@ const Exercises = () => {
             {items.map((exercise) => (
               <Card key={exercise.id} className="group card-hover overflow-hidden">
                 <div className="flex flex-col md:flex-row">
-                  <div className="flex-1 p-6">
+                  <div className="min-w-0 flex-1 p-4 sm:p-6">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-3 mb-2">
-                          <div className="p-2 border bg-background rounded-lg shrink-0">
+                          <div className="hidden p-2 border bg-background rounded-lg shrink-0 sm:block">
                             <FileText className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -838,7 +838,7 @@ const Exercises = () => {
                   </div>
                   
                   {isProfessor && (
-                    <div className="flex md:flex-col gap-2 p-4 border-t md:border-t-0 md:border-l bg-muted/30 md:w-32 justify-center">
+                    <div className="flex flex-wrap md:flex-col md:flex-nowrap gap-2 p-3 sm:p-4 border-t md:border-t-0 md:border-l bg-muted/30 md:w-32 justify-center">
                       <Button
                         variant="outline"
                         size="sm"

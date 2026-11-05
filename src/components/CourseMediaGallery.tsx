@@ -357,14 +357,15 @@ export const CourseMediaGallery = ({
             {docs.map(d => {
               const k = getMaterialKind(d);
               return (
-                <div key={d.id} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
+                <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
                   <div className={`flex h-12 w-10 shrink-0 items-center justify-center rounded-md ${k === "pdf" ? "bg-rose-500/10" : "bg-slate-500/10"}`}>
                     {k === "link" ? <Link2 className="h-5 w-5 text-slate-500" /> : <FileText className="h-5 w-5 text-rose-500" />}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold" title={d.file_name}>{displayName(d, tr)}</p>
+                  <div className="min-w-[9rem] flex-1">
+                    <p className="line-clamp-2 break-anywhere text-sm font-semibold" title={d.file_name}>{displayName(d, tr)}</p>
                     <p className="text-xs text-muted-foreground">{k === "pdf" ? "PDF" : k === "link" ? tr("رابط", "Lien", "Link") : tr("ملف", "Fichier", "File")}{d.file_size ? ` · ${formatFileSize(d.file_size)}` : ""}</p>
                   </div>
+                  <div className="ms-auto flex shrink-0 items-center gap-1">
                   <Button asChild size="sm" variant="outline" className="h-9 gap-1 px-2.5 text-xs">
                     <a href={getMaterialUrl(d)} target="_blank" rel="noopener noreferrer" aria-label={`${tr("فتح", "Ouvrir", "Open")} : ${displayName(d, tr)}`}>
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -386,6 +387,7 @@ export const CourseMediaGallery = ({
                       <Download className="h-4 w-4" />
                     </Button>
                   )}
+                  </div>
                 </div>
               );
             })}
