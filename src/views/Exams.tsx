@@ -284,6 +284,25 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
         )
       );
 
+  // Cours proposés dans le formulaire : sur la page d'une classe, uniquement ses cours ;
+  // ailleurs, chaque cours est suivi du nom de sa classe (sinon un quiz peut partir
+  // dans une autre classe sans que le professeur s'en aperçoive).
+  const formCourses = roomId ? courses.filter((c) => c.room_id === roomId) : courses;
+  const roomNameById = new Map((rooms || []).map((r: any) => [r.id, r.name] as [string, string]));
+  const courseLabel = (c: { title: string; room_id?: string | null }) => {
+    const rn = !roomId && c.room_id ? roomNameById.get(c.room_id) : undefined;
+    return rn ? `${c.title} · ${rn}` : c.title;
+  };
+  const noCourseInRoomHint = roomId && formCourses.length === 0 ? (
+    <p className="text-xs text-destructive">
+      {tr(
+        "Cette classe n'a encore aucun cours : créez d'abord un cours dans cette classe, sinon les élèves ne verront pas l'évaluation.",
+        "لا يوجد أي درس في هذا القسم بعد: أنشئ درساً أولاً في هذا القسم، وإلا فلن يرى التلاميذ التقييم.",
+        "This class has no course yet: create a course in this class first, otherwise students won't see the assessment."
+      )}
+    </p>
+  ) : null;
+
   // Reset form with smart defaults
   const resetForm = () => {
     let defaultCourseId = "";
@@ -291,6 +310,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
       if (selectedCourseFilter !== "all" && courses.some(c => c.id === selectedCourseFilter)) {
         defaultCourseId = selectedCourseFilter;
       } else if (roomId) {
+        // Page d'une classe : jamais un cours d'une autre classe par défaut
         const roomCourse = courses.find(c => c.room_id === roomId);
         if (roomCourse) defaultCourseId = roomCourse.id;
       } else if (courses.length === 1) {
@@ -659,13 +679,14 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
                         <SelectValue placeholder={language === "ar" ? "اختر درساً" : language === "fr" ? "Sélectionner un cours" : "Select a course"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {courses.map(course => (
+                        {formCourses.map(course => (
                           <SelectItem key={course.id} value={course.id}>
-                            {course.title}
+                            {courseLabel(course)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {noCourseInRoomHint}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="title">{language === "ar" ? "عنوان الامتحان" : language === "fr" ? "Titre de l'examen" : "Exam Title"}</Label>
@@ -1537,9 +1558,9 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
                   <SelectValue placeholder={language === "ar" ? "اختر درساً" : language === "fr" ? "Sélectionner un cours" : "Select a course"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {courses.map(course => (
+                  {(formCourses.some((c) => c.id === courseId) ? formCourses : [...courses.filter((c) => c.id === courseId), ...formCourses]).map(course => (
                     <SelectItem key={course.id} value={course.id}>
-                      {course.title}
+                      {courseLabel(course)}
                     </SelectItem>
                   ))}
                 </SelectContent>
