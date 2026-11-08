@@ -52,7 +52,9 @@ export const docKindPath = (kind: ClassDocKind, roomId?: string | null) =>
 
 /** La migration n'a pas encore été lancée */
 export const missingDocsTable = (e: any) =>
-  e?.code === "42P01" || e?.code === "PGRST205" || /class_document/.test(e?.message || "");
+  e?.code === "42P01" ||
+  e?.code === "PGRST205" ||
+  /(does not exist|could not find the table).*class_document|class_document.*(does not exist|schema cache)/i.test(e?.message || "");
 
 const sortFiles = (files: DocFile[]) =>
   [...(files || [])].sort((a, b) => (a.role === b.role ? a.position - b.position || a.created_at.localeCompare(b.created_at) : a.role === "subject" ? -1 : 1));
