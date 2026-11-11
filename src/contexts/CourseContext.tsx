@@ -19,6 +19,10 @@ export interface Room {
   archived_at?: string | null;
   /** habilitations des élèves de la classe : { module: false } = module masqué (voir lib/classModules) */
   student_modules?: Record<string, boolean> | null;
+  /** niveau (tc | 1bac | 2bac), matière (pc | math | svt) et lycée : undefined tant que la migration 20261122090000 n'est pas lancée */
+  level?: string | null;
+  subject?: string | null;
+  school_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -740,7 +744,7 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('rooms')
         .insert([{
           ...room,
@@ -748,6 +752,11 @@ export function CourseProvider({ children }: { children: React.ReactNode }) {
         }])
         .select()
         .single();
+      // Base sans la migration niveau / matière / lycée : on crée la classe sans ces champs
+      if (error && /level|subject|school_name/.test(error.message || "") && /column|schema cache/i.test(error.message || "")) {
+        const { level: _l, subject: _s, school_name: _n, ...rest } = room as any;
+        ({ data, error } = await supabase.from('rooms').insert([{ ...rest, professor_id: user.id }]).select().single());
+      }
 
       if (error || !data) {
         toastFail("Échec de la création de la classe", "فشل إنشاء القسم", "Failed to add room", error);

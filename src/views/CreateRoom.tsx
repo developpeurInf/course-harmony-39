@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ClassLevelFields } from "@/components/classes/ClassLevelFields";
+import { useTeacherSchool } from "@/lib/proposed/teacherSchool";
+import { guessFromRoom } from "@/lib/proposed/catalog";
 import { useNavigate } from "@/lib/router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCourses } from "@/contexts/CourseContext";
@@ -24,6 +27,14 @@ const CreateRoom = () => {
     is_visible: true
   });
   const [loading, setLoading] = useState(false);
+  const school = useTeacherSchool(user?.id);
+  const [levelInfo, setLevelInfo] = useState({ level: "", subject: "", school_name: "" });
+  useEffect(() => { if (school) setLevelInfo((v) => (v.school_name ? v : { ...v, school_name: school })); }, [school]);
+  // Niveau / matière devinés depuis le nom tant que le professeur ne les a pas choisis
+  useEffect(() => {
+    const g = guessFromRoom(formData.name);
+    setLevelInfo((v) => ({ ...v, level: v.level || g.level || "", subject: v.subject || g.subject || "" }));
+  }, [formData.name]);
   const tr = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,6 +49,10 @@ const CreateRoom = () => {
       toast.error(tr("Une classe porte déjà ce nom", "يوجد قسم بهذا الاسم", "A class with this name already exists"));
       return;
     }
+    if (!levelInfo.level || !levelInfo.subject) {
+      toast.error(tr("Choisissez le niveau et la matière de la classe", "اختر مستوى ومادة القسم", "Choose the class level and subject"));
+      return;
+    }
     if (loading) return;
 
     setLoading(true);
@@ -46,7 +61,10 @@ const CreateRoom = () => {
       const ok = await addRoom({
         name,
         description: formData.description?.trim() || null,
-        is_visible: formData.is_visible
+        is_visible: formData.is_visible,
+        level: levelInfo.level,
+        subject: levelInfo.subject,
+        school_name: levelInfo.school_name.trim() || null,
       } as any);
       if (!ok) return;
       navigate('/class-management');
@@ -112,6 +130,8 @@ const CreateRoom = () => {
                 required
               />
             </div>
+
+            <ClassLevelFields idPrefix="new-room" value={levelInfo} onChange={setLevelInfo} />
 
             <div className="space-y-2">
               <Label htmlFor="description">

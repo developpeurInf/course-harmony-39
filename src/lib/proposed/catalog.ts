@@ -56,7 +56,24 @@ const PC_2BAC: Chapter[] = [
       { kind: "exam", title: "Devoir surveillé n°1 type : les ondes (avec corrigé)", file: `${P}/ondes-devoir-1.pdf`, withSolution: true },
     ],
   },
-  ...ch("2bac-pc", "Physique · Ondes", ["Ondes mécaniques progressives périodiques", "Propagation d'une onde lumineuse"]).map((c, i) => ({ ...c, id: `2bac-pc-ondes-${i + 2}` })),
+  {
+    id: "2bac-pc-ondes-2",
+    part: "Physique · Ondes",
+    title: "Ondes mécaniques progressives périodiques",
+    docs: [
+      { kind: "course", title: "Cours : Ondes mécaniques progressives périodiques", file: `${P}/periodiques-cours.pdf` },
+      { kind: "exercise", title: "Série d'exercices corrigés : Ondes périodiques", file: `${P}/periodiques-exercices.pdf`, withSolution: true },
+    ],
+  },
+  {
+    id: "2bac-pc-ondes-3",
+    part: "Physique · Ondes",
+    title: "Propagation d'une onde lumineuse",
+    docs: [
+      { kind: "course", title: "Cours : Propagation d'une onde lumineuse", file: `${P}/lumiere-cours.pdf` },
+      { kind: "exercise", title: "Série d'exercices corrigés : Ondes lumineuses", file: `${P}/lumiere-exercices.pdf`, withSolution: true },
+    ],
+  },
   ...ch("2bac-pc", "Physique · Transformations nucléaires", ["Décroissance radioactive", "Noyaux, masse et énergie"]),
   ...ch("2bac-pc", "Physique · Électricité", ["Dipôle RC", "Dipôle RL", "Oscillations libres d'un circuit RLC série", "Ondes électromagnétiques et modulation d'amplitude"]),
   ...ch("2bac-pc", "Physique · Mécanique", ["Lois de Newton", "Chute verticale d'un solide", "Mouvements plans", "Satellites et planètes", "Mouvement de rotation d'un solide autour d'un axe fixe", "Systèmes mécaniques oscillants", "Aspects énergétiques des oscillations mécaniques"]),

@@ -2,14 +2,19 @@
 /**
  * Cours / Exercices / Exams proposés d'une classe : catalogue de documents originaux
  * rangé selon le programme officiel, filtré par le niveau et la matière de la classe.
- * Le niveau et la matière sont devinés depuis le nom de la classe ; le professeur peut
- * les changer (mémorisés sur cet appareil).
+ * Le niveau et la matière sont ceux de la classe (rooms.level / rooms.subject). Sans la
+ * migration, ils sont devinés depuis le nom et modifiables (mémorisés sur cet appareil).
+ * Chaque PDF reçoit en tête le nom du professeur et du lycée.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "@/lib/router";
 import { useCourses } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { BookOpen, ClipboardCheck, Download, Eye, FileText, Search, X } from "lucide-react";
+import { BookOpen, ClipboardCheck, Download, Eye, FileText, Loader2, Pencil, Search, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { ClassSetupDialog } from "@/components/classes/ClassSetupDialog";
+import { useTeacherSchool } from "@/lib/proposed/teacherSchool";
+import { fileNameOf, stampedPdfUrl } from "@/lib/proposed/stamp";
 import {
   KIND_LABEL, LEVELS, SUBJECTS, chaptersFor, guessFromRoom,
   type LevelKey, type ProposedDoc, type ProposedKind, type SubjectKey,
@@ -29,6 +34,24 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
   const L = (v: [string, string, string]) => (language === "ar" ? v[1] : language === "en" ? v[2] : v[0]);
   const tr = (fr: string, ar: string, en: string) => L([fr, ar, en]);
   const room = rooms.find((r) => r.id === roomId);
+  const { user } = useAuth();
+  const teacherSchool = useTeacherSchool(user?.id);
+  const school = room?.school_name || teacherSchool;
+  /** la base a les colonnes niveau / matière */
+  const fromDb = room ? room.level !== undefined : false;
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+
+  const open = async (d: ProposedDoc, mode: "view" | "download") => {
+    setBusy(d.file + mode);
+    const url = await stampedPdfUrl(d.file, user?.name, school);
+    setBusy(null);
+    if (mode === "view") { setPreviewUrl(url); setPreview(d); return; }
+    const a = document.createElement("a");
+    a.href = url; a.download = fileNameOf(d.file);
+    document.body.appendChild(a); a.click(); a.remove();
+  };
 
   const [level, setLevel] = useState<LevelKey | "">("");
   const [subject, setSubject] = useState<SubjectKey | "">("");
@@ -36,11 +59,12 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
   const [preview, setPreview] = useState<ProposedDoc | null>(null);
 
   useEffect(() => {
+    if (fromDb) { setLevel((room?.level as LevelKey) || ""); setSubject((room?.subject as SubjectKey) || ""); return; }
     const saved = readChoice(roomId);
     const guess = guessFromRoom(room?.name, room?.description);
     setLevel(saved.level || guess.level || "");
     setSubject(saved.subject || guess.subject || "pc");
-  }, [roomId, room?.name, room?.description]);
+  }, [roomId, room?.name, room?.description, room?.level, room?.subject, fromDb]);
 
   const save = (l: LevelKey | "", s: SubjectKey | "") => {
     setLevel(l); setSubject(s);
@@ -75,6 +99,20 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
       </header>
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
+        {fromDb ? (
+          <div className="flex min-w-[220px] flex-[2] flex-col gap-1 text-xs font-medium text-muted-foreground">
+            {tr("Classe", "القسم", "Class")}
+            <div className="flex min-h-[40px] flex-wrap items-center gap-2 text-sm text-foreground">
+              <span className="font-semibold">{room?.name}</span>
+              {level && <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">{L(LEVELS.find((l) => l.key === level)!.label)}</span>}
+              {subject && <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs">{L(SUBJECTS.find((x) => x.key === subject)!.label)}</span>}
+              {school && <span className="text-xs text-muted-foreground">· {school}</span>}
+              <button type="button" onClick={() => setSetupOpen(true)} className="inline-flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs text-primary hover:bg-accent">
+                <Pencil className="h-3.5 w-3.5" />{tr("Modifier", "تعديل", "Edit")}
+              </button>
+            </div>
+          </div>
+        ) : (<>
         <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
           {tr("Niveau", "المستوى", "Level")}
           <select value={level} onChange={(e) => save(e.target.value as LevelKey, subject)} className="h-10 rounded-md border bg-background px-3 text-sm text-foreground">
@@ -88,6 +126,7 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
             {SUBJECTS.map((s) => <option key={s.key} value={s.key}>{L(s.label)}</option>)}
           </select>
         </label>
+        </>)}
         <label className="flex min-w-[200px] flex-[2] flex-col gap-1 text-xs font-medium text-muted-foreground">
           {tr("Rechercher un chapitre", "ابحث عن درس", "Search a chapter")}
           <span className="relative">
@@ -99,7 +138,12 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
 
       {!level ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {tr("Choisissez le niveau de la classe pour voir les documents proposés.", "اختر مستوى القسم لعرض الوثائق المقترحة.", "Choose the class level to see suggested documents.")}
+          {tr("Indiquez le niveau et la matière de la classe pour voir les documents proposés.", "حدد مستوى ومادة القسم لعرض الوثائق المقترحة.", "Set the class level and subject to see suggested documents.")}
+          {fromDb && (
+            <button type="button" onClick={() => setSetupOpen(true)} className="mx-auto mt-3 flex min-h-[40px] items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">
+              {tr("Choisir le niveau et la matière", "اختيار المستوى والمادة", "Set level and subject")}
+            </button>
+          )}
         </p>
       ) : parts.length === 0 ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -128,12 +172,12 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
                           {docs.map((d) => (
                             <span key={d.file} className="flex flex-wrap items-center gap-2">
                               {d.withSolution && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{tr("Avec corrigé", "مع التصحيح", "With solution")}</span>}
-                              <button type="button" onClick={() => setPreview(d)} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent">
-                                <Eye className="h-4 w-4" />{tr("Voir", "عرض", "View")}
+                              <button type="button" disabled={!!busy} onClick={() => open(d, "view")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent disabled:opacity-60">
+                                {busy === d.file + "view" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}{tr("Voir", "عرض", "View")}
                               </button>
-                              <a href={d.file} download className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">
-                                <Download className="h-4 w-4" />PDF
-                              </a>
+                              <button type="button" disabled={!!busy} onClick={() => open(d, "download")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60">
+                                {busy === d.file + "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}PDF
+                              </button>
                             </span>
                           ))}
                         </div>
@@ -153,14 +197,16 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
               <span className="truncate text-sm font-semibold">{preview.title}</span>
               <div className="flex items-center gap-2">
-                <a href={preview.file} download className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm"><Download className="h-4 w-4" />PDF</a>
+                <a href={previewUrl || preview.file} download={fileNameOf(preview.file)} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm"><Download className="h-4 w-4" />PDF</a>
                 <button type="button" onClick={() => setPreview(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-accent" aria-label={tr("Fermer", "إغلاق", "Close")}><X className="h-5 w-5" /></button>
               </div>
             </div>
-            <iframe src={preview.file} title={preview.title} className="h-full w-full flex-1" />
+            <iframe src={previewUrl || preview.file} title={preview.title} className="h-full w-full flex-1" />
           </div>
         </div>
       )}
+
+      {fromDb && <ClassSetupDialog open={setupOpen} onOpenChange={setSetupOpen} onlyRoomId={roomId} />}
     </div>
   );
 }

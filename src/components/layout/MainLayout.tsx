@@ -19,6 +19,7 @@ import { installIOSFocusScrollFix } from "@/components/ui/ui-i18n";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
+import { ClassSetupPrompt } from "@/components/classes/ClassSetupDialog";
 
 /** Empreinte courte d'un texte (pour mémoriser qu'une annonce précise a été fermée). */
 function textHash(text: string): string {
@@ -240,6 +241,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <TopNav />
+        <ClassSetupPrompt />
         <main
           ref={mainRef}
           className={
