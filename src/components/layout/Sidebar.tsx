@@ -54,7 +54,7 @@ import {
   GraduationCap,
   House,
   FolderOpen,
-  CalendarClock,
+  CalendarClock, Lightbulb
 } from "lucide-react";
 import { GGB_APPS } from "@/components/geogebra/ggbApps";
 import { warmProps, type WarmTarget } from "@/lib/warmup";
@@ -421,8 +421,14 @@ const Sidebar = () => {
                       {show("courses") && (
                         <NavItem nested to={`/rooms/${room.id}/courses`} icon={BookOpen} label={t("Cours", "الدروس", "Courses")} />
                       )}
+                      {show("courses") && (
+                        <NavItem nested to={`/rooms/${room.id}/proposed-courses`} icon={Lightbulb} label={t("Cours proposés", "الدروس المقترحة", "Suggested courses")} />
+                      )}
                       {show("exercises") && (
                         <NavItem nested to={`/rooms/${room.id}/exercises`} icon={FileText} label={t("Exercices", "التمارين", "Exercises")} />
+                      )}
+                      {show("exercises") && (
+                        <NavItem nested to={`/rooms/${room.id}/proposed-exercises`} icon={Lightbulb} label={t("Exercices proposés", "التمارين المقترحة", "Suggested exercises")} />
                       )}
                       {show("exams") && (
                         <SubMenu
@@ -447,6 +453,9 @@ const Sidebar = () => {
                             { to: `/rooms/${room.id}/exam-examples`, icon: FolderOpen, label: t("Exemples devoirs", "نماذج الفروض", "Sample exams"), locked: !can("homework.manage") },
                           ]}
                         />
+                      )}
+                      {show("exams") && (
+                        <NavItem nested to={`/rooms/${room.id}/proposed-exams`} icon={Lightbulb} label={t("Exams proposés", "الامتحانات المقترحة", "Suggested exams")} />
                       )}
                       {show("meet") && (
                         <NavItem
