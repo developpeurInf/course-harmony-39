@@ -1,0 +1,17 @@
+{
+  "name": "Math infini ∞",
+  "short_name": "Math infini",
+  "description": "Plateforme d'enseignement des mathématiques : cours, exercices, quiz et suivi des élèves.",
+  "lang": "fr",
+  "dir": "auto",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "16x16", "type": "image/x-icon" },
+    { "src": "/assets/header_logo.png", "sizes": "1407x270", "type": "image/png", "purpose": "any" }
+  ]
+}

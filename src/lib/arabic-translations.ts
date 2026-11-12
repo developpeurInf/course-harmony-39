@@ -767,7 +767,7 @@ const DYNAMIC_PATTERNS: Array<{ pattern: RegExp; replacer: (...args: any[]) => s
 /**
  * Translates any English, French or non-Moroccan terminology text to Modern Standard Arabic.
  */
-export function translateToArabic(text: string): string {
+function translateToArabicUncached(text: string): string {
   if (!text || typeof text !== "string") return text;
 
   const trimmed = text.trim();
@@ -779,11 +779,9 @@ export function translateToArabic(text: string): string {
   }
 
   // 2. Case-insensitive dictionary match
-  const lower = trimmed.toLowerCase();
-  for (const [key, val] of Object.entries(ARABIC_DICTIONARY)) {
-    if (key.toLowerCase() === lower) {
-      return val;
-    }
+  const lowerHit = lowerDictionary().get(trimmed.toLowerCase());
+  if (lowerHit !== undefined) {
+    return lowerHit;
   }
 
   // 3. Dynamic regex pattern match
@@ -813,4 +811,32 @@ export function translateToArabic(text: string): string {
   }
 
   return text;
+}
+
+// Dictionnaire en minuscules construit une seule fois (au lieu de parcourir tout le
+// dictionnaire à chaque texte), et cache des résultats (y compris « pas de traduction »).
+let LOWER_DICT: Map<string, string> | null = null;
+function lowerDictionary(): Map<string, string> {
+  if (!LOWER_DICT) {
+    LOWER_DICT = new Map<string, string>();
+    const keys = Object.keys(ARABIC_DICTIONARY);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i].toLowerCase();
+      if (!LOWER_DICT.has(k)) LOWER_DICT.set(k, ARABIC_DICTIONARY[keys[i]]);
+    }
+  }
+  return LOWER_DICT;
+}
+
+const RESULT_CACHE = new Map<string, string>();
+const RESULT_CACHE_MAX = 5000;
+
+export function translateToArabic(text: string): string {
+  if (!text || typeof text !== "string") return text;
+  const hit = RESULT_CACHE.get(text);
+  if (hit !== undefined) return hit;
+  const out = translateToArabicUncached(text);
+  if (RESULT_CACHE.size >= RESULT_CACHE_MAX) RESULT_CACHE.clear();
+  RESULT_CACHE.set(text, out);
+  return out;
 }
