@@ -19,6 +19,8 @@ export interface ProposedDoc {
   pages?: number;
   /** contient le corrigé */
   withSolution?: boolean;
+  /** cours : version complète ou résumé */
+  variant?: "full" | "summary";
 }
 
 export interface Chapter {
@@ -40,47 +42,55 @@ export const SUBJECTS: { key: SubjectKey; label: [string, string, string] }[] = 
   { key: "svt", label: ["SVT", "علوم الحياة والأرض", "Life & earth sciences"] },
 ];
 
-const ch = (prefix: string, part: string, titles: string[]): Chapter[] =>
-  titles.map((title, i) => ({ id: `${prefix}-${part.slice(0, 3).toLowerCase()}-${i + 1}`, title, part }));
-
 const P = "/proposes/2bac/pc";
 
+/** chapitres dont le cours complet est rédigé (fichier <base>-cours-complet.pdf) */
+const FULL_COURSES = new Set<string>(["ondes-mecaniques", "periodiques", "lumiere", "radio", "energie", "rc", "rl", "rlc", "modulation", "newton", "chute", "plans", "satellites", "rotation", "oscillants", "energie-meca", "lentes", "vitesse", "deux-sens", "equilibre", "acide-base", "dosage", "evolution", "piles", "electrolyse", "esterification", "controle"]);
+
+const slug = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const ch = (prefix: string, part: string, titles: string[]): Chapter[] =>
+  titles.map((title) => ({ id: `${prefix}-${slug(title)}`, title, part }));
+/** chapitre avec cours + série d'exercices corrigés */
+const full = (id: string, part: string, title: string, base: string, exTitle = title): Chapter => ({
+  id, part, title,
+  docs: [
+    ...(FULL_COURSES.has(base) ? [{ kind: "course" as const, variant: "full" as const, title: `Cours complet : ${title}`, file: `${P}/${base}-cours-complet.pdf` }] : []),
+    { kind: "course", variant: "summary", title: `Résumé : ${title}`, file: `${P}/${base}-cours.pdf` },
+    { kind: "exercise", title: `Série d'exercices corrigés : ${exTitle}`, file: `${P}/${base}-exercices.pdf`, withSolution: true },
+  ],
+});
+
+const withExam = (c: Chapter, ...extra: ProposedDoc[]): Chapter => ({ ...c, docs: [...(c.docs || []), ...extra] });
+
 const PC_2BAC: Chapter[] = [
-  {
-    id: "2bac-pc-ondes-1",
-    part: "Physique · Ondes",
-    title: "Ondes mécaniques progressives",
-    docs: [
-      { kind: "course", title: "Cours : Ondes mécaniques progressives", file: `${P}/ondes-mecaniques-cours.pdf` },
-      { kind: "exercise", title: "Série d'exercices corrigés : Ondes mécaniques progressives", file: `${P}/ondes-mecaniques-exercices.pdf`, withSolution: true },
-      { kind: "exam", title: "Devoir surveillé n°1 type : les ondes (avec corrigé)", file: `${P}/ondes-devoir-1.pdf`, withSolution: true },
-    ],
-  },
-  {
-    id: "2bac-pc-ondes-2",
-    part: "Physique · Ondes",
-    title: "Ondes mécaniques progressives périodiques",
-    docs: [
-      { kind: "course", title: "Cours : Ondes mécaniques progressives périodiques", file: `${P}/periodiques-cours.pdf` },
-      { kind: "exercise", title: "Série d'exercices corrigés : Ondes périodiques", file: `${P}/periodiques-exercices.pdf`, withSolution: true },
-    ],
-  },
-  {
-    id: "2bac-pc-ondes-3",
-    part: "Physique · Ondes",
-    title: "Propagation d'une onde lumineuse",
-    docs: [
-      { kind: "course", title: "Cours : Propagation d'une onde lumineuse", file: `${P}/lumiere-cours.pdf` },
-      { kind: "exercise", title: "Série d'exercices corrigés : Ondes lumineuses", file: `${P}/lumiere-exercices.pdf`, withSolution: true },
-    ],
-  },
-  ...ch("2bac-pc", "Physique · Transformations nucléaires", ["Décroissance radioactive", "Noyaux, masse et énergie"]),
-  ...ch("2bac-pc", "Physique · Électricité", ["Dipôle RC", "Dipôle RL", "Oscillations libres d'un circuit RLC série", "Ondes électromagnétiques et modulation d'amplitude"]),
-  ...ch("2bac-pc", "Physique · Mécanique", ["Lois de Newton", "Chute verticale d'un solide", "Mouvements plans", "Satellites et planètes", "Mouvement de rotation d'un solide autour d'un axe fixe", "Systèmes mécaniques oscillants", "Aspects énergétiques des oscillations mécaniques"]),
-  ...ch("2bac-pc", "Chimie · Transformations lentes et rapides", ["Transformations lentes et transformations rapides", "Suivi temporel d'une transformation : vitesse de réaction"]),
-  ...ch("2bac-pc", "Chimie · Transformations non totales", ["Transformations chimiques s'effectuant dans les deux sens", "État d'équilibre d'un système chimique", "Transformations liées aux réactions acide-base", "Dosage acido-basique"]),
-  ...ch("2bac-pc", "Chimie · Sens d'évolution d'un système", ["Évolution spontanée d'un système chimique", "Transformations spontanées dans les piles", "Transformations forcées : l'électrolyse"]),
-  ...ch("2bac-pc", "Chimie · Contrôle de l'évolution", ["Réactions d'estérification et d'hydrolyse", "Contrôle de l'évolution des systèmes chimiques"]),
+  withExam(full("2bac-pc-ondes-1", "Physique · Ondes", "Ondes mécaniques progressives", "ondes-mecaniques"),
+    { kind: "exam", title: "Devoir surveillé n°1 type : ondes mécaniques (avec corrigé)", file: `${P}/ondes-devoir-1.pdf`, withSolution: true }),
+  full("2bac-pc-ondes-2", "Physique · Ondes", "Ondes mécaniques progressives périodiques", "periodiques", "Ondes périodiques"),
+  full("2bac-pc-ondes-3", "Physique · Ondes", "Propagation d'une onde lumineuse", "lumiere", "Ondes lumineuses"),
+  full("2bac-pc-nuc-1", "Physique · Transformations nucléaires", "Décroissance radioactive", "radio"),
+  full("2bac-pc-nuc-2", "Physique · Transformations nucléaires", "Noyaux, masse et énergie", "energie"),
+  full("2bac-pc-ele-1", "Physique · Électricité", "Dipôle RC", "rc"),
+  full("2bac-pc-ele-2", "Physique · Électricité", "Dipôle RL", "rl"),
+  full("2bac-pc-ele-3", "Physique · Électricité", "Oscillations libres d'un circuit RLC série", "rlc", "Circuit RLC série"),
+  full("2bac-pc-ele-4", "Physique · Électricité", "Ondes électromagnétiques et modulation d'amplitude", "modulation", "Modulation d'amplitude"),
+  full("2bac-pc-meca-1", "Physique · Mécanique", "Lois de Newton", "newton"),
+  full("2bac-pc-meca-2", "Physique · Mécanique", "Chute verticale d'un solide", "chute"),
+  full("2bac-pc-meca-3", "Physique · Mécanique", "Mouvements plans", "plans"),
+  full("2bac-pc-meca-4", "Physique · Mécanique", "Satellites et planètes", "satellites"),
+  full("2bac-pc-meca-5", "Physique · Mécanique", "Mouvement de rotation d'un solide autour d'un axe fixe", "rotation", "Rotation autour d'un axe fixe"),
+  full("2bac-pc-meca-6", "Physique · Mécanique", "Systèmes mécaniques oscillants", "oscillants"),
+  full("2bac-pc-meca-7", "Physique · Mécanique", "Aspects énergétiques des oscillations mécaniques", "energie-meca", "Énergie des oscillateurs"),
+  full("2bac-pc-chi-1", "Chimie · Transformations lentes et rapides", "Transformations lentes et transformations rapides", "lentes"),
+  full("2bac-pc-chi-2", "Chimie · Transformations lentes et rapides", "Suivi temporel d'une transformation : vitesse de réaction", "vitesse"),
+  full("2bac-pc-chi-3", "Chimie · Transformations non totales", "Transformations chimiques s'effectuant dans les deux sens", "deux-sens"),
+  full("2bac-pc-chi-4", "Chimie · Transformations non totales", "État d'équilibre d'un système chimique", "equilibre"),
+  full("2bac-pc-chi-5", "Chimie · Transformations non totales", "Transformations liées aux réactions acide-base", "acide-base"),
+  full("2bac-pc-chi-6", "Chimie · Transformations non totales", "Dosage acido-basique", "dosage"),
+  full("2bac-pc-chi-7", "Chimie · Sens d'évolution d'un système", "Évolution spontanée d'un système chimique", "evolution"),
+  full("2bac-pc-chi-8", "Chimie · Sens d'évolution d'un système", "Transformations spontanées dans les piles", "piles"),
+  full("2bac-pc-chi-9", "Chimie · Sens d'évolution d'un système", "Transformations forcées : l'électrolyse", "electrolyse"),
+  full("2bac-pc-chi-10", "Chimie · Contrôle de l'évolution", "Réactions d'estérification et d'hydrolyse", "esterification"),
+  full("2bac-pc-chi-11", "Chimie · Contrôle de l'évolution", "Contrôle de l'évolution des systèmes chimiques", "controle"),
 ];
 
 const PC_1BAC: Chapter[] = [
@@ -99,10 +109,41 @@ const PC_TC: Chapter[] = [
   ...ch("tc-pc", "Chimie · Transformations de la matière", ["La mole, unité de quantité de matière", "Concentration molaire des espèces en solution", "La transformation chimique d'un système", "Bilan de matière"]),
 ];
 
+
+/* ---------- Mathématiques 2BAC sciences expérimentales ---------- */
+const PM = "/proposes/2bac/math";
+/** chapitres de maths rédigés : cours complet + résumé + série corrigée */
+const MATH_DONE = new Set<string>(["limites", "derivation", "suites", "primitives", "logarithme", "complexes-1", "exponentielle", "equa-diff", "complexes-2", "integrale", "produit-scalaire", "produit-vectoriel", "denombrement", "probabilites"]);
+const fullM = (n: number, part: string, title: string, base: string): Chapter => ({
+  id: `2bac-math-${n}`, part, title,
+  docs: MATH_DONE.has(base) ? [
+    { kind: "course", variant: "full", title: `Cours complet : ${title}`, file: `${PM}/${base}-cours-complet.pdf` },
+    { kind: "course", variant: "summary", title: `Résumé : ${title}`, file: `${PM}/${base}-cours.pdf` },
+    { kind: "exercise", title: `Série d'exercices corrigés : ${title}`, file: `${PM}/${base}-exercices.pdf`, withSolution: true },
+  ] : undefined,
+});
+const AN = "Analyse", AG = "Algèbre et géométrie", PR = "Dénombrement et probabilités";
+const MATH_2BAC: Chapter[] = [
+  fullM(1, AN, "Limites et continuité", "limites"),
+  fullM(2, AN, "Dérivation et étude des fonctions", "derivation"),
+  fullM(3, AN, "Suites numériques", "suites"),
+  fullM(4, AN, "Fonctions primitives", "primitives"),
+  fullM(5, AN, "Fonctions logarithmiques", "logarithme"),
+  fullM(6, AG, "Nombres complexes (partie 1)", "complexes-1"),
+  fullM(7, AN, "Fonctions exponentielles", "exponentielle"),
+  fullM(8, AN, "Équations différentielles", "equa-diff"),
+  fullM(9, AG, "Nombres complexes (partie 2)", "complexes-2"),
+  fullM(10, AN, "Calcul intégral", "integrale"),
+  fullM(11, AG, "Produit scalaire dans l'espace et applications", "produit-scalaire"),
+  fullM(12, AG, "Produit vectoriel", "produit-vectoriel"),
+  fullM(13, PR, "Dénombrement", "denombrement"),
+  fullM(14, PR, "Probabilités", "probabilites"),
+];
+
 export const CATALOG: Partial<Record<LevelKey, Partial<Record<SubjectKey, Chapter[]>>>> = {
   tc: { pc: PC_TC },
   "1bac": { pc: PC_1BAC },
-  "2bac": { pc: PC_2BAC },
+  "2bac": { pc: PC_2BAC, math: MATH_2BAC },
 };
 
 export const chaptersFor = (level?: LevelKey | null, subject?: SubjectKey | null): Chapter[] =>

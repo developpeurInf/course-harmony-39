@@ -171,6 +171,7 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
                         <div className="flex flex-wrap gap-2">
                           {docs.map((d) => (
                             <span key={d.file} className="flex flex-wrap items-center gap-2">
+                              {d.variant && <span className={d.variant === "full" ? "rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary" : "rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"}>{d.variant === "full" ? tr("Cours complet", "درس كامل", "Full course") : tr("Résumé", "ملخص", "Summary")}</span>}
                               {d.withSolution && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{tr("Avec corrigé", "مع التصحيح", "With solution")}</span>}
                               <button type="button" disabled={!!busy} onClick={() => open(d, "view")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent disabled:opacity-60">
                                 {busy === d.file + "view" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}{tr("Voir", "عرض", "View")}
