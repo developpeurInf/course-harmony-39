@@ -2,7 +2,9 @@ import { useAccess } from "@/contexts/AccessContext";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { FileText, X, Plus, Eye, Image as ImageIcon, Film, Youtube, Link2, PlayCircle, Loader2 } from 'lucide-react';
+import { ProposedPickerDialog } from '@/components/proposed/ProposedPickerDialog';
+import type { ProposedKind } from '@/lib/proposed/catalog';
+import { FileText, Library, X, Plus, Eye, Image as ImageIcon, Film, Youtube, Link2, PlayCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
@@ -46,6 +48,8 @@ interface MultiPdfUploadProps {
   permissionScope?: 'course' | 'exercise';
   /** Disable every control (e.g. while saving) */
   disabled?: boolean;
+  /** Affiche « Depuis les documents proposés » et ouvre cet onglet (cours, exercices, exams) */
+  proposedKind?: ProposedKind;
 }
 
 const KindIcon = ({ kind, className = "h-4 w-4" }: { kind: MaterialKind; className?: string }) => {
@@ -82,7 +86,9 @@ const MultiPdfUpload = ({
   removingId = null,
   permissionScope = 'course',
   disabled = false,
+  proposedKind,
 }: MultiPdfUploadProps) => {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [linkTitle, setLinkTitle] = useState('');
@@ -305,6 +311,16 @@ const MultiPdfUpload = ({
           disabled={disabled || totalCount >= maxFiles}
         />
       </div>
+
+      {proposedKind && (
+        <>
+          <Button type="button" variant="outline" className="w-full gap-2" disabled={disabled || totalCount >= maxFiles} onClick={() => setPickerOpen(true)}>
+            <Library className="h-4 w-4 text-primary" />
+            {tr('من الوثائق المقترحة', 'Depuis les documents proposés', 'From suggested documents')}
+          </Button>
+          <ProposedPickerDialog open={pickerOpen} onOpenChange={setPickerOpen} defaultKind={proposedKind} onPick={(files) => validateAndAddFiles(files)} />
+        </>
+      )}
 
       {/* Video link */}
       {onVideoLinksChange && !pdfOnly && (

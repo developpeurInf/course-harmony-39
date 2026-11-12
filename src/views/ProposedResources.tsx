@@ -4,23 +4,28 @@
  * rangé selon le programme officiel, filtré par le niveau et la matière de la classe.
  * Le niveau et la matière sont ceux de la classe (rooms.level / rooms.subject). Sans la
  * migration, ils sont devinés depuis le nom et modifiables (mémorisés sur cet appareil).
- * Chaque PDF reçoit en tête le nom du professeur et du lycée.
+ * Chaque PDF reçoit en tête, sur chaque page, le professeur à gauche, le lycée à droite et le
+ * numéro de chapitre au centre. Ce numéro suit l'ordre choisi par le professeur (réorganisable).
  */
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "@/lib/router";
+import { Link, useParams } from "@/lib/router";
 import { useCourses } from "@/contexts/CourseContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { BookOpen, ClipboardCheck, Download, Eye, FileText, Loader2, Pencil, Search, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, BookOpen, ListOrdered, RotateCcw, ClipboardCheck, Download, Eye, FileText, Loader2, Pencil, Search, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ClassSetupDialog } from "@/components/classes/ClassSetupDialog";
 import { useTeacherSchool } from "@/lib/proposed/teacherSchool";
 import { fileNameOf, stampedPdfUrl } from "@/lib/proposed/stamp";
+import { chapterLabel, useChapterOrder, type NumberedChapter } from "@/lib/proposed/order";
 import {
-  KIND_LABEL, LEVELS, SUBJECTS, chaptersFor, guessFromRoom,
+  KIND_LABEL, LEVELS, SUBJECTS, guessFromRoom,
   type LevelKey, type ProposedDoc, type ProposedKind, type SubjectKey,
 } from "@/lib/proposed/catalog";
 
 const KIND_ICON = { course: BookOpen, exercise: FileText, exam: ClipboardCheck } as const;
+/** page de chaque type de document, pour passer de l'un à l'autre */
+const KIND_PATH: Record<ProposedKind, string> = { course: "proposed-courses", exercise: "proposed-exercises", exam: "proposed-exams" };
+const KINDS: ProposedKind[] = ["course", "exercise", "exam"];
 const storeKey = (roomId: string) => `proposed:${roomId}`;
 
 function readChoice(roomId: string): { level?: LevelKey; subject?: SubjectKey } {
@@ -42,14 +47,16 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
   const [setupOpen, setSetupOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [previewName, setPreviewName] = useState<string>("");
+  const [reorder, setReorder] = useState(false);
 
-  const open = async (d: ProposedDoc, mode: "view" | "download") => {
+  const open = async (d: ProposedDoc, c: NumberedChapter, mode: "view" | "download") => {
     setBusy(d.file + mode);
-    const url = await stampedPdfUrl(d.file, user?.name, school);
+    const url = await stampedPdfUrl(d.file, user?.name, school, chapterLabel(c));
     setBusy(null);
-    if (mode === "view") { setPreviewUrl(url); setPreview(d); return; }
+    if (mode === "view") { setPreviewUrl(url); setPreview(d); setPreviewName(`ch${c.num}-${fileNameOf(d.file)}`); return; }
     const a = document.createElement("a");
-    a.href = url; a.download = fileNameOf(d.file);
+    a.href = url; a.download = `ch${c.num}-${fileNameOf(d.file)}`;
     document.body.appendChild(a); a.click(); a.remove();
   };
 
@@ -57,6 +64,11 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
   const [subject, setSubject] = useState<SubjectKey | "">("");
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState<ProposedDoc | null>(null);
+  /** chapitre ouvert depuis une autre page (?ch=…) : on le fait défiler et on le met en évidence */
+  const [focusCh, setFocusCh] = useState<string>("");
+  useEffect(() => {
+    try { setFocusCh(new URLSearchParams(window.location.search).get("ch") || ""); } catch { /* pas de fenêtre */ }
+  }, []);
 
   useEffect(() => {
     if (fromDb) { setLevel((room?.level as LevelKey) || ""); setSubject((room?.subject as SubjectKey) || ""); return; }
@@ -71,17 +83,20 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
     try { localStorage.setItem(storeKey(roomId), JSON.stringify({ level: l || undefined, subject: s || undefined })); } catch { /* stockage indisponible */ }
   };
 
+  /** chapitres dans l'ordre du professeur : le numéro affiché est celui tamponné dans les PDF */
+  const order = useChapterOrder(user?.id, level, subject);
   const chapters = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return chaptersFor(level || null, subject || null).filter((c) => !q || c.title.toLowerCase().includes(q) || c.part.toLowerCase().includes(q));
-  }, [level, subject, query]);
+    return order.chapters.filter((c) => !q || c.title.toLowerCase().includes(q) || c.part.toLowerCase().includes(q));
+  }, [order.chapters, query]);
 
-  const parts = useMemo(() => {
-    const m = new Map<string, typeof chapters>();
-    chapters.forEach((c) => m.set(c.part, [...(m.get(c.part) || []), c]));
-    return [...m.entries()];
-  }, [chapters]);
+  useEffect(() => {
+    if (!focusCh || chapters.length === 0) return;
+    const el = document.getElementById(`ch-${focusCh}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusCh, chapters.length]);
 
+  const countOf = (k: ProposedKind) => chapters.reduce((n, c) => n + (c.docs || []).filter((d) => d.kind === k).length, 0);
   const ready = chapters.reduce((n, c) => n + (c.docs || []).filter((d) => d.kind === kind).length, 0);
   const Icon = KIND_ICON[kind];
 
@@ -97,6 +112,20 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
           )}
         </p>
       </header>
+
+      <nav className="flex flex-wrap gap-2" aria-label={tr("Documents proposés", "الوثائق المقترحة", "Suggested documents")}>
+        {KINDS.map((k) => {
+          const KI = KIND_ICON[k];
+          const active = k === kind;
+          return (
+            <Link key={k} to={`/rooms/${roomId}/${KIND_PATH[k]}`} aria-current={active ? "page" : undefined}
+              className={active ? "inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground" : "inline-flex min-h-[40px] items-center gap-2 rounded-lg border bg-card px-3 text-sm hover:bg-accent"}>
+              <KI className="h-4 w-4" />{L(KIND_LABEL[k])}
+              {level && <span className={active ? "rounded-full bg-primary-foreground/20 px-1.5 text-xs" : "rounded-full bg-muted px-1.5 text-xs text-muted-foreground"}>{countOf(k)}</span>}
+            </Link>
+          );
+        })}
+      </nav>
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-3">
         {fromDb ? (
@@ -145,7 +174,7 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
             </button>
           )}
         </p>
-      ) : parts.length === 0 ? (
+      ) : chapters.length === 0 ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
           {query
             ? tr("Aucun chapitre ne correspond.", "لا يوجد درس مطابق.", "No matching chapter.")
@@ -153,19 +182,61 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
         </p>
       ) : (
         <>
-          <p className="text-xs text-muted-foreground">
-            {tr(`${chapters.length} chapitres · ${ready} document(s) disponible(s)`, `${chapters.length} درسا · ${ready} وثيقة متاحة`, `${chapters.length} chapters · ${ready} document(s) available`)}
-          </p>
-          {parts.map(([part, list]) => (
-            <section key={part} className="space-y-2">
-              <h2 className="text-sm font-semibold text-muted-foreground">{part}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              {tr(`${chapters.length} chapitres · ${ready} document(s) disponible(s)`, `${chapters.length} درسا · ${ready} وثيقة متاحة`, `${chapters.length} chapters · ${ready} document(s) available`)}
+              {order.custom && <span> · {tr("ordre personnalisé", "ترتيب شخصي", "custom order")}</span>}
+            </p>
+            <span className="flex flex-wrap gap-2">
+              {reorder && order.custom && (
+                <button type="button" onClick={order.reset} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent">
+                  <RotateCcw className="h-4 w-4" />{tr("Ordre du programme", "ترتيب البرنامج", "Curriculum order")}
+                </button>
+              )}
+              <button type="button" onClick={() => { setReorder((v) => !v); setQuery(""); }} aria-pressed={reorder}
+                className={reorder ? "inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground" : "inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent"}>
+                <ListOrdered className="h-4 w-4" />{reorder ? tr("Terminer", "إنهاء", "Done") : tr("Changer l'ordre des chapitres", "تغيير ترتيب الدروس", "Reorder chapters")}
+              </button>
+            </span>
+          </div>
+          {reorder && (
+            <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              {tr("Déplacez les chapitres avec les flèches. Le numéro choisi est imprimé en tête de chaque page du cours complet, du résumé et des exercices de ce chapitre.",
+                "رتّب الدروس بالأسهم. يُطبع الرقم المختار في أعلى كل صفحة من الدرس الكامل والملخص والتمارين.",
+                "Move chapters with the arrows. The number is printed at the top of every page of the chapter's full course, summary and exercises.")}
+            </p>
+          )}
+          {(
+            <section className="space-y-2">
               <ul className="divide-y rounded-xl border bg-card">
-                {list.map((c) => {
+                {chapters.map((c, idx) => {
                   const docs = (c.docs || []).filter((d) => d.kind === kind);
+                  const others = KINDS.filter((k) => k !== kind).map((k) => ({ k, n: (c.docs || []).filter((d) => d.kind === k).length })).filter((o) => o.n > 0);
                   return (
-                    <li key={c.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="text-sm font-medium">{c.title}</span>
-                      {docs.length === 0 ? (
+                    <li key={c.id} id={`ch-${c.id}`} className={`flex scroll-mt-24 flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between ${focusCh === c.id ? "bg-primary/5 ring-2 ring-inset ring-primary/40" : ""}`}>
+                      <span className="flex items-start gap-3">
+                        {reorder && !query && (
+                          <span className="flex flex-col">
+                            <button type="button" disabled={idx === 0} onClick={() => order.move(c.id, -1)} aria-label={tr("Monter", "إلى الأعلى", "Move up")} className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
+                            <button type="button" disabled={idx === chapters.length - 1} onClick={() => order.move(c.id, 1)} aria-label={tr("Descendre", "إلى الأسفل", "Move down")} className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
+                          </span>
+                        )}
+                        <span className="mt-0.5 inline-flex h-7 min-w-[28px] shrink-0 items-center justify-center rounded-md bg-primary/10 px-1.5 text-xs font-semibold text-primary">{c.num}</span>
+                      <span className="flex flex-col gap-1">
+                        <span className="text-sm font-medium">{tr(`Chapitre ${c.num} · `, `الدرس ${c.num} · `, `Chapter ${c.num} · `)}{c.title}</span>
+                        <span className="text-[11px] text-muted-foreground">{c.part}</span>
+                        {others.length > 0 && (
+                          <span className="flex flex-wrap gap-x-3 gap-y-1">
+                            {others.map(({ k, n }) => (
+                              <Link key={k} to={`/rooms/${roomId}/${KIND_PATH[k]}?ch=${encodeURIComponent(c.id)}`} className="inline-flex min-h-[28px] items-center gap-1 text-xs text-primary hover:underline">
+                                {L(KIND_LABEL[k])} ({n})<ArrowRight className="h-3 w-3 rtl:rotate-180" />
+                              </Link>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                      </span>
+                      {reorder ? null : docs.length === 0 ? (
                         <span className="w-fit rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">{tr("Bientôt", "قريبا", "Soon")}</span>
                       ) : (
                         <div className="flex flex-wrap gap-2">
@@ -173,10 +244,10 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
                             <span key={d.file} className="flex flex-wrap items-center gap-2">
                               {d.variant && <span className={d.variant === "full" ? "rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary" : "rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"}>{d.variant === "full" ? tr("Cours complet", "درس كامل", "Full course") : tr("Résumé", "ملخص", "Summary")}</span>}
                               {d.withSolution && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{tr("Avec corrigé", "مع التصحيح", "With solution")}</span>}
-                              <button type="button" disabled={!!busy} onClick={() => open(d, "view")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent disabled:opacity-60">
+                              <button type="button" disabled={!!busy} onClick={() => open(d, c, "view")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-accent disabled:opacity-60">
                                 {busy === d.file + "view" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}{tr("Voir", "عرض", "View")}
                               </button>
-                              <button type="button" disabled={!!busy} onClick={() => open(d, "download")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60">
+                              <button type="button" disabled={!!busy} onClick={() => open(d, c, "download")} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60">
                                 {busy === d.file + "download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}PDF
                               </button>
                             </span>
@@ -188,7 +259,7 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
                 })}
               </ul>
             </section>
-          ))}
+          )}
         </>
       )}
 
@@ -198,7 +269,7 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
               <span className="truncate text-sm font-semibold">{preview.title}</span>
               <div className="flex items-center gap-2">
-                <a href={previewUrl || preview.file} download={fileNameOf(preview.file)} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm"><Download className="h-4 w-4" />PDF</a>
+                <a href={previewUrl || preview.file} download={previewName || fileNameOf(preview.file)} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 text-sm"><Download className="h-4 w-4" />PDF</a>
                 <button type="button" onClick={() => setPreview(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-accent" aria-label={tr("Fermer", "إغلاق", "Close")}><X className="h-5 w-5" /></button>
               </div>
             </div>

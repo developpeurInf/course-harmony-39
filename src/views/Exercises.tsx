@@ -449,7 +449,7 @@ const Exercises = () => {
 
   /** Zone d'envoi commune aux fenêtres de création / modification */
   const renderUploader = (existing: CourseMaterialLike[]) => (
-    <MultiPdfUpload
+    <MultiPdfUpload proposedKind="exercise"
       onFilesChange={setSelectedFiles}
       selectedFiles={selectedFiles}
       maxFiles={15}

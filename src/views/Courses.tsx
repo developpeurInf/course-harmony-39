@@ -597,7 +597,7 @@ const Courses = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>{language === "ar" ? "مواد الدرس (PDF، صور، فيديوهات)" : language === "fr" ? "Supports de cours (PDF, images, vidéos)" : "Course materials (PDF, images, videos)"}</Label>
-                    <MultiPdfUpload
+                    <MultiPdfUpload proposedKind="course"
                       onFilesChange={setSelectedPdfFiles}
                       selectedFiles={selectedPdfFiles}
                       videoLinks={videoLinks}
@@ -1148,7 +1148,7 @@ const Courses = () => {
             </div>
             <div className="space-y-2">
               <Label>{language === "ar" ? "مواد الدرس (PDF، صور، فيديوهات)" : language === "fr" ? "Supports de cours (PDF, images, vidéos)" : "Course materials (PDF, images, videos)"}</Label>
-              <MultiPdfUpload
+              <MultiPdfUpload proposedKind="course"
                 onFilesChange={setSelectedPdfFiles}
                 selectedFiles={selectedPdfFiles}
                 videoLinks={videoLinks}

@@ -53,6 +53,8 @@ import {
   X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { FileText as FileTextIcon, Library as LibraryIcon } from "lucide-react";
+import { ProposedPickerDialog } from "@/components/proposed/ProposedPickerDialog";
 import type { QuizPhase } from "@/components/QuizTaker";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { useNow } from "@/hooks/useNow";
@@ -95,6 +97,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
     exams, 
     enrollments,
     addExam, 
+    uploadExamPdf,
     updateExam, 
     deleteExam, 
     toggleExamVisibility,
@@ -186,6 +189,10 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
   const [isVisible, setIsVisible] = useState(true);
   const [examType, setExamType] = useState<"exam" | "quiz">(kind ?? "exam");
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
+  /** sujet PDF joint à l'exam : fichier de l'ordinateur ou document proposé */
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfPickerOpen, setPdfPickerOpen] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>("all");
   const [showQuizBuilder, setShowQuizBuilder] = useState<string | null>(null);
   const [showQuizTaker, setShowQuizTaker] = useState<Exam | null>(null);
@@ -305,6 +312,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
 
   // Reset form with smart defaults
   const resetForm = () => {
+    setPdfFile(null);
     let defaultCourseId = "";
     if (courses && courses.length > 0) {
       if (selectedCourseFilter !== "all" && courses.some(c => c.id === selectedCourseFilter)) {
@@ -436,6 +444,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
       } as any);
       
       if (newExam) {
+        if (pdfFile) await uploadExamPdf(newExam.id, pdfFile, courseId);
         setIsAddDialogOpen(false);
         resetForm();
         if (examType === "quiz") {
@@ -491,6 +500,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
       });
       
       if (success) {
+        if (pdfFile) await uploadExamPdf(currentExam.id, pdfFile, courseId);
         setIsEditDialogOpen(false);
         resetForm();
       }
@@ -613,6 +623,34 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
 
 
 
+  const trx = (fr: string, ar: string, en: string) => (language === "ar" ? ar : language === "fr" ? fr : en);
+  const renderPdfField = (existing?: string | null) => (
+    <div className="space-y-2">
+      <Label>{trx("Sujet (PDF, facultatif)", "الموضوع (PDF، اختياري)", "Paper (PDF, optional)")}</Label>
+      {pdfFile ? (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-sm">
+          <FileTextIcon className="h-4 w-4 shrink-0 text-rose-500" />
+          <span className="min-w-0 flex-1 truncate" title={pdfFile.name}>{pdfFile.name}</span>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPdfFile(null)} aria-label={trx("Retirer", "إزالة", "Remove")}><X className="h-4 w-4" /></Button>
+        </div>
+      ) : existing ? (
+        <a href={existing} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
+          <FileTextIcon className="h-4 w-4" />{trx("Sujet actuel", "الموضوع الحالي", "Current paper")}
+        </a>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => pdfInputRef.current?.click()}>
+          <Plus className="h-4 w-4" />{existing || pdfFile ? trx("Remplacer par un PDF", "تعويض بملف PDF", "Replace with a PDF") : trx("Importer un PDF", "استيراد PDF", "Import a PDF")}
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setPdfPickerOpen(true)}>
+          <LibraryIcon className="h-4 w-4 text-primary" />{trx("Depuis les documents proposés", "من الوثائق المقترحة", "From suggested documents")}
+        </Button>
+      </div>
+      <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) setPdfFile(f); e.target.value = ""; }} />
+    </div>
+  );
+
   // Handle course filter change
   const handleCourseFilterChange = (courseId: string) => {
     setSelectedCourseFilter(courseId);
@@ -654,6 +692,10 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
             onViewChange={(view) => setViewMode(view)}
           />
           
+          {isProfessor && (
+            <ProposedPickerDialog open={pdfPickerOpen} onOpenChange={setPdfPickerOpen} defaultKind="exam" roomId={roomId || undefined}
+              onPick={(files) => files[0] && setPdfFile(files[0])} />
+          )}
           {isProfessor && (
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
@@ -833,6 +875,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
                       onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
                     />
                   </div>
+                  {renderPdfField()}
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="visibility"
@@ -1092,6 +1135,11 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
                   <CardContent className="pb-3 space-y-2.5 flex-1">
                     {exam.description && (
                       <p className="text-xs text-muted-foreground line-clamp-2">{exam.description}</p>
+                    )}
+                    {exam.pdf_url && (
+                      <a href={exam.pdf_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[32px] items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium text-primary hover:bg-accent">
+                        <FileTextIcon className="h-3.5 w-3.5" />{trx("Sujet (PDF)", "الموضوع (PDF)", "Paper (PDF)")}
+                      </a>
                     )}
                     {isProfessor && exam.type === 'quiz' && (
                       (quizStats[exam.id]?.count || 0) > 0 ? (
@@ -1707,6 +1755,7 @@ const Exams = ({ kind }: { kind?: ExamsKind } = {}) => {
                 onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
               />
             </div>
+            {renderPdfField(currentExam?.pdf_url)}
             <div className="flex items-center space-x-2">
               <Switch
                 id="edit-visibility"

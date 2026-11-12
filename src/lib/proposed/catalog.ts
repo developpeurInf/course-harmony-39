@@ -140,10 +140,54 @@ const MATH_2BAC: Chapter[] = [
   fullM(14, PR, "Probabilités", "probabilites"),
 ];
 
+/* ---------- SVT 2BAC sciences expérimentales (option SVT ; les élèves PC suivent une partie) ---------- */
+const PS = "/proposes/2bac/svt";
+/** chapitres de SVT rédigés : cours complet + résumé + série corrigée */
+const SVT_DONE = new Set<string>(["energie", "muscle", "info-genetique", "expression", "genie-genetique", "meiose", "lois-mendel", "genetique-humaine", "genetique-populations", "environnement", "chaines-montagnes", "metamorphisme", "granitisation"]);
+const fullS = (n: number, part: string, title: string, base: string): Chapter => ({
+  id: `2bac-svt-${n}`, part, title,
+  docs: SVT_DONE.has(base) ? [
+    { kind: "course", variant: "full", title: `Cours complet : ${title}`, file: `${PS}/${base}-cours-complet.pdf` },
+    { kind: "course", variant: "summary", title: `Résumé : ${title}`, file: `${PS}/${base}-cours.pdf` },
+    { kind: "exercise", title: `Série d'exercices corrigés : ${title}`, file: `${PS}/${base}-exercices.pdf`, withSolution: true },
+  ] : undefined,
+});
+const EN = "Consommation de la matière organique et flux d'énergie", GE = "Information génétique et génétique",
+  EV = "Utilisation des matières organiques et inorganiques", GO = "Géologie : formation des chaînes de montagnes";
+const SVT_2BAC: Chapter[] = [
+  fullS(1, EN, "Libération de l'énergie emmagasinée dans la matière organique", "energie"),
+  fullS(2, EN, "Rôle du muscle strié squelettique dans la conversion de l'énergie", "muscle"),
+  fullS(3, GE, "Notion de l'information génétique", "info-genetique"),
+  fullS(4, GE, "Expression de l'information génétique", "expression"),
+  fullS(5, GE, "Le génie génétique", "genie-genetique"),
+  fullS(6, GE, "Transfert de l'information génétique par la reproduction sexuée", "meiose"),
+  fullS(7, GE, "Lois statistiques de transmission des caractères héréditaires", "lois-mendel"),
+  fullS(8, GE, "La génétique humaine", "genetique-humaine"),
+  fullS(9, GE, "La génétique des populations", "genetique-populations"),
+  fullS(10, EV, "Ordures ménagères, pollution et contrôle de la qualité des milieux", "environnement"),
+  fullS(11, GO, "Les chaînes de montagnes récentes et la tectonique des plaques", "chaines-montagnes"),
+  fullS(12, GO, "Le métamorphisme", "metamorphisme"),
+  fullS(13, GO, "La granitisation", "granitisation"),
+];
+
+const PM1 = "/proposes/1bac/math";
+const MATH1_DONE = new Set<string>(["logique", "generalites-fonctions", "suites", "barycentre", "produit-scalaire", "trigonometrie", "rotation", "limites", "derivation", "representation-graphique", "vecteurs-espace", "geometrie-espace"]);
+const fullM1 = (n: number, part: string, title: string, base: string): Chapter => ({ id: `1bac-math-${n}`, part, title,
+  docs: MATH1_DONE.has(base) ? [ { kind: "course", variant: "full", title: `Cours complet : ${title}`, file: `${PM1}/${base}-cours-complet.pdf` },
+    { kind: "course", variant: "summary", title: `Résumé : ${title}`, file: `${PM1}/${base}-cours.pdf` },
+    { kind: "exercise", title: `Série d'exercices corrigés : ${title}`, file: `${PM1}/${base}-exercices.pdf`, withSolution: true } ] : undefined });
+const A1 = "Analyse", G1 = "Géométrie", L1 = "Logique et calcul";
+const MATH_1BAC: Chapter[] = [ fullM1(1, L1, "Notions de logique", "logique"), fullM1(2, A1, "Généralités sur les fonctions", "generalites-fonctions"),
+  fullM1(3, A1, "Les suites numériques", "suites"), fullM1(4, G1, "Le barycentre dans le plan", "barycentre"),
+  fullM1(5, G1, "Produit scalaire dans le plan", "produit-scalaire"), fullM1(6, L1, "Calcul trigonométrique", "trigonometrie"),
+  fullM1(7, G1, "La rotation", "rotation"), fullM1(8, A1, "Limite d'une fonction numérique", "limites"),
+  fullM1(9, A1, "La dérivation", "derivation"), fullM1(10, A1, "Représentation graphique d'une fonction numérique", "representation-graphique"),
+  fullM1(11, G1, "Vecteurs de l'espace", "vecteurs-espace"), fullM1(12, G1, "Géométrie analytique dans l'espace", "geometrie-espace") ];
+
 export const CATALOG: Partial<Record<LevelKey, Partial<Record<SubjectKey, Chapter[]>>>> = {
   tc: { pc: PC_TC },
-  "1bac": { pc: PC_1BAC },
-  "2bac": { pc: PC_2BAC, math: MATH_2BAC },
+  "1bac": { pc: PC_1BAC, math: MATH_1BAC },
+  "2bac": { pc: PC_2BAC, math: MATH_2BAC, svt: SVT_2BAC },
 };
 
 export const chaptersFor = (level?: LevelKey | null, subject?: SubjectKey | null): Chapter[] =>
