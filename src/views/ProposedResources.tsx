@@ -17,6 +17,7 @@ import { ClassSetupDialog } from "@/components/classes/ClassSetupDialog";
 import { useTeacherSchool } from "@/lib/proposed/teacherSchool";
 import { fileNameOf, stampedPdfUrl } from "@/lib/proposed/stamp";
 import { chapterLabel, useChapterOrder, type NumberedChapter } from "@/lib/proposed/order";
+import { ExamGenerator } from "@/components/proposed/ExamGenerator";
 import {
   KIND_LABEL, LEVELS, SUBJECTS, guessFromRoom,
   type LevelKey, type ProposedDoc, type ProposedKind, type SubjectKey,
@@ -164,6 +165,10 @@ export default function ProposedResources({ kind }: { kind: ProposedKind }) {
           </span>
         </label>
       </div>
+
+      {kind === "exam" && level && subject && (
+        <ExamGenerator level={level} subject={subject} chapters={order.chapters} teacher={user?.name} school={school} roomName={room?.name} />
+      )}
 
       {!level ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
